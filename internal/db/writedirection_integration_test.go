@@ -439,7 +439,7 @@ func calledQueries(t *testing.T, pkg string) []string {
 		if rel != root && !strings.HasPrefix(rel, root+"/") {
 			continue
 		}
-		// A test-helper package (admintest, accesstest) is test code, as *_test.go is.
+		// A test-helper package (admintest, routetest) is test code, as *_test.go is.
 		if rel != root && strings.HasSuffix(rel[strings.LastIndexByte(rel, '/')+1:], "test") {
 			continue
 		}

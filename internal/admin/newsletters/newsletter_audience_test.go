@@ -25,7 +25,7 @@ func TestNewsletterAudienceCounts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			body := renderComponent(t, ctx, Newsletter(frame.Page{}, NewsletterView{Active: tt.active, EnglishActive: tt.english, Awaiting: 98, Unsubscribed: 76}))
+			body := renderComponent(t, ctx, Newsletter(frame.Page{}, View{Active: tt.active, EnglishActive: tt.english, Awaiting: 98, Unsubscribed: 76}))
 			if !strings.Contains(body, `id="newsletter-audience">`+tt.want+`</p>`) || !strings.Contains(body, `action="/admin/newsletters" aria-describedby="newsletter-audience"`) {
 				t.Errorf("newsletter compose lacks its described audience %q", tt.want)
 			}

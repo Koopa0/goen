@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type CampaignRow struct {
+type Row struct {
 	Slug         string
 	Title        string
 	Products     int64
@@ -26,7 +26,7 @@ type CampaignRow struct {
 	EndsAtText   string
 }
 
-func (c CampaignRow) State(ctx context.Context) string {
+func (c Row) State(ctx context.Context) string {
 	return campaignState(ctx, c.Active, c.Running, c.Sellable)
 }
 
@@ -45,21 +45,21 @@ func campaignState(ctx context.Context, active, running, sellable bool) string {
 
 func nextActive(active bool) string { return strconv.FormatBool(!active) }
 
-func (c CampaignRow) Live() bool { return c.Running && c.Sellable }
+func (c Row) Live() bool { return c.Running && c.Sellable }
 
-func (c CampaignRow) ProductsText() string { return strconv.FormatInt(c.Products, 10) }
+func (c Row) ProductsText() string { return strconv.FormatInt(c.Products, 10) }
 
-func (c CampaignRow) Href() string { return "/admin/campaigns/" + c.Slug }
+func (c Row) Href() string { return "/admin/campaigns/" + c.Slug }
 
-func (c CampaignRow) ToggleAction() string { return "/admin/campaigns/" + c.Slug + "/active" }
+func (c Row) ToggleAction() string { return "/admin/campaigns/" + c.Slug + "/active" }
 
-func (c CampaignRow) NextActive() string { return nextActive(c.Active) }
+func (c Row) NextActive() string { return nextActive(c.Active) }
 
-func (c CampaignRow) ToggleLabel(ctx context.Context) string {
+func (c Row) ToggleLabel(ctx context.Context) string {
 	return widget.ToggleLabel(ctx, c.Active)
 }
 
-type CampaignProduct struct {
+type Product struct {
 	Slug          string
 	Name          string
 	Image         picture.Image
@@ -72,13 +72,13 @@ type CampaignProduct struct {
 	Draft                bool
 }
 
-func (p CampaignProduct) imageURL() string { return p.Image.URL() }
+func (p Product) imageURL() string { return p.Image.URL() }
 
-func (p CampaignProduct) hasMarkdown() bool {
+func (p Product) hasMarkdown() bool {
 	return p.HasVariant && p.CompareCents > p.PriceCents
 }
 
-func (p CampaignProduct) priceText(ctx context.Context) string {
+func (p Product) priceText(ctx context.Context) string {
 	if p.hasMarkdown() {
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCampProductPrice), money.TWD(p.CompareCents),
 			money.TWD(p.PriceCents), (p.CompareCents-p.PriceCents)*100/p.CompareCents)
@@ -86,7 +86,7 @@ func (p CampaignProduct) priceText(ctx context.Context) string {
 	return money.TWD(p.PriceCents)
 }
 
-func (p CampaignProduct) stockText(ctx context.Context) string {
+func (p Product) stockText(ctx context.Context) string {
 	if p.SellableUnits <= 0 {
 		return i18n.T(ctx, i18n.KeySoldOut)
 	}
@@ -96,13 +96,13 @@ func (p CampaignProduct) stockText(ctx context.Context) string {
 type View struct {
 	keyset.Bound
 
-	Rows   []CampaignRow
+	Rows   []Row
 	Notice widget.Result
 	Errors map[string]string
-	Draft  CampaignDraft
+	Draft  Draft
 }
 
-type CampaignDraft struct {
+type Draft struct {
 	Slug    string
 	Title   string
 	TitleEn string
@@ -110,7 +110,7 @@ type CampaignDraft struct {
 	Tone    string
 }
 
-func (d CampaignDraft) ToneOrStone() tone.Tone { return tone.Resolve(d.Tone) }
+func (d Draft) ToneOrStone() tone.Tone { return tone.Resolve(d.Tone) }
 
 func (v View) Empty() bool { return len(v.Rows) == 0 }
 
@@ -118,9 +118,9 @@ func (v View) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
 func (v View) Err(f string) string { return v.Errors[f] }
 
-// CampaignDetail is what the edit page reads of a campaign. The dates are
+// Detail is what the edit page reads of a campaign. The dates are
 // datetime-local field values, not display text.
-type CampaignDetail struct {
+type Detail struct {
 	Title                      string
 	Label                      string // the title in the reader's language, as the reports name the campaign
 	Starts, Ends               time.Time
@@ -129,15 +129,15 @@ type CampaignDetail struct {
 }
 
 type CampaignView struct {
-	CampaignDetail
+	Detail
 
 	ImageAltDraft   string
 	ImageAltEnDraft string
 
 	Slug     string
 	Term     string
-	Matches  []CampaignProduct
-	Products []CampaignProduct
+	Matches  []Product
+	Products []Product
 	Notice   widget.Result
 	Image    widget.HeaderImage
 	Tone     string
@@ -145,7 +145,7 @@ type CampaignView struct {
 
 	// Results is nil when there is nothing to tell yet; ResultsUnavailable
 	// that it could not be read.
-	Results            *CampaignResults
+	Results            *Results
 	ResultsUnavailable bool
 }
 
@@ -188,9 +188,9 @@ const (
 	minResultUnits = 10
 )
 
-// CampaignResults is what the products on a campaign's list sold on each shop
+// Results is what the products on a campaign's list sold on each shop
 // day: Days days before the campaign, then the first Days days of it.
-type CampaignResults struct {
+type Results struct {
 	Units    chart.Series
 	Days     int
 	Campaign chart.Span
@@ -198,7 +198,7 @@ type CampaignResults struct {
 	Cut      string // the time of day today is counted up to
 }
 
-func (r *CampaignResults) sold() (before, during int64) {
+func (r *Results) sold() (before, during int64) {
 	for i, b := range r.Units.Buckets {
 		if i < r.Days {
 			before += b.Value
@@ -211,20 +211,20 @@ func (r *CampaignResults) sold() (before, during int64) {
 
 // Reached reports whether the campaign has run long enough, and sold enough,
 // to be told by day.
-func (r *CampaignResults) Reached() bool {
+func (r *Results) Reached() bool {
 	before, during := r.sold()
 	return r.Days >= minResultDays && before+during >= minResultUnits
 }
 
 // Drawn reports whether the days are drawn. The columns want days with sales
 // too, so ten units on two days are told in the sentence.
-func (r *CampaignResults) Drawn() bool {
+func (r *Results) Drawn() bool {
 	return r.Reached() && r.Units.Density() >= chart.DensitySparse
 }
 
 // Facts says what was sold before and during: the caption of the columns and,
 // where they are not drawn, the whole of the results.
-func (r *CampaignResults) Facts(ctx context.Context) string {
+func (r *Results) Facts(ctx context.Context) string {
 	before, during := r.sold()
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCampFacts),
 		i18n.Count(ctx, i18n.KeyChartColumnDays, int64(r.Days), r.Days),
@@ -233,7 +233,7 @@ func (r *CampaignResults) Facts(ctx context.Context) string {
 }
 
 // Hint says what the columns wait for; it is empty once they have it.
-func (r *CampaignResults) Hint(ctx context.Context) string {
+func (r *Results) Hint(ctx context.Context) string {
 	if r.Reached() {
 		return ""
 	}
@@ -243,7 +243,7 @@ func (r *CampaignResults) Hint(ctx context.Context) string {
 }
 
 // Note says what the figures count, and up to when while today is going.
-func (r *CampaignResults) Note(ctx context.Context) string {
+func (r *Results) Note(ctx context.Context) string {
 	note := i18n.Count(ctx, i18n.KeyAdminCampResultsNote, int64(r.Products), r.Products)
 	if r.Units.Partial {
 		return note + " " + fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepPaidNote), r.Cut)
@@ -252,7 +252,7 @@ func (r *CampaignResults) Note(ctx context.Context) string {
 }
 
 // Columns is the days drawn: the days before in grey, the campaign's bracketed.
-func (r *CampaignResults) Columns(ctx context.Context) chart.ColumnsProps {
+func (r *Results) Columns(ctx context.Context) chart.ColumnsProps {
 	units := r.Units
 	units.Label = i18n.T(ctx, i18n.KeyAdminCampUnits)
 	return chart.ColumnsProps{

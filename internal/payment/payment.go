@@ -1,8 +1,14 @@
-// Package payment takes money for an order, through Stripe hosted Checkout.
-// A signature-verified webhook is the automatic paid fact. The only other door
-// is an explicit audited admin attribution of a provider-complete Session,
-// posted through the same capture invariants and side effects. The return to
-// success_url marks nothing, because anyone can request that URL.
+// Package payment takes money for an order, through Stripe hosted Checkout,
+// gives it back by refund, and lists the card disputes still waiting for the
+// shop's answer. A signature-verified webhook is the automatic paid fact. The
+// only other door is an explicit audited admin attribution of a
+// provider-complete Session, posted through the same capture invariants and
+// side effects. The return to success_url marks nothing, because anyone can
+// request that URL.
+//
+// It does not hold the refund statuses and words the desks share
+// (payment/refund) or the desk where staff decide and pay a refund
+// (admin/refunds).
 package payment
 
 import (

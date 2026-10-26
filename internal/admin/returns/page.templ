@@ -299,7 +299,7 @@ templ Returns(p frame.Page, v View) {
 	}
 }
 
-templ eligibilityFactRadios(returnID string, l ReturnLine, name string, label i18n.Key, v View) {
+templ eligibilityFactRadios(returnID string, l Line, name string, label i18n.Key, v View) {
 	<fieldset class="ui-field">
 		<legend class="ui-label">{ i18n.T(ctx, label) }</legend>
 		<p class="ui-error-text" id={ name + "-" + l.OrderLineID + "-error" } role="alert">{ v.FieldRefusal(returnID, name+"-"+l.OrderLineID) }</p>

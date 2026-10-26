@@ -148,7 +148,7 @@ func TestCouponsFieldExamples(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"coupon", Coupons(p, View{Draft: CouponDraft{Code: typed, Description: typed, PerCustomer: typed}, Errors: errors("code", "description", "percustomer")}), map[string]string{"c-code": prefix + "SUMMER20", "c-description": prefix + discount, "c-percustomer": prefix + "1"}},
+					{"coupon", Coupons(p, View{Draft: Draft{Code: typed, Description: typed, PerCustomer: typed}, Errors: errors("code", "description", "percustomer")}), map[string]string{"c-code": prefix + "SUMMER20", "c-description": prefix + discount, "c-percustomer": prefix + "1"}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)

@@ -23,7 +23,7 @@ func TestReturnsInspectionRestockedNotice(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale)
 				rendered := renderComponent(t, ctx, Returns(frame.Page{}, View{
 					Rows: []Return{{ID: "inspected", OrderNumber: "GO-INSPECTED", Status: returns.StatusApproved, Window: "within",
-						Lines: []ReturnLine{{OrderLineID: "line", Quantity: count, Inspected: true, Restocked: count}}}},
+						Lines: []Line{{OrderLineID: "line", Quantity: count, Inspected: true, Restocked: count}}}},
 				}))
 				want := fmt.Sprintf("Inspection finished — %d units went back into stock.", count)
 				if count == 1 {
@@ -50,9 +50,9 @@ func TestReturnsPartialInspectionLabels(t *testing.T) {
 			rendered := renderComponent(t, i18n.WithLocale(t.Context(), locale), Returns(frame.Page{}, View{
 				Rows: []Return{
 					{ID: "return-a", OrderNumber: "GO-SHARED", Status: "approved", Decided: true, Window: "within", Units: 1,
-						Lines: []ReturnLine{{OrderLineID: "shared-line", Quantity: 1, Restockable: true}}},
+						Lines: []Line{{OrderLineID: "shared-line", Quantity: 1, Restockable: true}}},
 					{ID: "return-b", OrderNumber: "GO-SHARED", Status: "approved", Decided: true, Window: "within", Units: 1,
-						Lines: []ReturnLine{{OrderLineID: "shared-line", Quantity: 1, Restockable: true}}},
+						Lines: []Line{{OrderLineID: "shared-line", Quantity: 1, Restockable: true}}},
 				},
 			}))
 			document, err := html.Parse(strings.NewReader(rendered))
@@ -359,7 +359,7 @@ func TestReturnsRowActions(t *testing.T) {
 		row.Status = "requested"
 		row.Decided = false
 		row.Window = "goodwill"
-		row.Lines = []ReturnLine{{
+		row.Lines = []Line{{
 			OrderLineID: "line-1", Name: "測試", Quantity: 1, SKU: "SKU-1",
 		}}
 		page := render(t, row)
@@ -475,13 +475,13 @@ func TestReturnsUndeliveredNoReject(t *testing.T) {
 		for _, tt := range []struct {
 			name       string
 			window     returns.PolicyWindow
-			lines      []ReturnLine
+			lines      []Line
 			wantReject bool
 		}{
 			{name: "undelivered", window: returns.WindowUndelivered},
 			{name: "statutory", window: returns.WindowStatutory},
-			{name: "mixed undelivered late", window: returns.WindowMixed, lines: []ReturnLine{{Window: returns.WindowUndelivered}, {Window: returns.WindowLate}}},
-			{name: "mixed undelivered goodwill", window: returns.WindowMixed, lines: []ReturnLine{{Window: returns.WindowUndelivered}, {Window: returns.WindowGoodwill}}},
+			{name: "mixed undelivered late", window: returns.WindowMixed, lines: []Line{{Window: returns.WindowUndelivered}, {Window: returns.WindowLate}}},
+			{name: "mixed undelivered goodwill", window: returns.WindowMixed, lines: []Line{{Window: returns.WindowUndelivered}, {Window: returns.WindowGoodwill}}},
 			{name: "goodwill", window: returns.WindowGoodwill, wantReject: true},
 			{name: "late", window: returns.WindowLate, wantReject: true},
 		} {
@@ -506,17 +506,17 @@ func TestReturnsProtectedWindowApproval(t *testing.T) {
 		for _, tt := range []struct {
 			name             string
 			window           returns.PolicyWindow
-			lines            []ReturnLine
+			lines            []Line
 			wantAssessment   bool
 			wantException    bool
 			wantGoodwillHint bool
 		}{
-			{name: "undelivered", window: returns.WindowUndelivered, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}}},
-			{name: "statutory", window: returns.WindowStatutory, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}}},
-			{name: "mixed statutory undelivered", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}, {OrderLineID: "second-line", Window: returns.WindowUndelivered}}},
-			{name: "mixed undelivered goodwill", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}, {OrderLineID: "second-line", Window: returns.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
-			{name: "mixed statutory goodwill", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}, {OrderLineID: "second-line", Window: returns.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
-			{name: "mixed undelivered late", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}, {OrderLineID: "second-line", Window: returns.WindowLate}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+			{name: "undelivered", window: returns.WindowUndelivered, lines: []Line{{OrderLineID: "first-line", Window: returns.WindowUndelivered}}},
+			{name: "statutory", window: returns.WindowStatutory, lines: []Line{{OrderLineID: "first-line", Window: returns.WindowStatutory}}},
+			{name: "mixed statutory undelivered", window: returns.WindowMixed, lines: []Line{{OrderLineID: "first-line", Window: returns.WindowStatutory}, {OrderLineID: "second-line", Window: returns.WindowUndelivered}}},
+			{name: "mixed undelivered goodwill", window: returns.WindowMixed, lines: []Line{{OrderLineID: "first-line", Window: returns.WindowUndelivered}, {OrderLineID: "second-line", Window: returns.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+			{name: "mixed statutory goodwill", window: returns.WindowMixed, lines: []Line{{OrderLineID: "first-line", Window: returns.WindowStatutory}, {OrderLineID: "second-line", Window: returns.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+			{name: "mixed undelivered late", window: returns.WindowMixed, lines: []Line{{OrderLineID: "first-line", Window: returns.WindowUndelivered}, {OrderLineID: "second-line", Window: returns.WindowLate}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -553,10 +553,10 @@ func TestReturnsProtectedWindowApproval(t *testing.T) {
 func TestReturnsRowOrderLinkShortfall(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	line := ReturnLine{Name: "耳機", Quantity: 1, Inspected: true, Received: 0}
+	line := Line{Name: "耳機", Quantity: 1, Inspected: true, Received: 0}
 	view := View{Rows: []Return{
-		{ID: "shipped", OrderNumber: "GO-260930-000012", Window: "goodwill", Lines: []ReturnLine{line}},
-		{ID: "unshipped", OrderNumber: "GO-260930-000011", Window: "goodwill", BeforeShipment: true, Lines: []ReturnLine{line}},
+		{ID: "shipped", OrderNumber: "GO-260930-000012", Window: "goodwill", Lines: []Line{line}},
+		{ID: "unshipped", OrderNumber: "GO-260930-000011", Window: "goodwill", BeforeShipment: true, Lines: []Line{line}},
 	}}
 	page := renderComponent(t, ctx, Returns(frame.Page{}, view))
 

@@ -48,7 +48,7 @@ type Department struct {
 
 func (d Department) Sales() string { return money.TWD(d.SalesCents) }
 
-type ReportView struct {
+type View struct {
 	Days         int
 	Orders       int64
 	RevenueCents int64
@@ -114,45 +114,45 @@ type PreviousFigures struct {
 }
 
 // Heading names the period and the one it is set against, by shop day.
-func (v *ReportView) Heading(ctx context.Context) string {
+func (v *View) Heading(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepPeriods),
 		chart.DayLabel(ctx, v.From), chart.DayLabel(ctx, v.To), chart.DayLabel(ctx, v.Previous.From), chart.DayLabel(ctx, v.Previous.To))
 }
 
 // RevenueAgainst is the line under the revenue figure.
-func (v *ReportView) RevenueAgainst(ctx context.Context) string {
+func (v *View) RevenueAgainst(ctx context.Context) string {
 	return v.against(ctx, v.RevenueCents, v.Previous.RevenueCents,
 		v.RevenueSquares+v.Previous.RevenueSquares, money.TWD(v.Previous.RevenueCents))
 }
 
 // OrdersAgainst is the line under the paid orders figure.
-func (v *ReportView) OrdersAgainst(ctx context.Context) string {
+func (v *View) OrdersAgainst(ctx context.Context) string {
 	return v.against(ctx, v.Orders, v.Previous.Orders,
 		float64(v.Orders+v.Previous.Orders), strconv.FormatInt(v.Previous.Orders, 10))
 }
 
 // AverageAgainst is the line under the average order figure: the previous
 // figure only, since no test tells a real change in an average from noise.
-func (v *ReportView) AverageAgainst(ctx context.Context) string {
+func (v *View) AverageAgainst(ctx context.Context) string {
 	if v.Previous.Orders == 0 {
 		return v.noPrevious(ctx)
 	}
 	return v.previous(ctx, money.TWD(v.Previous.AverageCents))
 }
 
-func (v *ReportView) RefundedAgainst(ctx context.Context) string {
+func (v *View) RefundedAgainst(ctx context.Context) string {
 	return v.previous(ctx, money.TWD(v.Previous.RefundedCents))
 }
 
-func (v *ReportView) CompletionAgainst(ctx context.Context) string {
+func (v *View) CompletionAgainst(ctx context.Context) string {
 	if v.Previous.Placed == 0 {
 		return i18n.Count(ctx, i18n.KeyAdminRepNoOrders, int64(v.Days), v.Days)
 	}
-	before := ReportView{Placed: v.Previous.Placed, Committed: v.Previous.Committed}
+	before := View{Placed: v.Previous.Placed, Committed: v.Previous.Committed}
 	return v.previous(ctx, before.Completion(ctx))
 }
 
-func (v *ReportView) against(ctx context.Context, cur, prev int64, noise float64, prevText string) string {
+func (v *View) against(ctx context.Context, cur, prev int64, noise float64, prevText string) string {
 	return sales.Comparison{
 		Days: v.Days, Orders: v.Orders, PreviousOrders: v.Previous.Orders, Noise: noise,
 		Current: cur, Previous: prev, PreviousText: prevText,
@@ -161,13 +161,13 @@ func (v *ReportView) against(ctx context.Context, cur, prev int64, noise float64
 
 // ShowsRunningTotal reports whether this period has days with orders enough to
 // draw its running total.
-func (v *ReportView) ShowsRunningTotal() bool {
+func (v *View) ShowsRunningTotal() bool {
 	return v.Daily.Current.Density() == chart.DensityFull
 }
 
 // RunningTotal is the chart of the days, with the revenue sentence as its
 // caption: the tile's own wording, so the two cannot disagree.
-func (v *ReportView) RunningTotal(ctx context.Context) chart.RunningTotalProps {
+func (v *View) RunningTotal(ctx context.Context) chart.RunningTotalProps {
 	current, previous := v.Daily.Current, v.Daily.Previous
 	current.Label = i18n.Count(ctx, i18n.KeyAdminRepLastDays, int64(v.Days), v.Days)
 	previous.Label = i18n.Count(ctx, i18n.KeyAdminRepPreviousDays, int64(v.Days), v.Days)
@@ -185,7 +185,7 @@ func (v *ReportView) RunningTotal(ctx context.Context) chart.RunningTotalProps {
 }
 
 // PaidHeading names the chart of paid orders by what each of its columns holds.
-func (v *ReportView) PaidHeading(ctx context.Context) string {
+func (v *View) PaidHeading(ctx context.Context) string {
 	if v.Paid.Days.Grouped() {
 		return i18n.T(ctx, i18n.KeyAdminRepEvery7Days)
 	}
@@ -194,13 +194,13 @@ func (v *ReportView) PaidHeading(ctx context.Context) string {
 
 // ShowsPaidColumns reports whether the days with paid orders are enough to
 // draw columns; fewer are told in a sentence.
-func (v *ReportView) ShowsPaidColumns() bool {
+func (v *View) ShowsPaidColumns() bool {
 	return v.Paid.Days.Density() >= chart.DensitySparse
 }
 
 // PaidColumns is the chart of paid orders, with the campaigns of the period
 // bracketed on it.
-func (v *ReportView) PaidColumns(ctx context.Context) chart.ColumnsProps {
+func (v *View) PaidColumns(ctx context.Context) chart.ColumnsProps {
 	days := v.Paid.Days
 	days.Label = i18n.T(ctx, i18n.KeyAdminRepPaidOrders)
 	dayHeading := i18n.T(ctx, i18n.KeyAdminRepDate)
@@ -219,7 +219,7 @@ func (v *ReportView) PaidColumns(ctx context.Context) chart.ColumnsProps {
 
 // PaidSentence says what the paid orders of the days were: the caption of the
 // columns, or, when there are too few days to draw them, all there is to say.
-func (v *ReportView) PaidSentence(ctx context.Context) string {
+func (v *View) PaidSentence(ctx context.Context) string {
 	days := v.Paid.Days
 	period := chart.DayLabel(ctx, v.From) + "–" + chart.DayLabel(ctx, v.To)
 	var withOrders []chart.Bucket
@@ -250,7 +250,7 @@ func (v *ReportView) PaidSentence(ctx context.Context) string {
 
 // busiest names the columns with the most paid orders; two or three tied are
 // named, more are counted. Today is told beside the busiest day.
-func (v *ReportView) busiest(ctx context.Context) string {
+func (v *View) busiest(ctx context.Context) string {
 	days := v.Paid.Days
 	peaks := chart.Peaks(days.Columns())
 	orders := func(n int64) string { return i18n.Count(ctx, i18n.KeyAdminRepOrdersCount, n, n) }
@@ -280,26 +280,26 @@ func longDayText(ctx context.Context, d shoptime.Date) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyShortDate), d.Month.String()[:3], int(d.Month), d.Day)
 }
 
-func (v *ReportView) previous(ctx context.Context, figure string) string {
+func (v *View) previous(ctx context.Context, figure string) string {
 	return i18n.Count(ctx, i18n.KeyAdminRepPrevious, int64(v.Days), v.Days, figure)
 }
 
-func (v *ReportView) noPrevious(ctx context.Context) string {
+func (v *View) noPrevious(ctx context.Context) string {
 	return i18n.Count(ctx, i18n.KeyAdminRepNoPrevious, int64(v.Days), v.Days)
 }
 
-func (v *ReportView) Revenue() string { return money.TWD(v.RevenueCents) }
+func (v *View) Revenue() string { return money.TWD(v.RevenueCents) }
 
-func (v *ReportView) Refunded() string { return money.TWD(v.RefundedCents) }
+func (v *View) Refunded() string { return money.TWD(v.RefundedCents) }
 
-func (v *ReportView) Average() string { return money.TWD(v.AverageCents) }
+func (v *View) Average() string { return money.TWD(v.AverageCents) }
 
-func (v *ReportView) OrdersText() string { return strconv.FormatInt(v.Orders, 10) }
+func (v *View) OrdersText() string { return strconv.FormatInt(v.Orders, 10) }
 
 // Completion is the completion rate rounded half up, or the bare count when
 // too few orders were placed for a percentage to mean anything. The rounded
 // rate never reads 100% or 0% unless exactly all or none were committed.
-func (v *ReportView) Completion(ctx context.Context) string {
+func (v *View) Completion(ctx context.Context) string {
 	switch {
 	case v.Placed == 0:
 		return "—"
@@ -314,33 +314,33 @@ func (v *ReportView) Completion(ctx context.Context) string {
 }
 
 // Counts says how many of the placed orders were committed.
-func (v *ReportView) Counts(ctx context.Context) string {
+func (v *View) Counts(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepCounts), v.CommittedText(), v.PlacedText())
 }
 
 // ShowsCount reports whether Completion already states the counts.
-func (v *ReportView) ShowsCount() bool { return v.Placed < sales.MinOrdersForRate }
+func (v *View) ShowsCount() bool { return v.Placed < sales.MinOrdersForRate }
 
-func (v *ReportView) PlacedText() string { return strconv.FormatInt(v.Placed, 10) }
+func (v *View) PlacedText() string { return strconv.FormatInt(v.Placed, 10) }
 
-func (v *ReportView) CommittedText() string { return strconv.FormatInt(v.Committed, 10) }
+func (v *View) CommittedText() string { return strconv.FormatInt(v.Committed, 10) }
 
 // Empty keeps refunds for older orders visible in a window with no new orders.
 // Stock-at-risk is queried independently and remains visible in an empty window.
-func (v *ReportView) Empty() bool { return v.Placed == 0 && v.RefundedCents == 0 }
+func (v *View) Empty() bool { return v.Placed == 0 && v.RefundedCents == 0 }
 
-func (v *ReportView) WindowHref(days int32) string {
+func (v *View) WindowHref(days int32) string {
 	return "/admin/reports?days=" + strconv.FormatInt(int64(days), 10)
 }
 
-func (v *ReportView) WindowLabel(ctx context.Context, days int32) string {
+func (v *View) WindowLabel(ctx context.Context, days int32) string {
 	return i18n.Count(ctx, i18n.KeyAdminDays, int64(days), days)
 }
 
-func (v *ReportView) IsWindow(days int32) bool { return int(days) == v.Days }
+func (v *View) IsWindow(days int32) bool { return int(days) == v.Days }
 
 // TopUnits is the longest bar's scale: the best seller's units.
-func (v *ReportView) TopUnits() int64 {
+func (v *View) TopUnits() int64 {
 	var top int64
 	for _, s := range v.Sellers {
 		top = max(top, s.Units)
@@ -349,7 +349,7 @@ func (v *ReportView) TopUnits() int64 {
 }
 
 // TopDepartment is the longest bar's scale: the largest department's product sales.
-func (v *ReportView) TopDepartment() int64 {
+func (v *View) TopDepartment() int64 {
 	var top int64
 	for _, d := range v.Departments {
 		top = max(top, d.SalesCents)
@@ -359,7 +359,7 @@ func (v *ReportView) TopDepartment() int64 {
 
 // OnlyDepartment says so when one department holds all of the product sales, where a
 // bar would compare it with nothing.
-func (v *ReportView) OnlyDepartment(ctx context.Context) string {
+func (v *View) OnlyDepartment(ctx context.Context) string {
 	d := v.Departments[0]
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentOnly), d.Name, d.Sales())
 }

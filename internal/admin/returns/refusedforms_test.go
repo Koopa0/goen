@@ -17,7 +17,7 @@ func TestReturnsRefusedInspectionTyped(t *testing.T) {
 	view := View{
 		Rows: []Return{{
 			ID: "r1", OrderNumber: "GO-260930-000012", Status: "approved", Window: "within", Decided: true,
-			Lines: []ReturnLine{{
+			Lines: []Line{{
 				OrderLineID: "l1", Name: "耳機", Quantity: 1, Restockable: true,
 				DraftReceived: "1", DraftRestocked: "3", DraftNote: "外盒破損",
 			}},

@@ -92,7 +92,7 @@ func TestProductStandingBestWeek(t *testing.T) {
 // TestProductStandingUnavailable: a weekly chart that could not be read is not
 // shown as an empty one.
 func TestProductStandingUnavailable(t *testing.T) {
-	got := renderStanding(t, i18n.En, &ProductView{Sales: Sales{Unavailable: true}, Ratings: ProductRatings{Unavailable: true}})
+	got := renderStanding(t, i18n.En, &ProductView{Sales: Sales{Unavailable: true}, Ratings: Ratings{Unavailable: true}})
 	if n := strings.Count(got, `role="status"`); n != 2 {
 		t.Errorf("status lines = %d, want 2", n)
 	}
@@ -108,15 +108,15 @@ func TestProductStandingUnavailable(t *testing.T) {
 func TestProductStandingSpreadMinimum(t *testing.T) {
 	tests := []struct {
 		name    string
-		ratings ProductRatings
+		ratings Ratings
 		loc     i18n.Locale
 		want    string
 		spread  bool
 	}{
-		{"none", ProductRatings{}, i18n.En, "No reviews yet.", false},
-		{"two", ProductRatings{Count: 2, Average: 4.5, Stars: [5]int64{1, 1}}, i18n.ZhHant, "2 則評價：5★ 1、4★ 1。", false},
-		{"four", ProductRatings{Count: 4, Average: 4, Stars: [5]int64{2, 1, 0, 0, 1}}, i18n.En, "4 reviews: 5★ 2, 4★ 1, 1★ 1.", false},
-		{"five", ProductRatings{Count: 5, Average: 4.4, Stars: [5]int64{3, 1, 0, 1, 0}}, i18n.En, "5 reviews, average 4.4 out of 5.", true},
+		{"none", Ratings{}, i18n.En, "No reviews yet.", false},
+		{"two", Ratings{Count: 2, Average: 4.5, Stars: [5]int64{1, 1}}, i18n.ZhHant, "2 則評價：5★ 1、4★ 1。", false},
+		{"four", Ratings{Count: 4, Average: 4, Stars: [5]int64{2, 1, 0, 0, 1}}, i18n.En, "4 reviews: 5★ 2, 4★ 1, 1★ 1.", false},
+		{"five", Ratings{Count: 5, Average: 4.4, Stars: [5]int64{3, 1, 0, 1, 0}}, i18n.En, "5 reviews, average 4.4 out of 5.", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestProductStandingSpreadMinimum(t *testing.T) {
 // TestProductStandingSpreadCounts: the rating spread counts every star in text
 // and scales to the largest.
 func TestProductStandingSpreadCounts(t *testing.T) {
-	got := renderStanding(t, i18n.En, &ProductView{Ratings: ProductRatings{Count: 12, Average: 4.2, Stars: [5]int64{8, 2, 1, 0, 1}}})
+	got := renderStanding(t, i18n.En, &ProductView{Ratings: Ratings{Count: 12, Average: 4.2, Stars: [5]int64{8, 2, 1, 0, 1}}})
 	_, table, _ := strings.Cut(got, `class="goen-spread"`)
 	for _, want := range []string{
 		`<th scope="row">5 stars</th>`, `<th scope="row">1 star</th>`,

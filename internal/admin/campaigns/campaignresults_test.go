@@ -13,13 +13,13 @@ import (
 
 // results is days days before a campaign and the first days of it, from 2026-09-22,
 // with the units each day sold in order.
-func results(days int, units ...int64) *CampaignResults {
+func results(days int, units ...int64) *Results {
 	buckets := make([]chart.Bucket, 0, len(units))
 	for i, u := range units {
 		buckets = append(buckets, chart.Bucket{Day: time.Date(2026, 9, 22+i, 0, 0, 0, 0, time.UTC), Value: u})
 	}
 	start := time.Date(2026, 9, 22+days, 0, 0, 0, 0, time.UTC)
-	return &CampaignResults{
+	return &Results{
 		Units: chart.Series{Buckets: buckets, Partial: true}, Days: days, Products: 6, Cut: "15:20",
 		Campaign: chart.Span{From: start, To: start.AddDate(0, 0, 13), Label: "Autumn picks"},
 	}
@@ -28,19 +28,19 @@ func results(days int, units ...int64) *CampaignResults {
 func renderResults(t *testing.T, locale i18n.Locale, v *CampaignView) string {
 	t.Helper()
 	var b bytes.Buffer
-	if err := CampaignForm(frame.Page{Title: "c"}, *v).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
-		t.Fatalf("CampaignForm.Render: %v", err)
+	if err := Campaign(frame.Page{Title: "c"}, *v).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+		t.Fatalf("Campaign.Render: %v", err)
 	}
 	return b.String()
 }
 
-// TestCampaignResults_Drawn: campaign results are drawn from three days and ten units before and during.
-func TestCampaignResults_Drawn(t *testing.T) {
+// TestResults_Drawn: campaign results are drawn from three days and ten units before and during.
+func TestResults_Drawn(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name         string
-		r            *CampaignResults
+		r            *Results
 		reached, got bool
 	}{
 		{"day 2, 1 unit", results(2, 0, 0, 1, 0), false, false},
@@ -59,8 +59,8 @@ func TestCampaignResults_Drawn(t *testing.T) {
 	}
 }
 
-// TestCampaignResults_FactsPlurals: campaign results sentences count before and during each in its own plural.
-func TestCampaignResults_FactsPlurals(t *testing.T) {
+// TestResults_FactsPlurals: campaign results sentences count before and during each in its own plural.
+func TestResults_FactsPlurals(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -83,8 +83,8 @@ func TestCampaignResults_FactsPlurals(t *testing.T) {
 	}
 }
 
-// TestCampaignFormResultsChart: campaign page draws the days or says them in a sentence.
-func TestCampaignFormResultsChart(t *testing.T) {
+// TestCampaignResultsChart: campaign page draws the days or says them in a sentence.
+func TestCampaignResultsChart(t *testing.T) {
 	t.Parallel()
 
 	drawn := renderResults(t, i18n.En, &CampaignView{Slug: "autumn", Results: results(3, 1, 1, 1, 2, 2, 3)})
@@ -102,7 +102,7 @@ func TestCampaignFormResultsChart(t *testing.T) {
 			t.Errorf("the Chinese page of a campaign with results lacks %q", want)
 		}
 	}
-	for name, r := range map[string]*CampaignResults{
+	for name, r := range map[string]*Results{
 		"day 2":                results(2, 0, 0, 1, 0),
 		"10 units on two days": results(5, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5),
 	} {
@@ -122,8 +122,8 @@ func TestCampaignFormResultsChart(t *testing.T) {
 	}
 }
 
-// TestCampaignResults_Note: campaign results note says what is counted and up to when today is going.
-func TestCampaignResults_Note(t *testing.T) {
+// TestResults_Note: campaign results note says what is counted and up to when today is going.
+func TestResults_Note(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)

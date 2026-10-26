@@ -86,7 +86,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		view.Errors = errs
-		view.Draft = CampaignDraft{
+		view.Draft = Draft{
 			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"), Tone: f.Tone,
 		}
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Campaigns(
@@ -142,7 +142,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 		altDraft, altEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
 	}
 	view := CampaignView{
-		Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
+		Slug: slug, Detail: detail, Term: term, Matches: matches,
 		Products: products, Notice: notice, Image: image, Tone: toneName, Errors: errs,
 		ImageAltDraft: altDraft, ImageAltEnDraft: altEnDraft,
 	}
@@ -153,7 +153,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 		h.log.ErrorContext(r.Context(), "read campaign results", "error", err, "slug", slug)
 		view.ResultsUnavailable = true
 	}
-	respond.Component(w, r, h.log, status, CampaignForm(frame.Page{Title: detail.Title}, view))
+	respond.Component(w, r, h.log, status, Campaign(frame.Page{Title: detail.Title}, view))
 }
 
 func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {
