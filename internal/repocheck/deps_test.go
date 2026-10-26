@@ -81,6 +81,8 @@ const (
 	pkgUitest     = "internal/ui/uitest"
 	pkgOrdertest  = "internal/order/ordertest"
 	pkgCheckoutt  = "internal/checkout/checkouttest"
+	pkgMediatest  = "internal/media/mediatest"
+	pkgProductst  = "internal/admin/products/productstest"
 )
 
 // exceptions are the edges the rules forbid and the plan has not removed yet:
@@ -140,7 +142,7 @@ var (
 	// testHelpers are the packages that exist for tests: a test imports them, and
 	// production code does not. Each one is named for the package it serves with
 	// "test" appended, as net/http/httptest serves net/http.
-	testHelpers = []string{pkgAccesstest, pkgAdmintest, pkgDbtest, pkgUitest, pkgOrdertest, pkgCheckoutt}
+	testHelpers = []string{pkgAccesstest, pkgAdmintest, pkgDbtest, pkgUitest, pkgOrdertest, pkgCheckoutt, pkgMediatest, pkgProductst}
 	// uiMayImport is what the shared visual language (internal/ui/…) may import
 	// besides itself.
 	uiMayImport = []string{
