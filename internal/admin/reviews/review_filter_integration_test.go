@@ -30,7 +30,7 @@ func TestStore_ReviewsFilter(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, owner)
 	want := seedFilteredReviews(ctx, t, owner)
 	store := reviews.NewStore(admintest.AdminRolePool(t, owner))
-	first, err := store.Reviews(ctx, reviews.FilterThreeStarsAndBelow)
+	first, err := store.Reviews(ctx, reviews.FilterThreeStarsAndBelow, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -95,7 +95,7 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) List(ctx context.Context, after ...string) (View, error) {
+func (s *Store) List(ctx context.Context, after string) (View, error) {
 	const scope = "/admin/campaigns"
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminCampaigns(ctx, db.AdminCampaignsParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})

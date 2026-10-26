@@ -189,7 +189,7 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 		admin.NotFound(w, r, h.log)
 		return
 	}
-	ledger, err := h.store.Credit(r.Context(), customer)
+	ledger, err := h.store.Credit(r.Context(), customer, "")
 	if errors.Is(err, ErrNotFound) {
 		admin.NotFound(w, r, h.log)
 		return

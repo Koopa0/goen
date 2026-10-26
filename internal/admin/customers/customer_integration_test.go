@@ -77,7 +77,7 @@ func TestStore_SearchNeedsTerm(t *testing.T) {
 	s := customers.NewStore(pool)
 
 	for _, term := range []string{"", " ", "王"} {
-		view, err := s.Search(ctx, term)
+		view, err := s.Search(ctx, term, "")
 		if err != nil {
 			t.Fatalf("Customers(%q): %v", term, err)
 		}
@@ -106,7 +106,7 @@ func TestStore_SearchAddressPrefix(t *testing.T) {
 		string([]rune(addr)[:10]),
 		strings.ToUpper(string([]rune(addr)[:10])),
 	} {
-		view, err := s.Search(ctx, term)
+		view, err := s.Search(ctx, term, "")
 		if err != nil {
 			t.Fatalf("Customers(%q): %v", term, err)
 		}
@@ -140,7 +140,7 @@ func TestStore_SearchWildcards(t *testing.T) {
 		ids[addr] = id
 	}
 
-	view, err := s.Search(ctx, "%%")
+	view, err := s.Search(ctx, "%%", "")
 	if err != nil {
 		t.Fatalf("Customers(%%%%): %v", err)
 	}
@@ -148,7 +148,7 @@ func TestStore_SearchWildcards(t *testing.T) {
 		t.Errorf(`searching "%%%%" listed %d customers; no address or name starts with it`, len(view.Rows))
 	}
 
-	view, err = s.Search(ctx, "lk_"+stem)
+	view, err = s.Search(ctx, "lk_"+stem, "")
 	if err != nil {
 		t.Fatalf("Customers: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestStore_SearchPromoted(t *testing.T) {
 		Scan(&addr); err != nil {
 		t.Fatalf("read the address: %v", err)
 	}
-	view, err := s.Search(ctx, string([]rune(addr)[:10]))
+	view, err := s.Search(ctx, string([]rune(addr)[:10]), "")
 	if err != nil {
 		t.Fatalf("Customers: %v", err)
 	}

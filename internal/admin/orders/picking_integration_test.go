@@ -98,7 +98,7 @@ func TestStore_PickingTotals(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := admintest.OrderStore(reader, admintest.Refunder{}, nil, nil)
-	view, err := s.Picking(ctx)
+	view, err := s.Picking(ctx, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestStore_PickingExcludesRefunding(t *testing.T) {
 	if !beforeShipment {
 		t.Fatal("the real refund door did not open a before-shipment request")
 	}
-	view, err := admintest.OrderStore(adminPool, admintest.Refunder{}, nil, nil).Picking(ctx)
+	view, err := admintest.OrderStore(adminPool, admintest.Refunder{}, nil, nil).Picking(ctx, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestStore_PickingCustomerNote(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	pickingFixtureOrder(t, owner, "NOTE-PICK", 1, 0, true)
-	view, err := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.Refunder{}, nil, nil).Picking(ctx)
+	view, err := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.Refunder{}, nil, nil).Picking(ctx, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +263,7 @@ func TestStore_PickingOldestFirst(t *testing.T) {
 		}
 		want = append(want, number)
 	}
-	view, err := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.Refunder{}, nil, nil).Picking(ctx)
+	view, err := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.Refunder{}, nil, nil).Picking(ctx, "")
 	if err != nil {
 		t.Fatal(err)
 	}

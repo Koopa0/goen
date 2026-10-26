@@ -44,7 +44,7 @@ func TestStore_CreditOneCustomer(t *testing.T) {
 
 	// The page for every customer has no running total, and carries the link
 	// data each row needs.
-	all, err := s.Credit(ctx, uuid.NullUUID{})
+	all, err := s.Credit(ctx, uuid.NullUUID{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestStore_CreditOneCustomer(t *testing.T) {
 		t.Fatal("the page for every customer omits the newest customer's grant")
 	}
 
-	page, err := s.Credit(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
+	page, err := s.Credit(ctx, uuid.NullUUID{UUID: customerID, Valid: true}, "")
 	if err != nil || len(page.Postings) != 50 || page.Bound.Next == "" {
 		t.Fatalf("first page: %d postings, next=%q, err=%v", len(page.Postings), page.Bound.Next, err)
 	}

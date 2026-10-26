@@ -32,7 +32,7 @@ func TestStore_WarrantiesSearch(t *testing.T) {
 		{name: "by the order number off the confirmation mail", q: number},
 	} {
 		t.Run(term.name, func(t *testing.T) {
-			view, err := warranties.NewStore(pool).Warranties(ctx, term.q)
+			view, err := warranties.NewStore(pool).Warranties(ctx, term.q, "")
 			if err != nil {
 				t.Fatalf("search warranties: %v", err)
 			}
@@ -60,7 +60,7 @@ func TestStore_WarrantiesSearch(t *testing.T) {
 		})
 	}
 
-	view, err := warranties.NewStore(pool).Warranties(ctx, "SN-NOSUCHTHING")
+	view, err := warranties.NewStore(pool).Warranties(ctx, "SN-NOSUCHTHING", "")
 	if err != nil {
 		t.Fatalf("search warranties: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestStore_WarrantiesShortTerm(t *testing.T) {
 	registeredWarranty(t, "SN-"+strings.ToUpper(uuid.NewString()[:8]), 1)
 
 	for _, term := range []string{"", " ", "A"} {
-		view, err := warranties.NewStore(pool).Warranties(ctx, term)
+		view, err := warranties.NewStore(pool).Warranties(ctx, term, "")
 		if err != nil {
 			t.Fatalf("search warranties %q: %v", term, err)
 		}
@@ -103,7 +103,7 @@ func TestStore_WarrantiesNextPage(t *testing.T) {
 		}
 	}
 	store := warranties.NewStore(pool)
-	first, err := store.Warranties(ctx, number)
+	first, err := store.Warranties(ctx, number, "")
 	if err != nil {
 		t.Fatalf("search warranties: %v", err)
 	}

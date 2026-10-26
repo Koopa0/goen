@@ -79,7 +79,7 @@ func TestStore_MovementsStockDays(t *testing.T) {
 		t.Fatalf("the fixture's ledger sums to %d but stock_quantity is %d: the days would roll back from the wrong level", ledger, column)
 	}
 
-	view, err := s.Movements(ctx, sku, now)
+	view, err := s.Movements(ctx, sku, now, "")
 	if err != nil {
 		t.Fatalf("Movements: %v", err)
 	}
