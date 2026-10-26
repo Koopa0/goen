@@ -21,7 +21,7 @@ func TestCreditConfirmation(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		v := CreditView{
+		v := View{
 			Confirm: true, CustomerID: "11111111-2222-3333-4444-555555555555", CustomerName: "Ada Wong", Email: "ada@example.test",
 			BalanceCents: 34000, GrantCents: 12500, Amount: "125", Reason: "goodwill for a late parcel", OperationID: "op-1",
 		}
@@ -69,7 +69,7 @@ func TestCreditKindLabels(t *testing.T) {
 	} {
 		ctx := i18n.WithLocale(t.Context(), tt.locale)
 		var body strings.Builder
-		v := CreditView{Rows: []CreditEntry{{Email: "a@example.test", AmountCents: -500, Kind: tt.kind, Reason: tt.reason}}}
+		v := View{Rows: []Entry{{Email: "a@example.test", AmountCents: -500, Kind: tt.kind, Reason: tt.reason}}}
 		if err := Credit(frame.Page{Title: "credit"}, v).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
@@ -82,7 +82,7 @@ func TestCreditKindLabels(t *testing.T) {
 // TestCreditSourceLinks: the credit page links each row to its sources.
 func TestCreditSourceLinks(t *testing.T) {
 	t.Parallel()
-	view := CreditView{Rows: []CreditEntry{
+	view := View{Rows: []Entry{
 		{Email: "ada@example.test", CustomerID: "customer-a", Kind: credit.OrderSpend, OrderNumber: "GO-261009-000001", AmountCents: -10000},
 		{Email: "ada@example.test", CustomerID: "customer-a", Kind: credit.ReturnPayout, OrderNumber: "GO-261009-000001", ReturnID: "return-a", AmountCents: 10000},
 		{Email: "ada@example.test", CustomerID: "customer-a", Kind: credit.StaffGrant, Reason: "goodwill", AmountCents: 30000, ActorEmail: "staff@example.test"},
@@ -116,9 +116,9 @@ func TestCreditSourceLinks(t *testing.T) {
 // TestCreditRunningTotalOrder: the credit running total names its order.
 func TestCreditRunningTotalOrder(t *testing.T) {
 	t.Parallel()
-	view := CreditView{
+	view := View{
 		FilterCustomerID: "customer-a", FilterCustomerName: "Ada",
-		Rows: []CreditEntry{{CustomerID: "customer-a", Kind: credit.StaffGrant, Reason: "Grant", RunningTotalCents: 10000}},
+		Rows: []Entry{{CustomerID: "customer-a", Kind: credit.StaffGrant, Reason: "Grant", RunningTotalCents: 10000}},
 	}
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -171,7 +171,7 @@ func TestCreditRunningTotalOrder(t *testing.T) {
 func TestCreditMenuCurrent(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Credit(frame.Page{}, CreditView{}))))
+	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Credit(frame.Page{}, View{}))))
 	if err != nil {
 		t.Fatal(err)
 	}

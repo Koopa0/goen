@@ -54,7 +54,7 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	f := &BannerForm{
+	f := &Form{
 		Message:    r.PostFormValue("message"),
 		Short:      r.PostFormValue("short"),
 		Code:       r.PostFormValue("code"),
@@ -112,7 +112,7 @@ func (h *Handler) rejectBanner(
 		return
 	}
 	view.Errors = errs
-	view.Draft = BannerDraft{
+	view.Draft = Draft{
 		Message: r.PostFormValue("message"), Short: r.PostFormValue("short"), Code: r.PostFormValue("code"),
 		CTALabel: r.PostFormValue("cta_label"), CTAHref: r.PostFormValue("cta_href"), Days: r.PostFormValue("days"),
 		MessageEn: r.PostFormValue("message_en"), ShortEn: r.PostFormValue("short_en"), CTALabelEn: r.PostFormValue("cta_label_en"),

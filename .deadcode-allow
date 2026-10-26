@@ -1,6 +1,6 @@
 # Test-only helpers that unit tests in other packages import; the tool does not count test code as a caller.
-internal/admin/accesstest.RefuseOutsiders # reason: shared by every admin feature's untagged routes_test.go, which deadcode does not analyse
-internal/admin/accesstest.RefuseOutsidersOn # reason: the mux half of RefuseOutsiders, called by it and by cmd/goen's untagged route inventory test, which deadcode does not analyse
+internal/admin/routetest.RefuseOutsiders # reason: shared by every admin feature's untagged routes_test.go, which deadcode does not analyse
+internal/admin/routetest.RefuseOutsidersOn # reason: the mux half of RefuseOutsiders, called by it and by cmd/goen's untagged route inventory test, which deadcode does not analyse
 internal/invoice.Reasons # reason: the closed list of stored reasons, read by the health page's every-reason-has-a-label test and the pin of the stored values; deadcode does not analyse test callers
 internal/ui/uitest.AssertEmailLink # reason: shared emailed-link assertion imported by untagged account, newsletter and frame tests and integration handler tests; deadcode excludes those callers
 internal/ui/uitest.selectEmailLink # reason: notice-panel selection used only by the shared AssertEmailLink test assertion; deadcode excludes its test callers

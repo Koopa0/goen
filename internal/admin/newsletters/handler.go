@@ -38,7 +38,7 @@ var notices = map[string]widget.NoticeEntry{
 	"already": widget.NoticeDone(i18n.KeyAdminNoticeAlready),
 }
 
-const NewsletterIssueLimit = 50
+const IssueLimit = 50
 
 func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 	view, err := h.newsletterView(r)
@@ -67,7 +67,7 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 			admin.ServerError(w, r, h.log)
 			return
 		}
-		view.Draft = NewsletterDraft{Subject: subject, Body: body}
+		view.Draft = Draft{Subject: subject, Body: body}
 		view.Errors = make(map[string]string, len(keys))
 		for field, k := range keys {
 			view.Errors[field] = i18n.T(r.Context(), k)
@@ -101,16 +101,16 @@ func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) newsletterView(r *http.Request) (NewsletterView, error) {
+func (h *Handler) newsletterView(r *http.Request) (View, error) {
 	counts, err := h.store.SubscriberCounts(r.Context())
 	if err != nil {
-		return NewsletterView{}, err
+		return View{}, err
 	}
-	issues, err := h.store.NewsletterIssues(r.Context(), NewsletterIssueLimit)
+	issues, err := h.store.NewsletterIssues(r.Context(), IssueLimit)
 	if err != nil {
-		return NewsletterView{}, err
+		return View{}, err
 	}
-	return NewsletterView{
+	return View{
 		Active: counts.Active, Unsubscribed: counts.Unsubscribed, Awaiting: counts.Awaiting,
 		EnglishActive: counts.EnglishActive,
 		Issues:        issues,

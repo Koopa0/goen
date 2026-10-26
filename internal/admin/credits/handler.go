@@ -85,8 +85,8 @@ func creditFilter(raw string) (customer uuid.NullUUID, ok bool) {
 }
 
 // creditView puts a ledger page in the words the page renders.
-func creditView(ledger Ledger) CreditView {
-	view := CreditView{Bound: ledger.Bound}
+func creditView(ledger Ledger) View {
+	view := View{Bound: ledger.Bound}
 	if ledger.Customer != nil {
 		view.FilterCustomerID = ledger.Customer.ID.String()
 		view.FilterCustomerName = ledger.Customer.Name
@@ -96,7 +96,7 @@ func creditView(ledger Ledger) CreditView {
 	}
 	for i := range ledger.Postings {
 		p := &ledger.Postings[i]
-		view.Rows = append(view.Rows, CreditEntry{
+		view.Rows = append(view.Rows, Entry{
 			Email: p.Email, AmountCents: p.AmountCents, Kind: credit.Kind(p.Kind), Reason: p.Reason,
 			At: shoptime.Minute(p.At), CustomerID: p.CustomerID, OrderNumber: p.OrderNumber,
 			ReturnID: p.ReturnID, ActorEmail: p.ActorEmail, RunningTotalCents: p.RunningCents,
@@ -128,7 +128,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	view := CreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id"), FilterCustomerID: r.PostFormValue("filter_customer")}
+	view := View{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id"), FilterCustomerID: r.PostFormValue("filter_customer")}
 	operationID, valid := validateCreditGrant(&view)
 	if !valid {
 		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, "")
@@ -183,7 +183,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *CreditView, status int, notice i18n.Key) {
+func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *View, status int, notice i18n.Key) {
 	customer, ok := creditFilter(view.FilterCustomerID)
 	if !ok {
 		admin.NotFound(w, r, h.log)

@@ -16,18 +16,18 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-type ReviewFilter uint8
+type Filter uint8
 
 const (
-	AllReviews ReviewFilter = iota
-	ThreeStarsAndBelowReviews
+	FilterAll Filter = iota
+	FilterThreeStarsAndBelow
 )
 
-func (s *Store) Reviews(ctx context.Context, filter ReviewFilter, after ...string) (View, error) {
-	if filter != AllReviews && filter != ThreeStarsAndBelowReviews {
+func (s *Store) Reviews(ctx context.Context, filter Filter, after ...string) (View, error) {
+	if filter != FilterAll && filter != FilterThreeStarsAndBelow {
 		return View{}, ErrInvalid
 	}
-	threeStarsAndBelow := filter == ThreeStarsAndBelowReviews
+	threeStarsAndBelow := filter == FilterThreeStarsAndBelow
 	scope := "/admin/reviews"
 	if threeStarsAndBelow {
 		scope = keyset.ScopeURL(scope, "rating", "3")

@@ -3,7 +3,8 @@
 //
 // It reads each letter from the payload its outbox topic stored, or from what
 // was resolved at delivery, and only cmd/goen imports it: a feature queues a
-// payload in internal/outbox and never composes mail itself.
+// payload in internal/outbox and never composes mail itself. It does not hold
+// the rules an address must meet, which are internal/email's.
 package letter
 
 import (

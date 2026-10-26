@@ -75,13 +75,13 @@ func (v View) Waiting() int {
 
 func (v View) WaitingText() string { return strconv.Itoa(v.Waiting()) }
 
-type QuestionAction string
+type Action string
 
 const (
-	QuestionAnswerAction     QuestionAction = "answer"
-	QuestionHideAction       QuestionAction = "hide"
-	QuestionShowAction       QuestionAction = "show"
-	QuestionHideAnswerAction QuestionAction = "hide_answer"
+	ActionAnswer     Action = "answer"
+	ActionHide       Action = "hide"
+	ActionShow       Action = "show"
+	ActionHideAnswer Action = "hide_answer"
 )
 
 type Answer struct {
@@ -89,11 +89,11 @@ type Answer struct {
 	IsStaff, Hidden      bool
 }
 
-func (q Question) VisibilityAction() QuestionAction {
+func (q Question) VisibilityAction() Action {
 	if q.Hidden {
-		return QuestionShowAction
+		return ActionShow
 	}
-	return QuestionHideAction
+	return ActionHide
 }
 
 func (q Question) VisibilityLabel(ctx context.Context) string {

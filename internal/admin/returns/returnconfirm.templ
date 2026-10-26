@@ -6,7 +6,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ ConfirmReturn(p frame.Page, v ReturnConfirmation) {
+templ ConfirmReturn(p frame.Page, v Confirmation) {
 	@frame.Admin(p, "returns") {
 		<div class="ui-page-head"><h1 class="ui-page-head__title">{ v.Title(ctx) }</h1></div>
 		@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {

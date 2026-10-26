@@ -18,10 +18,10 @@ type View struct {
 
 	Term     string
 	Searched bool
-	Rows     []CustomerRow
+	Rows     []Row
 }
 
-type CustomerRow struct {
+type Row struct {
 	ID       string
 	Email    string
 	Name     string
@@ -36,11 +36,11 @@ func (v View) TermTooShort() bool { return v.Term != "" && !v.Searched }
 
 func (v View) Empty() bool { return len(v.Rows) == 0 }
 
-func (r CustomerRow) OrdersText() string { return strconv.FormatInt(r.Orders, 10) }
+func (r Row) OrdersText() string { return strconv.FormatInt(r.Orders, 10) }
 
-func (r CustomerRow) Href() string { return "/admin/customers/" + r.ID }
+func (r Row) Href() string { return "/admin/customers/" + r.ID }
 
-func (r CustomerRow) DisplayName() string {
+func (r Row) DisplayName() string {
 	if r.Name == "" {
 		return r.Email
 	}
@@ -48,7 +48,7 @@ func (r CustomerRow) DisplayName() string {
 }
 
 // RecentOrder is one line of the customer page's recent orders: the part of an
-// order the page shows, which is not the orders desk's OrderRow.
+// order the page shows, which is not the orders desk's orders.Row.
 type RecentOrder struct {
 	Number       string
 	Status       order.FulfillmentStatus

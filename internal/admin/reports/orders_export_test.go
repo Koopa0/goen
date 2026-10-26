@@ -14,7 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/admin"
-	"github.com/koopa0/goen/internal/admin/accesstest"
+	"github.com/koopa0/goen/internal/admin/routetest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
@@ -67,7 +67,7 @@ func TestHandler_OrdersCSVInvalidMonth(t *testing.T) {
 func TestHandler_RoutesOrdersCSVGuards(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
-	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
+	routetest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
 		NewHandler(&Store{}, log).Routes(mux, ac)
 	}, "GET /admin/reports/orders.csv?month=2024-02")
 	mux := http.NewServeMux()

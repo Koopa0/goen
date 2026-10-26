@@ -6,23 +6,23 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type NewsletterView struct {
+type View struct {
 	Active        int64
 	EnglishActive int64
 	Unsubscribed  int64
 	Awaiting      int64
-	Issues        []NewsletterIssue
-	Draft         NewsletterDraft
+	Issues        []Issue
+	Draft         Draft
 	Errors        map[string]string
 	Notice        widget.Result
 }
 
-type NewsletterDraft struct {
+type Draft struct {
 	Subject string
 	Body    string
 }
 
-type NewsletterIssue struct {
+type Issue struct {
 	ID         string
 	Subject    string
 	Body       string
@@ -32,29 +32,29 @@ type NewsletterIssue struct {
 	SentBy     string
 }
 
-func (v NewsletterView) ActiveText() string { return strconv.FormatInt(v.Active, 10) }
+func (v View) ActiveText() string { return strconv.FormatInt(v.Active, 10) }
 
-func (v NewsletterView) UnsubscribedText() string {
+func (v View) UnsubscribedText() string {
 	return strconv.FormatInt(v.Unsubscribed, 10)
 }
 
-func (v NewsletterView) AwaitingText() string { return strconv.FormatInt(v.Awaiting, 10) }
+func (v View) AwaitingText() string { return strconv.FormatInt(v.Awaiting, 10) }
 
-func (v NewsletterView) Empty() bool { return len(v.Issues) == 0 }
+func (v View) Empty() bool { return len(v.Issues) == 0 }
 
-func (v NewsletterView) CanSend() bool { return v.Active > 0 }
+func (v View) CanSend() bool { return v.Active > 0 }
 
-func (v NewsletterView) Err(field string) string { return v.Errors[field] }
+func (v View) Err(field string) string { return v.Errors[field] }
 
-func (v NewsletterView) HasErr(field string) bool { return v.Errors[field] != "" }
+func (v View) HasErr(field string) bool { return v.Errors[field] != "" }
 
-func (i NewsletterIssue) RecipientsText() string {
+func (i Issue) RecipientsText() string {
 	return strconv.FormatInt(int64(i.Recipients), 10)
 }
 
-func (i NewsletterIssue) SendAction() string { return "/admin/newsletters/" + i.ID + "/send" }
+func (i Issue) SendAction() string { return "/admin/newsletters/" + i.ID + "/send" }
 
-func (i NewsletterIssue) Preview() string {
+func (i Issue) Preview() string {
 	const limit = 80
 	r := []rune(i.Body)
 	if len(r) <= limit {

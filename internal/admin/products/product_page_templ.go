@@ -416,7 +416,7 @@ func Products(p frame.Page, v View) templ.Component {
 
 // One card per job, because they are done at different times and a single column of
 // forty fields hides which one you are in.
-func ProductForm(p frame.Page, v ProductView) templ.Component {
+func Product(p frame.Page, v ProductView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

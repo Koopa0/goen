@@ -55,23 +55,23 @@ var ErrDailyRevenue = errors.New("read daily revenue")
 // ReportAt reads the last days shop days up to now, and the same number before
 // them, cut at the same time of day. The tiles and the daily chart are read in
 // one snapshot, so the days add up to the revenue even while orders are paid.
-func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (ReportView, error) {
+func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (View, error) {
 	// The stock and its ledger are read in their own snapshot, before this one
 	// opens, so one report holds one connection at a time.
 	atRisk, moreSoldOut, err := s.cover.DaysCover(ctx, int(window(days)), now)
 	if err != nil {
-		return ReportView{}, err
+		return View{}, err
 	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return ReportView{}, fmt.Errorf("begin report snapshot: %w", err)
+		return View{}, fmt.Errorf("begin report snapshot: %w", err)
 	}
 	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	view, err := reportAt(ctx, q, days, now)
 	if err != nil {
-		return ReportView{}, err
+		return View{}, err
 	}
 	view.AtRisk, view.MoreSoldOut = stockrisk.NewRows(atRisk, now), moreSoldOut
 	current, _ := periods(now, int(window(days)))
@@ -155,46 +155,46 @@ func readPeriod(ctx context.Context, q *db.Queries, p period) (sales.Period, err
 	}, nil
 }
 
-func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ReportView, error) {
+func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (View, error) {
 	days = window(days)
 	current, before := periods(now, int(days))
 
 	revenue, err := q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: current.from, ToAt: current.to})
 	if err != nil {
-		return ReportView{}, fmt.Errorf("read revenue: %w", err)
+		return View{}, fmt.Errorf("read revenue: %w", err)
 	}
 	completion, err := q.CheckoutCompletionBetween(ctx, db.CheckoutCompletionBetweenParams{
 		FromAt: current.from, ToAt: current.to,
 	})
 	if err != nil {
-		return ReportView{}, fmt.Errorf("read completion: %w", err)
+		return View{}, fmt.Errorf("read completion: %w", err)
 	}
 	prevRevenue, err := q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: before.from, ToAt: before.to})
 	if err != nil {
-		return ReportView{}, fmt.Errorf("read previous revenue: %w", err)
+		return View{}, fmt.Errorf("read previous revenue: %w", err)
 	}
 	prevCompletion, err := q.CheckoutCompletionBetween(ctx, db.CheckoutCompletionBetweenParams{
 		FromAt: before.from, ToAt: before.to,
 	})
 	if err != nil {
-		return ReportView{}, fmt.Errorf("read previous completion: %w", err)
+		return View{}, fmt.Errorf("read previous completion: %w", err)
 	}
 	sellers, err := q.BestSellersBetween(ctx, db.BestSellersBetweenParams{
 		FromAt: current.from, ToAt: current.to, LimitTo: maxRows,
 	})
 	if err != nil {
-		return ReportView{}, fmt.Errorf("read best sellers: %w", err)
+		return View{}, fmt.Errorf("read best sellers: %w", err)
 	}
 	departments, err := q.DepartmentSalesBetween(ctx, db.DepartmentSalesBetweenParams{
 		Locale: string(i18n.FromContext(ctx)), FromAt: current.from, ToAt: current.to,
 	})
 	if err != nil {
-		return ReportView{}, fmt.Errorf("read department sales: %w", err)
+		return View{}, fmt.Errorf("read department sales: %w", err)
 	}
 
 	windows := make([]int32, len(reportWindows))
 	copy(windows, reportWindows[:])
-	view := ReportView{
+	view := View{
 		Days:         int(days),
 		Orders:       revenue.Orders,
 		RevenueCents: revenue.RevenueCents, RefundedCents: revenue.RefundedCents,

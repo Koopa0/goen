@@ -68,7 +68,7 @@ func TestOrdersListPills(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := View{
 		Bound: firstPageBound("orders"),
-		Orders: []OrderRow{
+		Orders: []Row{
 			{Number: "GO-A", Status: order.FulfillmentPicking, StatusText: "備貨中", StatusIntent: widget.IntentProgress},
 			{Number: "GO-B", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: widget.IntentWarn},
 			{Number: "GO-C", Status: order.FulfillmentCompleted, StatusText: "已完成", StatusIntent: widget.IntentDone},

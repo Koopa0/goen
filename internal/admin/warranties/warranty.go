@@ -78,7 +78,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (V
 		if gone {
 			status = i18n.T(ctx, i18n.KeyStatusRefunded)
 		}
-		view.Rows = append(view.Rows, WarrantyRow{
+		view.Rows = append(view.Rows, Row{
 			Serial: r.SerialNumber, Product: r.ProductName, Label: r.VariantLabel,
 			Unit: int(r.UnitNo), Order: r.OrderNumber,
 			OrderStatus:   status,

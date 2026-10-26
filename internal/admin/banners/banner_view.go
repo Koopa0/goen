@@ -10,7 +10,7 @@ type View struct {
 	Bound  keyset.Bound
 	Notice widget.Result
 	Errors map[string]string
-	Draft  BannerDraft
+	Draft  Draft
 }
 
 type Banner struct {
@@ -33,7 +33,7 @@ func (b Banner) HasCTA() bool { return b.CTALabel != "" }
 
 func (b Banner) Scheduled() bool { return b.EndsAt != "" }
 
-type BannerDraft struct {
+type Draft struct {
 	Message, Short, Code    string
 	CTALabel, CTAHref, Days string
 	MessageEn, ShortEn      string

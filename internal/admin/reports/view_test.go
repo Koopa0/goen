@@ -25,7 +25,7 @@ func TestReportStockRows(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	markup := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &ReportView{
+	markup := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 7, StockDays: 30, Windows: []int32{7, 30, 90},
 		AtRisk: []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
 			{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 20, Sold: 30, Orders: 15, InStock: stockedAllWindow}}},
@@ -63,7 +63,7 @@ func TestReportMoreSoldOut(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	view := &ReportView{
+	view := &View{
 		Days: 30, StockDays: 30, Windows: []int32{7, 30, 90}, MoreSoldOut: 2,
 		AtRisk: []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}},
 	}
@@ -90,7 +90,7 @@ func TestReportSharedCoverSection(t *testing.T) {
 	rows := []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}}
 	section := renderComponent(t, ctx, stockrisk.Section(rows, 0, inventory.CoverWindowDays))
 	for name, page := range map[string]string{
-		"report": renderComponent(t, ctx, Report(frame.Page{}, &ReportView{Days: 30, Windows: []int32{7, 30, 90}, AtRisk: rows, StockDays: inventory.CoverWindowDays})),
+		"report": renderComponent(t, ctx, Report(frame.Page{}, &View{Days: 30, Windows: []int32{7, 30, 90}, AtRisk: rows, StockDays: inventory.CoverWindowDays})),
 	} {
 		if !strings.Contains(page, section) {
 			t.Errorf("%s does not contain the shared days cover section", name)
@@ -106,7 +106,7 @@ func TestReportListSkeleton(t *testing.T) {
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	stock := renderComponent(t, ctx, stockrisk.Rows([]stockrisk.Row{{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow}}}}, 0, 30))
-	report := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &ReportView{
+	report := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
 		Sellers: []Seller{{Slug: "a", Name: "Alpha", Brand: "Aurora", Units: 40}, {Slug: "b", Name: "Beta", Units: 10}},
 	}))
