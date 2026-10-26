@@ -10,7 +10,8 @@ import (
 )
 
 // TestProductReviewStarsHidden holds that the product page hides a review's
-// star glyphs from assistive technology and says the score in words.
+// star glyphs from assistive technology, says the score in words, and shows
+// it as text beside them.
 //
 // A span has no role, so an aria-label on one is ignored and the glyphs are
 // read out as five black stars before the score is read again from the
@@ -31,6 +32,12 @@ func TestProductReviewStarsHidden(t *testing.T) {
 	}
 	if strings.Contains(out, `goen-pdp__reviewstars" aria-label`) {
 		t.Error("a review's star span carries an aria-label, which a span ignores")
+	}
+	stars := strings.Index(out, `<span class="goen-pdp__reviewstars" aria-hidden="true">`)
+	score := strings.Index(out, `<span class="goen-pdp__reviewscore">4</span>`)
+	date := strings.Index(out, "goen-pdp__reviewdate")
+	if score < 0 || score < stars || score > date {
+		t.Error("a review's score is not shown beside its stars")
 	}
 	if !strings.Contains(out, "Rated 4") {
 		t.Error("the review's score is no longer said in words")
