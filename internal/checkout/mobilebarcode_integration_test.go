@@ -27,8 +27,8 @@ import (
 
 const checkBarcodePath = "/B2CInvoice/CheckBarcode"
 
-// ecpayAnswering is a real gateway pointed at a stand-in ECPay that answers a
-// barcode check as answer says.
+// ecpayAnswering is a stand-in ECPay that answers every barcode check as answer
+// says; its Gateway is the real client pointed at it.
 func ecpayAnswering(t *testing.T, answer issuer.FakeBarcodeAnswer) *issuer.FakeECPay {
 	t.Helper()
 	fake, err := issuer.NewFakeECPay(time.Now())

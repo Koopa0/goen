@@ -113,8 +113,8 @@ type StorefrontConfig struct {
 	BaseURL  string
 	// SecureCookies selects the __Host- cookie prefix.
 	SecureCookies bool
-	// Invoices checks mobile barcodes at checkout, or is disabled and the
-	// checkout accepts none.
+	// Invoices checks mobile barcodes at checkout, or is disabled and a barcode
+	// is checked for its shape only.
 	Invoices *issuer.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *google.Client

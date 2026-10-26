@@ -67,8 +67,8 @@ const (
 	FakeBarcodeExists FakeBarcodeAnswer = iota
 	// FakeBarcodeMissing says it is not.
 	FakeBarcodeMissing
-	// FakeBarcodeNoVerdict succeeds without saying either, as the Ministry's
-	// maintenance window does.
+	// FakeBarcodeNoVerdict succeeds without an IsExist, which barcode.go reads
+	// as no verdict.
 	FakeBarcodeNoVerdict
 	// FakeBarcodeUnavailable fails at the gateway.
 	FakeBarcodeUnavailable
