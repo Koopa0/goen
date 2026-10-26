@@ -740,7 +740,8 @@ try {
   // A department's head lays out as the hero does, inside the page column: the
   // photograph and the copy are two rounded panels with a seam of page white
   // between them, side by side from 48rem and the photograph above the copy
-  // below it, and a running campaign's notice is a third panel under the two.
+  // below it, and a running campaign's notice is a line in the copy, under the
+  // name.
   // The tone is the copy's own panel and nothing behind the photograph, so no
   // white L runs along the photograph's edge. The sub-categories mark the
   // current one as a white pill with a 2px edge inside it, and its focus ring
@@ -803,7 +804,8 @@ try {
         band: { background: bandStyle.backgroundColor, image: bandStyle.backgroundImage },
         ground, accent: colour('var(--accent)'), onInk: colour('var(--on-ink-accent)'),
         body: panel(body), media: media ? { ...panel(media), img: box(media.querySelector('img')) } : null,
-        notice: notice ? panel(notice) : null,
+        notice: notice ? { box: box(notice) } : null,
+        title: box(body.querySelector('.goen-pagehead__title')),
         row: { box: box(row), overflowX: rowStyle.overflowX }, current: chip(current), other: chip(other),
       };
       return got;
@@ -847,7 +849,7 @@ try {
           `${label}: the head is ${head.wrapper.left}-${head.wrapper.right}, the page column ${head.column.left}-${head.column.right}`);
         assert.equal(head.band.background, 'rgba(0, 0, 0, 0)', `${label}: the band has a ground of ${head.band.background}`);
         assert.equal(head.band.image, 'none', `${label}: the band paints ${head.band.image} behind its panels`);
-        const panels = [head.body, head.media, head.notice].filter(Boolean);
+        const panels = [head.body, head.media].filter(Boolean);
         assert.ok(near(Math.min(...panels.map(p => p.box.left)), head.column.left) && near(Math.max(...panels.map(p => p.box.right)), head.column.right),
           `${label}: the panels do not span the page column`);
         for (const p of panels) {
@@ -861,11 +863,14 @@ try {
         const inline = Math.min(48, Math.max(24, head.viewport * 0.035));
         assert.ok(near(head.body.padding[0], 24) && near(head.body.padding[2], 24), `${label}: copy padding above and below ${head.body.padding}`);
         assert.ok(near(head.body.padding[1], inline) && near(head.body.padding[3], inline), `${label}: copy padding beside ${head.body.padding}, want ${inline}px`);
+
+        // The notice is a line of the copy, inside its panel and under the name.
         if (c.notice) {
-          assert.equal(head.notice.background, head.ground, `${label}: the notice is ${head.notice.background}, the tone ground is ${head.ground}`);
-          assert.ok(Math.min(...head.notice.padding) >= 24, `${label}: the notice's padding ${head.notice.padding} is less than its corner`);
-          const above = Math.max(head.body.box.bottom, head.media?.box.bottom ?? 0);
-          assert.ok(near(head.notice.box.top - above, seam), `${label}: ${head.notice.box.top - above}px between the notice and the panels above, want ${seam}px`);
+          const n = head.notice.box;
+          const b = head.body.box;
+          assert.ok(n.left >= b.left - 0.5 && n.right <= b.right + 0.5 && n.top >= b.top - 0.5 && n.bottom <= b.bottom + 0.5,
+            `${label}: the notice ${n.left}-${n.right} x ${n.top}-${n.bottom} is not inside the copy ${b.left}-${b.right} x ${b.top}-${b.bottom}`);
+          assert.ok(n.top >= head.title.bottom - 0.5, `${label}: the notice starts at ${n.top}px, above the name's bottom at ${head.title.bottom}px`);
         }
 
         if (!c.photo) {
@@ -908,26 +913,26 @@ try {
           const room = Math.min(head.current.box.top - head.row.box.top, head.row.box.bottom - head.current.box.bottom, head.current.box.left - head.row.box.left);
           assert.ok(room >= 4 - 0.5, `${label}: the scrolling row leaves ${room}px round the first sub-category, which would clip its ring`);
         }
-        // The white ring of an ink head sits on the ink: the sub-categories' and the notice's stay inside their panels.
+        // The white ring of an ink head sits on the ink: the sub-categories' and the notice's stay inside the copy.
         if (c.tone === 'ink') {
           assert.equal(chipRing.colour, 'rgb(255, 255, 255)', `${label}: the ink head's ring is ${chipRing.colour}`);
           assert.ok(overhang(chipRing, head.body.box) <= 0, `${label}: the ring leaves the copy by ${overhang(chipRing, head.body.box)}px, onto the page white`);
           if (c.notice) {
             const noticeRing = await ringOf('.goen-deptnotice__name');
             assert.equal(noticeRing.colour, 'rgb(255, 255, 255)', `${label}: the notice's ring is ${noticeRing.colour}`);
-            assert.ok(overhang(noticeRing, head.notice.box) <= 0, `${label}: the notice's ring leaves its panel by ${overhang(noticeRing, head.notice.box)}px, onto the page white`);
+            assert.ok(overhang(noticeRing, head.body.box) <= 0, `${label}: the notice's ring leaves the copy by ${overhang(noticeRing, head.body.box)}px, onto the page white`);
           }
         }
 
         // Forced colours drop the tone, so each panel draws an edge of its own.
         await media([{ name: 'forced-colors', value: 'active' }]);
-        const edges = await evaluate(`['.goen-pagehead .goen-band__media', '.goen-pagehead .goen-band__body', '.goen-pagehead .goen-band > .goen-deptnotice']
+        const edges = await evaluate(`['.goen-pagehead .goen-band__media', '.goen-pagehead .goen-band__body']
           .map(selector => document.querySelector(selector)).filter(Boolean).map(element => {
             const style = getComputedStyle(element);
             return [style.outlineStyle, style.outlineWidth, style.outlineOffset].join(' ');
           })`);
         await media([]);
-        assert.equal(edges.length, 1 + c.photo + c.notice, `${label}: panels drawn in forced colours`);
+        assert.equal(edges.length, 1 + c.photo, `${label}: panels drawn in forced colours`);
         for (const edgeOf of edges) assert.equal(edgeOf, 'solid 1px -1px', `${label}: a panel's edge in forced colours is ${edgeOf}`);
         console.log(`${label}: ${panels.length} panels ${corner} in the column, ${c.photo ? (width >= 768 ? 'side by side' : 'stacked') : 'copy only'}, seam ${seam}px, edge 2px`);
       }
