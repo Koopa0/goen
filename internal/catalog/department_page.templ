@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
@@ -9,17 +10,13 @@ import (
 // Each part wraps whole, a dot stays with the words before it and the arrow with the last words, so a wrapped
 // line never starts on a dot or an arrow.
 templ departmentNotice(n *DepartmentNotice) {
-	{{ before, after := n.End.Until(ctx) }}
 	<section class="goen-deptnotice" aria-label={ i18n.T(ctx, i18n.KeyCampaignEyebrow) }>
 		<div class="goen-deptnotice__in">
 			<a class="goen-deptnotice__name" href={ templ.URL(n.Href) }>
 				<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</span>
-				<b>{ n.Title }</b>&nbsp;<span aria-hidden="true">·</span>
-				if n.End.EndsByTomorrow() {
-					<span class="goen-deptnotice__left"><time datetime={ n.End.Datetime() }>{ n.End.Left(ctx) }</time>&nbsp;<span aria-hidden="true">&rarr;</span></span>
-				} else {
-					<span class="goen-deptnotice__until">{ before }<time datetime={ n.End.Datetime() }>{ n.End.Day(ctx) }</time><span class="goen-sr-only">{ after }</span>&nbsp;<span aria-hidden="true">·</span></span>
-					<span class="goen-deptnotice__left">{ n.End.Left(ctx) }&nbsp;<span aria-hidden="true">&rarr;</span></span>
+				<b>{ n.Title }</b>&nbsp;<span aria-hidden="true">·</span>{ " " }
+				@campaign.Ends(n.End) {
+					&nbsp;<span aria-hidden="true">&rarr;</span>
 				}
 			</a>
 		</div>

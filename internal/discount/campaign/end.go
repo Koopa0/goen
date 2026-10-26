@@ -25,24 +25,17 @@ func endClock(endsAt time.Time) string {
 }
 
 // EndStat is the campaign's last day as a stat, with the time of day when it does not end at
-// midnight; the last two days say so in its note.
+// midnight.
 func EndStat(ctx context.Context, endsAt, now time.Time) widget.Stat {
 	clock := endClock(endsAt)
 	datetime := shoptime.LastDay(endsAt, now).ISO()
 	if clock != "" {
 		datetime += "T" + clock
 	}
-	stat := widget.Stat{
+	return widget.Stat{
 		Label: i18n.T(ctx, i18n.KeySlideEnds),
 		Value: widget.StatDate(EndsOn(ctx, endsAt, now), clock).WithDatetime(datetime),
 	}
-	switch left := shoptime.DaysLeft(now, endsAt); {
-	case left <= 0:
-		stat.Note = i18n.T(ctx, i18n.KeyEndsToday)
-	case left == 1:
-		stat.Note = i18n.T(ctx, i18n.KeyEndsTomorrow)
-	}
-	return stat
 }
 
 // End is when a running campaign ends, for a sentence rather than a fact line: its last day, and the
@@ -80,7 +73,7 @@ func (e End) Datetime() string {
 // Until splits the phrase naming the last day around the date, which the page marks as a time.
 func (e End) Until(ctx context.Context) (before, after string) {
 	const mark = "\x00"
-	before, after, _ = strings.Cut(fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignNoticeUntil), mark), mark)
+	before, after, _ = strings.Cut(fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignUntil), mark), mark)
 	return before, after
 }
 

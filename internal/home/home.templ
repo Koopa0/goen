@@ -80,6 +80,11 @@ templ heroCarousel(slides []hero.Slide) {
 							if s.Fact != "" {
 								<p class="goen-hero__lede">{ s.Fact }</p>
 							}
+							if s.Ends != nil {
+								<p class="goen-hero__ends">
+									@s.Ends
+								</p>
+							}
 							@widget.StatLine(s.Stats, widget.StatLinePlain)
 							if s.Period != nil {
 								@widget.Period(*s.Period)
@@ -212,7 +217,9 @@ templ productRow(r ProductRow) {
 			<div class="goen-home__head">
 				@heading("row-heading", r.Title)
 				if r.Campaign != nil {
-					@campaignEnds(r.Campaign.End)
+					<p class="goen-home__ends">
+						@campaign.Ends(r.Campaign.End)
+					</p>
 					@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
 				} else {
 					@seeAll(i18n.T(ctx, i18n.KeyHomeNewInCTA), r.Href)
@@ -225,18 +232,4 @@ templ productRow(r ProductRow) {
 			</ul>
 		</section>
 	}
-}
-
-// The last two days say so whole; before that the last day and the days left.
-// The dot stays with the day, so a wrapped line never starts with one.
-templ campaignEnds(e campaign.End) {
-	{{ before, after := e.Until(ctx) }}
-	<p class="goen-home__ends">
-		if e.EndsByTomorrow() {
-			<time class="goen-home__left" datetime={ e.Datetime() }>{ e.Left(ctx) }</time>
-		} else {
-			<span class="goen-home__until">{ before }<time datetime={ e.Datetime() }>{ e.Day(ctx) }</time><span class="goen-sr-only">{ after }</span>&nbsp;<span class="goen-home__dot" aria-hidden="true">·</span></span>
-			<span class="goen-home__left">{ e.Left(ctx) }</span>
-		}
-	</p>
 }
