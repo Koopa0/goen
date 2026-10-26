@@ -192,13 +192,14 @@ func TestReadDisputesOrderLookupFails(t *testing.T) {
 }
 
 // TestReadDisputesOrderLookupOwnTime: readDisputes gives the order lookup its
-// own time after a slow Stripe. The two Stripe reads take 240ms of a 400ms
-// budget; the lookup must still be given the whole of its own.
+// own time after a slow Stripe. The two Stripe reads take 800ms of a 2s
+// budget, far enough inside it that a loaded machine does not time Stripe out;
+// the lookup must still be given the whole of its own.
 func TestReadDisputesOrderLookupOwnTime(t *testing.T) {
 	t.Parallel()
-	const budget = 400 * time.Millisecond
+	const budget = 2 * time.Second
 	g := gatewayOver(t, testKey, stripeReplies{
-		disputes: oneDispute, sessions: map[string]string{"pi_1": "cs_1"}, delay: 120 * time.Millisecond,
+		disputes: oneDispute, sessions: map[string]string{"pi_1": "cs_1"}, delay: 400 * time.Millisecond,
 	})
 	var left time.Duration
 	got := readDisputes(t.Context(), g, budget, quiet,
@@ -213,7 +214,7 @@ func TestReadDisputesOrderLookupOwnTime(t *testing.T) {
 	if got.Unknown || got.OrdersUnknown || len(got.Items) != 1 || got.Items[0].OrderNumber != "GN-1" {
 		t.Fatalf("readDisputes() = %+v, want the order found", got)
 	}
-	if left < budget*3/4 {
+	if left < budget*4/5 {
 		t.Errorf("the order lookup had %v left, want close to its own %v", left, budget)
 	}
 }
