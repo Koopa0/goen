@@ -220,9 +220,11 @@ try {
       return { background: value('background-color'), weight: value('font-weight'), outline: value('outline-style'), shadow: value('box-shadow') };
     };
     const { attributes } = await send('DOM.getAttributes', { nodeId: ids[0] });
+    const read = { marked: attributes.includes('data-pill'), current: await look(ids[1]), other: await look(ids[2]) };
+    // DOM.getDocument discards every node id handed out before it.
     const { root } = await send('DOM.getDocument', { depth: 0 });
     const { nodeIds: currents } = await send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '.goen-hero__tabs [aria-current]' });
-    return { currents: currents.length, marked: attributes.includes('data-pill'), current: await look(ids[1]), other: await look(ids[2]) };
+    return { currents: currents.length, ...read };
   };
   for (const scriptingOff of [false, true]) {
     const label = `hero tabs scripting ${scriptingOff ? 'off' : 'on'}`;
