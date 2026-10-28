@@ -97,9 +97,9 @@ func TestHandler_UploadErrorAborted(t *testing.T) {
 	}
 }
 
-// TestDoneNoticesAreDistinct: no two actions share a sentence, so a save says
+// TestNoticesDoneSentencesDiffer: no two actions share a sentence, so a save says
 // which change it was.
-func TestDoneNoticesAreDistinct(t *testing.T) {
+func TestNoticesDoneSentencesDiffer(t *testing.T) {
 	t.Parallel()
 	seen := map[i18n.Key]string{}
 	for name, e := range notices {

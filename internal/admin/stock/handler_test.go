@@ -48,10 +48,10 @@ func TestHandler_RedirectNotices(t *testing.T) {
 	}
 }
 
-// TestNoticesBelongToTheirPage: a code is shown by the page its write returns
+// TestHandler_NoticesBelongToTheirPage: a code is shown by the page its write returns
 // to and by no other, so ?adjusted=1 on the list and ?price=1 on a SKU page say
 // nothing.
-func TestNoticesBelongToTheirPage(t *testing.T) {
+func TestHandler_NoticesBelongToTheirPage(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		code        string
@@ -76,9 +76,9 @@ func TestNoticesBelongToTheirPage(t *testing.T) {
 	}
 }
 
-// TestDoneNoticesAreDistinct: no two actions share a sentence, so a save says
+// TestHandler_DoneNoticesAreDistinct: no two actions share a sentence, so a save says
 // which change it was.
-func TestDoneNoticesAreDistinct(t *testing.T) {
+func TestHandler_DoneNoticesAreDistinct(t *testing.T) {
 	t.Parallel()
 	for _, group := range []map[string]widget.NoticeEntry{listNotices, skuNotices} {
 		seen := map[i18n.Key]string{}
