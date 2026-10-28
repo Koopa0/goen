@@ -29,8 +29,10 @@ export async function checkAdminNavReflow({ send, evaluate, navigate, fail, orig
               return [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
             };
             const faults = [];
-            // Links only: the group summaries are not measured because the wrap rule does not touch them.
-            const items = [...document.querySelectorAll('.goen-admin__nav a.ui-navitem')];
+            // Group summaries are not measured: the wrap rule does not touch them. Nor are links in a
+            // closed group: they have no box, though Range.getClientRects() still returns rects for them.
+            const items = [...document.querySelectorAll('.goen-admin__nav a.ui-navitem')]
+              .filter((item) => item.checkVisibility() && item.getBoundingClientRect().width > 0);
             const withMeta = items.filter((item) => item.querySelector('.goen-admin__meta'));
             for (const item of items) {
               const box = item.getBoundingClientRect();
