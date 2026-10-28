@@ -30,11 +30,8 @@ type orderCursor struct {
 	Valid bool
 }
 
-func readOrderCursor(owner string, after []string) orderCursor {
-	if len(after) == 0 {
-		return orderCursor{}
-	}
-	pos, ok := keyset.Read[orderPosition](ordersScope, after[0])
+func readOrderCursor(owner, after string) orderCursor {
+	pos, ok := keyset.Read[orderPosition](ordersScope, after)
 	if !ok || pos.ID == uuid.Nil || pos.Owner != owner {
 		return orderCursor{}
 	}

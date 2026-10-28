@@ -24,7 +24,7 @@ func TestStore_BannerPromotion(t *testing.T) {
 		t.Fatalf("CreateBanner: %v %v", err, errs)
 	}
 
-	list, err := s.Banners(ctx)
+	list, err := s.Banners(ctx, "")
 	if err != nil {
 		t.Fatalf("Banners: %v", err)
 	}

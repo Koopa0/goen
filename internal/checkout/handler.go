@@ -37,43 +37,34 @@ type Handler struct {
 	access *access.Store
 	log    *slog.Logger
 	secure bool
-	// sessions is nil on a deployment with no Stripe key, where the checkout
-	// takes no payment.
-	sessions payment.SessionCloser
+	// payments is nil or disabled on a deployment with no Stripe key, where the
+	// checkout takes no payment.
+	payments *payment.Gateway
 	// storeMap is nil or disabled on a deployment with no carrier, where the
 	// checkout offers no pickup.
-	storeMap       *storemap.Client
-	barcodeChecker MobileBarcodeChecker
+	storeMap *storemap.Client
+	// invoiceGateway is nil or disabled on a deployment with no 加值中心, where a
+	// mobile barcode is checked for its shape only.
+	invoiceGateway *issuer.Gateway
 	// couponMisses bounds how many wrong coupon codes one shopper is told
 	// about: a wrong code and a right one answer differently, so unbounded it
 	// finds codes never handed out.
 	couponMisses *ratelimit.Limiter
 }
 
-type MobileBarcodeChecker interface {
-	CheckBarcode(context.Context, string) (issuer.BarcodeStatus, error)
-}
-
-// NewHandler reads a nil sessions as no provider configured, and a nil or
-// disabled storeMap as no carrier, so the checkout offers no pickup; an
-// omitted checker keeps local shape validation where there is no invoice gateway.
+// NewHandler reads a nil or disabled payments as no provider configured, and a
+// nil or disabled storeMap as no carrier, so the checkout offers no pickup, and
+// a nil or disabled invoiceGateway as no 加值中心, so a mobile barcode keeps
+// local shape validation.
 func NewHandler(store *Store, carts *cart.Handler, grants *access.Store, log *slog.Logger, secure bool,
-	sessions payment.SessionCloser, storeMap *storemap.Client, checkers ...MobileBarcodeChecker,
+	payments *payment.Gateway, storeMap *storemap.Client, invoiceGateway *issuer.Gateway,
 ) *Handler {
 	if store == nil || carts == nil || grants == nil || log == nil {
 		panic("checkout: NewHandler requires a store, the cart, an access check and a logger")
 	}
-	if len(checkers) > 1 {
-		panic("checkout: NewHandler accepts one mobile barcode checker")
-	}
-	var checker MobileBarcodeChecker
-	if len(checkers) == 1 {
-		checker = checkers[0]
-	}
 	return &Handler{
-		barcodeChecker: checker,
-		store:          store, carts: carts, access: grants, log: log, secure: secure,
-		sessions: sessions, storeMap: storeMap,
+		store: store, carts: carts, access: grants, log: log, secure: secure,
+		payments: payments, storeMap: storeMap, invoiceGateway: invoiceGateway,
 		// Twenty wrong codes before the first refusal, then one every two
 		// minutes: more than a shopper retyping a code from a flyer needs.
 		couponMisses: ratelimit.New(ratelimit.Config{
@@ -102,8 +93,8 @@ func (h *Handler) Routes(mux *http.ServeMux, submissions *ratelimit.Limiter) {
 	}
 }
 
-// TakesPayment holds because a session closer exists exactly where a payment key does.
-func (h *Handler) TakesPayment() bool { return h.sessions != nil }
+// TakesPayment holds where a payment key is configured.
+func (h *Handler) TakesPayment() bool { return h.payments.Enabled() }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	cartID, ok := h.carts.Require(w, r)

@@ -35,7 +35,7 @@ func TestHandler_PlaceOrderCouponClientBudget(t *testing.T) {
 	valid := "GUESSRIGHT" + strings.ToUpper(uuid.NewString()[:6])
 	insertCoupon(t, valid, "amount", 1000, 0, 0, 0)
 	ship := shipVersionFor(t, "home_delivery")
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 
 	guestCart := func() string {
 		token := bearer.New()
@@ -130,7 +130,7 @@ func newCouponGuesses(t *testing.T, label string) *couponGuesses {
 	s := checkout.NewStore(pool)
 	return &couponGuesses{
 		t: t, s: s,
-		h:    newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil),
+		h:    newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil),
 		vid:  ordertest.FreshVariant(t, pool, label),
 		ship: shipVersionFor(t, "home_delivery"),
 	}

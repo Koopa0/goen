@@ -144,3 +144,30 @@ func TestAccountAddressEmptyState(t *testing.T) {
 		})
 	}
 }
+
+// TestAccountEraseSubmitIsDanger: deleting the account looks like deleting an address, a
+// danger button, not an outline one carrying a page class.
+func TestAccountEraseSubmitIsDanger(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale)
+			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Account(Meta(ctx), &View{Email: "a@example.test"}))))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := i18n.T(ctx, i18n.KeyEraseSubmit)
+			submit := findDescendant(doc, func(n *html.Node) bool {
+				return n.Type == html.ElementNode && n.Data == "button" && attrValue(n, "type") == "submit" && nodeText(n) == want
+			})
+			if submit == nil {
+				t.Fatalf("the account page has no submit reading %q", want)
+			}
+			class := attrValue(submit, "class")
+			if !strings.Contains(class, "goen-btn--danger") || strings.Contains(class, "goen-btn--outline") {
+				t.Errorf("account deletion is drawn as %q, want the danger level", class)
+			}
+		})
+	}
+}

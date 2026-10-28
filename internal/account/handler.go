@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -56,7 +57,7 @@ func (h *Handler) Routes(mux *http.ServeMux, requireUser func(http.HandlerFunc) 
 // answer this way through [auth.Handler.RefuseOnAccountPage].
 func (h *Handler) Refuse(w http.ResponseWriter, r *http.Request, notice string) {
 	h.overview(w, r, http.StatusUnprocessableEntity, func(v *View) {
-		v.Notice = notice
+		v.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: notice}
 	})
 }
 
@@ -100,16 +101,16 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, r
 	respond.Component(w, r, h.log, status, Account(Meta(r.Context()), &view))
 }
 
-func accountNotice(r *http.Request) string {
+func accountNotice(r *http.Request) widget.Result {
 	ctx := r.Context()
 	q := r.URL.Query()
 	switch {
 	case q.Get("welcome") == "1":
-		return i18n.T(ctx, i18n.KeyAccountWelcome)
+		return widget.Result{Outcome: widget.OutcomeDone, Text: i18n.T(ctx, i18n.KeyAccountWelcome)}
 	case q.Get("saved") == "1":
-		return i18n.T(ctx, i18n.KeyProfileSaved)
+		return widget.Result{Outcome: widget.OutcomeDone, Text: i18n.T(ctx, i18n.KeyProfileSaved)}
 	case q.Get("profile") == "invalid":
-		return i18n.T(ctx, i18n.KeyProfileInvalid)
+		return widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(ctx, i18n.KeyProfileInvalid)}
 	}
 	return auth.Notice(r)
 }
@@ -194,7 +195,7 @@ func (h *Handler) refuseAddress(w http.ResponseWriter, r *http.Request, a *Addre
 		}
 		v.AddressErrors = errs
 		if notice != "" {
-			v.Notice = notice
+			v.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: notice}
 		}
 	})
 }

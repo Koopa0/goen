@@ -16,7 +16,9 @@ import (
 	"github.com/koopa0/goen/internal/discount/campaign"
 )
 
-func TestListedCampaignsExposeTheSeventhCampaign(t *testing.T) {
+// TestStore_ListedSecondPage: the campaign past the first full page is on the
+// second page, in the store and on /deals?campaign_page=2.
+func TestStore_ListedSecondPage(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -26,7 +28,7 @@ func TestListedCampaignsExposeTheSeventhCampaign(t *testing.T) {
 	if _, execErr := tx.Exec(ctx, "UPDATE sale_campaigns SET is_active = false"); execErr != nil {
 		t.Fatal(execErr)
 	}
-	slugs := make([]string, 7)
+	slugs := make([]string, campaign.ListedPageSize+1)
 	for i := range slugs {
 		slugs[i] = "campaign-page-" + uuid.NewString()
 		if _, execErr := tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, starts_at, ends_at, is_active) VALUES ($1, $2, now() - interval '1 day', now() + ($3 * interval '1 day'), true)`, slugs[i], fmt.Sprintf("Campaign %d", i), i+1); execErr != nil {
@@ -43,17 +45,17 @@ func TestListedCampaignsExposeTheSeventhCampaign(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(first.Rows) != 6 || first.Total != 7 || first.Pages() != 2 {
+	if len(first.Rows) != campaign.ListedPageSize || first.Total != int64(len(slugs)) || first.Pages() != 2 {
 		t.Fatalf("first page = %+v", first)
 	}
-	if len(second.Rows) != 1 || second.Rows[0].Slug != slugs[6] || second.Page != 2 {
-		t.Fatalf("second page does not expose seventh campaign: %+v", second)
+	if len(second.Rows) != 1 || second.Rows[0].Slug != slugs[campaign.ListedPageSize] || second.Page != 2 {
+		t.Fatalf("second page does not expose the campaign past the first page: %+v", second)
 	}
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/deals?campaign_page=2", http.NoBody)
 	w := httptest.NewRecorder()
 	campaign.NewHandler(store, slog.New(slog.DiscardHandler)).Deals(w, r)
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `href="/s/`+slugs[6]+`"`) || strings.Contains(w.Body.String(), `href="/s/`+slugs[0]+`"`) {
-		t.Fatalf("HTTP campaign page two omitted the seventh campaign or repeated page one: status=%d", w.Code)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `href="/s/`+slugs[campaign.ListedPageSize]+`"`) || strings.Contains(w.Body.String(), `href="/s/`+slugs[0]+`"`) {
+		t.Fatalf("HTTP campaign page two omitted the campaign past the first page or repeated page one: status=%d", w.Code)
 	}
 	for i := range first.Rows {
 		if first.Rows[i].Slug != slugs[i] {

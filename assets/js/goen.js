@@ -17,8 +17,9 @@
   /*
    * The home carousel: scroll-snap does the moving (swipe, trackpad, keyboard)
    * and the named tabs are links that work without this script. This draws the
-   * arrows and the count and keeps aria-current on the slide in view. Nothing
-   * here moves a slide except the visitor's own input.
+   * arrows and the count and marks the tab of the slide in view with
+   * aria-current, so without it no tab is current. Nothing here moves a slide
+   * except the visitor's own input.
    */
   function carousel() {
     const root = document.querySelector(".goen-hero");
@@ -81,6 +82,8 @@
       }
     }, { root: track, threshold: 0.6 });
     slides.forEach((slide) => seen.observe(slide));
+
+    tabs[current].setAttribute("aria-current", "true");
 
     // A font swap, a larger text size or a zoom changes the tabs' widths.
     if (tabRow) {

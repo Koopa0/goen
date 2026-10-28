@@ -25,9 +25,9 @@ templ Points(p frame.Page, v PointsView) {
 				</p>
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyPointsExpiryTerms) }</p>
 			</div>
-			if v.Notice != "" {
-				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "points-notice", Class: "ui-alert--info"}) {
-					{ v.Notice }
+			if v.Notice.Text != "" {
+				@widget.Notice(widget.NoticeProps{Intent: v.Notice.Outcome.Intent(), ID: "points-notice"}) {
+					{ v.Notice.Text }
 				}
 			}
 			<ul class="goen-points__figures" role="list">

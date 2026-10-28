@@ -35,11 +35,11 @@ func TestStore_ShowQuestionAdminRole(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := questions.NewStore(admintest.AdminRolePool(t, p))
-	visible, err := s.Questions(ctx, questions.QueueVisible)
+	visible, err := s.Questions(ctx, questions.QueueVisible, "")
 	if err != nil || len(visible.Rows) != 0 {
 		t.Fatalf("hidden question appears in visible queue: %+v, %v", visible.Rows, err)
 	}
-	hidden, err := s.Questions(ctx, questions.QueueHidden)
+	hidden, err := s.Questions(ctx, questions.QueueHidden, "")
 	if err != nil || len(hidden.Rows) != 1 || !hidden.Rows[0].Hidden || len(hidden.Rows[0].Answers) != 1 {
 		t.Fatalf("hidden queue = %+v, %v", hidden.Rows, err)
 	}
@@ -58,7 +58,7 @@ func TestStore_ShowQuestionAdminRole(t *testing.T) {
 	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/questions?ok=1" {
 		t.Fatalf("restore = %d, %s", res.Code, res.Body.String())
 	}
-	visible, err = s.Questions(ctx, questions.QueueVisible)
+	visible, err = s.Questions(ctx, questions.QueueVisible, "")
 	if err != nil || len(visible.Rows) != 1 || visible.Rows[0].Hidden || len(visible.Rows[0].Answers) != 1 {
 		t.Fatalf("restored queue = %+v, %v", visible.Rows, err)
 	}
@@ -138,7 +138,7 @@ func TestStore_HideAnswer(t *testing.T) {
 	if recordedActor != actor || recordedQuestion != question.String() {
 		t.Errorf("withdrawal audit = %s/%q, want %s/%q", recordedActor, recordedQuestion, actor, question.String())
 	}
-	view, err := s.Questions(ctx, questions.QueueVisible)
+	view, err := s.Questions(ctx, questions.QueueVisible, "")
 	if err != nil {
 		t.Fatal(err)
 	}

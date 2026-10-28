@@ -167,7 +167,7 @@ func assertCouponUsage(t *testing.T, baseCtx context.Context, desk *coupons.Stor
 	t.Helper()
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(baseCtx, locale)
-		view, err := desk.Coupons(ctx)
+		view, err := desk.Coupons(ctx, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -246,7 +246,7 @@ func TestStore_CouponsExpiry(t *testing.T) {
 			}
 			for _, locale := range i18n.Locales() {
 				localized := i18n.WithLocale(ctx, locale)
-				view, readErr := desk.Coupons(localized)
+				view, readErr := desk.Coupons(localized, "")
 				if readErr != nil {
 					t.Fatal(readErr)
 				}

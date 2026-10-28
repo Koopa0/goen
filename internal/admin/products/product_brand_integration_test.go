@@ -152,7 +152,7 @@ func TestStore_CreateUnbranded(t *testing.T) {
 	if err != nil || len(order.Lines) != 1 || order.Lines[0].SKU != sku {
 		t.Errorf("unbranded order = %+v, %v", order.Lines, err)
 	}
-	history, err := accounts.Overview(ctx, user.User{ID: actor.String()})
+	history, err := accounts.Overview(ctx, user.User{ID: actor.String()}, "")
 	if err != nil || len(history.Orders) != 1 || history.Orders[0].Number != number {
 		t.Errorf("unbranded order history = %+v, %v", history.Orders, err)
 	}
@@ -338,7 +338,7 @@ func assertUnbrandedCatalogueReads(t *testing.T, ctx context.Context, p *pgxpool
 		row := &adminProducts[i]
 		observe("AdminProducts", row.Slug, row.Brand)
 	}
-	variants, err := stock.NewStore(p).Variants(ctx, false, sku)
+	variants, err := stock.NewStore(p).Variants(ctx, false, sku, "")
 	check("AdminVariants", err)
 	for i := range variants.Variants {
 		row := &variants.Variants[i]

@@ -130,7 +130,7 @@ type View struct {
 	Addresses                  []AddressView
 	CreditCents                int64
 	Standing                   loyalty.MemberStanding
-	Notice                     string
+	Notice                     widget.Result
 	GoogleLinked               bool
 	CanUnlinkGoogle            bool
 	PaymentsEnabled            bool
@@ -230,7 +230,7 @@ func (v *View) HasOrders() bool { return len(v.Orders) > 0 }
 
 func (v *View) HasAddresses() bool { return len(v.Addresses) > 0 }
 
-func (v *View) HasNotice() bool { return v.Notice != "" }
+func (v *View) HasNotice() bool { return v.Notice.Text != "" }
 
 func googlePasswordSetupText(ctx context.Context) (before, after string) {
 	before, after, _ = strings.Cut(i18n.T(ctx, i18n.KeyGoogleOnlyMethod), "%s")

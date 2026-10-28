@@ -33,7 +33,7 @@ templ List(p frame.Page, v ListView) {
 									<span class="goen-warranty__meta">{ item.Line.Label }</span>
 								}
 								<p class="goen-warranty__meta">{ item.Line.CoverText(ctx) }</p>
-								@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(item.Href())) {
+								@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, templ.SafeURL(item.Href())) {
 									{ i18n.T(ctx, i18n.KeyWarrantyRegisterReady) }
 								}
 							</li>

@@ -433,7 +433,7 @@ func Page(p frame.Page, v View) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\"> <input type=\"hidden\" name=\"action\" value=\"remove\"> <input type=\"hidden\" name=\"return\" value=\"/account/wishlist\"><button class=\"goen-btn goen-btn--outline goen-btn--sm goen-btn--block ui-btn\" type=\"submit\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\"> <input type=\"hidden\" name=\"action\" value=\"remove\"> <input type=\"hidden\" name=\"return\" value=\"/account/wishlist\"><button class=\"goen-btn goen-btn--ghost goen-btn--sm goen-btn--block ui-btn\" type=\"submit\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

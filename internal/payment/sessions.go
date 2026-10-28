@@ -6,15 +6,12 @@ import (
 	"time"
 )
 
-type SessionCloser interface {
-	ExpireSession(ctx context.Context, sessionID string) error
-}
-
 // CloseSessions expires the checkouts a cancelled order left open at Stripe,
 // post-commit and best effort — the stock and the credit are already back. A nil
-// closer is a deployment with no Stripe key, where no session was ever opened.
-func CloseSessions(ctx context.Context, closer SessionCloser, log *slog.Logger, number string, sessions []string) {
-	if closer == nil {
+// or disabled gateway is a deployment with no Stripe key, where no session was
+// ever opened.
+func CloseSessions(ctx context.Context, g *Gateway, log *slog.Logger, number string, sessions []string) {
+	if !g.Enabled() {
 		return
 	}
 
@@ -26,7 +23,7 @@ func CloseSessions(ctx context.Context, closer SessionCloser, log *slog.Logger, 
 	defer cancel()
 
 	for _, id := range sessions {
-		if err := closer.ExpireSession(ctx, id); err != nil {
+		if err := g.ExpireSession(ctx, id); err != nil {
 			// Warn, not Error: Stripe refuses to expire anything but an OPEN
 			// session, so a checkout completed a moment ago lands here.
 			log.WarnContext(ctx, "expire checkout session of a cancelled order",

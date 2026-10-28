@@ -70,15 +70,17 @@ type CompareRow struct {
 }
 
 func (r CompareRow) Value(i int) string {
-	if i < 0 || i >= len(r.Values) || r.Values[i] == "" {
+	if !r.Stated(i) {
 		return "—"
 	}
 	return r.Values[i]
 }
 
+func (r CompareRow) Stated(i int) bool { return i >= 0 && i < len(r.Values) && r.Values[i] != "" }
+
 func (r CompareRow) Comparable(products int) bool { return r.SharedBy >= products }
 
-// Marked is false for a spec only some products state: it is already a quiet footnote.
+// Marked is false for a spec only some products state: "has it" against "does not" is not a comparison of values.
 func (r CompareRow) Marked(products int) bool { return r.Comparable(products) && r.Differs() }
 
 // Differs counts a product that does not state a spec as a value of its own: "has it"
