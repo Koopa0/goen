@@ -26,7 +26,7 @@ var (
 
 	KeyAuditEntityContactMessages = key("audit.entity.contact_messages", Message{ZhHant: "聯絡訊息", En: "Contact message"})
 
-	KeyAuditEntityCoupons = key("audit.entity.coupons", Message{ZhHant: "優惠碼", En: "Coupon"})
+	KeyAuditEntityCoupons = key("audit.entity.coupons", Message{ZhHant: "折扣碼", En: "Discount code"})
 
 	KeyAuditEntityFaqCategories = key("audit.entity.faq_categories", Message{ZhHant: "常見問題分類", En: "FAQ category"})
 

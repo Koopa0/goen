@@ -60,8 +60,8 @@ func TestCouponsTableColumns(t *testing.T) {
 		expiry     string
 		state      string
 	}{
-		{locale: i18n.ZhHant, headers: []string{"條件", "已使用", "到期"}, conditions: "限量 1 · 每位會員 1 次", used: "已使用 1 次 1 / 1", expiry: "至 2027-01-02 11:04", state: "已用完"},
-		{locale: i18n.En, headers: []string{"Conditions", "Used", "Expiry"}, conditions: "1 in total · 1 per member", used: "1 used 1 / 1", expiry: "Until 2027-01-02 11:04", state: "Used up"},
+		{locale: i18n.ZhHant, headers: []string{"條件", "已使用", "到期"}, conditions: "限量 1 · 每個顧客帳號 1 次", used: "已使用 1 次 1 / 1", expiry: "至 2027-01-02 11:04", state: "已用完"},
+		{locale: i18n.En, headers: []string{"Conditions", "Used", "Expiry"}, conditions: "1 in total · 1 per customer account", used: "1 used 1 / 1", expiry: "Until 2027-01-02 11:04", state: "Used up"},
 	} {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()

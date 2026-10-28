@@ -159,8 +159,6 @@ var (
 		En:     "A campaign runs 1 to 90 days.",
 	})
 
-	KeyAdminPageCampaigns = key("admin.page.campaigns", Message{ZhHant: "活動", En: "Campaigns"})
-
 	KeyAdminCampaignOff = key("admin.campaign.off", Message{ZhHant: "已停用", En: "Switched off"})
 
 	KeyAdminCampaignOutside = key("admin.campaign.outside", Message{ZhHant: "不在期間內", En: "Outside its window"})
