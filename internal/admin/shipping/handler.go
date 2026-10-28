@@ -49,7 +49,14 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":           widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"methodadded":  widget.NoticeDone(i18n.KeyAdminNoticeShipMethodAdded),
+	"on":           widget.NoticeDone(i18n.KeyAdminNoticeShipMethodOn),
+	"off":          widget.NoticeDone(i18n.KeyAdminNoticeShipMethodOff),
+	"zoneadded":    widget.NoticeDone(i18n.KeyAdminNoticeShipZoneAdded),
+	"prefixes":     widget.NoticeDone(i18n.KeyAdminNoticeShipPrefixes),
+	"surcharge":    widget.NoticeDone(i18n.KeyAdminNoticeShipSurcharge),
+	"zoneremoved":  widget.NoticeDone(i18n.KeyAdminNoticeShipZoneRemoved),
+	"published":    widget.NoticeDone(i18n.KeyAdminNoticeShipPublished),
 	"refused":      widget.NoticeRefused(i18n.KeyAdminShipRefused),
 	"zoneprefixes": widget.NoticeRefused(i18n.KeyAdminShipZoneHasPrefixes),
 	"zoneversions": widget.NoticeRefused(i18n.KeyAdminShipZoneHasVersions),
@@ -74,7 +81,7 @@ func (h *Handler) CreateMethod(w http.ResponseWriter, r *http.Request) {
 	case len(errs) > 0:
 		h.rejectShippingForm(w, r, errs, &shippingDrafts{method: draft})
 	default:
-		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?methodadded=1", http.StatusSeeOther)
 	}
 }
 
@@ -125,11 +132,13 @@ func (h *Handler) SetMethodActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	err := h.store.SetMethodActive(r.Context(), r.PathValue("id"),
-		r.PostFormValue("active") == "1")
+	active := r.PostFormValue("active") == "1"
+	err := h.store.SetMethodActive(r.Context(), r.PathValue("id"), active)
 	switch {
+	case err == nil && active:
+		http.Redirect(w, r, "/admin/shipping?on=1", http.StatusSeeOther)
 	case err == nil:
-		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?off=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "toggle shipping method", "error", err)
 		admin.NotFound(w, r, h.log)
@@ -163,7 +172,7 @@ func (h *Handler) CreateZone(w http.ResponseWriter, r *http.Request) {
 			Code: r.PostFormValue("code"), Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"), Prefixes: r.PostFormValue("prefixes"),
 		}})
 	default:
-		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?zoneadded=1", http.StatusSeeOther)
 	}
 }
 
@@ -186,7 +195,7 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 			ZoneID: zoneID, Prefixes: prefixes,
 		}})
 	default:
-		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?prefixes=1", http.StatusSeeOther)
 	}
 }
 
@@ -209,7 +218,7 @@ func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?zoneremoved=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "delete shipping zone", "error", err)
 		admin.NotFound(w, r, h.log)
@@ -310,7 +319,7 @@ func (h *Handler) PublishVersion(w http.ResponseWriter, r *http.Request) {
 	err := h.store.PublishShippingVersion(r.Context(), v)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?published=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "shipping version refused", "error", err)
 		h.rejectShippingForm(w, r, map[string]string{"version_form": i18n.T(r.Context(), i18n.KeyAdminShipRefused)}, &shippingDrafts{version: &draft})
@@ -360,7 +369,7 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?surcharge=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "shipping surcharge refused", "error", err)
 		h.rejectSurcharge(w, r, i18n.T(r.Context(), i18n.KeyAdminShipRefused))
