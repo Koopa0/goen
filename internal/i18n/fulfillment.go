@@ -26,8 +26,6 @@ var (
 
 	KeyAdminPageOrder = key("admin.page.order", Message{ZhHant: "訂單 %s", En: "Order %s"})
 
-	KeyAdminPageOrderList = key("admin.page.orderlist", Message{ZhHant: "訂單管理", En: "Order management"})
-
 	KeyAdminNoOrderTitle = key("admin.noorder.title", Message{ZhHant: "找不到訂單", En: "Order not found"})
 
 	KeyAdminNoOrderHead = key("admin.noorder.head", Message{ZhHant: "找不到 %s 這筆訂單", En: "Order %s not found"})

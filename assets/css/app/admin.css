@@ -931,10 +931,6 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-.goen-admin__navback {
-  color: var(--fg-muted);
-}
-
 .goen-admin__navgroup {
   min-width: 0;
 }
@@ -1006,16 +1002,6 @@ input.goen-check {
   gap: 16px;
   justify-content: space-between;
   padding-bottom: 24px;
-}
-
-.goen-admin .ui-page-head__eyebrow {
-  color: var(--fg-muted);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-medium);
-  letter-spacing: 0.06em;
-  margin: 0 0 4px;
-  text-transform: uppercase;
 }
 
 .goen-admin .ui-page-head__title {
@@ -1841,12 +1827,6 @@ input.goen-check {
     gap: 2px;
     margin: 2px 0 2px 16px;
     padding-left: 8px;
-  }
-
-  .goen-admin:has(.goen-admin__main) .goen-admin__navback {
-    border-top: 1px solid var(--border);
-    margin-top: 8px;
-    padding-top: 8px;
   }
 
   .goen-admin__layout {

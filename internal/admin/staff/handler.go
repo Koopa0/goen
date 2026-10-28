@@ -60,7 +60,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view.Actor = actorID(r)
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Staff(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueStaff)}, view))
 }
 
 func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +84,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		view.AddError = i18n.T(r.Context(), i18n.KeyStaffAlreadyExists)
 		view.NoKey = !h.factorsEnabled
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Staff(
-			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueStaff)}, view))
 		return
 	}
 	if err == nil && cleared {
