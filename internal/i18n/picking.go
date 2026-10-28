@@ -15,13 +15,12 @@ var (
 	KeyAdminBatchNone      = key("admin.batch.none", Message{ZhHant: "沒有選取任何訂單。", En: "No orders were selected."})
 	KeyAdminBatchStarted   = key("admin.batch.started", Message{ZhHant: "已開始備貨，選取的訂單在下面。", En: "Packing has started; the selected orders are below."})
 
-	KeyAdminBatchRefused         = key("admin.batch.refused", Message{ZhHant: "這些訂單沒有開始備貨：", En: "These orders did not start packing:"})
-	KeyAdminBatchRefusalLine     = key("admin.batch.refusalline", Message{ZhHant: "%s：%s", En: "%s: %s"})
-	KeyAdminBatchReasonCancelled = key("admin.batch.reason.cancelled", Message{ZhHant: "已取消", En: "Cancelled"})
-	KeyAdminBatchReasonUnpaid    = key("admin.batch.reason.unpaid", Message{ZhHant: "還沒付清", En: "Not paid yet"})
-	KeyAdminBatchReasonChanged   = key("admin.batch.reason.changed", Message{ZhHant: "狀態已經變了", En: "Its status has changed"})
-	KeyAdminBatchReasonNoAnswer  = key("admin.batch.reason.noanswer", Message{ZhHant: "沒有回應，請再按一次「開始備貨」。", En: "No answer; press Start packing again."})
-	KeyAdminBatchReasonNotTried  = key("admin.batch.reason.nottried", Message{ZhHant: "還沒處理", En: "Not tried yet"})
+	KeyAdminBatchRefused        = key("admin.batch.refused", Message{ZhHant: "這些訂單沒有開始備貨：", En: "These orders did not start packing:"})
+	KeyAdminBatchRefusalLine    = key("admin.batch.refusalline", Message{ZhHant: "%s：%s", En: "%s: %s"})
+	KeyAdminBatchReasonUnpaid   = key("admin.batch.reason.unpaid", Message{ZhHant: "還沒付清", En: "Not paid yet"})
+	KeyAdminBatchReasonChanged  = key("admin.batch.reason.changed", Message{ZhHant: "狀態已經變了", En: "Its status has changed"})
+	KeyAdminBatchReasonNoAnswer = key("admin.batch.reason.noanswer", Message{ZhHant: "沒有回應，請再按一次「開始備貨」。", En: "No answer; press Start packing again."})
+	KeyAdminBatchReasonNotTried = key("admin.batch.reason.nottried", Message{ZhHant: "還沒處理", En: "Not tried yet"})
 
 	KeyAdminBatchOthersStarted = countKey("admin.batch.othersstarted",
 		"其他 %d 筆已開始備貨。",

@@ -260,7 +260,7 @@ func (r *Results) Columns(ctx context.Context) chart.ColumnsProps {
 		Previous: r.Days, PreviousLabel: i18n.T(ctx, i18n.KeyAdminCampBefore),
 		Caption: r.Facts(ctx), Note: r.Note(ctx),
 		DayHeading:   i18n.T(ctx, i18n.KeyAdminRepDate),
-		SpanHeading:  i18n.T(ctx, i18n.KeyAdminCampPeriod),
+		SpanHeading:  i18n.T(ctx, i18n.KeyChartPeriod),
 		PartialLabel: fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUntil), r.Cut),
 	}
 }

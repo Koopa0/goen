@@ -155,7 +155,7 @@ func (v *View) SalesChart(ctx context.Context) chart.ColumnsProps {
 		Caption:      v.salesCaption(ctx),
 		Note:         fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepPaidNote), shoptime.Clock(v.ReadAt)),
 		DayHeading:   i18n.T(ctx, i18n.KeyAdminRepDate),
-		SpanHeading:  i18n.T(ctx, i18n.KeyAdminQueueSalesPeriod),
+		SpanHeading:  i18n.T(ctx, i18n.KeyChartPeriod),
 		PartialLabel: fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUntil), shoptime.Clock(v.ReadAt)),
 	}
 }
@@ -186,14 +186,6 @@ func (v *View) SalesSentence(ctx context.Context) string {
 		return i18n.Count(ctx, i18n.KeyAdminQueueSalesNone, DailyDays, DailyDays)
 	}
 	return i18n.Count(ctx, i18n.KeyAdminQueueSalesFew, int64(filled), filled, DailyDays)
-}
-
-// TopUnits is the units of the best seller, which a seller's bar is a share of.
-func (v *View) TopUnits() int64 {
-	if len(v.Sellers) == 0 {
-		return 0
-	}
-	return v.Sellers[0].Units
 }
 
 func Meta(ctx context.Context) frame.Page {

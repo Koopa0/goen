@@ -22,6 +22,16 @@ type Seller struct {
 	RevenueCents int64
 }
 
+// TopUnits is the most units any of sellers sold: the length a bar of a best
+// seller list is a share of.
+func TopUnits(sellers []Seller) int64 {
+	var top int64
+	for _, s := range sellers {
+		top = max(top, s.Units)
+	}
+	return top
+}
+
 // Revenue formats product gross before order-level adjustments; a list labels
 // it apart from total revenue.
 func (s Seller) Revenue() string { return money.TWD(s.RevenueCents) }

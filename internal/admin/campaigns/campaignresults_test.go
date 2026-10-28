@@ -138,3 +138,15 @@ func TestResults_Note(t *testing.T) {
 		t.Errorf("Note() of a campaign that is over = %q, want what is counted and no cut", got)
 	}
 }
+
+// TestResults_SpanHeadingIsThePeriod: the column that names a stretch reads the
+// same word the dashboard's chart gives it.
+func TestResults_SpanHeadingIsThePeriod(t *testing.T) {
+	t.Parallel()
+
+	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "期間", i18n.En: "Period"} {
+		if got := results(2, 1, 1).Columns(i18n.WithLocale(t.Context(), locale)).SpanHeading; got != want {
+			t.Errorf("Columns(%v).SpanHeading = %q, want %q", locale, got, want)
+		}
+	}
+}
