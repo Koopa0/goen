@@ -438,3 +438,26 @@ func TestPickingOfSelectionHasNoPaging(t *testing.T) {
 		t.Error("selected slips page or scope as if they were the whole queue")
 	}
 }
+
+// A refused batch is a refused page only when no order started: with some started
+// the page reports work that went through, and an interrupted batch answers 503.
+func TestBatchResult_SavedNothing(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name  string
+		batch BatchResult
+		want  bool
+	}{
+		{"none started", BatchResult{}, true},
+		{"some started", BatchResult{OthersStarted: 2}, false},
+		{"interrupted before any started", BatchResult{Interrupted: true}, false},
+		{"interrupted after some started", BatchResult{Interrupted: true, OthersStarted: 1}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.batch.savedNothing(); got != tt.want {
+				t.Errorf("savedNothing() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

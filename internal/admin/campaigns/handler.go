@@ -98,7 +98,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"), Tone: f.Tone,
 		}
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Campaigns(
-			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueCampaigns)}, view))
+			frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminQueueCampaigns)}, view))
 	default:
 		//nolint:gosec // G710: slug matched slugFormat in Validate
 		http.Redirect(w, r, "/admin/campaigns/"+f.Slug+"?created=1", http.StatusSeeOther)
@@ -161,7 +161,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 		h.log.ErrorContext(r.Context(), "read campaign results", "error", err, "slug", slug)
 		view.ResultsUnavailable = true
 	}
-	respond.Component(w, r, h.log, status, Campaign(frame.Page{Title: detail.Title}, view))
+	respond.Component(w, r, h.log, status, Campaign(frame.Page{Refused: status == http.StatusUnprocessableEntity, Title: detail.Title}, view))
 }
 
 func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {

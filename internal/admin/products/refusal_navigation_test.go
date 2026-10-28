@@ -72,7 +72,7 @@ func TestProductRefusalSummary(t *testing.T) {
 						t.Errorf("form must post to its section: %s", tc.action)
 					}
 					if alert == nil {
-						t.Fatalf("page-top alert must name %q and link to #%s", i18n.T(ctx, tc.title), tc.first)
+						t.Fatalf("the alert must name %q and link to #%s", i18n.T(ctx, tc.title), tc.first)
 					}
 					count := "2"
 					if tc.count == 1 {
@@ -81,12 +81,15 @@ func TestProductRefusalSummary(t *testing.T) {
 					if !strings.Contains(refusalText(alert), count) {
 						t.Errorf("alert does not count %d invalid fields", tc.count)
 					}
+					if !within(alert, tc.target) {
+						t.Errorf("the summary must sit in its own section #%s, where the refused form is", tc.target)
+					}
 					for n := range doc.Descendants() {
 						if n == alert {
 							break
 						}
-						if n.Data == "form" && strings.Contains(refusalAttr(n, "class"), "goen-admin__") {
-							t.Error("summary must precede the forms")
+						if n == form {
+							t.Error("summary must precede its form")
 							break
 						}
 					}
@@ -111,6 +114,16 @@ func TestProductRefusalSummary(t *testing.T) {
 			}
 		})
 	}
+}
+
+// within reports whether n sits inside the element whose id is id.
+func within(n *html.Node, id string) bool {
+	for p := n; p != nil; p = p.Parent {
+		if p.Type == html.ElementNode && refusalAttr(p, "id") == id {
+			return true
+		}
+	}
+	return false
 }
 
 func refusalAttr(n *html.Node, key string) string {

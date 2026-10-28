@@ -103,7 +103,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		view.Which, view.Errors = kind, errs
 		view.Draft = TaxonDraft(typed)
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Taxonomy(
-			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueTaxonomy)}, &view))
+			frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminQueueTaxonomy)}, &view))
 	default:
 		http.Redirect(w, r, addedTarget(kind), http.StatusSeeOther)
 	}
@@ -164,7 +164,7 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 	if errs["image"] != "" || errs["alt"] != "" || errs["alt_en"] != "" {
 		view.ImageAltDraft, view.ImageAltEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
 	}
-	respond.Component(w, r, h.log, status, CategoryForm(frame.Page{Title: view.Name}, view))
+	respond.Component(w, r, h.log, status, CategoryForm(frame.Page{Refused: status == http.StatusUnprocessableEntity, Title: view.Name}, view))
 }
 
 func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {

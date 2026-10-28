@@ -110,12 +110,9 @@ templ Product(p frame.Page, v ProductView) {
 				</div>
 			}
 		</div>
-		@widget.Announce(v.Notice)
-		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, widget.RefusalField{Key: "name", ID: "p-name"}, widget.RefusalField{Key: "slug", ID: "p-slug"}, widget.RefusalField{Key: "brand", ID: "p-brand"}, widget.RefusalField{Key: "category", ID: "p-category"}, widget.RefusalField{Key: "summary", ID: "p-summary"}, widget.RefusalField{Key: "description", ID: "p-description"}, widget.RefusalField{Key: "name_en", ID: "p-name-en"}, widget.RefusalField{Key: "summary_en", ID: "p-summary-en"}, widget.RefusalField{Key: "description_en", ID: "p-description-en"}, widget.RefusalField{Key: "warranty_months", ID: "p-warranty-months"}))
-		@widget.RefusalSummary(v.VariantRefusal())
-		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, widget.RefusalField{Key: "option", ID: "opt-name"}, widget.RefusalField{Key: "option_en", ID: "opt-name-en"}))
-		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, widget.RefusalField{Key: "value", ID: "optval-value"}, widget.RefusalField{Key: "value_en", ID: "optval-value-en"}, widget.RefusalField{Key: "swatch_hex", ID: "optval-swatch"}))
-		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, widget.RefusalField{Key: "spec_label", ID: "spec-label"}, widget.RefusalField{Key: "spec_value", ID: "spec-value"}, widget.RefusalField{Key: "spec_label_en", ID: "spec-label-en"}, widget.RefusalField{Key: "spec_value_en", ID: "spec-value-en"}))
+		if v.NoticeIn == "" {
+			@widget.Announce(v.Notice)
+		}
 		if !v.IsNew {
 			<nav class="goen-admin__sectionnav" aria-label={ i18n.T(ctx, i18n.KeyAdminProdSectionNav) }>
 				<a href="#sec-details">{ i18n.T(ctx, i18n.KeyAdminProdBasics) }</a>
@@ -144,6 +141,8 @@ templ Product(p frame.Page, v ProductView) {
 templ productDetails(v ProductView) {
 	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-details"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdBasics) }</h2>
+		@sectionNotice(v, SectionDetails)
+		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, widget.RefusalField{Key: "name", ID: "p-name"}, widget.RefusalField{Key: "slug", ID: "p-slug"}, widget.RefusalField{Key: "brand", ID: "p-brand"}, widget.RefusalField{Key: "category", ID: "p-category"}, widget.RefusalField{Key: "summary", ID: "p-summary"}, widget.RefusalField{Key: "description", ID: "p-description"}, widget.RefusalField{Key: "name_en", ID: "p-name-en"}, widget.RefusalField{Key: "summary_en", ID: "p-summary-en"}, widget.RefusalField{Key: "description_en", ID: "p-description-en"}, widget.RefusalField{Key: "warranty_months", ID: "p-warranty-months"}))
 		<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.Action() + "#sec-details") }>
 			<div class="goen-admin__field">
 				@widget.Label(widget.LabelProps{For: "p-name"}) {
@@ -641,6 +640,9 @@ templ imageOptionChoices(v ProductView, chosen string) {
 templ productOptions(v ProductView) {
 	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-options"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdOptions) }</h2>
+		@sectionNotice(v, SectionOptions)
+		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, widget.RefusalField{Key: "option", ID: "opt-name"}, widget.RefusalField{Key: "option_en", ID: "opt-name-en"}))
+		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, widget.RefusalField{Key: "value", ID: "optval-value"}, widget.RefusalField{Key: "value_en", ID: "optval-value-en"}, widget.RefusalField{Key: "swatch_hex", ID: "optval-swatch"}))
 		<p class="goen-admin__hint">
 			{ i18n.T(ctx, i18n.KeyAdminProdOptionsLead) }
 		</p>
@@ -845,6 +847,8 @@ templ productOptions(v ProductView) {
 templ productVariants(v ProductView) {
 	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-variants"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdVariants) }</h2>
+		@sectionNotice(v, SectionVariants)
+		@widget.RefusalSummary(v.VariantRefusal())
 		if len(v.Variants) == 0 {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminProdNoVariants) }</p>
@@ -1066,6 +1070,8 @@ templ productVariants(v ProductView) {
 templ productSpecs(v ProductView) {
 	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-specs"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdSpecs) }</h2>
+		@sectionNotice(v, SectionSpecs)
+		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, widget.RefusalField{Key: "spec_label", ID: "spec-label"}, widget.RefusalField{Key: "spec_value", ID: "spec-value"}, widget.RefusalField{Key: "spec_label_en", ID: "spec-label-en"}, widget.RefusalField{Key: "spec_value_en", ID: "spec-value-en"}))
 		<p class="goen-admin__hint">
 			{ i18n.T(ctx, i18n.KeyAdminProdSpecsLead) }
 		</p>
@@ -1264,5 +1270,11 @@ templ productPublishing(v ProductView) {
 				}
 			</div>
 		</form>
+	}
+}
+
+templ sectionNotice(v ProductView, s Section) {
+	if v.NoticeIn == s {
+		@widget.Announce(v.Notice)
 	}
 }

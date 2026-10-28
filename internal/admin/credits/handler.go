@@ -216,5 +216,5 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 	if notice != "" {
 		view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), notice)}
 	}
-	respond.Component(w, r, h.log, status, Credit(frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
+	respond.Component(w, r, h.log, status, Credit(frame.Page{Refused: status == http.StatusUnprocessableEntity, Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
 }

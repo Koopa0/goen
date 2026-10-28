@@ -123,7 +123,7 @@ func (h *Handler) rejectBanner(
 		MessageEn: r.PostFormValue("message_en"), ShortEn: r.PostFormValue("short_en"), CTALabelEn: r.PostFormValue("cta_label_en"),
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Banners(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminHomeBanner)}, &view))
+		frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminHomeBanner)}, &view))
 }
 
 // activeTarget is where a write that took goes: the page says which change it was.

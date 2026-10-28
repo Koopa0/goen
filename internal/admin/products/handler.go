@@ -125,12 +125,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		h.rejectProduct(w, r, f, errs, true)
 	default:
 		//nolint:gosec // G710: slug came back from the database
-		http.Redirect(w, r, "/admin/products/"+slug+"?created=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?created=1"+SectionDetails.Query(), http.StatusSeeOther)
 	}
 }
 
 func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
-	h.renderProduct(w, r, http.StatusOK, widget.NoticeFrom(r, notices))
+	h.renderProduct(w, r, http.StatusOK, widget.NoticeFrom(r, notices), sectionOf(r.URL.Query().Get("in")))
 }
 
 // product reads the editor's product; a failure to read its sales or reviews is
@@ -167,7 +167,7 @@ func (h *Handler) productView(ctx context.Context, slug string) (ProductView, er
 	return view, nil
 }
 
-func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status int, notice widget.Result) {
+func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status int, notice widget.Result, noticeIn Section) {
 	view, err := h.productView(r.Context(), r.PathValue("slug"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -180,10 +180,10 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 		admin.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = notice
+	view.Notice, view.NoticeIn = notice, noticeIn
 
 	respond.Component(w, r, h.log, status, Product(
-		frame.Page{Title: view.Name}, view))
+		frame.Page{Refused: status == http.StatusUnprocessableEntity, Title: view.Name}, view))
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
@@ -210,7 +210,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		h.rejectProduct(w, r, f, errs, false)
 	default:
 		//nolint:gosec // G710: validated by the route's own slug
-		http.Redirect(w, r, "/admin/products/"+f.Slug+"?saved=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+f.Slug+"?saved=1"+SectionDetails.Query(), http.StatusSeeOther)
 	}
 }
 
@@ -276,7 +276,7 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 	default:
 		//nolint:gosec // G710: validated by the route's own slug
-		http.Redirect(w, r, "/admin/products/"+slug+"?variant=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?variant=1"+SectionVariants.Query(), http.StatusSeeOther)
 	}
 }
 
@@ -386,7 +386,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form,
 	view.BrandID, view.CategoryID = r.PostFormValue("brand"), r.PostFormValue("category")
 	view.Errors = errs
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Product(
-		frame.Page{Title: view.Title(r.Context())}, view))
+		frame.Page{Refused: true, Title: view.Title(r.Context())}, view))
 }
 
 // UploadImage stores then attaches, deliberately NOT in one transaction: storing is idempotent by content, so a
@@ -532,7 +532,7 @@ func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrInvalid):
 		h.log.WarnContext(r.Context(), "move image refused", "error", err, "slug", slug)
 		h.renderProduct(w, r, http.StatusUnprocessableEntity,
-			widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale)})
+			widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale)}, "")
 	default:
 		h.log.ErrorContext(r.Context(), "move image", "error", err, "slug", slug)
 		admin.ServerError(w, r, h.log)
@@ -591,7 +591,7 @@ func (h *Handler) optionWrite(
 		if errors.Is(err, ErrRefused) {
 			h.log.WarnContext(r.Context(), "write product option refused", "error", err, "slug", slug)
 			//nolint:gosec // G710: slug is the route's own path value
-			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1"+SectionOptions.Query(), http.StatusSeeOther)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "write product option", "error", err, "slug", slug)
@@ -600,7 +600,7 @@ func (h *Handler) optionWrite(
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+done, http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+done+SectionOptions.Query(), http.StatusSeeOther)
 	}
 }
 
@@ -623,7 +623,7 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "add spec refused", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?specfailed=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?specfailed=1"+SectionSpecs.Query(), http.StatusSeeOther)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "add spec", "error", err, "slug", slug)
 		admin.ServerError(w, r, h.log)
@@ -631,7 +631,7 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{spec: draft})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?spec=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?spec=1"+SectionSpecs.Query(), http.StatusSeeOther)
 	}
 }
 
@@ -684,7 +684,7 @@ func (h *Handler) editProductWithErrors(
 	view.VariantDraft, view.SpecDraft = draft.variant, draft.spec
 	view.ImageUploadDraft, view.ImageReuseDraft = draft.upload, draft.reuse
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Product(
-		frame.Page{Title: view.Title(r.Context())}, view))
+		frame.Page{Refused: true, Title: view.Title(r.Context())}, view))
 }
 
 func attachImageRefusal(err error, alt string) (string, i18n.Key) {

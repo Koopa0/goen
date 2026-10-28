@@ -91,7 +91,7 @@ func (h *Handler) DeliverShipment(w http.ResponseWriter, r *http.Request) {
 		view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminShipmentArrivalRefused)}
 		view.AllowanceOperationID = uuid.NewString()
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
-			Order(frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), number)}, &view))
+			Order(frame.Page{Refused: true, Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), number)}, &view))
 	default:
 		h.log.ErrorContext(r.Context(), "record parcel arrival", "error", err)
 		admin.ServerError(w, r, h.log)

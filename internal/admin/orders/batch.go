@@ -86,7 +86,9 @@ func (h *Handler) StartPicking(w http.ResponseWriter, r *http.Request) {
 	if batch.Interrupted {
 		status = http.StatusServiceUnavailable
 	}
-	respond.Component(w, r, h.log, status, Orders(Meta(ctx), view))
+	page := Meta(ctx)
+	page.Refused = batch.savedNothing()
+	respond.Component(w, r, h.log, status, Orders(page, view))
 }
 
 // startPacking advances each number in turn. A refusal is that order's answer

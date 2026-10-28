@@ -110,7 +110,7 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 		}
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Questions(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueQuestions)}, view))
+		frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminQueueQuestions)}, view))
 }
 
 // savedTarget is where a write that took goes: the page says which change it was.

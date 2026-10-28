@@ -2,10 +2,21 @@ package frame
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
+
+// refusedTitle puts "Not saved" in front of the title of a refused back-office
+// page: the title of a refused page and of a saved one were the same, which
+// 2.4.2 says a title must not be.
+func (p Page) refusedTitle(ctx context.Context) Page {
+	if p.Refused && p.Title != "" {
+		p.Title = fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefusedTitle), p.Title)
+	}
+	return p
+}
 
 // adminNavHolds decides on the server which group arrives OPEN, so the right group
 // is disclosed in the first byte and, with scripting off, <details> still works.

@@ -79,7 +79,7 @@ func (h *Handler) ProductInvoiceLine(w http.ResponseWriter, r *http.Request) {
 	default:
 		slug := r.PathValue("slug")
 		//nolint:gosec // G710: validated by the route's own slug
-		http.Redirect(w, r, "/admin/products/"+slug+"?invoice=1#sec-invoice", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?invoice=1"+SectionInvoice.Query()+"#sec-invoice", http.StatusSeeOther)
 	}
 }
 
@@ -96,5 +96,5 @@ func (h *Handler) rejectProductInvoiceLine(w http.ResponseWriter, r *http.Reques
 	}
 	view.InvoiceTerms = &facts
 	view.Errors = errs
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Product(frame.Page{Title: view.Name}, view))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Product(frame.Page{Refused: true, Title: view.Name}, view))
 }
