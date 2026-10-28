@@ -4896,10 +4896,8 @@ input.goen-check {
   margin: 0.125rem 0 0;
 }
 
-.goen-pdp__left {
+.goen-pdp__source .goen-ends__left {
   color: var(--accent-deep);
-  font-weight: var(--fw-medium);
-  word-break: keep-all;
 }
 
 /* An option group. The fieldset keeps the legend, which is the only thing that

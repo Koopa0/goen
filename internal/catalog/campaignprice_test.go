@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -53,11 +54,9 @@ func TestProductStrikesPriceOnSale(t *testing.T) {
 	}
 }
 
-// TestProductCampaignSource holds that the source line names the campaign, what
-// is left of it and its last day.
-//
-// The source line names the campaign, sets apart what is left of it and says its
-// last day, in a sentence that fits how much is left.
+// TestProductCampaignSource holds that the source line names the campaign and
+// then says its end the way every other page does: the last day first, then
+// what is left, and the last two days whole.
 func TestProductCampaignSource(t *testing.T) {
 	t.Parallel()
 
@@ -69,37 +68,38 @@ func TestProductCampaignSource(t *testing.T) {
 		ends   time.Time
 		want   string
 	}{
-		{"days left", i18n.ZhHant, time.Date(2026, 10, 31, 0, 0, 0, 0, cst),
-			"「<a href=\"/s/autumn-picks\">秋日選物</a>」活動價，<span class=\"goen-pdp__left\">剩\u00a021\u00a0天</span>，至 10\u00a0月 30\u00a0日</p>"},
-		{"days left", i18n.En, time.Date(2026, 10, 31, 0, 0, 0, 0, cst),
-			"<a href=\"/s/autumn-picks\">Autumn picks</a> price, <span class=\"goen-pdp__left\">21\u00a0days left</span>, until Oct\u00a030</p>"},
-		{"tomorrow", i18n.ZhHant, time.Date(2026, 10, 11, 0, 0, 0, 0, cst),
-			"「<a href=\"/s/autumn-picks\">秋日選物</a>」活動價，<span class=\"goen-pdp__left\">明天結束</span></p>"},
-		{"tomorrow", i18n.En, time.Date(2026, 10, 11, 0, 0, 0, 0, cst),
-			"<a href=\"/s/autumn-picks\">Autumn picks</a> price, <span class=\"goen-pdp__left\">ends tomorrow</span></p>"},
-		{"today", i18n.ZhHant, time.Date(2026, 10, 10, 0, 0, 0, 0, cst),
-			"「<a href=\"/s/autumn-picks\">秋日選物</a>」活動價，<span class=\"goen-pdp__left\">今天結束</span></p>"},
-		{"today", i18n.En, time.Date(2026, 10, 10, 0, 0, 0, 0, cst),
-			"<a href=\"/s/autumn-picks\">Autumn picks</a> price, <span class=\"goen-pdp__left\">ends today</span></p>"},
-		{"days left at six", i18n.ZhHant, time.Date(2026, 10, 12, 18, 0, 0, 0, cst),
-			"「<a href=\"/s/autumn-picks\">秋日選物</a>」活動價，<span class=\"goen-pdp__left\">剩\u00a03\u00a0天</span>，至 10\u00a0月 12\u00a0日 18:00</p>"},
-		{"days left at six", i18n.En, time.Date(2026, 10, 12, 18, 0, 0, 0, cst),
-			"<a href=\"/s/autumn-picks\">Autumn picks</a> price, <span class=\"goen-pdp__left\">3\u00a0days left</span>, until Oct\u00a012 at 18:00</p>"},
-		{"tomorrow at six", i18n.ZhHant, time.Date(2026, 10, 10, 18, 0, 0, 0, cst),
-			"「<a href=\"/s/autumn-picks\">秋日選物</a>」活動價，<span class=\"goen-pdp__left\">明天 18:00 結束</span></p>"},
-		{"tomorrow at six", i18n.En, time.Date(2026, 10, 10, 18, 0, 0, 0, cst),
-			"<a href=\"/s/autumn-picks\">Autumn picks</a> price, <span class=\"goen-pdp__left\">ends tomorrow at 18:00</span></p>"},
-		{"today at six", i18n.ZhHant, time.Date(2026, 10, 9, 18, 0, 0, 0, cst),
-			"「<a href=\"/s/autumn-picks\">秋日選物</a>」活動價，<span class=\"goen-pdp__left\">今天 18:00 結束</span></p>"},
-		{"today at six", i18n.En, time.Date(2026, 10, 9, 18, 0, 0, 0, cst),
-			"<a href=\"/s/autumn-picks\">Autumn picks</a> price, <span class=\"goen-pdp__left\">ends today at 18:00</span></p>"},
+		{"days left", i18n.ZhHant, time.Date(2026, 10, 31, 0, 0, 0, 0, cst), "「秋日選物」活動價\u00a0· 至 10\u00a0月 30\u00a0日\u00a0· 剩\u00a021\u00a0天"},
+		{"days left", i18n.En, time.Date(2026, 10, 31, 0, 0, 0, 0, cst), "Autumn picks price\u00a0· until Oct\u00a030,\u00a0· 21\u00a0days left"},
+		{"tomorrow", i18n.ZhHant, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "「秋日選物」活動價\u00a0· 明天結束"},
+		{"tomorrow", i18n.En, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "Autumn picks price\u00a0· ends tomorrow"},
+		{"today", i18n.ZhHant, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "「秋日選物」活動價\u00a0· 今天結束"},
+		{"today", i18n.En, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "Autumn picks price\u00a0· ends today"},
+		{"days left at six", i18n.ZhHant, time.Date(2026, 10, 12, 18, 0, 0, 0, cst), "「秋日選物」活動價\u00a0· 至 10\u00a0月 12\u00a0日 18:00\u00a0· 剩\u00a03\u00a0天"},
+		{"days left at six", i18n.En, time.Date(2026, 10, 12, 18, 0, 0, 0, cst), "Autumn picks price\u00a0· until Oct\u00a012 at 18:00,\u00a0· 3\u00a0days left"},
+		{"tomorrow at six", i18n.ZhHant, time.Date(2026, 10, 10, 18, 0, 0, 0, cst), "「秋日選物」活動價\u00a0· 明天 18:00 結束"},
+		{"tomorrow at six", i18n.En, time.Date(2026, 10, 10, 18, 0, 0, 0, cst), "Autumn picks price\u00a0· ends tomorrow at 18:00"},
+		{"today at six", i18n.ZhHant, time.Date(2026, 10, 9, 18, 0, 0, 0, cst), "「秋日選物」活動價\u00a0· 今天 18:00 結束"},
+		{"today at six", i18n.En, time.Date(2026, 10, 9, 18, 0, 0, 0, cst), "Autumn picks price\u00a0· ends today at 18:00"},
 	} {
 		v := ProductView{
 			Name: "Mug", SelectionOK: true, Exact: true, Sellable: true,
 			PriceCents: 43200, CompareCents: 48000, OnSale: true, Campaign: NewProductCampaign("autumn-picks", titleIn(tt.locale), tt.ends, now),
 		}
-		if got := buyBox(t, tt.locale, &v); !strings.Contains(got, `<p class="goen-pdp__source">`+tt.want) {
-			t.Errorf("%s, %s: want the source line %q in\n%s", tt.name, tt.locale, tt.want, got)
+		got := buyBox(t, tt.locale, &v)
+		_, line, ok := strings.Cut(got, `<p class="goen-pdp__source">`)
+		if !ok {
+			t.Errorf("%s, %s: no source line in\n%s", tt.name, tt.locale, got)
+			continue
+		}
+		line, _, _ = strings.Cut(line, "</p>")
+		if !strings.Contains(line, `<a href="/s/autumn-picks">`+titleIn(tt.locale)+`</a>`) {
+			t.Errorf("%s, %s: the source line does not link the campaign: %s", tt.name, tt.locale, line)
+		}
+		text := strings.NewReplacer("&nbsp;", "\u00a0").Replace(htmlTag.ReplaceAllString(line, ""))
+		if strings.TrimSpace(text) != tt.want {
+			t.Errorf("%s, %s: the source line reads %q, want %q", tt.name, tt.locale, text, tt.want)
 		}
 	}
 }
+
+var htmlTag = regexp.MustCompile(`<[^>]*>`)

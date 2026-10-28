@@ -25,7 +25,10 @@ var (
 	KeyCartFactToFree = key("cart.fact.to_free", Message{ZhHant: "免運還差", En: "To free delivery"})
 	KeyCartFactOver   = key("cart.fact.over", Message{ZhHant: "已滿 %s", En: "Over %s"})
 
-	KeyCartHold = countKey("cart.hold", "庫存保留 %s 分鐘", "Stock held for %s minute", "Stock held for %s minutes")
+	// KeyCartPayStart is said under the checkout button; %s is the minutes the customer has to start paying.
+	KeyCartPayStart = countKey("cart.pay_start", "送出訂單後保留，請在 %s 分鐘內開始付款",
+		"Held once you place the order; start paying within %s minute",
+		"Held once you place the order; start paying within %s minutes")
 
 	KeyCartMixedTaxTypes = key("cart.tax_types.mixed", Message{
 		ZhHant: "應稅與免稅商品須分開結帳，請先將其中一類商品移出購物車。",

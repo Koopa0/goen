@@ -645,10 +645,10 @@ func TestListingView_AppliedChips(t *testing.T) {
 		}}},
 	}
 	want := map[string]string{
-		"Remove “Aurora”":   "/c/audio?brand=nimbus&in_stock=1&max_price=50&min_price=10&sort=rating",
-		"Remove “Nimbus”":   "/c/audio?brand=aurora&in_stock=1&max_price=50&min_price=10&sort=rating",
-		"Remove “In stock”": "/c/audio?brand=aurora&brand=nimbus&max_price=50&min_price=10&sort=rating",
-		"Remove “10–50”":    "/c/audio?brand=aurora&brand=nimbus&in_stock=1&sort=rating",
+		"Remove “Aurora”":      "/c/audio?brand=nimbus&in_stock=1&max_price=50&min_price=10&sort=rating",
+		"Remove “Nimbus”":      "/c/audio?brand=aurora&in_stock=1&max_price=50&min_price=10&sort=rating",
+		"Remove “In stock”":    "/c/audio?brand=aurora&brand=nimbus&max_price=50&min_price=10&sort=rating",
+		"Remove “NT$10–NT$50”": "/c/audio?brand=aurora&brand=nimbus&in_stock=1&sort=rating",
 	}
 	chips := view.AppliedChips(ctx)
 	if len(chips) != len(want) {
@@ -662,6 +662,45 @@ func TestListingView_AppliedChips(t *testing.T) {
 	html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, nil))
 	if !strings.Contains(html, `aria-label="Remove “Aurora”"`) {
 		t.Error("the chip's remove link has no accessible name in the markup")
+	}
+}
+
+// TestListingView_PriceChipMoney holds that the price chip names its amounts as
+// money while the filter form keeps the bare dollars.
+//
+// A chip reading "999999 起" says neither the currency nor the size of the
+// number; the form fields beside it still take plain digits.
+func TestListingView_PriceChipMoney(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name     string
+		min, max int64
+		locale   i18n.Locale
+		want     string
+	}{
+		{"range", 100000, 3000000, i18n.ZhHant, "NT$1,000–NT$30,000"},
+		{"from", 99999900, 0, i18n.ZhHant, "NT$999,999 起"},
+		{"from en", 99999900, 0, i18n.En, "From NT$999,999"},
+		{"up to en", 0, 150000, i18n.En, "Up to NT$1,500"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			view := ListingView{Slug: "audio", Name: "Audio", Filtered: true, MinPrice: tt.min, MaxPrice: tt.max}
+			chips := view.AppliedChips(ctx)
+			if len(chips) != 1 || chips[0].Label != tt.want {
+				t.Fatalf("chips = %+v, want one labelled %q", chips, tt.want)
+			}
+		})
+	}
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{Slug: "audio", Name: "Audio", Filtered: true, MinPrice: 100000, MaxPrice: 3000000}
+	html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, nil))
+	for _, field := range []string{`value="1000"`, `value="30000"`} {
+		if !strings.Contains(html, field) {
+			t.Errorf("the price field lost its plain value %s", field)
+		}
 	}
 }
 
