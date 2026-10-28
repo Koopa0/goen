@@ -8,9 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// refusedTitle puts "Not saved" in front of the title of a refused back-office
-// page: the title of a refused page and of a saved one were the same, which
-// 2.4.2 says a title must not be.
+// refusedTitle puts "Not saved" in front of a refused back-office page's title,
+// so it does not share the title of the page that saved (WCAG 2.4.2).
 func (p Page) refusedTitle(ctx context.Context) Page {
 	if p.Refused && p.Title != "" {
 		p.Title = fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefusedTitle), p.Title)

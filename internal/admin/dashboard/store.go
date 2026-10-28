@@ -1,8 +1,9 @@
 // Package dashboard is the back office's landing page, GET /admin: what waits
 // for a person at every desk. It reads its counts and the newest orders with
-// queries of its own, and the stock runway, the health tasks and the week's
-// sales through the interfaces below, which the stock, health and reports desks
-// satisfy.
+// queries of its own, and the stock runway, the health tasks and the recent
+// sales (the last seven shop days against the seven before, every day of both,
+// and the week's best sellers) through the interfaces below, which the stock,
+// health and reports desks satisfy.
 package dashboard
 
 import (
@@ -33,9 +34,9 @@ type Health interface {
 	Tasks(ctx context.Context) ([]worklist.Task, error)
 }
 
-// Sales reads paid orders and revenue over a window of shop days up to now and
-// over the window before it, and the latest paid order; the reports desk
-// implements it.
+// Sales reads a run of shop days up to now and the run before it: their paid
+// orders and revenue, every shop day of both, the current run's best sellers,
+// and the latest paid order; the reports desk implements it.
 type Sales interface {
 	Recent(ctx context.Context, days int, now time.Time) (sales.Recent, error)
 }
@@ -76,9 +77,9 @@ func (s *Store) Dashboard(ctx context.Context) (View, error) {
 		UnansweredQuestions:            sum.UnansweredQuestions,
 		UnansweredQuestionsOldestSince: sum.UnansweredQuestionsOldestSince,
 	}
-	// No status: the newest orders whatever state they are in. The tiles above
-	// the queue already count each state, and a queue filtered to one of them
-	// hides the order somebody is standing at the counter asking about.
+	// No status: the newest orders whatever state they are in. The tasks above
+	// already count each state, and a queue filtered to one of them hides the
+	// order somebody is standing at the counter asking about.
 	recent, err := s.q.RecentOrders(ctx, recentRows)
 	if err != nil {
 		return View{}, fmt.Errorf("read recent orders: %w", err)

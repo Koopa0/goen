@@ -19,7 +19,7 @@ import (
 )
 
 // View lists the newest orders in Recent whatever their state: filtering it
-// to one state would answer what the tiles above already answer, and hide the order
+// to one state would answer what the tasks above already answer, and hide the order
 // somebody walked over to ask about.
 type View struct {
 	PendingOrders int64
