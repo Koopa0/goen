@@ -9066,8 +9066,7 @@ html:active-view-transition-type(page)::view-transition-new(*) {
    own cross-fade: the old fades out as the new fades in, blended so that their
    opacities add up to one, which leaves neither a dip in the middle nor a
    wash-out. That holds only while both run for the same time and curve, as the
-   rules above make them, in the reduce block as well. An unmatched old photo
-   just fades out. */
+   rules above make them. An unmatched old photo just fades out. */
 ::view-transition-group(*.photo),
 html:active-view-transition-type(page)::view-transition-group(*.photo) {
   animation-duration: var(--dur-move);

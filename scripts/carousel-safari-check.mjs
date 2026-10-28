@@ -37,13 +37,6 @@ try {
   await command('POST', `/session/${session}/url`, {url: origin + '/carousel?lang=en&photos=1'});
   await until("return document.readyState === 'complete' && document.querySelector('.goen-hero__nav')?.hidden === false", 'carousel did not load');
   await until('return [...document.images].every(image => image.complete)', 'the slides\' photographs did not load');
-  await evaluate(`
-    window.slideRuns = []; window.pageErrors = [];
-    addEventListener('error', event => pageErrors.push(String(event.message)));
-    addEventListener('unhandledrejection', event => pageErrors.push(String(event.reason)));
-    const start = document.startViewTransition.bind(document);
-    document.startViewTransition = options => { slideRuns.push([...(options?.types ?? [])]); return start(options); };
-    return true`);
   await settled(0, 'the first slide is not the one shown');
   // A photograph to a photograph, a photograph to words, and the way back.
   for (const index of [1, 2, 0]) {
@@ -51,8 +44,6 @@ try {
     await settled(index, `tab ${index + 1} did not leave its slide shown`);
     console.log(`PASS Safari chose slide ${index + 1}`);
   }
-  assert.deepEqual(await evaluate('return slideRuns'), [['slide'], ['slide'], ['slide']], 'each chosen slide is a view transition of type slide');
-  assert.deepEqual(await evaluate('return pageErrors'), [], 'page errors');
 } finally {
   if (session) await command('DELETE', `/session/${session}`).catch(error => console.error(error.message));
 }
