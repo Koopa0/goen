@@ -186,7 +186,7 @@ func TestHandler_ProductInvoiceLineReadFailure(t *testing.T) {
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	response := httptest.NewRecorder()
 	mux.ServeHTTP(response, request)
-	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/products/"+slug+"?invoice=1#sec-invoice" {
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/products/"+slug+"?invoice=1"+products.SectionInvoice.In()+"#sec-invoice" {
 		t.Fatalf("committed invoice redirect=%d %q, want 303 to the invoice section", response.Code, response.Header().Get("Location"))
 	}
 	var taxType, unit string

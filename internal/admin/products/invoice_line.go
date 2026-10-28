@@ -79,7 +79,7 @@ func (h *Handler) ProductInvoiceLine(w http.ResponseWriter, r *http.Request) {
 	default:
 		slug := r.PathValue("slug")
 		//nolint:gosec // G710: validated by the route's own slug
-		http.Redirect(w, r, "/admin/products/"+slug+"?invoice=1#sec-invoice", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?invoice=1"+SectionInvoice.In()+"#sec-invoice", http.StatusSeeOther)
 	}
 }
 

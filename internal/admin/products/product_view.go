@@ -110,6 +110,7 @@ type ProductView struct {
 	Specs             []Spec
 	Errors            map[string]string
 	Notice            widget.Result
+	NoticeIn          Section
 	VariantDraft      VariantDraft
 	SpecDraft         SpecDraft
 	Sales             Sales

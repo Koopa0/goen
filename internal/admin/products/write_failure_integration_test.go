@@ -74,10 +74,10 @@ func TestHandler_WritesReportCommitted(t *testing.T) {
 					location, notice = "/admin/products/"+slug+"?specremoved=1", i18n.KeyAdminNoticeProductSpecRemoved
 				case strings.HasPrefix(scenario, "option-"):
 					path, form = "/options", url.Values{"name": {"Size"}, "name_en": {"Typed option"}}
-					location, notice = "/admin/products/"+slug+"?option=1", i18n.KeyAdminNoticeProductOption
+					location, notice = "/admin/products/"+slug+"?option=1"+products.SectionOptions.In(), i18n.KeyAdminNoticeProductOption
 				case strings.HasPrefix(scenario, "value-"):
 					path, form = "/options/values", url.Values{"option": {view.Options[0].ID}, "value": {"Blue"}, "value_en": {"Typed value"}, "swatch_hex": {"#123456"}}
-					location, notice = "/admin/products/"+slug+"?optionvalue=1", i18n.KeyAdminNoticeProductOptionValue
+					location, notice = "/admin/products/"+slug+"?optionvalue=1"+products.SectionOptions.In(), i18n.KeyAdminNoticeProductOptionValue
 				}
 				switch scenario {
 				case "image-success":
@@ -276,6 +276,9 @@ func TestHandler_WritesRuleRefusals(t *testing.T) {
 				res := httptest.NewRecorder()
 				mux.ServeHTTP(res, req)
 				location := "/admin/products/" + slug + "?refused=1"
+				if strings.HasPrefix(tt.path, "/options") {
+					location += products.SectionOptions.In()
+				}
 				if res.Code != http.StatusSeeOther || res.Header().Get("Location") != location {
 					t.Errorf("rule-refused product write = %d Location %q, want 303 %q", res.Code, res.Header().Get("Location"), location)
 				}
@@ -308,7 +311,7 @@ func TestHandler_ImageOptionSpecFaults(t *testing.T) {
 			action                             audit.Action
 		}{
 			{name: "image option", path: "/images/option", query: "SetProductImageOptionValue", lock: `SELECT 1 FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 FOR UPDATE OF i`, log: "set image option", done: "?imageopt=1", action: audit.ActionSetImageOption},
-			{name: "add spec", path: "/specs", query: "AddProductSpec", lock: `SELECT 1 FROM products WHERE slug=$1 FOR UPDATE`, log: "add spec", done: "?spec=1", action: audit.ActionAddSpec},
+			{name: "add spec", path: "/specs", query: "AddProductSpec", lock: `SELECT 1 FROM products WHERE slug=$1 FOR UPDATE`, log: "add spec", done: "?spec=1" + products.SectionSpecs.In(), action: audit.ActionAddSpec},
 		} {
 			for _, fault := range []string{"closed pool", "row lock"} {
 				t.Run(locale.Tag()+"/"+endpoint.name+"/"+fault, func(t *testing.T) {
