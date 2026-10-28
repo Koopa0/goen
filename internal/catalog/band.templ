@@ -3,8 +3,8 @@ package catalog
 import "github.com/koopa0/goen/internal/ui/widget"
 
 // bandMedia is the band's first grid item: the photograph on goen's white,
-// never on the tone. A first-screen photograph is eager; the others are lazy.
-templ bandMedia(imgClass, id string, p widget.Photo, onWell bool, sizes string, lazy bool) {
+// never on the tone.
+templ bandMedia(imgClass, id string, p widget.Photo, onWell bool, sizes string) {
 	<div class={ "goen-band__media", templ.KV("goen-band__media--well", onWell) }>
 		<img
 			class={ imgClass }
@@ -14,9 +14,6 @@ templ bandMedia(imgClass, id string, p widget.Photo, onWell bool, sizes string, 
 			alt={ p.Alt }
 			width="800"
 			height="600"
-			if lazy {
-				loading="lazy"
-			}
 			decoding="async"
 			if id != "" {
 				id={ id }

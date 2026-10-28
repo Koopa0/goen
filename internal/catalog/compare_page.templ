@@ -5,7 +5,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
-	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -30,9 +29,6 @@ templ Compare(p frame.Page, v CompareView) {
 			@comparePicker(v)
 			if !v.Enough() {
 				<div class="ui-empty">
-					<span class="goen-medallion" aria-hidden="true">
-						@icons.Search()
-					</span>
 					if v.Count() == 1 {
 						<p class="goen-empty__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareOneChosen), v.Products[0].Name) }</p>
 					} else {
