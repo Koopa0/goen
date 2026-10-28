@@ -85,7 +85,7 @@ func TestStore_OverviewLastDay(t *testing.T) {
 				t.Fatalf("commit: %v", err)
 			}
 
-			v, err := s.Overview(ctx, owner)
+			v, err := s.Overview(ctx, owner, "")
 			if err != nil {
 				t.Fatalf("overview: %v", err)
 			}
@@ -179,7 +179,7 @@ func TestStore_OverviewRefunded(t *testing.T) {
 				t.Fatalf("commit: %v", err)
 			}
 
-			v, err := s.Overview(ctx, owner)
+			v, err := s.Overview(ctx, owner, "")
 			if err != nil {
 				t.Fatalf("overview: %v", err)
 			}

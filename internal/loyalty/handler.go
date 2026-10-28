@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -118,7 +119,7 @@ func (h *Handler) renderRefusal(w http.ResponseWriter, r *http.Request, userID s
 		h.serverError(w, r)
 		return
 	}
-	view.Notice = i18n.T(r.Context(), reason)
+	view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), reason)}
 	if view.CanRedeem() {
 		view.OperationID = uuid.NewString()
 	}
@@ -126,19 +127,19 @@ func (h *Handler) renderRefusal(w http.ResponseWriter, r *http.Request, userID s
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
 
-func (h *Handler) noticeFor(r *http.Request, owner string) string {
+func (h *Handler) noticeFor(r *http.Request, owner string) widget.Result {
 	ctx := r.Context()
 	switch {
 	case r.URL.Query().Get("redeemed") != "":
 		result, valid := readRedemptionConfirmation(h.confirmationKey, owner, r.URL.Query().Get("redeemed"), time.Now())
 		if !valid {
-			return ""
+			return widget.Result{}
 		}
-		return i18n.Count(ctx, i18n.KeyPointsRedeemed, result.Points, strconv.FormatInt(result.Points, 10), money.TWD(result.CreditCents))
+		return widget.Result{Outcome: widget.OutcomeDone, Text: i18n.Count(ctx, i18n.KeyPointsRedeemed, result.Points, strconv.FormatInt(result.Points, 10), money.TWD(result.CreditCents))}
 	case r.URL.Query().Get("short") == "1":
-		return i18n.T(ctx, i18n.KeyPointsShort)
+		return widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(ctx, i18n.KeyPointsShort)}
 	default:
-		return ""
+		return widget.Result{}
 	}
 }
 

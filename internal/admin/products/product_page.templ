@@ -481,16 +481,20 @@ templ productImages(v ProductView) {
 						value={ v.ImageUploadDraft.Alt }
 						if v.HasErr("alt") {
 							aria-invalid="true"
-							aria-describedby="p-alt-error"
+							aria-describedby="p-alt-example p-alt-error"
+						} else {
+							aria-describedby="p-alt-example"
 						}
 						required
 						maxlength="200"
-						placeholder={ altExample }
 					/>
 					if v.HasErr("alt") {
 						<p class="ui-error-text" id="p-alt-error" role="alert">{ v.Err("alt") }</p>
 					}
-					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdAltHint) }</p>
+					<div class="goen-admin__hints">
+						<p class="goen-admin__hint" id="p-alt-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), altExample) }</p>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdAltHint) }</p>
+					</div>
 				</div>
 				<div class="goen-admin__field">
 					@widget.Label(widget.LabelProps{For: "p-alt-en"}) {
@@ -503,17 +507,19 @@ templ productImages(v ProductView) {
 						value={ v.ImageUploadDraft.AltEn }
 						if v.HasErr("alt_en") {
 							aria-invalid="true"
-							aria-describedby="p-alt-en-error"
+							aria-describedby="p-alt-en-example p-alt-en-error"
+						} else {
+							aria-describedby="p-alt-en-example"
 						}
 						maxlength="200"
-						placeholder="White ceramic mug, side view, handle on the right"
 					/>
 					if v.HasErr("alt_en") {
 						<p class="ui-error-text" id="p-alt-en-error" role="alert">{ v.Err("alt_en") }</p>
 					}
-					<p class="goen-admin__hint">
-						{ i18n.T(ctx, i18n.KeyAdminProdAltEnHint) }
-					</p>
+					<div class="goen-admin__hints">
+						<p class="goen-admin__hint" id="p-alt-en-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), altExampleEn) }</p>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdAltEnHint) }</p>
+					</div>
 				</div>
 				if v.HasOptions() || v.ImageUploadDraft.OptionValue != "" {
 					<div class="goen-admin__field">
@@ -692,15 +698,17 @@ templ productOptions(v ProductView) {
 							maxlength="40"
 							autocomplete="off"
 							value={ v.VariantDraft.OptionName }
-							placeholder={ optionExample }
 							if v.HasErr("option") {
 								aria-invalid="true"
-								aria-describedby="opt-name-error"
+								aria-describedby="opt-name-example opt-name-error"
+							} else {
+								aria-describedby="opt-name-example"
 							}
 						/>
 						if v.HasErr("option") {
 							<p class="ui-error-text" id="opt-name-error">{ v.Err("option") }</p>
 						}
+						<p class="goen-admin__hint" id="opt-name-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), optionExample) }</p>
 					</div>
 					<div class="goen-admin__field">
 						@widget.Label(widget.LabelProps{For: "opt-name-en"}) {
@@ -713,15 +721,17 @@ templ productOptions(v ProductView) {
 							maxlength="40"
 							autocomplete="off"
 							value={ v.VariantDraft.OptionNameEn }
-							placeholder="Colour"
 							if v.HasErr("option_en") {
 								aria-invalid="true"
-								aria-describedby="opt-name-en-error"
+								aria-describedby="opt-name-en-example opt-name-en-error"
+							} else {
+								aria-describedby="opt-name-en-example"
 							}
 						/>
 						if v.HasErr("option_en") {
 							<p class="ui-error-text" id="opt-name-en-error">{ v.Err("option_en") }</p>
 						}
+						<p class="goen-admin__hint" id="opt-name-en-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), optionExampleEn) }</p>
 					</div>
 				</div>
 				@widget.Button(widget.ButtonProps{
@@ -758,15 +768,17 @@ templ productOptions(v ProductView) {
 							maxlength="40"
 							autocomplete="off"
 							value={ v.VariantDraft.Value }
-							placeholder={ optionValExample }
 							if v.HasErr("value") {
 								aria-invalid="true"
-								aria-describedby="optval-value-error"
+								aria-describedby="optval-value-example optval-value-error"
+							} else {
+								aria-describedby="optval-value-example"
 							}
 						/>
 						if v.HasErr("value") {
 							<p class="ui-error-text" id="optval-value-error">{ v.Err("value") }</p>
 						}
+						<p class="goen-admin__hint" id="optval-value-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), optionValExample) }</p>
 					</div>
 					<div class="goen-admin__field">
 						@widget.Label(widget.LabelProps{For: "optval-value-en"}) {
@@ -779,15 +791,17 @@ templ productOptions(v ProductView) {
 							maxlength="40"
 							autocomplete="off"
 							value={ v.VariantDraft.ValueEn }
-							placeholder="Mist Blue"
 							if v.HasErr("value_en") {
 								aria-invalid="true"
-								aria-describedby="optval-value-en-error"
+								aria-describedby="optval-value-en-example optval-value-en-error"
+							} else {
+								aria-describedby="optval-value-en-example"
 							}
 						/>
 						if v.HasErr("value_en") {
 							<p class="ui-error-text" id="optval-value-en-error">{ v.Err("value_en") }</p>
 						}
+						<p class="goen-admin__hint" id="optval-value-en-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), optionValExampleEn) }</p>
 					</div>
 					<div class="goen-admin__field">
 						@widget.Label(widget.LabelProps{For: "optval-swatch"}) {
@@ -801,15 +815,17 @@ templ productOptions(v ProductView) {
 							autocomplete="off"
 							pattern="#[0-9a-f]{6}"
 							value={ v.VariantDraft.Swatch }
-							placeholder="#1c1c1e"
 							if v.HasErr("swatch_hex") {
 								aria-invalid="true"
-								aria-describedby="optval-swatch-error"
+								aria-describedby="optval-swatch-example optval-swatch-error"
+							} else {
+								aria-describedby="optval-swatch-example"
 							}
 						/>
 						if v.HasErr("swatch_hex") {
 							<p class="ui-error-text" id="optval-swatch-error">{ v.Err("swatch_hex") }</p>
 						}
+						<p class="goen-admin__hint" id="optval-swatch-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), swatchExample) }</p>
 					</div>
 				</div>
 				@widget.Button(widget.ButtonProps{
@@ -1117,15 +1133,17 @@ templ productSpecs(v ProductView) {
 						required
 						maxlength="40"
 						autocomplete="off"
-						placeholder={ specLabelExample }
 						if v.HasErr("spec_label") {
 							aria-invalid="true"
-							aria-describedby="spec-label-error"
+							aria-describedby="spec-label-example spec-label-error"
+						} else {
+							aria-describedby="spec-label-example"
 						}
 					/>
 					if v.HasErr("spec_label") {
 						<p class="ui-error-text" id="spec-label-error">{ v.Err("spec_label") }</p>
 					}
+					<p class="goen-admin__hint" id="spec-label-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), specLabelExample) }</p>
 				</div>
 				<div class="goen-admin__field">
 					@widget.Label(widget.LabelProps{For: "spec-value"}) {
@@ -1139,15 +1157,17 @@ templ productSpecs(v ProductView) {
 						required
 						maxlength="200"
 						autocomplete="off"
-						placeholder={ specValueExample }
 						if v.HasErr("spec_value") {
 							aria-invalid="true"
-							aria-describedby="spec-value-error"
+							aria-describedby="spec-value-example spec-value-error"
+						} else {
+							aria-describedby="spec-value-example"
 						}
 					/>
 					if v.HasErr("spec_value") {
 						<p class="ui-error-text" id="spec-value-error">{ v.Err("spec_value") }</p>
 					}
+					<p class="goen-admin__hint" id="spec-value-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), specValueExample) }</p>
 				</div>
 				<div class="goen-admin__field">
 					@widget.Label(widget.LabelProps{For: "spec-label-en"}) {
@@ -1160,15 +1180,17 @@ templ productSpecs(v ProductView) {
 						name="label_en"
 						maxlength="40"
 						autocomplete="off"
-						placeholder="Capacity"
 						if v.HasErr("spec_label_en") {
 							aria-invalid="true"
-							aria-describedby="spec-label-en-error"
+							aria-describedby="spec-label-en-example spec-label-en-error"
+						} else {
+							aria-describedby="spec-label-en-example"
 						}
 					/>
 					if v.HasErr("spec_label_en") {
 						<p class="ui-error-text" id="spec-label-en-error">{ v.Err("spec_label_en") }</p>
 					}
+					<p class="goen-admin__hint" id="spec-label-en-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), specLabelExampleEn) }</p>
 				</div>
 				<div class="goen-admin__field">
 					@widget.Label(widget.LabelProps{For: "spec-value-en"}) {
@@ -1181,15 +1203,17 @@ templ productSpecs(v ProductView) {
 						name="value_en"
 						maxlength="200"
 						autocomplete="off"
-						placeholder="350 ml"
 						if v.HasErr("spec_value_en") {
 							aria-invalid="true"
-							aria-describedby="spec-value-en-error"
+							aria-describedby="spec-value-en-example spec-value-en-error"
+						} else {
+							aria-describedby="spec-value-en-example"
 						}
 					/>
 					if v.HasErr("spec_value_en") {
 						<p class="ui-error-text" id="spec-value-en-error">{ v.Err("spec_value_en") }</p>
 					}
+					<p class="goen-admin__hint" id="spec-value-en-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), specValueExampleEn) }</p>
 				</div>
 			</div>
 			<p class="goen-admin__hint">

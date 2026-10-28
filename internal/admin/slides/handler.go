@@ -142,7 +142,7 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, f
 func (h *Handler) rejectHeroSlide(
 	w http.ResponseWriter, r *http.Request, f *HeroForm, errs map[string]string,
 ) {
-	view, err := h.store.HeroSlides(r.Context())
+	view, err := h.store.HeroSlides(r.Context(), "")
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read hero slides", "error", err)
 		admin.ServerError(w, r, h.log)

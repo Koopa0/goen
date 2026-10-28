@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
-func (s *Store) Picking(ctx context.Context, after ...string) (PickingView, error) {
+func (s *Store) Picking(ctx context.Context, after string) (PickingView, error) {
 	// Dispatch can change a line between the aggregate and the slips. One
 	// snapshot keeps their outstanding quantities consistent without locking orders.
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
@@ -40,7 +40,7 @@ func (s *Store) Picking(ctx context.Context, after ...string) (PickingView, erro
 	return view, nil
 }
 
-func pickingSnapshot(ctx context.Context, q *db.Queries, after []string) (PickingView, error) {
+func pickingSnapshot(ctx context.Context, q *db.Queries, after string) (PickingView, error) {
 	const scope = "/admin/orders/picking/slips"
 	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
 	rows, err := q.PickingSlips(ctx, db.PickingSlipsParams{

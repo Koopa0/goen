@@ -372,6 +372,10 @@ func (v *ProductView) HasRelated() bool { return len(v.Related) >= 2 }
 
 func (v *ProductView) HasRating() bool { return v.RatingCount > 0 }
 
+// RatingsBeyondList is true when there are more ratings than the page lists;
+// only then does the distribution say anything the list does not.
+func (v *ProductView) RatingsBeyondList() bool { return v.RatingCount > int64(len(v.Reviews)) }
+
 func (v *ProductView) RatingText() string { return strconv.FormatFloat(v.Rating, 'f', 1, 64) }
 
 func (v *ProductView) ReviewCountText() string { return strconv.FormatInt(v.RatingCount, 10) }
@@ -513,6 +517,9 @@ func (v *ProductView) HasRecommendations() bool { return len(v.AlsoBought) > 0 }
 
 func (v *ProductView) HasQuestions() bool { return len(v.Questions) > 0 }
 
+// HasOpinions is false while nobody has reviewed or asked.
+func (v *ProductView) HasOpinions() bool { return v.HasRating() || v.HasQuestions() }
+
 func (v *ProductView) AskTaken() bool { return v.AskOutcome == "1" }
 
 func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" || v.AskTooLong() }
@@ -568,8 +575,13 @@ func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompa
 // maxHighlights is how many specification values stand under the name.
 const maxHighlights = 3
 
-// Highlights are the first specification values, written one after another under the name.
+// Highlights are the first specification values, written one after another under the name, on a
+// product whose department compares, as its tile carries them. Elsewhere a specification is as often a
+// direction or a plain yes, which says nothing without its label.
 func (v *ProductView) Highlights() []string {
+	if !v.Comparable {
+		return nil
+	}
 	var out []string
 	for _, s := range v.Specs {
 		if s.Value != "" && len(out) < maxHighlights {

@@ -786,7 +786,7 @@ func TestStore_ListFindsOrder(t *testing.T) {
 		string([]rune(addr)[:8]),
 		strings.ToUpper(string([]rune(addr)[:8])),
 	} {
-		view, err := s.List(ctx, "", term)
+		view, err := s.List(ctx, "", term, "")
 		if err != nil {
 			t.Fatalf("Orders(%q): %v", term, err)
 		}
@@ -805,7 +805,7 @@ func TestStore_ListSearchIgnoresStatus(t *testing.T) {
 	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	number, _, _ := searchableOrder(t)
 
-	view, err := s.List(ctx, "shipped", number)
+	view, err := s.List(ctx, "shipped", number, "")
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
 	}
@@ -819,7 +819,7 @@ func TestStore_ListShortSearch(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 
-	view, err := s.List(ctx, "", "王")
+	view, err := s.List(ctx, "", "王", "")
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
 	}
@@ -845,7 +845,7 @@ func TestStore_ListErasedOrderNotFound(t *testing.T) {
 	}
 
 	for _, term := range []string{string([]rune(recipient)[:2]), string([]rune(addr)[:8])} {
-		view, err := s.List(ctx, "", term)
+		view, err := s.List(ctx, "", term, "")
 		if err != nil {
 			t.Fatalf("Orders(%q): %v", term, err)
 		}
@@ -853,7 +853,7 @@ func TestStore_ListErasedOrderNotFound(t *testing.T) {
 			t.Errorf("an erased order was found by %q, which it no longer holds", term)
 		}
 	}
-	view, err := s.List(ctx, "", number)
+	view, err := s.List(ctx, "", number, "")
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
 	}
@@ -882,7 +882,7 @@ func TestStore_ListWildcardsLiteral(t *testing.T) {
 		}
 	}
 
-	view, err := s.List(ctx, "", "%%")
+	view, err := s.List(ctx, "", "%%", "")
 	if err != nil {
 		t.Fatalf("Orders(%%%%): %v", err)
 	}
@@ -890,7 +890,7 @@ func TestStore_ListWildcardsLiteral(t *testing.T) {
 		t.Errorf(`searching "%%%%" listed %d orders; no address or name starts with it`, len(view.Orders))
 	}
 
-	view, err = s.List(ctx, "", "lk_"+stem)
+	view, err = s.List(ctx, "", "lk_"+stem, "")
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
 	}
@@ -1605,7 +1605,7 @@ func TestStore_ListUnpaidLabel(t *testing.T) {
 	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 
-	view, err := s.List(ctx, "", number)
+	view, err := s.List(ctx, "", number, "")
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
 	}
@@ -1737,7 +1737,7 @@ func TestStore_ShipAuditEntry(t *testing.T) {
 		t.Fatalf("Ship: %v", err)
 	}
 
-	view, err := audit.NewStore(pool).Events(ctx)
+	view, err := audit.NewStore(pool).Events(ctx, "")
 	if err != nil {
 		t.Fatalf("Audit: %v", err)
 	}
@@ -1861,7 +1861,7 @@ func TestStore_OrderRefundedOnSettled(t *testing.T) {
 			if view.StatusText != want {
 				t.Errorf("Order(%s).StatusText = %q, want %q", tc.name, view.StatusText, want)
 			}
-			queue, err := s.List(ctx, orders.QueueAll, number)
+			queue, err := s.List(ctx, orders.QueueAll, number, "")
 			if err != nil {
 				t.Fatalf("List: %v", err)
 			}

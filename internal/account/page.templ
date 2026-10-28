@@ -34,8 +34,8 @@ templ Account(p frame.Page, v *View) {
 				</form>
 			</div>
 			if v.HasNotice() {
-				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "account-notice"}) {
-					{ v.Notice }
+				@widget.Notice(widget.NoticeProps{Intent: v.Notice.Outcome.Intent(), ID: "account-notice"}) {
+					{ v.Notice.Text }
 				}
 			}
 			if v.CartAdjusted {
@@ -44,7 +44,7 @@ templ Account(p frame.Page, v *View) {
 				}
 			}
 			if v.ReturnAfterWelcome != "" {
-				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.ReturnAfterWelcome)) {
+				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, templ.SafeURL(v.ReturnAfterWelcome)) {
 					{ i18n.T(ctx, i18n.KeyWelcomeReturn) }
 				}
 			}
@@ -554,7 +554,7 @@ templ Account(p frame.Page, v *View) {
 									})
 								</div>
 								<div class="goen-account__actions">
-									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Class: "goen-account__erase"}, "submit") {
+									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleDanger}, "submit") {
 										{ i18n.T(ctx, i18n.KeyEraseSubmit) }
 									}
 								</div>

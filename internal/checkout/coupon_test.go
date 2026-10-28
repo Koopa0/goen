@@ -20,7 +20,7 @@ import (
 // buy a fresh allowance with every rotation.
 func TestCouponKeysIPv6Slash64(t *testing.T) {
 	t.Parallel()
-	h := NewHandler(&Store{}, &cart.Handler{}, &access.Store{}, slog.New(slog.DiscardHandler), true, nil, nil)
+	h := NewHandler(&Store{}, &cart.Handler{}, &access.Store{}, slog.New(slog.DiscardHandler), true, nil, nil, nil)
 	// Each ask brings a new cart, so only the client's own key can be spent.
 	keys := func(remoteAddr string) [2]string {
 		t.Helper()

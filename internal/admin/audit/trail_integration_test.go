@@ -66,7 +66,7 @@ func TestStore_EventsSystemAuditRow(t *testing.T) {
 		t.Fatalf("record a system audit row: %v", err)
 	}
 
-	view, err := audit.NewStore(pool).Events(ctx)
+	view, err := audit.NewStore(pool).Events(ctx, "")
 	if err != nil {
 		t.Fatalf("Audit with a system row: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestStore_EventsSystemAuditRow(t *testing.T) {
 
 func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (audit.Entry, bool) {
 	t.Helper()
-	view, err := audit.NewStore(pool).Events(ctx)
+	view, err := audit.NewStore(pool).Events(ctx, "")
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestStore_EventsStaffGrant(t *testing.T) {
 
 	page := func() (audit.Entry, string) {
 		t.Helper()
-		view, err := audit.NewStore(pool).Events(ctx)
+		view, err := audit.NewStore(pool).Events(ctx, "")
 		if err != nil {
 			t.Fatalf("Events: %v", err)
 		}

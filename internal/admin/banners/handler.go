@@ -105,7 +105,7 @@ func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, b
 func (h *Handler) rejectBanner(
 	w http.ResponseWriter, r *http.Request, errs map[string]string,
 ) {
-	view, err := h.store.Banners(r.Context())
+	view, err := h.store.Banners(r.Context(), "")
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read promo banners", "error", err)
 		admin.ServerError(w, r, h.log)

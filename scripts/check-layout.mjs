@@ -20,6 +20,7 @@ import { checkColumnLabelReflow } from './column-label-reflow.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 import { checkAdminActionReflow } from './admin-action-reflow.mjs';
 import { checkSearchReflow } from './search-reflow.mjs';
+import { checkFooterReflow } from './footer-reflow.mjs';
 import { checkMenuFallback } from './menu-fallback.mjs';
 import { checkWarrantyReflow } from './warranty-reflow.mjs';
 import { checkWishlistFocus } from './wishlist-focus-check.mjs';
@@ -2434,7 +2435,8 @@ const TRANSITION_RECORDER = `(() => {
         let clip = el && el.parentElement;
         while (clip && (getComputedStyle(clip).overflowX === 'visible' || parseFloat(getComputedStyle(clip).borderTopLeftRadius) === 0)) clip = clip.parentElement;
         const s = getComputedStyle(document.documentElement, '::view-transition-image-pair(' + n + ')');
-        return { name: n, overflowX: s.overflowX, overflowY: s.overflowY, radius: corners(s), landing: clip ? corners(getComputedStyle(clip)) : null };
+        const blend = getComputedStyle(document.documentElement, '::view-transition-new(' + n + ')').mixBlendMode;
+        return { name: n, overflowX: s.overflowX, overflowY: s.overflowY, radius: corners(s), landing: clip ? corners(getComputedStyle(clip)) : null, blend };
       });
       rec({
         ready: 'resolved',
@@ -2508,6 +2510,7 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
     else if (pair.overflowX !== 'clip' || pair.overflowY !== 'clip') fail(label, `::view-transition-image-pair(${name}) overflows ${pair.overflowX}/${pair.overflowY}, want clip`);
     else if (!pair.landing) fail(label, `${name} lands in no clipping, rounded ancestor to compare with`);
     else if (pair.radius.some((r) => parseFloat(r) === 0) || JSON.stringify(pair.radius) !== JSON.stringify(pair.landing)) fail(label, `::view-transition-image-pair(${name}) has corners ${pair.radius}, the photo lands on ${pair.landing}`);
+    if (pair && pair.blend !== 'normal') fail(label, `::view-transition-new(${name}) blends ${pair.blend}, want normal: the opaque old photo would be added to it`);
   }
   let persisted;
   await new Promise((r) => setTimeout(r, 400));
@@ -4787,6 +4790,20 @@ try {
   console.log('search reflow: both locales, 320px, 100%/200% text, scripting on/off passed');
 } catch (err) {
   fail('search reflow', err.message);
+}
+
+try {
+  await checkFooterReflow({
+    origin: ORIGIN,
+    send: (method, params) => send(ws, method, params),
+    evaluate: evalPage,
+    navigate: async (path) => {
+      if (!await settledFor('footer reflow', path, ORIGIN + path)) throw new Error('home did not load');
+    },
+  });
+  console.log('footer reflow: both locales, 1024px, 200% text passed');
+} catch (err) {
+  fail('footer reflow', err.message);
 }
 
 try {

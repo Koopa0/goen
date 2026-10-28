@@ -181,7 +181,7 @@ type Posting struct {
 // not valid, else that customer's alone, with the running total of each posting.
 // A customer who does not exist is ErrNotFound; one who has never held credit
 // has an empty page.
-func (s *Store) Credit(ctx context.Context, customer uuid.NullUUID, after ...string) (Ledger, error) {
+func (s *Store) Credit(ctx context.Context, customer uuid.NullUUID, after string) (Ledger, error) {
 	const desk = "/admin/credits"
 	if !customer.Valid {
 		return s.allPostings(ctx, desk, after)
@@ -198,7 +198,7 @@ func (s *Store) Credit(ctx context.Context, customer uuid.NullUUID, after ...str
 	return ledger, err
 }
 
-func (s *Store) allPostings(ctx context.Context, scope string, after []string) (Ledger, error) {
+func (s *Store) allPostings(ctx context.Context, scope, after string) (Ledger, error) {
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
@@ -217,7 +217,7 @@ func (s *Store) allPostings(ctx context.Context, scope string, after []string) (
 	return ledger, nil
 }
 
-func (s *Store) customerPostings(ctx context.Context, scope string, customer uuid.UUID, after []string) (Ledger, error) {
+func (s *Store) customerPostings(ctx context.Context, scope string, customer uuid.UUID, after string) (Ledger, error) {
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.CustomerCredit(ctx, db.CustomerCreditParams{CustomerID: customer, HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {

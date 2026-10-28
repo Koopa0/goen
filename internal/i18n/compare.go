@@ -17,8 +17,8 @@ var (
 		En:     "Browse everything in %s",
 	})
 
-	// KeyCompareDiffers is said to a screen reader on a row where the products
-	// disagree, which the page otherwise shows by weight alone.
+	// KeyCompareDiffers is the small mark under the label of a row where the
+	// products disagree.
 	KeyCompareDiffers = key("compare.differs", Message{ZhHant: "規格不同", En: "Differs"})
 
 	KeyCompareDescription = key("compare.description", Message{
@@ -61,8 +61,7 @@ var (
 
 	KeyCompareAdd = key("compare.add", Message{ZhHant: "比較", En: "Compare"})
 
-	// KeyCompareAddNamed is the checkbox's accessible name; a screen reader
-	// would otherwise read "Compare" once per tile.
+	// KeyCompareAddNamed names the compare page's candidate button.
 	KeyCompareAddNamed = key("compare.add.named", Message{
 		ZhHant: "把 %s 加入比較",
 		En:     "Add %s to the comparison",

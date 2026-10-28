@@ -558,7 +558,7 @@ func TestStore_RefundUnsentReturnsQueue(t *testing.T) {
 	desk := admintest.ReturnDesk(adminPool, admintest.HealthyGateway(t))
 	queueRow := func(t *testing.T) returndesk.Return {
 		t.Helper()
-		queue, err := desk.RequestQueue(ctx, f.id)
+		queue, err := desk.RequestQueue(ctx, f.id, "")
 		if err != nil {
 			t.Fatalf("read the returns queue: %v", err)
 		}

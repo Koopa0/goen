@@ -83,7 +83,7 @@ func TestHandler_OrderDeliveryMethodLanguage(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				picking, err := store.Picking(ctx)
+				picking, err := store.Picking(ctx, "")
 				if err != nil {
 					t.Fatal(err)
 				}

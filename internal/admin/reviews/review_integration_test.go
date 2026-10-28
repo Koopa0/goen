@@ -74,7 +74,7 @@ func TestStore_ReviewsShowsHidden(t *testing.T) {
 	if err := s.SetReviewHidden(ctx, reviewID, true); err != nil {
 		t.Fatalf("hide: %v", err)
 	}
-	view, err := s.Reviews(ctx, reviews.FilterAll)
+	view, err := s.Reviews(ctx, reviews.FilterAll, "")
 	if err != nil {
 		t.Fatalf("read the queue: %v", err)
 	}

@@ -95,7 +95,7 @@ func TestHandler_StaffNoteAuditNoContent(t *testing.T) {
 		if note != step.note {
 			t.Fatalf("persisted note = %q, want %q", note, step.note)
 		}
-		view, err := audit.NewStore(p).Events(ctx)
+		view, err := audit.NewStore(p).Events(ctx, "")
 		if err != nil {
 			t.Fatal(err)
 		}

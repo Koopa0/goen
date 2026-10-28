@@ -77,7 +77,7 @@ func (s *Store) ListingPage(ctx context.Context, slug string, f Filters, withHea
 	if !withHead {
 		return view, nil, nil
 	}
-	head, err := s.DepartmentHead(ctx, slug, view.Theme.Comparable, view.IsFront(), offers)
+	head, err := s.DepartmentHead(ctx, view, offers)
 	return view, head, err
 }
 

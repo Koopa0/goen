@@ -25,7 +25,7 @@ func TestStore_DashboardQueueTabs(t *testing.T) {
 		t.Fatalf("no %q tab", status)
 		return 0
 	}
-	before, err := queue.List(ctx, "", "")
+	before, err := queue.List(ctx, "", "", "")
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestStore_DashboardQueueTabs(t *testing.T) {
 	unpaid := admintest.PlaceUnpaidOrder(t, pool)
 	funded, _, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
 
-	after, err := queue.List(ctx, "", "")
+	after, err := queue.List(ctx, "", "", "")
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestStore_DashboardQueueTabs(t *testing.T) {
 		orders.QueueAwaitingPayment: {in: unpaid, out: funded},
 		orders.QueueReady:           {in: funded, out: unpaid},
 	} {
-		view, err := queue.List(ctx, status, "")
+		view, err := queue.List(ctx, status, "", "")
 		if err != nil {
 			t.Fatalf("Orders(%s): %v", status, err)
 		}
@@ -129,7 +129,7 @@ func TestStore_RecentOrdersMatchTheQueue(t *testing.T) {
 			t.Errorf("%s: the dashboard's recent orders lack %s", name, number)
 			continue
 		}
-		found, err := queue.List(ctx, orders.QueueAll, number)
+		found, err := queue.List(ctx, orders.QueueAll, number, "")
 		if err != nil {
 			t.Fatalf("List(%s): %v", number, err)
 		}

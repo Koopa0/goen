@@ -949,7 +949,7 @@ func openReturnIDOn(t *testing.T, p *pgxpool.Pool, number string) uuid.UUID {
 
 func queueRow(t *testing.T, s *returns.Store, requestID uuid.UUID) returns.Return {
 	t.Helper()
-	view, err := s.Queue(t.Context())
+	view, err := s.Queue(t.Context(), "")
 	if err != nil {
 		t.Fatalf("read the queue: %v", err)
 	}

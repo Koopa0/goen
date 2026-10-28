@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
@@ -427,5 +428,30 @@ func TestOrderPaidNotAwaitingPayment(t *testing.T) {
 	html := renderToString(t, Order(frame.Page{Title: "訂單"}, view))
 	if strings.Contains(html, "尚未付款") {
 		t.Error("the canonical order page tells a paid customer their order is unpaid")
+	}
+}
+
+// TestOrderReorderIsTonal: putting an order's items back in the cart is a step forward, so
+// it is the tonal level.
+func TestOrderReorderIsTonal(t *testing.T) {
+	t.Parallel()
+	v := &OrderView{Number: "GO-260101-000012", Status: "pending", Lines: []OrderLine{{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1}}, Now: orderNow}
+	doc, err := nethtml.Parse(strings.NewReader(renderToString(t, Order(frame.Page{Title: "訂單"}, v))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := findDescendant(doc, func(n *nethtml.Node) bool {
+		return n.Type == nethtml.ElementNode && n.Data == "form" && attrValue(n, "action") == "/orders/GO-260101-000012/reorder"
+	})
+	if form == nil {
+		t.Fatal("the order page has no reorder form")
+	}
+	submit := findDescendant(form, func(n *nethtml.Node) bool { return n.Type == nethtml.ElementNode && n.Data == "button" })
+	if submit == nil {
+		t.Fatal("the reorder form has no button")
+	}
+	class := " " + attrValue(submit, "class") + " "
+	if !strings.Contains(class, " goen-btn--secondary ") || strings.Contains(class, " goen-btn--outline ") {
+		t.Errorf("reorder is drawn as %q, want the tonal level", class)
 	}
 }
