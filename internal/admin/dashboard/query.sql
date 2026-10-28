@@ -1,22 +1,23 @@
 -- name: AdminSummary :one
--- Each desk is read once: its count and the age of its oldest item come from
--- the same rows, so the two cannot follow different rules. An age is how long
--- ago the oldest item began waiting, on the database's clock.
+-- Each desk is read once: its count and the moment its oldest item began
+-- waiting come from the same rows, so the two cannot follow different rules.
+-- The Go side turns a moment into shop days (shoptime.DaysAgo), as the orders
+-- desk does, so a task and the list it opens count the same days.
 SELECT
     pending.pending_orders,
     ready.ready_orders,
-    ready.ready_oldest_seconds,
+    ready.ready_oldest_since,
     picking.picking_orders,
-    picking.picking_oldest_seconds,
+    picking.picking_oldest_since,
     stock.sold_out,
     messages.open_messages,
-    messages.open_messages_oldest_seconds,
+    messages.open_messages_oldest_since,
     requested.pending_returns,
-    requested.pending_returns_oldest_seconds,
+    requested.pending_returns_oldest_since,
     uninspected.uninspected_returns,
-    uninspected.uninspected_returns_oldest_seconds,
+    uninspected.uninspected_returns_oldest_since,
     questions.unanswered_questions,
-    questions.unanswered_questions_oldest_seconds
+    questions.unanswered_questions_oldest_since
 FROM
     -- Genuinely UNPAID, not merely pending: an order funded by store credit or
     -- a full discount sits at pending for good, and counting it here sends
@@ -28,22 +29,25 @@ FROM
     -- (UninvoicedOrders); placed_at is the fallback for an order store credit
     -- paid in full, which has no payment and no paid event.
     (SELECT count(*)::bigint AS ready_orders,
-            coalesce(greatest(extract(epoch FROM now() - min(coalesce(
+            coalesce(min(coalesce(
                 (SELECT min(e.occurred_at) FROM order_events e
                  WHERE e.order_id = o.id AND e.kind = 'paid'),
                 (SELECT max(p.paid_at) FROM payments p
                  WHERE p.order_id = o.id AND p.status = 'succeeded'),
-                o.placed_at))), 0), 0)::bigint AS ready_oldest_seconds
+                o.placed_at)), now())::timestamptz AS ready_oldest_since
      FROM orders o
      WHERE o.fulfillment_status = 'pending'
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
-    -- Waiting since a person took it into picking; an order moved there with no
-    -- event recorded falls back to when it was placed.
+    -- Waiting since the order was funded, as for ready orders and as the orders
+    -- desk's work tabs count it: taking an order into picking does not restart
+    -- its wait.
     (SELECT count(*)::bigint AS picking_orders,
-            coalesce(greatest(extract(epoch FROM now() - min(coalesce(
+            coalesce(min(coalesce(
                 (SELECT min(e.occurred_at) FROM order_events e
-                 WHERE e.order_id = o.id AND e.kind = 'picking'),
-                o.placed_at))), 0), 0)::bigint AS picking_oldest_seconds
+                 WHERE e.order_id = o.id AND e.kind = 'paid'),
+                (SELECT max(p.paid_at) FROM payments p
+                 WHERE p.order_id = o.id AND p.status = 'succeeded'),
+                o.placed_at)), now())::timestamptz AS picking_oldest_since
      FROM orders o WHERE o.fulfillment_status = 'picking') picking,
     -- The SKUs the stock days cover lists as sold out.
     (SELECT count(*)::bigint AS sold_out FROM product_variants pv
@@ -51,18 +55,15 @@ FROM
      WHERE pv.is_active AND p.status = 'active'
        AND pv.stock_quantity <= pv.safety_stock) stock,
     (SELECT count(*)::bigint AS open_messages,
-            coalesce(greatest(extract(epoch FROM now() - min(m.created_at)), 0), 0)::bigint
-                AS open_messages_oldest_seconds
+            coalesce(min(m.created_at), now())::timestamptz AS open_messages_oldest_since
      FROM contact_messages m WHERE m.handled_at IS NULL) messages,
     (SELECT count(*)::bigint AS pending_returns,
-            coalesce(greatest(extract(epoch FROM now() - min(rr.created_at)), 0), 0)::bigint
-                AS pending_returns_oldest_seconds
+            coalesce(min(rr.created_at), now())::timestamptz AS pending_returns_oldest_since
      FROM return_requests rr WHERE rr.status = 'requested') requested,
     -- Approved, with a parcel to open: a refund before shipment closes its own
     -- lines and never has one.
     (SELECT count(*)::bigint AS uninspected_returns,
-            coalesce(greatest(extract(epoch FROM now() - min(r.decided_at)), 0), 0)::bigint
-                AS uninspected_returns_oldest_seconds
+            coalesce(min(r.decided_at), now())::timestamptz AS uninspected_returns_oldest_since
      FROM return_requests r
      WHERE r.status = 'approved' AND NOT r.before_shipment
        AND EXISTS (SELECT 1 FROM return_request_lines rl
@@ -70,8 +71,7 @@ FROM
     -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
     -- and no visible answer from the shop. A customer's reply does not answer it.
     (SELECT count(*)::bigint AS unanswered_questions,
-            coalesce(greatest(extract(epoch FROM now() - min(q.created_at)), 0), 0)::bigint
-                AS unanswered_questions_oldest_seconds
+            coalesce(min(q.created_at), now())::timestamptz AS unanswered_questions_oldest_since
      FROM product_questions q
      WHERE q.hidden_at IS NULL
        AND NOT EXISTS (SELECT 1 FROM product_answers a

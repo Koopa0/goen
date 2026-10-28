@@ -236,8 +236,12 @@ const HEADER_EN = [
 // provides through ADMIN_TOKEN; without one these are skipped rather than
 // silently measuring a sign-in page.
 const ADMIN = [
-  { label: 'admin 375', width: 375, height: 812, path: '/admin', marker: '.goen-spark' },
-  { label: 'admin 1440', width: 1440, height: 900, path: '/admin', marker: '.goen-spark' },
+  // .goen-chart__frame--columns: the revenue chart, drawn once seven days of the
+  // fixture have paid orders (scripts/check-layout.sql); without it the page
+  // measured is the one-sentence state.
+  { label: 'admin 320', width: 320, height: 568, path: '/admin', marker: '.goen-chart__frame--columns' },
+  { label: 'admin 375', width: 375, height: 812, path: '/admin', marker: '.goen-chart__frame--columns' },
+  { label: 'admin 1440', width: 1440, height: 900, path: '/admin', marker: '.goen-chart__frame--columns' },
   { label: 'admin stock 375', width: 375, height: 812, path: '/admin/stock' },
   { label: 'admin orders 375', width: 375, height: 812, path: '/admin/orders', currentItem: true },
   { label: 'admin picking 375', width: 375, height: 812, path: '/admin/orders/picking/slips', marker: '.goen-admin__slip' },

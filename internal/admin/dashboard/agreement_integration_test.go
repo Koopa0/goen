@@ -4,8 +4,10 @@ package dashboard_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/dashboard"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
@@ -77,6 +79,45 @@ func TestStore_DashboardQueueTabs(t *testing.T) {
 		}
 		if !sawIn || sawOut {
 			t.Errorf("tab %q lists the expected order = %t and the other = %t, want true and false", status, sawIn, sawOut)
+		}
+	}
+
+	// The wait a task states is the wait the first row of the tab it opens states:
+	// both count shop days from a timestamp (shoptime.DaysAgo), oldest first.
+	// Mutation left to CI: counting the dashboard's wait in 24-hour spans of the
+	// database clock, or ageing a picking order from its picking event, turns it red.
+	admintest.PlaceOrderPaidByCredit(t, pool, 3*24*time.Hour)
+	admintest.PaidUnshippedOrder(t, pool, 500000, 0, true)
+	dashNow, dashErr := desk.Dashboard(ctx)
+	if dashErr != nil {
+		t.Fatalf("Dashboard: %v", dashErr)
+	}
+	for _, tc := range []struct {
+		label i18n.Key
+		tab   orders.QueueFilter
+	}{
+		{i18n.KeyAdminStatusReadyToPick, orders.QueueReady},
+		{i18n.KeyAdminStatusPicking, orders.QueuePicking},
+	} {
+		tabView, listErr := queue.List(ctx, tc.tab, "", "")
+		if listErr != nil {
+			t.Fatalf("List(%s): %v", tc.tab, listErr)
+		}
+		if len(tabView.Work) == 0 {
+			t.Fatalf("the %q tab is empty", tc.tab)
+		}
+		var task *dashboard.Task
+		for i := range dashNow.Tasks {
+			if dashNow.Tasks[i].Label == tc.label {
+				task = &dashNow.Tasks[i]
+			}
+		}
+		if task == nil {
+			t.Fatalf("the dashboard lists no %v task", tc.label)
+		}
+		if first := tabView.Work[0]; task.WaitDays != first.WaitDays || task.Overdue != first.Overdue {
+			t.Errorf("%q: the dashboard says %d days, overdue %t; the first row of the tab says %d days, overdue %t",
+				tc.tab, task.WaitDays, task.Overdue, first.WaitDays, first.Overdue)
 		}
 	}
 }

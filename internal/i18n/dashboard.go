@@ -74,10 +74,56 @@ var (
 		En:     "Paid, not yet invoiced",
 	})
 
-	KeyAdminQueueTaskUnderADay = key("admin.queue.task.underaday", Message{
-		ZhHant: "不到 1 天",
-		En:     "Under a day",
+	KeyAdminQueueTaskToday = key("admin.queue.task.today", Message{
+		ZhHant: "都是今天的",
+		En:     "All from today",
 	})
+
+	KeyAdminQueueNothingWaiting = key("admin.queue.nothingwaiting", Message{
+		ZhHant: "目前沒有等你處理的事。",
+		En:     "Nothing is waiting for you.",
+	})
+
+	KeyAdminQueueRevenueDays = countKey("admin.queue.revenuedays",
+		"近 %d 天營收",
+		"Revenue, last %d day",
+		"Revenue, last %d days")
+
+	KeyAdminQueuePaidOrdersDays = countKey("admin.queue.paidordersdays",
+		"近 %d 天已付款訂單",
+		"Paid orders, last %d day",
+		"Paid orders, last %d days")
+
+	// %[1]d is the days of the earlier stretch, %[2]s its dates, %[3]s the
+	// highest day and %[4]s what it made.
+	KeyAdminQueueSalesCaption = key("admin.queue.salescaption", Message{
+		ZhHant: "每天的已付款營收。前 %[1]d 天是 %[2]s，最高是 %[3]s，%[4]s。",
+		En:     "Paid revenue each day. The previous %[1]d days are %[2]s. The highest was %[3]s, %[4]s.",
+	})
+
+	// %[1]d is the days with a paid order, %[2]d the days looked at.
+	KeyAdminQueueSalesFew = countKey("admin.queue.salesfew",
+		"近 %[2]d 天只有 %[1]d 天有已付款訂單，畫不出走勢，數字在下方。",
+		"Only %[1]d of the last %[2]d days had a paid order: too few to draw a trend. The figures are below.",
+		"Only %[1]d of the last %[2]d days had paid orders: too few to draw a trend. The figures are below.")
+
+	KeyAdminQueueSalesNone = countKey("admin.queue.salesnone",
+		"近 %d 天沒有已付款訂單。",
+		"No paid orders in the last %d day.",
+		"No paid orders in the last %d days.")
+
+	// The table column that names the earlier stretch on each of its days.
+	KeyAdminQueueSalesPeriod = key("admin.queue.salesperiod", Message{ZhHant: "期間", En: "Period"})
+
+	KeyAdminQueueSellersHeading = countKey("admin.queue.sellersheading",
+		"近 %d 天熱賣商品",
+		"Best sellers, last %d day",
+		"Best sellers, last %d days")
+
+	KeyAdminQueueSellersNone = countKey("admin.queue.sellersnone",
+		"近 %d 天還沒有賣出任何商品。",
+		"Nothing sold in the last %d day.",
+		"Nothing sold in the last %d days.")
 
 	KeyAdminQueueTaskOldestDays = countKey("admin.queue.task.oldestdays",
 		"最久 %d 天",

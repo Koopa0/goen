@@ -30,6 +30,18 @@ var (
 
 	KeyAdminRepNoPrevious = countKey("admin.rep.noprevious", "前 %d 天沒有已付款訂單", "No paid orders in the previous %d day", "No paid orders in the previous %d days")
 
+	// The same five sentences for a run whose previous run is cut at the same
+	// time of day, which the dashboard says and the report does not.
+	KeyAdminRepMoreAtTime = countKey("admin.rep.moreattime", "比前 %[1]d 天同一時刻多 %[2]d%%", "%[2]d%% more than the previous %[1]d day at the same time", "%[2]d%% more than the previous %[1]d days at the same time")
+
+	KeyAdminRepLessAtTime = countKey("admin.rep.lessattime", "比前 %[1]d 天同一時刻少 %[2]d%%", "%[2]d%% less than the previous %[1]d day at the same time", "%[2]d%% less than the previous %[1]d days at the same time")
+
+	KeyAdminRepSameAtTime = countKey("admin.rep.sameattime", "和前 %d 天同一時刻相近", "About the same as the previous %d day at the same time", "About the same as the previous %d days at the same time")
+
+	KeyAdminRepPreviousAtTime = countKey("admin.rep.previousattime", "前 %[1]d 天同一時刻：%[2]s", "Previous %[1]d day at the same time: %[2]s", "Previous %[1]d days at the same time: %[2]s")
+
+	KeyAdminRepNoPreviousAtTime = countKey("admin.rep.nopreviousattime", "前 %d 天同一時刻沒有已付款訂單", "No paid orders in the previous %d day at the same time", "No paid orders in the previous %d days at the same time")
+
 	KeyAdminRepNoOrders = countKey("admin.rep.noorders", "前 %d 天沒有訂單", "No orders in the previous %d day", "No orders in the previous %d days")
 
 	KeyAdminRepRevenue = key("admin.rep.revenue", Message{ZhHant: "營收", En: "Revenue"})

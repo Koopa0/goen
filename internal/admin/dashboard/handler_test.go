@@ -19,6 +19,7 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 	t.Parallel()
 	monday := time.Date(2026, time.October, 12, 0, 0, 0, 0, time.UTC)
 	tuesday := monday.AddDate(0, 0, 1)
+	readAt := time.Date(2026, time.October, 13, 14, 32, 0, 0, time.UTC)
 	recent := sales.Recent{
 		Current: sales.Period{
 			Orders: 3, RevenueCents: 90000, RevenueSquares: 2.7e9, Partial: true,
@@ -28,19 +29,20 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 			Orders: 1, RevenueCents: 10000, RevenueSquares: 1e8,
 			Days: []sales.Day{{Day: monday.AddDate(0, 0, -7), Orders: 1, RevenueCents: 10000}},
 		},
+		Days: []sales.Day{
+			{Day: monday.AddDate(0, 0, -7), Orders: 1, RevenueCents: 10000},
+			{Day: monday, Orders: 1, RevenueCents: 30000},
+			{Day: tuesday, Orders: 2, RevenueCents: 60000},
+		},
+		Sellers: []sales.Seller{{Slug: "mug", Name: "馬克杯", Units: 3, RevenueCents: 90000}},
 	}
 	week := Week{
 		Orders: 3, RevenueCents: 90000, RevenueSquares: 2.7e9,
 		Previous: recent.Previous,
-		RevenueDays: chart.SparklineProps{
-			Previous: chart.Series{Buckets: []chart.Bucket{{Day: monday.AddDate(0, 0, -7), Value: 10000}}},
-			Current:  chart.Series{Partial: true, Buckets: []chart.Bucket{{Day: monday, Value: 30000}, {Day: tuesday, Value: 60000}}},
-		},
-		OrderDays: chart.SparklineProps{
-			Previous: chart.Series{Buckets: []chart.Bucket{{Day: monday.AddDate(0, 0, -7), Value: 1}}},
-			Current:  chart.Series{Partial: true, Buckets: []chart.Bucket{{Day: monday, Value: 1}, {Day: tuesday, Value: 2}}},
-		},
 	}
+	daily := chart.Series{Partial: true, Buckets: []chart.Bucket{
+		{Day: monday.AddDate(0, 0, -7), Value: 10000}, {Day: monday, Value: 30000}, {Day: tuesday, Value: 60000},
+	}}
 	paid := recent
 	paid.Latest = &sales.PaidOrder{Number: "GO-261013-ABCDEF", TotalCents: 30000, Elapsed: 90 * time.Minute}
 	down := errors.New("connection reset")
@@ -52,11 +54,12 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 		want   View
 	}{
 		{"read", paid, nil, View{
-			Week: week, Latest: &LatestPaid{Number: "GO-261013-ABCDEF", TotalCents: 30000, Elapsed: 90 * time.Minute},
+			Week: week, Daily: daily, ReadAt: readAt, Sellers: recent.Sellers,
+			Latest: &LatestPaid{Number: "GO-261013-ABCDEF", TotalCents: 30000, Elapsed: 90 * time.Minute},
 		}},
-		{"never paid", recent, nil, View{Week: week}},
+		{"never paid", recent, nil, View{Week: week, Daily: daily, ReadAt: readAt, Sellers: recent.Sellers}},
 		{"latest unreadable", recent, fmt.Errorf("%w: %w", sales.ErrLatestPaid, down), View{
-			Week: week, LatestUnavailable: true,
+			Week: week, Daily: daily, ReadAt: readAt, Sellers: recent.Sellers, LatestUnavailable: true,
 		}},
 		{"unreadable", sales.Recent{}, fmt.Errorf("read the week's revenue: %w", down), View{WeekUnavailable: true}},
 	}
@@ -64,7 +67,7 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var got View
-			showWeek(&got, tt.recent, tt.err)
+			showWeek(&got, tt.recent, readAt, tt.err)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("showWeek mismatch (-want +got):\n%s", diff)
 			}
