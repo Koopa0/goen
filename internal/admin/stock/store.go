@@ -311,7 +311,7 @@ func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after 
 	view := MovementsView{
 		Bound: bound,
 		SKU:   v.SKU, ProductName: v.ProductName, Slug: v.Slug,
-		Stock: v.StockQuantity, Safety: v.SafetyStock,
+		Stock: v.StockQuantity, Safety: v.SafetyStock, Active: v.IsActive,
 		FormID: uuid.NewString(),
 		Rows:   make([]Movement, 0, len(rows)),
 	}

@@ -94,7 +94,7 @@ func TestDeskRefusalPOSTs(t *testing.T) {
 		kept                      map[string]string
 		multipart                 bool
 	}{
-		{"stock", "/admin/stock/adjust", "row-" + sku, "adj-" + sku, url.Values{"sku": {sku}, "delta": {" +oops "}, "idempotency": {uuid.NewString()}, "return": {"/admin/stock?q=" + sku}}, map[string]string{"adj-" + sku: " +oops "}, false},
+		{"stock", "/admin/stock/receive", "row-" + sku, "rcv-" + sku, url.Values{"sku": {sku}, "quantity": {" +oops "}, "idempotency": {uuid.NewString()}, "return": {"/admin/stock?q=" + sku}}, map[string]string{"rcv-" + sku: " +oops "}, false},
 		{"details", "/admin/products/" + slug, "sec-details", "p-name", url.Values{"name": {"   "}, "summary": {" kept summary "}, "description": {"kept description"}, "category": {category}}, map[string]string{"p-name": "   ", "p-summary": " kept summary "}, false},
 		{"variant", "/admin/products/" + slug + "/variants", "sec-variants", "v-sku", url.Values{"sku": {"bad sku"}, "price": {" +oops "}, "compare": {""}, "safety": {"0"}, "parcel_longest": {"0"}, "parcel_sum": {"0"}, "parcel_weight": {"0"}}, map[string]string{"v-sku": "bad sku", "v-price": " +oops "}, false},
 		{"spec", "/admin/products/" + slug + "/specs", "sec-specs", "spec-label", url.Values{"label": {"   "}, "value": {" kept value "}, "label_en": {"kept label"}}, map[string]string{"spec-label": "   ", "spec-value": " kept value "}, false},

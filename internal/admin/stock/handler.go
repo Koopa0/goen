@@ -74,6 +74,8 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 	respond.Component(w, r, h.log, http.StatusOK, Variants(VariantsMeta(r.Context()), view))
 }
 
+// Adjust is posted from the SKU page, so it answers there: a correction is a
+// count the reader is looking at, and its refusal needs the field it names.
 func (h *Handler) Adjust(w http.ResponseWriter, r *http.Request) {
 	u, _ := user.FromContext(r.Context())
 	if err := formtext.ParseForm(w, r); err != nil {
@@ -90,13 +92,15 @@ func (h *Handler) Adjust(w http.ResponseWriter, r *http.Request) {
 		key = newKey()
 	}
 
-	err := h.store.Adjust(r.Context(), r.PostFormValue("sku"), delta, u.ID, key)
+	sku := r.PostFormValue("sku")
+	back := "/admin/stock/" + url.PathEscape(sku)
+	err := h.store.Adjust(r.Context(), sku, delta, u.ID, key)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
+		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "stock adjustment refused",
-			"sku", r.PostFormValue("sku"), "delta", delta, "error", err)
+			"sku", sku, "delta", delta, "error", err)
 		h.rejectAdjustment(w, r, i18n.KeyAdminStockAdjustRefused)
 	default:
 		h.log.ErrorContext(r.Context(), "adjust stock", "error", err)
@@ -105,10 +109,30 @@ func (h *Handler) Adjust(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i18n.Key) {
-	h.rejectStockForm(w, r, key, func(row *Variant) {
-		row.DraftDelta = r.PostFormValue("delta")
-		row.DeltaError = i18n.T(r.Context(), key)
-	})
+	h.rejectOnSKUPage(w, r, func(view *MovementsView) { h.renderAdjustmentRefusal(w, r, view, key) })
+}
+
+func (h *Handler) renderAdjustmentRefusal(w http.ResponseWriter, r *http.Request, view *MovementsView, key i18n.Key) {
+	view.DraftDelta = r.PostFormValue("delta")
+	view.DeltaError = i18n.T(r.Context(), key)
+	view.AdjustmentKey = r.PostFormValue("idempotency")
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Movements(
+		frame.Page{Title: view.SKU}, view))
+}
+
+// rejectOnSKUPage reads the SKU page a refused form was posted from and hands
+// it to render, which fills in the refusal. A SKU that is gone is a 404.
+func (h *Handler) rejectOnSKUPage(w http.ResponseWriter, r *http.Request, render func(*MovementsView)) {
+	view, err := h.store.Movements(r.Context(), r.PostFormValue("sku"), time.Now(), "")
+	switch {
+	case err == nil:
+		render(&view)
+	case errors.Is(err, ErrNotFound):
+		admin.NotFound(w, r, h.log)
+	default:
+		h.log.ErrorContext(r.Context(), "read movements after refused stock form", "error", err)
+		admin.ServerError(w, r, h.log)
+	}
 }
 
 func (h *Handler) rejectArrival(w http.ResponseWriter, r *http.Request) {
@@ -145,6 +169,9 @@ func (h *Handler) rejectStockForm(w http.ResponseWriter, r *http.Request, key i1
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Variants(VariantsMeta(r.Context()), view))
 }
 
+// Receive books a delivery from a row of the stock list, which names the list
+// in "return", or from the SKU page, which names nothing. The list answers on
+// the row it came from; the SKU page keeps its own notices.
 func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	u, _ := user.FromContext(r.Context())
 	if err := formtext.ParseForm(w, r); err != nil {
@@ -153,6 +180,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	}
 	sku := r.PostFormValue("sku")
 	back := "/admin/stock/" + url.PathEscape(sku)
+	fromList := postedFromStockList(r)
 	key := r.PostFormValue("idempotency")
 	if key == "" {
 		key = newKey()
@@ -161,19 +189,27 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 
 	quantity, ok := ParseReceipt(r.PostFormValue("quantity"))
 	if !ok {
-		h.rejectReceipt(w, r, i18n.KeyAdminNoticeBadQty)
+		h.rejectReceipt(w, r, fromList, i18n.KeyAdminNoticeBadQty)
 		return
 	}
 
 	err := h.store.Receive(r.Context(), sku, quantity, u.ID, key)
 	switch {
+	case err == nil && fromList:
+		http.Redirect(w, r, stockBack(r, "received"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case err == nil:
 		http.Redirect(w, r, back+"?received=1", http.StatusSeeOther)
+	case errors.Is(err, ErrMovementConflict) && fromList:
+		h.rejectReceipt(w, r, fromList, i18n.KeyAdminReceiptConflict)
 	case errors.Is(err, ErrMovementConflict):
 		http.Redirect(w, r, back+"?receipt-conflict=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "goods receipt refused",
 			"sku", sku, "quantity", quantity, "error", err)
+		if fromList {
+			h.rejectReceipt(w, r, fromList, i18n.KeyAdminNoticeRefused)
+			return
+		}
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "receive stock", "error", err)
@@ -181,17 +217,15 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) rejectReceipt(w http.ResponseWriter, r *http.Request, key i18n.Key) {
-	view, err := h.store.Movements(r.Context(), r.PostFormValue("sku"), time.Now(), "")
-	switch {
-	case err == nil:
-		h.renderReceiptRefusal(w, r, &view, key)
-	case errors.Is(err, ErrNotFound):
-		admin.NotFound(w, r, h.log)
-	default:
-		h.log.ErrorContext(r.Context(), "read movements after refused receipt", "error", err)
-		admin.ServerError(w, r, h.log)
+func (h *Handler) rejectReceipt(w http.ResponseWriter, r *http.Request, fromList bool, key i18n.Key) {
+	if fromList {
+		h.rejectStockForm(w, r, key, func(row *Variant) {
+			row.DraftQuantity = r.PostFormValue("quantity")
+			row.QuantityError = i18n.T(r.Context(), key)
+		})
+		return
 	}
+	h.rejectOnSKUPage(w, r, func(view *MovementsView) { h.renderReceiptRefusal(w, r, view, key) })
 }
 
 func (h *Handler) renderReceiptRefusal(w http.ResponseWriter, r *http.Request, view *MovementsView, key i18n.Key) {
@@ -202,20 +236,23 @@ func (h *Handler) renderReceiptRefusal(w http.ResponseWriter, r *http.Request, v
 		frame.Page{Title: view.SKU}, view))
 }
 
+// SetActive is posted from the SKU page and answers there, where its notice is
+// on screen and the variant's state is the one being read.
 func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	err := h.store.SetActive(r.Context(),
-		r.PostFormValue("sku"), r.PostFormValue("active") == "1")
+	sku := r.PostFormValue("sku")
+	back := "/admin/stock/" + url.PathEscape(sku)
+	err := h.store.SetActive(r.Context(), sku, r.PostFormValue("active") == "1")
 	switch {
 	case err == nil:
-		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
+		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "variant activation refused",
-			"sku", r.PostFormValue("sku"), "error", err)
-		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
+			"sku", sku, "error", err)
+		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set variant active", "error", err)
 		admin.ServerError(w, r, h.log)
@@ -246,6 +283,13 @@ func (h *Handler) SetPrice(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "set variant price", "error", err)
 		admin.ServerError(w, r, h.log)
 	}
+}
+
+// postedFromStockList reports whether the form named the stock list as the page
+// it was posted from. The value is only compared, never followed.
+func postedFromStockList(r *http.Request) bool {
+	u, err := url.Parse(r.PostFormValue("return"))
+	return err == nil && u.Path == "/admin/stock" && u.Host == ""
 }
 
 func stockReturn(soldOut, term, after, notice, sku string) string {

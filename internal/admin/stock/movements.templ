@@ -11,6 +11,8 @@ import (
 
 // The receiving form comes before the ledger because a delivery has arrived and
 // the count has to be raised; the ledger is read afterwards to check it landed.
+// The correction and the switch-off sit with it because the stock list's rows
+// only receive.
 templ Movements(p frame.Page, v *MovementsView) {
 	@frame.Admin(p, "stock") {
 		@widget.Breadcrumb(widget.BreadcrumbProps{
@@ -31,6 +33,8 @@ templ Movements(p frame.Page, v *MovementsView) {
 		</div>
 		@widget.Announce(v.Notice)
 		@receiveForm(v)
+		@adjustForm(v)
+		@activeForm(v)
 		if v.HasStockDays() && !v.Empty() {
 			if v.DrawsStockLine() {
 				@chart.StepLine(v.StockLine(ctx))
@@ -122,5 +126,87 @@ templ receiveForm(v *MovementsView) {
 				{ i18n.T(ctx, i18n.KeyAdminReceiveHint) }
 			</p>
 		</form>
+	}
+}
+
+// adjustForm corrects the count either way, for a stocktake difference or
+// damaged goods. Its key is rendered with the form for the reason the receiving
+// form's is.
+templ adjustForm(v *MovementsView) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
+		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminAdjustHeading) }</h2>
+		<form class="goen-admin__form" method="post" action="/admin/stock/adjust">
+			<input type="hidden" name="sku" value={ v.SKU }/>
+			<input type="hidden" name="idempotency" value={ v.AdjustKey() }/>
+			<div class="goen-admin__field">
+				@widget.Label(widget.LabelProps{For: "adjust-delta"}) {
+					{ i18n.T(ctx, i18n.KeyAdminQueueAdjustQty) }
+				}
+				<input
+					class="goen-input goen-admin__num"
+					id="adjust-delta"
+					type="text"
+					inputmode="numeric"
+					name="delta"
+					value={ v.DraftDelta }
+					if v.DeltaError != "" {
+						aria-invalid="true"
+						aria-describedby="adjust-delta-example adjust-delta-error"
+					} else {
+						aria-describedby="adjust-delta-example"
+					}
+					required
+				/>
+				<p class="goen-admin__hint" id="adjust-delta-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "-3") }</p>
+				if v.DeltaError != "" {
+					<p class="ui-error-text" id="adjust-delta-error" role="alert">{ v.DeltaError }</p>
+				}
+			</div>
+			@widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStyleSecondary,
+				Class:       "goen-admin__submit",
+			}, "submit") {
+				{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }
+			}
+			<p class="goen-admin__hint">
+				{ i18n.T(ctx, i18n.KeyAdminAdjustHint) }
+			</p>
+		</form>
+	}
+}
+
+// activeForm switches the variant off behind a disclosure, and on again in one
+// step. Switching off can be undone on this page, which is why it asks for a
+// second click and not a page of its own.
+templ activeForm(v *MovementsView) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
+		if v.Active {
+			<details class="goen-admin__retire">
+				<summary>{ i18n.T(ctx, i18n.KeyAdminRetireSummary) }</summary>
+				<form class="goen-admin__form" method="post" action="/admin/stock/active">
+					<input type="hidden" name="sku" value={ v.SKU }/>
+					<input type="hidden" name="active" value="0"/>
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetireEffect) }</p>
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleDanger,
+						Class:       "goen-admin__submit",
+					}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminToggleOff) }
+					}
+				</form>
+			</details>
+		} else {
+			<form class="goen-admin__form" method="post" action="/admin/stock/active">
+				<input type="hidden" name="sku" value={ v.SKU }/>
+				<input type="hidden" name="active" value="1"/>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminVariantIsOff) }</p>
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleSecondary,
+					Class:       "goen-admin__submit",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminToggleOn) }
+				}
+			</form>
+		}
 	}
 }

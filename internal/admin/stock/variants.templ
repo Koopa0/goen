@@ -83,10 +83,10 @@ templ variantTable(variants []Variant, back string) {
 			<tr>
 				<th scope="col">SKU</th>
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
-				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColStock) }</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColSellable) }</th>
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColPrice) }</th>
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminVariantArrival) }</th>
-				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminMoveReceipt) }</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -108,17 +108,28 @@ templ variantTable(variants []Variant, back string) {
 						}
 						<span class="ui-cart-line__meta">{ x.Brand }</span>
 					</td>
-					<td>
-						{ x.StockText() } / { x.SafetyText() } /
-						<strong>{ x.SellableText() }</strong>
+					<td class="goen-admin__cellstock">
+						<span class="goen-admin__sellable">{ x.SellableText() }</span>
+						<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStockFacts), x.StockText(), x.SafetyText()) }</span>
+						if x.Low() {
+							@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
+								{ i18n.T(ctx, i18n.KeyAdminStockLow) }
+							}
+						}
 					</td>
 					<td>
 						<form class="goen-admin__inline" method="post" action="/admin/stock/price">
 							<input type="hidden" name="return" value={ back }/>
 							<input type="hidden" name="sku" value={ x.SKU }/>
-							<label class="goen-sr-only" for={ "price-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueuePrice) }</label>
+							<label class="goen-admin__pricefield" for={ "price-" + x.SKU }>
+								<span class="goen-admin__pricelabel">{ i18n.T(ctx, i18n.KeyAdminQueuePrice) }</span>
+								<span class="goen-admin__currency" aria-hidden="true">NT$</span>
+							</label>
 							<input class="ui-input ui-input--sm goen-admin__num" id={ "price-" + x.SKU } type="number" name="price" value={ x.PriceText() } min="0" step="1"/>
-							<label class="goen-sr-only" for={ "cmp-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueueComparePrice) }</label>
+							<label class="goen-admin__pricefield" for={ "cmp-" + x.SKU }>
+								<span class="goen-admin__pricelabel">{ i18n.T(ctx, i18n.KeyAdminQueueComparePrice) }</span>
+								<span class="goen-admin__currency" aria-hidden="true">NT$</span>
+							</label>
 							<input
 								class="ui-input ui-input--sm goen-admin__num"
 								id={ "cmp-" + x.SKU }
@@ -127,7 +138,6 @@ templ variantTable(variants []Variant, back string) {
 								value={ x.CompareText() }
 								min="0"
 								step="1"
-								placeholder={ i18n.T(ctx, i18n.KeyAdminQueueComparePrice) }
 							/>
 							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueuePriceSave) }</button>
 						</form>
@@ -155,41 +165,28 @@ templ variantTable(variants []Variant, back string) {
 						</form>
 					</td>
 					<td>
-						<form class="goen-admin__inline" method="post" action={ templ.URL("/admin/stock/adjust#row-" + x.SKU) }>
+						<form class="goen-admin__inline" method="post" action={ templ.URL("/admin/stock/receive#row-" + x.SKU) }>
 							<input type="hidden" name="return" value={ back }/>
 							<input type="hidden" name="sku" value={ x.SKU }/>
-							<input type="hidden" name="idempotency" value={ x.AdjustKey() }/>
-							<label class="goen-sr-only" for={ "adj-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueueAdjustQty) }</label>
+							<input type="hidden" name="idempotency" value={ x.ReceiveKey() }/>
+							<label class="goen-sr-only" for={ "rcv-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminReceiveQty) }</label>
 							<input
 								class="ui-input ui-input--sm goen-admin__num"
-								id={ "adj-" + x.SKU }
-								type={ widget.DollarInputType(x.DraftDelta) }
+								id={ "rcv-" + x.SKU }
+								type={ widget.DollarInputType(x.DraftQuantity) }
 								inputmode="numeric"
-								name="delta"
-								value={ x.DraftDelta }
+								name="quantity"
+								value={ x.DraftQuantity }
+								min="1"
 								step="1"
-								if x.DeltaError != "" {
+								if x.QuantityError != "" {
 									aria-invalid="true"
-									aria-describedby={ "adj-example-" + x.SKU + " adj-error-" + x.SKU }
-								} else {
-									aria-describedby={ "adj-example-" + x.SKU }
+									aria-describedby={ "rcv-" + x.SKU + "-error" }
 								}
 							/>
-							<p class="goen-admin__hint" id={ "adj-example-" + x.SKU }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "+10") }</p>
-							if x.DeltaError != "" {
-								<p class="ui-error-text" id={ "adj-error-" + x.SKU } role="alert">{ x.DeltaError }</p>
-							}
-							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }</button>
-						</form>
-						<form class="goen-admin__inline" method="post" action="/admin/stock/active">
-							<input type="hidden" name="return" value={ back }/>
-							<input type="hidden" name="sku" value={ x.SKU }/>
-							if x.Active {
-								<input type="hidden" name="active" value="0"/>
-								<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminToggleOff) }</button>
-							} else {
-								<input type="hidden" name="active" value="1"/>
-								<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminToggleOn) }</button>
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminReceiveButton) }</button>
+							if x.QuantityError != "" {
+								<p class="ui-error-text" id={ "rcv-" + x.SKU + "-error" } role="alert">{ x.QuantityError }</p>
 							}
 						</form>
 					</td>

@@ -47,6 +47,7 @@ type MovementsView struct {
 	Slug          string
 	Stock         int32
 	Safety        int32
+	Active        bool
 	Rows          []Movement
 	Days          []Day
 	Notice        widget.Result
@@ -54,16 +55,29 @@ type MovementsView struct {
 	DraftQuantity string
 	QuantityError string
 	ReceiptKey    string
+	DraftDelta    string
+	DeltaError    string
+	AdjustmentKey string
 }
 
 // ReceiveKey is the goods-receipt form's idempotency key, named by the rendered
-// form for the reason AdjustKey is. Its prefix differs from AdjustKey's so the
-// two forms never share a key.
+// form: it is spent for good in the ledger, so a key built from the stock level
+// would be refused when stock returns to an earlier figure. Its prefix differs
+// from AdjustKey's so the two forms never share a key.
 func (v *MovementsView) ReceiveKey() string {
 	if v.ReceiptKey != "" {
 		return v.ReceiptKey
 	}
 	return "rcv:" + v.SKU + ":" + v.FormID
+}
+
+// AdjustKey is the correction form's idempotency key, kept across a refusal as
+// ReceiveKey is.
+func (v *MovementsView) AdjustKey() string {
+	if v.AdjustmentKey != "" {
+		return v.AdjustmentKey
+	}
+	return "adj:" + v.SKU + ":" + v.FormID
 }
 
 func (v *MovementsView) Empty() bool { return len(v.Rows) == 0 }
