@@ -103,7 +103,7 @@ func (h *Handler) Routes(mux *http.ServeMux, submissions *ratelimit.Limiter) {
 }
 
 // TakesPayment holds where a payment key is configured.
-func (h *Handler) TakesPayment() bool { return h.payments != nil && h.payments.Enabled() }
+func (h *Handler) TakesPayment() bool { return h.payments.Enabled() }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	cartID, ok := h.carts.Require(w, r)

@@ -11,7 +11,7 @@ import (
 // or disabled gateway is a deployment with no Stripe key, where no session was
 // ever opened.
 func CloseSessions(ctx context.Context, g *Gateway, log *slog.Logger, number string, sessions []string) {
-	if g == nil || !g.Enabled() {
+	if !g.Enabled() {
 		return
 	}
 
