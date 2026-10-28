@@ -32,16 +32,24 @@ var (
 		En:     "Two-factor is not set up for this site yet. .env.example says how.",
 	})
 
-	KeyTOTPAlreadyEnrolled = key("twofactor.enrolled", Message{
-		ZhHant: "這個帳號已經完成兩階段驗證設定。要換一支手機，請另一位管理者先在 /admin/staff 移除，再重新設定。",
-		En: "This account already has two-factor set up. To move to a new phone, ask another " +
-			"administrator to remove it at /admin/staff first, then enrol again.",
+	KeyTOTPAlreadyEnrolledBefore = key("twofactor.enrolled.before", Message{
+		ZhHant: "這個帳號已經完成兩階段驗證設定。要換一支手機，請另一位管理員先到",
+		En:     "This account already has two-factor set up. To move to a new phone, ask another administrator to remove it on the ",
 	})
 
-	KeyTOTPSecretUnreadable = key("admin.totp.secret_unreadable", Message{
-		ZhHant: "這組驗證器已無法讀取（加密金鑰已更換）。請另一位管理員在 /admin/staff 移除後重新設定。",
-		En: "This authenticator can no longer be read (the encryption key changed). " +
-			"Ask another admin to remove it at /admin/staff, then enrol again.",
+	KeyTOTPAlreadyEnrolledAfter = key("twofactor.enrolled.after", Message{
+		ZhHant: "頁面移除，再重新設定。",
+		En:     " page first, then enrol again.",
+	})
+
+	KeyTOTPSecretUnreadableBefore = key("admin.totp.secret_unreadable.before", Message{
+		ZhHant: "這組驗證器已無法讀取（加密金鑰已更換）。請另一位管理員先到",
+		En:     "This authenticator can no longer be read (the encryption key changed). Ask another administrator to remove it on the ",
+	})
+
+	KeyTOTPSecretUnreadableAfter = key("admin.totp.secret_unreadable.after", Message{
+		ZhHant: "頁面移除，再重新設定。",
+		En:     " page, then enrol again.",
 	})
 
 	KeyTwoFALead = key("admin.2fa.lead", Message{

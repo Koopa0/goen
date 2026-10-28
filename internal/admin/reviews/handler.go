@@ -50,7 +50,7 @@ func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Reviews(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReviews)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueReviews)}, view))
 }
 
 func (h *Handler) HideReview(w http.ResponseWriter, r *http.Request) {

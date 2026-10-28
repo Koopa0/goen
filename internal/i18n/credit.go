@@ -15,19 +15,19 @@ var (
 	KeyAdminCreditCustomer            = key("admin.credit.customer", Message{ZhHant: "收取購物金的顧客", En: "Credit recipient"})
 	KeyAdminCreditBalance             = key("admin.credit.balance", Message{ZhHant: "目前餘額", En: "Current balance"})
 	KeyAdminCreditEdit                = key("admin.credit.edit", Message{ZhHant: "返回修改", En: "Back to edit"})
-	KeyAdminCreditUnknown             = key("admin.credit.unknown", Message{ZhHant: "找不到使用這個電子郵件的會員，請核對後再試。", En: "No customer has that email. Check the address and try again."})
+	KeyAdminCreditUnknown             = key("admin.credit.unknown", Message{ZhHant: "找不到使用這個電子郵件的顧客，請核對後再試。", En: "No customer has that email. Check the address and try again."})
 
 	KeyAdminErasedShort = key("admin.erased.short", Message{ZhHant: "（已刪除）", En: "(deleted)"})
 
 	KeyAdminPageCredit = key("admin.page.credit", Message{ZhHant: "購物金", En: "Store credit"})
 
 	KeyAdminCreditLead = key("admin.credit.lead", Message{
-		ZhHant: "發放的購物金會在該會員下次結帳時自動折抵。金額以「元」為單位。",
+		ZhHant: "發放的購物金會在這位顧客下次結帳時自動折抵。金額以「元」為單位。",
 		En: "Credit granted here is spent automatically at that customer's next checkout. " +
 			"Amounts are in whole New Taiwan dollars.",
 	})
 
-	KeyAdminCreditEmail = key("admin.credit.email", Message{ZhHant: "會員電子郵件", En: "Customer email"})
+	KeyAdminCreditEmail = key("admin.credit.email", Message{ZhHant: "顧客電子郵件", En: "Customer email"})
 
 	KeyAdminCreditAmount = key("admin.credit.amount", Message{ZhHant: "金額（元）", En: "Amount (NT$)"})
 

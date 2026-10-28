@@ -28,6 +28,11 @@ templ TwoFactor(p frame.Page, v View) {
 						{ v.Notice }
 					}
 				}
+				if v.Recovery != RecoveryNone {
+					@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}) {
+						{ i18n.T(ctx, v.Recovery.Before()) }<a href="/admin/staff">{ i18n.T(ctx, i18n.KeyAdminQueueStaff) }</a>{ i18n.T(ctx, v.Recovery.After()) }
+					}
+				}
 				if !v.Enabled {
 					<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyTwoFAOffHeading) }</h2>
 					<p class="goen-admin__hint">

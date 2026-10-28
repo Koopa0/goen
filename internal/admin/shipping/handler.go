@@ -256,7 +256,7 @@ func (h *Handler) rejectShippingForm(
 		view.VersionDraft = *drafts.version
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueShipping)}, view))
 }
 
 // dollars reads a non-negative whole-dollar amount. Optional blanks mean zero;
@@ -294,7 +294,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Shipping(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueShipping)}, view))
 }
 
 func (h *Handler) PublishVersion(w http.ResponseWriter, r *http.Request) {
@@ -407,5 +407,5 @@ func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, messag
 	view.SurchargeDraft = SurchargeDraft{MethodID: methodID, ZoneID: zoneID, Amount: r.PostFormValue("amount")}
 	view.Errors = map[string]string{"surcharge": message}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueShipping)}, view))
 }

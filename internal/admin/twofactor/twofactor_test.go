@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -187,25 +188,55 @@ func TestSecretCipher_SealKeyIsDecodedBytes(t *testing.T) {
 	}
 }
 
-// TestNoticeForUnreadable: an unreadable-credential notice speaks both locales.
-// It pins the recovery message used by the Verify redirect.
-func TestNoticeForUnreadable(t *testing.T) {
-	tests := []struct {
-		locale i18n.Locale
-		want   string
+// TestRecoveryLinksStaffPage: the two notices that send somebody to another
+// administrator link the staff page instead of printing its path, and an
+// unreadable credential is still told apart from an enrolled one. The whole
+// sentence is asserted, because 管理員 and "administrator" also appear
+// elsewhere on the page.
+func TestRecoveryLinksStaffPage(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		query    string
+		recovery Recovery
+		zh, en   string
 	}{
-		{i18n.ZhHant, "這組驗證器已無法讀取"},
-		{i18n.En, "This authenticator can no longer be read"},
-	}
-	for _, tt := range tests {
-		r, err := url.Parse("/admin/verify?stale=1")
+		{
+			"stale=1", RecoveryUnreadable,
+			`這組驗證器已無法讀取（加密金鑰已更換）。請另一位管理員先到<a href="/admin/staff">人員</a>頁面移除，再重新設定。`,
+			`This authenticator can no longer be read (the encryption key changed). Ask another administrator to remove it on the <a href="/admin/staff">Staff</a> page, then enrol again.`,
+		},
+		{
+			"enrolled=1", RecoveryEnrolled,
+			`這個帳號已經完成兩階段驗證設定。要換一支手機，請另一位管理員先到<a href="/admin/staff">人員</a>頁面移除，再重新設定。`,
+			`This account already has two-factor set up. To move to a new phone, ask another administrator to remove it on the <a href="/admin/staff">Staff</a> page first, then enrol again.`,
+		},
+	} {
+		r, err := url.Parse("/admin/verify?" + tt.query)
 		if err != nil {
 			t.Fatalf("request URL: %v", err)
 		}
-		req := &http.Request{URL: r}
-		req = req.WithContext(i18n.WithLocale(t.Context(), tt.locale))
-		if got := noticeFor(req); !strings.Contains(got, tt.want) {
-			t.Errorf("notice in %s = %q, want %q", tt.locale, got, tt.want)
+		if got := recoveryFor(&http.Request{URL: r}); got != tt.recovery {
+			t.Errorf("recoveryFor(%s) = %d, want %d", tt.query, got, tt.recovery)
+		}
+		for _, loc := range []struct {
+			locale i18n.Locale
+			want   string
+		}{
+			{i18n.ZhHant, tt.zh},
+			{i18n.En, tt.en},
+		} {
+			ctx := i18n.WithLocale(t.Context(), loc.locale)
+			var b strings.Builder
+			if err := TwoFactor(frame.Page{}, View{Enabled: true, Enrolled: true, Recovery: tt.recovery}).Render(ctx, &b); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			page := b.String()
+			if !strings.Contains(page, loc.want) {
+				t.Errorf("%s notice in %s is not %q", tt.query, loc.locale, loc.want)
+			}
+			if strings.Contains(page, "/admin/staff</") {
+				t.Errorf("%s notice in %s prints the path as text", tt.query, loc.locale)
+			}
 		}
 	}
 }

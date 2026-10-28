@@ -14,8 +14,6 @@ var (
 
 	KeyAdminColBalance = key("admin.col.balance", Message{ZhHant: "結存", En: "Balance"})
 
-	KeyAdminPageStockList = key("admin.page.stocklist", Message{ZhHant: "庫存管理", En: "Stock management"})
-
 	KeyAdminQueueStockLead = key("admin.queue.stock.lead", Message{
 		ZhHant: "庫存只能透過調整寫入，每次調整都會留下一筆異動紀錄。",
 		En: "Stock can only be written through an adjustment, and every adjustment leaves a " +
@@ -66,8 +64,6 @@ var (
 		ZhHant: "調整數量",
 		En:     "Adjustment quantity",
 	})
-
-	KeyAdminStockLink = key("admin.stock.link", Message{ZhHant: "庫存", En: "Stock"})
 
 	KeyAdminStockNowSafe = key("admin.stock.nowsafe", Message{
 		ZhHant: "· 目前 %s 件，安全庫存 %s",

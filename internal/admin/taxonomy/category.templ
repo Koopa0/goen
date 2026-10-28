@@ -9,11 +9,15 @@ import (
 // The tone is set on the taxonomy row, beside the name it belongs to.
 templ CategoryForm(p frame.Page, v CategoryView) {
 	@frame.Admin(p, "taxonomy") {
+		@widget.Breadcrumb(widget.BreadcrumbProps{
+			Label: i18n.T(ctx, i18n.KeyBreadcrumb),
+			Crumbs: []widget.Crumb{
+				{Label: i18n.T(ctx, i18n.KeyAdminQueueTaxonomy), Href: "/admin/taxonomy"},
+				{Label: v.Name},
+			},
+		})
 		<div class="ui-page-head">
 			<div>
-				<p class="ui-page-head__eyebrow">
-					<a href="/admin/taxonomy">{ i18n.T(ctx, i18n.KeyAdminPageTaxonomy) }</a>
-				</p>
 				<h1 class="ui-page-head__title">{ v.Name }</h1>
 			</div>
 		</div>
