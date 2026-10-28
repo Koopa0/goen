@@ -1,7 +1,7 @@
 package i18n
 
 var (
-	KeyAdminRefusalStock      = key("admin.refusal.stock", Message{ZhHant: "庫存調整", En: "Stock adjustment"})
+	KeyAdminRefusalReceipt    = key("admin.refusal.receipt", Message{ZhHant: "登記進貨", En: "Goods receipt"})
 	KeyAdminRefusalInspection = key("admin.refusal.inspection", Message{ZhHant: "退貨驗貨", En: "Return inspection"})
 	KeyAdminRefusalFAQ        = key("admin.refusal.faq", Message{ZhHant: "編輯常見問題", En: "Edit FAQ"})
 	KeyAdminRefusalHero       = key("admin.refusal.hero", Message{ZhHant: "新增輪播", En: "Add a slide"})

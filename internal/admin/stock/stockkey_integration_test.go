@@ -25,17 +25,11 @@ func stockOfSKU(t *testing.T, sku string) int32 {
 
 func formKeyOf(t *testing.T, s *stock.Store, sku string) string {
 	t.Helper()
-	view, err := s.Variants(t.Context(), false, "", "")
+	view, err := s.Movements(t.Context(), sku, time.Now(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := range view.Variants {
-		if view.Variants[i].SKU == sku {
-			return view.Variants[i].AdjustKey()
-		}
-	}
-	t.Skipf("%s is not on the first page of the stock list", sku)
-	return ""
+	return view.AdjustKey()
 }
 
 // TestStore_AdjustEarlierLevel: an adjustment is accepted when stock returns to

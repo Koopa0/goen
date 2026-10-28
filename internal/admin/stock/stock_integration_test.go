@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/product/inventory"
+	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -290,8 +291,8 @@ func TestStore_ReceiveNeverTakesStock(t *testing.T) {
 	}
 }
 
-// TestHandler_AdjustRefusedKeepsInput: a refused stock adjustment keeps what was
-// typed.
+// TestHandler_AdjustRefusedKeepsInput: a refused stock correction answers on the
+// SKU page and keeps what was typed.
 func TestHandler_AdjustRefusedKeepsInput(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := handlerOver(stock.NewStore(pool))
@@ -299,7 +300,7 @@ func TestHandler_AdjustRefusedKeepsInput(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT sku FROM product_variants ORDER BY sku LIMIT 1`).Scan(&sku); err != nil {
 		t.Fatal(err)
 	}
-	form := url.Values{"sku": {sku}, "delta": {"12x"}, "return": {"/admin/stock"}}
+	form := url.Values{"sku": {sku}, "delta": {"12x"}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/stock/adjust", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
@@ -308,10 +309,56 @@ func TestHandler_AdjustRefusedKeepsInput(t *testing.T) {
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("an unreadable adjustment answered %d, want 422", w.Code)
 	}
-	// The row may be on a later page of a long list, in which case the banner
-	// carries the sentence; either way the refusal is said and the page is 422.
-	if !strings.Contains(w.Body.String(), i18n.T(ctx, i18n.KeyAdminStockDeltaError)) {
+	body := w.Body.String()
+	if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminStockDeltaError)) {
 		t.Error("the refused adjustment does not say why")
+	}
+	uitest.AssertRefusedInput(t, body, "adjust-delta", "12x")
+}
+
+// TestHandler_AdjustFromSKUPage: a correction books an adjustment, once, and
+// answers on the SKU page.
+func TestHandler_AdjustFromSKUPage(t *testing.T) {
+	ctx, actor := admintest.StaffContext(t, pool)
+	store := stock.NewStore(admintest.AdminRolePool(t, pool))
+	mux := http.NewServeMux()
+	handlerOver(store).Routes(mux, admintest.BackOffice)
+	sku, variant := receiptVariant(t, pool)
+	post := func(form url.Values) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/stock/adjust", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+	if err := store.Receive(ctx, sku, 5, actor.String(), uuid.NewString()); err != nil {
+		t.Fatalf("stock the variant: %v", err)
+	}
+
+	form := url.Values{"sku": {sku}, "delta": {"-2"}, "idempotency": {uuid.NewString()}}
+	for attempt := range 2 {
+		got := post(form)
+		if got.Code != http.StatusSeeOther || got.Header().Get("Location") != "/admin/stock/"+sku+"?ok=1" {
+			t.Fatalf("correction attempt %d = %d %q, want 303 to the SKU page", attempt+1, got.Code, got.Header().Get("Location"))
+		}
+	}
+	var stockNow, corrections int
+	if err := pool.QueryRow(ctx, `
+		SELECT v.stock_quantity, (SELECT count(*) FROM inventory_movements WHERE variant_id = v.id AND reason = 'adjustment')
+		FROM product_variants v WHERE v.id = $1`, variant).Scan(&stockNow, &corrections); err != nil {
+		t.Fatal(err)
+	}
+	if stockNow != 3 || corrections != 1 {
+		t.Errorf("after one correction posted twice stock/adjustments = %d/%d, want 3/1", stockNow, corrections)
+	}
+
+	refused := post(url.Values{"sku": {sku}, "delta": {"0"}, "idempotency": {"adj-refused"}})
+	if refused.Code != http.StatusUnprocessableEntity || refused.Header().Get("Location") != "" {
+		t.Fatalf("zero correction = %d %q, want 422 without redirect", refused.Code, refused.Header().Get("Location"))
+	}
+	uitest.AssertRefusedInput(t, refused.Body.String(), "adjust-delta", "0")
+	if !strings.Contains(refused.Body.String(), `id="adjust-delta-error"`) {
+		t.Error("the refused correction shows no reason on the SKU page")
 	}
 }
 
@@ -766,7 +813,7 @@ func TestHandler_SetActiveRetiring(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			res := httptest.NewRecorder()
 			mux.ServeHTTP(res, req)
-			wantLocation := "/admin/stock?" + tt.notice + "=1#row-" + sku
+			wantLocation := "/admin/stock/" + sku + "?" + tt.notice + "=1"
 			if res.Code != http.StatusSeeOther || res.Header().Get("Location") != wantLocation {
 				t.Errorf("retirement response = %d %q, want 303 %q", res.Code, res.Header().Get("Location"), wantLocation)
 			}

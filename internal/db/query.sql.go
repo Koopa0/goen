@@ -2745,7 +2745,7 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 }
 
 const adminVariantBySKU = `-- name: AdminVariantBySKU :one
-SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock,
+SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock, pv.is_active,
        p.name AS product_name, p.slug
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
@@ -2757,6 +2757,7 @@ type AdminVariantBySKURow struct {
 	SKU           string
 	StockQuantity int32
 	SafetyStock   int32
+	IsActive      bool
 	ProductName   string
 	Slug          string
 }
@@ -2769,6 +2770,7 @@ func (q *Queries) AdminVariantBySKU(ctx context.Context, sku string) (AdminVaria
 		&i.SKU,
 		&i.StockQuantity,
 		&i.SafetyStock,
+		&i.IsActive,
 		&i.ProductName,
 		&i.Slug,
 	)

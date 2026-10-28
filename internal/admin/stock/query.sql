@@ -33,7 +33,7 @@ ORDER BY (pv.stock_quantity - pv.safety_stock) ASC, p.name ASC, pv.position ASC,
 LIMIT @row_limit::integer;
 
 -- name: AdminVariantBySKU :one
-SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock,
+SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock, pv.is_active,
        p.name AS product_name, p.slug
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
