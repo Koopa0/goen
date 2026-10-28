@@ -37,7 +37,7 @@ type View struct {
 	// RevenueSquares is the sum of the squared order totals, which the noise
 	// of RevenueCents is read from.
 	RevenueSquares float64
-	Sellers        []sales.Seller
+	BestSellers    []sales.BestSeller
 	Departments    []Department
 	AtRisk         []stockrisk.Row
 	// StockDays is how many shop days back the stock rows look.

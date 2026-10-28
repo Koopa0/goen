@@ -61,7 +61,7 @@ func (h *Handler) StartPicking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	batch := startPacking(ctx, h.log, numbers, func(ctx context.Context, number string) error {
+	batch := startPicking(ctx, h.log, numbers, func(ctx context.Context, number string) error {
 		sessions, advErr := h.store.Advance(ctx, number, order.FulfillmentPicking, audit.ActorID(ctx))
 		if advErr == nil {
 			payment.CloseSessions(ctx, h.payments, h.log, number, sessions)
@@ -91,12 +91,12 @@ func (h *Handler) StartPicking(w http.ResponseWriter, r *http.Request) {
 	respond.Component(w, r, h.log, status, Orders(page, view))
 }
 
-// startPacking advances each number in turn. A refusal is that order's answer
+// startPicking advances each number in turn. A refusal is that order's answer
 // and the loop goes on. An advance that fails is the database not answering, so
 // the loop stops there: the orders before it are committed, the ones after are
 // left untried, and pressing the button again starts them, because an order
 // already being packed counts as started.
-func startPacking(ctx context.Context, log *slog.Logger, numbers []string, advance func(context.Context, string) error) BatchResult {
+func startPicking(ctx context.Context, log *slog.Logger, numbers []string, advance func(context.Context, string) error) BatchResult {
 	var batch BatchResult
 	for i, number := range numbers {
 		advErr := advance(ctx, number)

@@ -143,8 +143,8 @@ func AwaitingPayment(status FulfillmentStatus, committed bool, owedCents int64) 
 	return status == FulfillmentPending && !committed && owedCents > 0
 }
 
-// PackWithinDays is the shop days a paid order may wait to be packed; the
+// PickWithinDays is the shop days a paid order may wait to be picked; the
 // third day is overdue.
-const PackWithinDays = 2
+const PickWithinDays = 2
 
-func PackingOverdue(days int) bool { return days > PackWithinDays }
+func PickingOverdue(days int) bool { return days > PickWithinDays }

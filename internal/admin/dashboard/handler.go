@@ -86,7 +86,7 @@ func showWeek(view *View, recent sales.Recent, now time.Time, err error) {
 		view.Daily.Buckets[i] = chart.Bucket{Day: d.Day, Value: d.RevenueCents}
 	}
 	view.ReadAt = now
-	view.Sellers = recent.Sellers
+	view.BestSellers = recent.BestSellers
 	if l := recent.Latest; l != nil {
 		view.Latest = &LatestPaid{Number: l.Number, TotalCents: l.TotalCents, Elapsed: l.Elapsed}
 	}

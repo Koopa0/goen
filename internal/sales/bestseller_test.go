@@ -13,12 +13,12 @@ func TestSeller_FactsBrand(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	got := Seller{Brand: "Aurora", Units: 4, RevenueCents: 120000}.Facts(ctx)
+	got := BestSeller{Brand: "Aurora", Units: 4, RevenueCents: 120000}.Facts(ctx)
 	if want := "Aurora · 4 units sold · Product gross NT$1,200"; got != want {
-		t.Errorf("Seller.Facts = %q, want %q", got, want)
+		t.Errorf("BestSeller.Facts = %q, want %q", got, want)
 	}
-	if got := (Seller{Units: 4, RevenueCents: 120000}).Facts(ctx); strings.HasPrefix(got, " ·") || strings.HasPrefix(got, "·") {
-		t.Errorf("Seller.Facts without a brand = %q, want no leading separator", got)
+	if got := (BestSeller{Units: 4, RevenueCents: 120000}).Facts(ctx); strings.HasPrefix(got, " ·") || strings.HasPrefix(got, "·") {
+		t.Errorf("BestSeller.Facts without a brand = %q, want no leading separator", got)
 	}
 }
 
@@ -34,7 +34,7 @@ func TestSeller_FactsUnits(t *testing.T) {
 			if locale == i18n.ZhHant {
 				want = fmt.Sprintf("售出 %d 件", count)
 			}
-			got := (Seller{Units: count}).Facts(i18n.WithLocale(t.Context(), locale))
+			got := (BestSeller{Units: count}).Facts(i18n.WithLocale(t.Context(), locale))
 			if !strings.Contains(got, want) {
 				t.Errorf("Facts(%s, %d) = %q, want %q", locale, count, got, want)
 			}
@@ -46,7 +46,7 @@ func TestSeller_FactsUnits(t *testing.T) {
 func TestSeller_Href(t *testing.T) {
 	t.Parallel()
 
-	if got, want := (Seller{Slug: "aurora-lamp"}).Href(), "/admin/products/aurora-lamp"; got != want {
+	if got, want := (BestSeller{Slug: "aurora-lamp"}).Href(), "/admin/products/aurora-lamp"; got != want {
 		t.Errorf("Href = %q, want %q", got, want)
 	}
 }
@@ -57,13 +57,13 @@ func TestTopUnits(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		sellers []Seller
+		sellers []BestSeller
 		want    int64
 	}{
 		{"none", nil, 0},
-		{"one", []Seller{{Units: 4}}, 4},
-		{"largest first", []Seller{{Units: 9}, {Units: 3}}, 9},
-		{"largest last", []Seller{{Units: 3}, {Units: 9}}, 9},
+		{"one", []BestSeller{{Units: 4}}, 4},
+		{"largest first", []BestSeller{{Units: 9}, {Units: 3}}, 9},
+		{"largest last", []BestSeller{{Units: 3}, {Units: 9}}, 9},
 	}
 	for _, tt := range tests {
 		if got := TopUnits(tt.sellers); got != tt.want {

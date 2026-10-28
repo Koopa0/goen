@@ -500,7 +500,7 @@ func Dashboard(p frame.Page, v View) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-			} else if len(v.Sellers) == 0 {
+			} else if len(v.BestSellers) == 0 {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<p class=\"goen-admin__hint\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -523,8 +523,8 @@ func Dashboard(p frame.Page, v View) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				top := sales.TopUnits(v.Sellers)
-				for _, item := range v.Sellers {
+				top := sales.TopUnits(v.BestSellers)
+				for _, item := range v.BestSellers {
 					templ_7745c5c3_Var28 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 						templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 						templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -537,7 +537,7 @@ func Dashboard(p frame.Page, v View) templ.Component {
 							}()
 						}
 						ctx = templ.InitializeContext(ctx)
-						if len(v.Sellers) > 1 {
+						if len(v.BestSellers) > 1 {
 							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<div class=\"goen-report__plot\">")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err

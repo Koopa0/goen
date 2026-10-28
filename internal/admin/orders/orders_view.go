@@ -41,7 +41,7 @@ type WorkRow struct {
 
 func workRow(row Row, waitingSince, now time.Time) WorkRow {
 	days := shoptime.DaysAgo(waitingSince, now)
-	return WorkRow{Row: row, WaitDays: days, Overdue: order.PackingOverdue(days)}
+	return WorkRow{Row: row, WaitDays: days, Overdue: order.PickingOverdue(days)}
 }
 
 func (w WorkRow) WaitText(ctx context.Context) string {

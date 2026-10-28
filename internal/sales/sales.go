@@ -29,8 +29,8 @@ type Recent struct {
 	// the hours of Previous's last day after that time are in Days and in
 	// neither period.
 	Days []Day
-	// Sellers are the best sellers of Current, at most [RecentSellers] of them.
-	Sellers []Seller
+	// BestSellers are the best sellers of Current, at most [RecentBestSellers] of them.
+	BestSellers []BestSeller
 	// Latest is nil when no order was ever paid.
 	Latest *PaidOrder
 }
