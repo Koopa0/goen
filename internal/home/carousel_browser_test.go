@@ -11,16 +11,23 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/uitest"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // TestHeroCarouselCurrentTab holds that the carousel's current tab stays
-// visible without moving the page.
+// visible without moving the page, and that a slide chosen with a tab fades in
+// where the browser can.
 func TestHeroCarouselCurrentTab(t *testing.T) {
-	_, port := uitest.Browser(t, "CDP_PORT")
+	name, value := uitest.Browser(t, "GOEN_SAFARI_DRIVER_URL", "CDP_PORT")
+	script := "carousel-tab-check.mjs"
+	if name == "GOEN_SAFARI_DRIVER_URL" {
+		script = "carousel-safari-check.mjs"
+	}
 	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
@@ -35,8 +42,13 @@ func TestHeroCarouselCurrentTab(t *testing.T) {
 			titles = []string{"Technology", "Everyday essentials", "Books & stationery"}
 		}
 		view := View{}
-		for _, title := range titles {
-			view.Slides = append(view.Slides, hero.Slide{Title: title, Layout: hero.LayoutSplit, Tone: tone.Stone})
+		photos := []string{"restwood-stoneware-mug-01.webp", "koto-over-ear-01.webp", ""}
+		for i, title := range titles {
+			slide := hero.Slide{Title: title, Layout: hero.LayoutSplit, Tone: tone.Stone}
+			if r.URL.Query().Get("photos") == "1" && photos[i] != "" {
+				slide.Photo = widget.Photo{URL: picture.Image{BundledKey: photos[i]}.URL(), Alt: title}
+			}
+			view.Slides = append(view.Slides, slide)
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if renderErr := Page(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
@@ -45,8 +57,8 @@ func TestHeroCarouselCurrentTab(t *testing.T) {
 	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	//nolint:gosec // G204: fixed regression script, test-owned server and caller's Chrome debugging port.
-	cmd := exec.CommandContext(t.Context(), "node", filepath.Join(root, "scripts", "carousel-tab-check.mjs"), server.URL, port)
+	//nolint:gosec // G204: one of two fixed regression scripts, test-owned server and the caller's browser endpoint.
+	cmd := exec.CommandContext(t.Context(), "node", filepath.Join(root, "scripts", script), server.URL, value)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("carousel tabs: %v\n%s", err, output)

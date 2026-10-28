@@ -96,7 +96,55 @@ try {
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.pillRuns = [];
     addEventListener('transitionrun', event => {
       if (event.pseudoElement === '::before' && event.target.matches?.('.goen-hero__tabs')) pillRuns.push(event.propertyName);
-    }, true);` });
+    }, true);
+    window.slideRuns = []; window.pageErrors = [];
+    addEventListener('error', event => pageErrors.push(String(event.message)));
+    addEventListener('unhandledrejection', event => pageErrors.push(String(event.reason)));
+    if (document.startViewTransition) {
+      const start = document.startViewTransition.bind(document);
+      document.startViewTransition = options => {
+        const run = start(options);
+        slideRuns.push({ types: [...(options?.types ?? [])], run });
+        return run;
+      };
+    }` });
+  // A tab is current, the track sits on its slide, and the one slide marked as
+  // shown is that slide.
+  const slideSettled = (index, label) => waitFor(`(() => {
+    const track = document.querySelector('.goen-hero__track'), shown = document.querySelectorAll('[data-shown]');
+    return document.querySelector('.goen-hero__tabs a[aria-current="true"]')?.getAttribute('href') === '#hero-${index + 1}' &&
+      Math.abs(track.scrollLeft - ${index} * track.clientWidth) <= 1 && !document.querySelector('[data-leaving]') &&
+      shown.length === 1 && shown[0].id === 'hero-${index + 1}';
+  })()`, label);
+  const photoPage = async (label, width) => {
+    const url = `${origin}/carousel?lang=zh-Hant&photos=1&width=${width}`;
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 768 });
+    await send('Emulation.setTouchEmulationEnabled', { enabled: width < 768, maxTouchPoints: 1 });
+    await send('Page.navigate', { url });
+    await send('Page.bringToFront');
+    await waitFor(`location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`, label);
+    await waitFor(`document.querySelector('.goen-hero__nav')?.hidden === false`, `${label} enhancement`);
+    await evaluate('Promise.all([...document.images].map(image => image.decode().catch(() => {}))).then(() => true)');
+  };
+  // A photograph that has not arrived cannot be faded to: the tab scrolls as it
+  // always did. This runs before any page shows these photographs, because a
+  // photograph cached by an earlier page would already be complete.
+  {
+    const label = 'carousel photograph not yet arrived';
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+    await send('Network.enable');
+    await send('Network.setCacheDisabled', { cacheDisabled: true });
+    await send('Fetch.enable', { patterns: [{ urlPattern: '*koto-over-ear-01*', requestStage: 'Request' }] });
+    await send('Page.navigate', { url: `${origin}/carousel?lang=zh-Hant&photos=1&cold=1` });
+    await send('Page.bringToFront');
+    await waitFor(`document.querySelector('.goen-hero__nav')?.hidden === false`, `${label} enhancement`);
+    assert.equal(await evaluate("document.querySelectorAll('.goen-hero__media img')[1].complete"), false, `${label}: the held photograph arrived`);
+    await evaluate("document.querySelectorAll('.goen-hero__tabs a')[1].click()");
+    await slideSettled(1, `${label}: click`);
+    assert.equal(await evaluate('slideRuns.length'), 0, `${label}: a view transition was started for a photograph that is not there`);
+    await send('Fetch.disable');
+    await send('Network.setCacheDisabled', { cacheDisabled: false });
+  }
   for (const locale of ['zh-Hant', 'en']) for (const width of [375, 390, 1440]) {
     const label = `carousel ${locale} ${width}px`;
     await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 768 });
@@ -220,6 +268,122 @@ try {
     const reduced = milliseconds(await duration());
     await send('Emulation.setEmulatedMedia', { features: [] });
     assert.ok(reduced.every(value => value <= 0.01), `${label}: the pill still moves with reduced motion: ${reduced}`);
+  }
+  // The chosen slide's fade, read frame by frame: every view-transition
+  // animation is paused and set to the instants below, so the numbers do not
+  // depend on how fast the machine runs.
+  const fade = async (label, index, reduce) => {
+    const got = await evaluate(`(async () => {
+      const tabs = [...document.querySelectorAll('.goen-hero__tabs a')];
+      const known = slideRuns.length;
+      tabs[${index}].click();
+      for (let frame = 0; frame < 120 && slideRuns.length === known; frame++) await new Promise(resolve => requestAnimationFrame(resolve));
+      if (slideRuns.length === known) return { started: false };
+      const { types, run } = slideRuns.at(-1);
+      await run.ready;
+      const pseudo = animation => String(animation.effect.pseudoElement);
+      const animations = document.getAnimations().filter(animation => pseudo(animation).startsWith('::view-transition'));
+      animations.forEach(animation => animation.pause());
+      const timing = {};
+      for (const animation of animations) {
+        const { duration, delay } = animation.effect.getTiming();
+        (timing[pseudo(animation)] ??= new Set()).add(Math.round(duration) + '/' + Math.round(delay));
+      }
+      for (const name in timing) timing[name] = [...timing[name]].sort();
+      const moving = animations.filter(animation => animation.effect.getKeyframes().some(frame =>
+        ['transform', 'translate', 'scale', 'rotate', 'width', 'height', 'top', 'left'].some(property => property in frame))).map(pseudo);
+      const read = name => {
+        const style = getComputedStyle(document.documentElement, '::view-transition-' + name);
+        return { opacity: parseFloat(style.opacity), display: style.display, blend: style.mixBlendMode };
+      };
+      const frames = [0, 40, 80, 120, 160, 199].map(at => {
+        animations.forEach(animation => { animation.currentTime = at; });
+        return { at, oldSlide: read('old(hero-slide)'), newSlide: read('new(hero-slide)'),
+          oldWords: read('old(hero-copy-out)'), newWords: read('new(hero-copy)') };
+      });
+      const pointerEvents = getComputedStyle(document.documentElement, '::view-transition').pointerEvents;
+      // A tab inside the row and the window, which the captured page must not cover.
+      const row = document.querySelector('.goen-hero__tabs').getBoundingClientRect();
+      let hit = null;
+      for (const tab of tabs) {
+        const box = tab.getBoundingClientRect(), x = box.left + box.width / 2, y = box.top + box.height / 2;
+        if (x <= Math.max(row.left, 0) || x >= Math.min(row.right, innerWidth) || y <= row.top || y >= row.bottom) continue;
+        hit = !!document.elementFromPoint(x, y)?.closest('.goen-hero__tabs a');
+        break;
+      }
+      animations.forEach(animation => animation.finish());
+      await run.finished;
+      return { started: true, types, timing, moving, frames, pointerEvents, hit };
+    })()`);
+    assert.equal(got.started, true, `${label}: started no view transition`);
+    assert.deepEqual(got.types, ['slide'], `${label}: the transition types`);
+    // Only these snapshots animate, so neither the page, the header nor the
+    // footer is captured, and no group moves.
+    assert.deepEqual(got.timing, reduce ? {
+      '::view-transition-old(hero-slide)': ['120/0'], '::view-transition-new(hero-slide)': ['120/0'],
+      '::view-transition-new(hero-copy)': ['120/0'],
+    } : {
+      '::view-transition-old(hero-slide)': ['200/0'], '::view-transition-new(hero-slide)': ['200/0'],
+      '::view-transition-old(hero-copy-out)': ['120/0'], '::view-transition-new(hero-copy)': ['120/80'],
+    }, `${label}: animations as [duration/delay]`);
+    assert.deepEqual(got.moving, [], `${label}: animations that move, scale or resize`);
+    for (const frame of got.frames) {
+      const sum = frame.oldSlide.opacity + frame.newSlide.opacity;
+      assert.ok(Math.abs(sum - 1) <= 0.02, `${label}: at ${frame.at}ms the slides' opacities add up to ${sum}, want 1`);
+      assert.equal(frame.oldSlide.blend, frame.newSlide.blend, `${label}: at ${frame.at}ms the slides blend differently`);
+    }
+    got.frames.forEach((frame, at) => {
+      if (at > 0) assert.ok(frame.newSlide.opacity >= got.frames[at - 1].newSlide.opacity, `${label}: the chosen slide fades back out at ${frame.at}ms`);
+    });
+    if (reduce) {
+      for (const frame of got.frames) assert.equal(frame.oldWords.display, 'none', `${label}: the words being left show at ${frame.at}ms`);
+    } else {
+      for (const frame of got.frames) {
+        if (frame.at >= 120) assert.ok(frame.oldWords.opacity <= 0.02, `${label}: the words being left show at ${frame.at}ms`);
+        if (frame.at <= 80) assert.ok(frame.newWords.opacity <= 0.02, `${label}: the new words show at ${frame.at}ms`);
+      }
+    }
+    assert.equal(got.pointerEvents, 'none', `${label}: the transition takes the pointer`);
+    assert.equal(got.hit, true, `${label}: a click on a tab does not reach it`);
+    await slideSettled(index, `${label}: end state`);
+  };
+  for (const width of [1440, 375]) {
+    const label = `carousel fade ${width}px`;
+    await photoPage(label, width);
+    await fade(`${label} photograph to photograph`, 1, false);
+    await fade(`${label} photograph to words`, 2, false);
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    try {
+      await fade(`${label} reduced motion`, 0, true);
+    } finally {
+      await send('Emulation.setEmulatedMedia', { features: [] });
+    }
+    // Two choices in one task start one transition, for the later of them.
+    const runs = await evaluate('slideRuns.length');
+    await evaluate("(() => { const tabs = document.querySelectorAll('.goen-hero__tabs a'); tabs[1].click(); tabs[2].click(); })()");
+    await slideSettled(2, `${label} two choices`);
+    assert.equal(await evaluate('slideRuns.length'), runs + 1, `${label}: two choices in one task started other than one transition`);
+    // A swipe is a scroll the script only hears of: the slide it lands on is the one marked as shown.
+    await evaluate("(() => { const track = document.querySelector('.goen-hero__track'); track.scrollTo({ left: track.clientWidth, behavior: 'instant' }); })()");
+    await slideSettled(1, `${label} after a scroll to slide 2`);
+    assert.deepEqual(await evaluate('pageErrors'), [], `${label}: page errors`);
+    console.log(`${label}: ok`);
+  }
+  // A browser without transition types scrolls as it always did.
+  {
+    const label = 'carousel without transition types';
+    const removal = await send('Page.addScriptToEvaluateOnNewDocument', { source: 'if (window.ViewTransition) delete ViewTransition.prototype.types;' });
+    try {
+      await photoPage(label, 1440);
+      assert.equal(await evaluate("'types' in (window.ViewTransition?.prototype ?? {})"), false, `${label}: the probe left the types in`);
+      await evaluate("document.querySelectorAll('.goen-hero__tabs a')[2].click()");
+      await slideSettled(2, label);
+      assert.equal(await evaluate('slideRuns.length'), 0, `${label}: a view transition was started`);
+      assert.deepEqual(await evaluate('pageErrors'), [], `${label}: page errors`);
+    } finally {
+      await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: removal.identifier });
+    }
+    console.log(`${label}: ok`);
   }
 } finally {
   socket.close();
