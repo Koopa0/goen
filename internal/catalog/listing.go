@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -249,15 +250,13 @@ func (v ListingView) chip(ctx context.Context, label, key, value string, more ..
 }
 
 func (v ListingView) priceRangeChip(ctx context.Context) string {
-	low := v.MinPriceText()
-	high := v.MaxPriceText()
 	switch {
-	case low != "" && high != "":
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPriceRangeChip), low, high)
-	case low != "":
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPriceFromChip), low)
+	case v.MinPrice > 0 && v.MaxPrice > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPriceRangeChip), money.TWD(v.MinPrice), money.TWD(v.MaxPrice))
+	case v.MinPrice > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPriceFromChip), money.TWD(v.MinPrice))
 	default:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPriceUpToChip), high)
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPriceUpToChip), money.TWD(v.MaxPrice))
 	}
 }
 
