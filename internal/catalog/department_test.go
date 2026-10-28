@@ -283,3 +283,27 @@ func TestListingView_IsFront(t *testing.T) {
 		}
 	}
 }
+
+// TestListingView_HasEditorial holds that a department front carries the
+// comparison or the colour story only with the products to fill a grid of its
+// own.
+func TestListingView_HasEditorial(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		view ListingView
+		want bool
+	}{
+		{"empty", ListingView{Page: 1}, false},
+		{"one product", ListingView{Page: 1, Total: 1}, false},
+		{"three products", ListingView{Page: 1, Total: 3}, false},
+		{"four products", ListingView{Page: 1, Total: 4}, true},
+		{"twenty products", ListingView{Page: 1, Total: 20}, true},
+		{"filtered", ListingView{Page: 1, Total: 20, Filtered: true}, false},
+		{"second page", ListingView{Page: 2, Total: 20}, false},
+	} {
+		if got := tt.view.HasEditorial(); got != tt.want {
+			t.Errorf("%s: HasEditorial = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
