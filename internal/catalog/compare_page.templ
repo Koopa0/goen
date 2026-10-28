@@ -5,7 +5,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
-	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -30,9 +29,6 @@ templ Compare(p frame.Page, v CompareView) {
 			@comparePicker(v)
 			if !v.Enough() {
 				<div class="ui-empty">
-					<span class="goen-medallion" aria-hidden="true">
-						@icons.Search()
-					</span>
 					if v.Count() == 1 {
 						<p class="goen-empty__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareOneChosen), v.Products[0].Name) }</p>
 					} else {
@@ -47,7 +43,7 @@ templ Compare(p frame.Page, v CompareView) {
 						for _, item := range v.Products {
 							<li>
 								<a href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
-								@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.RemoveHref(item.Slug))) {
+								@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, templ.SafeURL(v.RemoveHref(item.Slug))) {
 									{ i18n.T(ctx, i18n.KeyRemove) }
 								}
 							</li>
@@ -89,7 +85,7 @@ templ comparePicker(v CompareView) {
 						if c.Brand != "" {
 							{ " · " + c.Brand }
 						}
-						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.AddHref(c.Slug))) {
+						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, templ.SafeURL(v.AddHref(c.Slug))) {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), c.Name) }
 						}
 					</li>
@@ -123,7 +119,7 @@ templ compareSuggestions(v CompareView) {
 							<span class="goen-compare__brand">{ t.Brand }</span>
 						}
 						<span class="goen-compare__price">{ t.Price() }</span>
-						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.AddHref(t.Slug))) {
+						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, templ.SafeURL(v.AddHref(t.Slug))) {
 							{ i18n.T(ctx, i18n.KeyAddToCompare) }
 							<span class="goen-sr-only">{ " " + t.Name }</span>
 						}

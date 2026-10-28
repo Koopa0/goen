@@ -4,25 +4,27 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestPageEmptyIllustration holds that the cart's empty state shows its
-// illustration as decoration (an empty alt). The cart's row of
-// internal/catalog's TestListingAndSearchEmptyArt.
-func TestPageEmptyIllustration(t *testing.T) {
+// TestPageEmptyHasNoPicture holds that an empty cart says so in words and
+// offers one way on, without a picture. The other pages' rows of this test
+// are catalog's TestListingEmptyStatesHaveNoPicture.
+func TestPageEmptyHasNoPicture(t *testing.T) {
 	t.Parallel()
-	for name, tt := range map[string]struct {
-		page  string
-		asset string
-	}{
-		"cart": {renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{})), assets.EmptyCartImage},
-	} {
-		want := `<img class="goen-empty__art" src="` + assets.URL(tt.asset) + `" alt="" width="128" height="96"`
-		if !strings.Contains(tt.page, want) {
-			t.Errorf("%s empty state omits %s", name, want)
+	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{}))
+	_, rest, ok := strings.Cut(page, `class="goen-empty">`)
+	if !ok {
+		t.Fatal("empty cart renders no goen-empty box")
+	}
+	box, _, _ := strings.Cut(rest, `</div>`)
+	for _, picture := range []string{`<img`, `goen-medallion`} {
+		if strings.Contains(box, picture) {
+			t.Errorf("empty cart draws %q", picture)
 		}
+	}
+	if want := `<a class="goen-btn goen-btn--primary goen-btn--lg" href="/"`; !strings.Contains(box, want) {
+		t.Errorf("empty cart omits %s", want)
 	}
 }

@@ -315,3 +315,19 @@ func TestPageRemoveIsText(t *testing.T) {
 		t.Errorf("remove is drawn as %q, want the text level", className(submit))
 	}
 }
+
+// TestPageEmptyHasNoPicture: an empty wishlist says so in words alone.
+func TestPageEmptyHasNoPicture(t *testing.T) {
+	t.Parallel()
+	page := renderToString(t, Page(frame.Page{Title: "願望清單"}, View{}))
+	_, rest, ok := strings.Cut(page, `class="ui-empty">`)
+	if !ok {
+		t.Fatal("empty wishlist renders no ui-empty box")
+	}
+	box, _, _ := strings.Cut(rest, `</div>`)
+	for _, picture := range []string{`<img`, `goen-medallion`} {
+		if strings.Contains(box, picture) {
+			t.Errorf("empty wishlist draws %q", picture)
+		}
+	}
+}

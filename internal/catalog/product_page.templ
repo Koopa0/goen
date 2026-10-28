@@ -27,9 +27,11 @@ templ Product(p frame.Page, v *ProductView) {
 				</div>
 			</div>
 		</div>
-		@productBand(v)
 		<div class="goen-pdp goen-pdp--after">
 			<div class="goen-pdp__more">
+				if v.Description != "" {
+					@productDescription(v)
+				}
 				if v.HasSpecs() || v.HasWarranty() || v.WarrantyNote != "" {
 					<div class="goen-pdp__detail">
 						if v.HasSpecs() {
@@ -95,8 +97,15 @@ templ Product(p frame.Page, v *ProductView) {
 					@productCompare(v)
 				}
 			</div>
-			@productReviews(v)
-			@productQuestions(v)
+			if v.HasOpinions() {
+				@productReviews(v)
+				@productQuestions(v)
+			} else {
+				<div class="goen-pdp__opinions">
+					@productReviews(v)
+					@productQuestions(v)
+				</div>
+			}
 			if v.HasRelated() {
 				<section class="goen-pdp__related" aria-labelledby="related-heading">
 					<h2 id="related-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionRelated) }</h2>
@@ -130,7 +139,7 @@ templ Product(p frame.Page, v *ProductView) {
 // Every shot sits in the same cell and the unchosen ones are only hidden with
 // visibility, none lazy: choosing a thumbnail must show its photograph at once.
 templ productGallery(v *ProductView) {
-	<div class="goen-pdp__gallery" id="gallery" data-tone={ v.Tone.Attr() }>
+	<div class="goen-pdp__gallery" id="gallery">
 		if v.HasImages() {
 			for i, img := range v.Images {
 				<div class="goen-pdp__item">
@@ -186,29 +195,16 @@ templ productGallery(v *ProductView) {
 	</div>
 }
 
-templ productBand(v *ProductView) {
-	if v.Description != "" {
-		{{ photo, hasPhoto := v.BandPhoto() }}
-		<section class={ "goen-band goen-band--product", templ.KV("goen-band--text", !hasPhoto) } data-tone={ v.Tone.Attr() } aria-labelledby="desc-heading">
-			<div class="goen-band__grid">
-				if hasPhoto {
-					@bandMedia("goen-band__photo", "", widget.Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true)
-				}
-				<div class="goen-band__body goen-pdp__desc">
-					if v.Brand != "" {
-						<p class="goen-pdp__brand">{ v.Brand }</p>
-					}
-					<h2 id="desc-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDescription) }</h2>
-					<p
-						class="goen-pdp__prose"
-						if v.DescriptionUntranslated {
-							lang={ i18n.ZhHant.Tag() }
-						}
-					>{ v.Description }</p>
-				</div>
-			</div>
-		</section>
-	}
+templ productDescription(v *ProductView) {
+	<section class="goen-pdp__desc" aria-labelledby="desc-heading">
+		<h2 id="desc-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDescription) }</h2>
+		<p
+			class="goen-pdp__prose"
+			if v.DescriptionUntranslated {
+				lang={ i18n.ZhHant.Tag() }
+			}
+		>{ v.Description }</p>
+	</section>
 }
 
 templ ratingStars(halves int) {
@@ -625,17 +621,19 @@ templ productReviews(v *ProductView) {
 					<p class="goen-pdp__score">{ v.RatingText() }</p>
 					@ratingStars(v.StarHalves())
 					<p class="goen-pdp__scorecount">{ i18n.Count(ctx, i18n.KeyReviewCount, v.RatingCount, v.ReviewCountText()) }</p>
-					<div class="goen-pdp__bars">
-						for _, b := range v.RatingBars {
-							<div class="goen-pdp__bar">
-								<span class="goen-pdp__barlabel">{ i18n.Count(ctx, i18n.KeyStarsLabel, int64(b.Stars), b.StarsText()) }</span>
-								<span class="goen-pdp__bartrack">
-									<span class={ "goen-pdp__barfill", b.WidthClass() }></span>
-								</span>
-								<span class="goen-pdp__barcount">{ b.CountText() }</span>
-							</div>
-						}
-					</div>
+					if v.RatingsBeyondList() {
+						<div class="goen-pdp__bars">
+							for _, b := range v.RatingBars {
+								<div class="goen-pdp__bar">
+									<span class="goen-pdp__barlabel">{ i18n.Count(ctx, i18n.KeyStarsLabel, int64(b.Stars), b.StarsText()) }</span>
+									<span class="goen-pdp__bartrack">
+										<span class={ "goen-pdp__barfill", b.WidthClass() }></span>
+									</span>
+									<span class="goen-pdp__barcount">{ b.CountText() }</span>
+								</div>
+							}
+						</div>
+					}
 				</div>
 				<div class="goen-pdp__reviewlist">
 					for _, r := range v.Reviews {
@@ -760,7 +758,9 @@ templ askForm(v *ProductView) {
 
 templ reviewForm(v *ProductView) {
 	if v.ReviewStanding == ReviewNotDelivered && len(v.ReviewErrors) == 0 {
-		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewAfterDelivery) }</p>
+		if v.HasRating() {
+			<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewAfterDelivery) }</p>
+		}
 	} else if v.ReviewStanding == ReviewAlreadyWritten {
 		if !v.ReviewPosted {
 			<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>
