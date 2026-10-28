@@ -5,6 +5,10 @@ var (
 
 	KeyOrderLineCount = countKey("account.orders.lines", "%s 項", "%s item", "%s items")
 
+	// KeyOrderRowRescissionEnds labels the last day to cancel in a row of the order history, where nothing around
+	// it says what the day is the last of.
+	KeyOrderRowRescissionEnds = key("account.orders.rescission_ends", Message{ZhHant: "猶豫期到", En: "Last day to cancel"})
+
 	KeyNoOrdersYet = key("account.orders.none", Message{ZhHant: "還沒有訂單。", En: "No orders yet."})
 
 	KeyNoOrdersLink = key("account.orders.none.link", Message{

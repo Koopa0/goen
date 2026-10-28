@@ -14,6 +14,13 @@ var (
 			"an order.",
 	})
 
+	// KeyWarrantySubReady is the subtitle while units wait to be registered on this page: it does not send the
+	// customer to an order.
+	KeyWarrantySubReady = key("warranty.sub.ready", Message{
+		ZhHant: "登錄之後，送修時不用再找收據。",
+		En:     "Register a unit and you will never need the receipt to claim.",
+	})
+
 	KeyWarrantyNone = key("warranty.none", Message{
 		ZhHant: "還沒有登錄任何保固",
 		En:     "Nothing registered yet",
@@ -32,6 +39,11 @@ var (
 	KeyWarrantyOrderMeta = key("warranty.ordermeta", Message{
 		ZhHant: "訂單 %s · 登錄於 %s",
 		En:     "Order %s · registered %s",
+	})
+
+	KeyWarrantyReadyMeta = key("warranty.readymeta", Message{
+		ZhHant: "訂單 %s · 送達於 %s",
+		En:     "Order %s · delivered %s",
 	})
 
 	KeyWarrantySerialShown = key("warranty.serial", Message{ZhHant: "序號 %s", En: "Serial %s"})
