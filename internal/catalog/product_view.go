@@ -591,7 +591,7 @@ func (v *ProductView) BuyFacts(ctx context.Context) []widget.Stat {
 	}
 	stats = append(stats, v.Rules.RescissionStat(ctx))
 	if v.AnySellable {
-		stats = append(stats, v.Rules.HoldStat(ctx))
+		stats = append(stats, v.Rules.PayStartStat(ctx))
 	}
 	return append(stats, v.Rules.FreeDeliveryStat(ctx))
 }
@@ -674,15 +674,9 @@ func (c ProductCampaign) Running() bool { return c.Slug != "" }
 
 func (c ProductCampaign) Href() string { return "/s/" + c.Slug }
 
-// Source splits the sentence naming the campaign around its title, which the page links, and what is left of
-// it, which the page sets apart.
-func (c ProductCampaign) Source(ctx context.Context) (before, middle, after string) {
-	const title, left = "\x00", "\x01"
-	key := i18n.KeyCampaignPriceDaysLeft
-	if c.End.EndsByTomorrow() {
-		key = i18n.KeyCampaignPriceToday
-	}
-	before, rest, _ := strings.Cut(fmt.Sprintf(i18n.T(ctx, key), title, left, c.End.Day(ctx)), title)
-	middle, after, _ = strings.Cut(rest, left)
-	return before, middle, after
+// Source splits the phrase naming the campaign around its title, which the page links.
+func (c ProductCampaign) Source(ctx context.Context) (before, after string) {
+	const title = "\x00"
+	before, after, _ = strings.Cut(fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignPrice), title), title)
+	return before, after
 }
