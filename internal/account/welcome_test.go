@@ -8,6 +8,7 @@ import (
 	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The account page's half of internal/auth's TestCartRecoveryWelcome, which
@@ -23,7 +24,7 @@ func TestAccountWelcomeKeepsTheOriginalAction(t *testing.T) {
 				welcome = "\u5e33\u865f\u5df2\u5efa\u7acb\uff0c\u6b61\u8fce\u52a0\u5165\u3002"
 			}
 			body := renderComponent(t, ctx, Account(Meta(ctx), &View{
-				Notice: i18n.T(ctx, i18n.KeyAccountWelcome), ReturnAfterWelcome: "/cart?qty=adjusted&next=%2Fcheckout", CartAdjusted: true,
+				Notice: widget.Result{Outcome: widget.OutcomeDone, Text: i18n.T(ctx, i18n.KeyAccountWelcome)}, ReturnAfterWelcome: "/cart?qty=adjusted&next=%2Fcheckout", CartAdjusted: true,
 			}))
 			for _, want := range []string{welcome, html.EscapeString(i18n.T(ctx, i18n.KeyCartQuantityAdjusted)), `href="/cart?qty=adjusted&amp;next=%2Fcheckout"`} {
 				if !strings.Contains(body, want) {
