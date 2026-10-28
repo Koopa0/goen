@@ -73,7 +73,7 @@ func TestSection_NoticeSitsInItsSection(t *testing.T) {
 // the page does not have, is shown once at the head of the page.
 func TestSection_NoticeOfNoSectionStaysAtTheHead(t *testing.T) {
 	t.Parallel()
-	for _, raw := range []string{"", "bogus", "images", "SPECS", "sec-specs"} {
+	for _, raw := range []string{"", "bogus", "IMAGES", "SPECS", "sec-specs"} {
 		t.Run(raw, func(t *testing.T) {
 			t.Parallel()
 			got := noticeHolders(t, sectionOf(raw))
@@ -113,8 +113,7 @@ func TestSection_FormPostsToItsOwnSection(t *testing.T) {
 		if !within(n, fragment) {
 			t.Errorf("a form posts to #%s but sits in another section", fragment)
 		}
-		// The images section has no notice of its own: a redirect from it opens at the head.
-		if section := Section(strings.TrimPrefix(fragment, "sec-")); fragment != "sec-images" && sectionOf(string(section)) != section {
+		if section := Section(strings.TrimPrefix(fragment, "sec-")); sectionOf(string(section)) != section {
 			t.Errorf("a form posts to #%s, which is no Section", fragment)
 		}
 	}
@@ -158,4 +157,35 @@ func TestSection_ImageFormsPostToTheImagesSection(t *testing.T) {
 			t.Errorf("no image form posting to /images%s was drawn", kind)
 		}
 	}
+}
+
+// TestSection_ImageNoticeUnderItsHeading: the notice of an image
+// change (a redirect that names the images section, or the stale-order 422) is
+// drawn right under the images heading, where the form's fragment takes the
+// reader, and not at the head of the page.
+func TestSection_ImageNoticeUnderItsHeading(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ProductView{
+		Slug: "test", Name: "Mug", NoticeIn: SectionImages,
+		Notice: widget.Result{Outcome: widget.OutcomeDone, Text: noticeSentence},
+	}
+	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Product(frame.Page{Title: "Mug"}, view))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || n.Data != "h2" || refusalText(n) != i18n.T(ctx, i18n.KeyAdminProdImages) {
+			continue
+		}
+		next := n.NextSibling
+		for next != nil && (next.Type != html.ElementNode) {
+			next = next.NextSibling
+		}
+		if next == nil || !strings.Contains(refusalText(next), noticeSentence) {
+			t.Error("the image notice does not follow the images heading")
+		}
+		return
+	}
+	t.Error("the page has no images heading")
 }

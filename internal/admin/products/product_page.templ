@@ -391,6 +391,7 @@ templ imageMoveForm(v ProductView, digest, move string, label i18n.Key) {
 templ productImages(v ProductView) {
 	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-images"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdImages) }</h2>
+		@sectionNotice(v, SectionImages)
 		if v.HasImages() {
 			<ul class="goen-admin__images" role="list">
 				for i, img := range v.Images {

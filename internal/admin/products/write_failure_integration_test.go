@@ -65,7 +65,7 @@ func TestHandler_WritesReportCommitted(t *testing.T) {
 				want := productWriteRows(t, ctx, pool, slug)
 				path := "/images/remove"
 				form := url.Values{"digest": {digest}}
-				status, location := http.StatusSeeOther, "/admin/products/"+slug+"?imageremoved=1"
+				status, location := http.StatusSeeOther, "/admin/products/"+slug+"?imageremoved=1"+products.SectionImages.Query()
 				notice := i18n.KeyAdminNoticeProductImageRemoved
 				requestSlug := slug
 				switch {
@@ -279,6 +279,9 @@ func TestHandler_WritesRuleRefusals(t *testing.T) {
 				if strings.HasPrefix(tt.path, "/options") {
 					location += products.SectionOptions.Query()
 				}
+				if strings.HasPrefix(tt.path, "/images") {
+					location += products.SectionImages.Query()
+				}
 				if res.Code != http.StatusSeeOther || res.Header().Get("Location") != location {
 					t.Errorf("rule-refused product write = %d Location %q, want 303 %q", res.Code, res.Header().Get("Location"), location)
 				}
@@ -310,7 +313,7 @@ func TestHandler_ImageOptionSpecFaults(t *testing.T) {
 			name, path, query, lock, log, done string
 			action                             audit.Action
 		}{
-			{name: "image option", path: "/images/option", query: "SetProductImageOptionValue", lock: `SELECT 1 FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 FOR UPDATE OF i`, log: "set image option", done: "?imageopt=1", action: audit.ActionSetImageOption},
+			{name: "image option", path: "/images/option", query: "SetProductImageOptionValue", lock: `SELECT 1 FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 FOR UPDATE OF i`, log: "set image option", done: "?imageopt=1" + products.SectionImages.Query(), action: audit.ActionSetImageOption},
 			{name: "add spec", path: "/specs", query: "AddProductSpec", lock: `SELECT 1 FROM products WHERE slug=$1 FOR UPDATE`, log: "add spec", done: "?spec=1" + products.SectionSpecs.Query(), action: audit.ActionAddSpec},
 		} {
 			for _, fault := range []string{"closed pool", "row lock"} {
@@ -444,7 +447,7 @@ func TestHandler_ImageOptionSpecRefusals(t *testing.T) {
 		for _, tt := range []struct {
 			name, path, notice, log, constraint string
 		}{
-			{name: "image option", path: "/images/option", notice: "refused=1", log: "set image option refused", constraint: "test_product_image_option_refused"},
+			{name: "image option", path: "/images/option", notice: "refused=1" + products.SectionImages.Query(), log: "set image option refused", constraint: "test_product_image_option_refused"},
 			{name: "add spec", path: "/specs", notice: "specfailed=1" + products.SectionSpecs.Query(), log: "add spec refused", constraint: "test_product_spec_value_refused"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
@@ -500,7 +503,7 @@ func TestHandler_ImageOptionSpecOutcomes(t *testing.T) {
 					if outcome == "foreign image option" {
 						form.Set("option_value", foreignValue)
 					}
-					status, location = http.StatusSeeOther, "/admin/products/"+slug+"?badoption=1"
+					status, location = http.StatusSeeOther, "/admin/products/"+slug+"?badoption=1"+products.SectionImages.Query()
 				case "empty spec label", "duplicate spec label":
 					path = "/specs"
 					form = productOutcomeForm(path, digest, valueID)
