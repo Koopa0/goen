@@ -33,8 +33,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":   widget.NoticeDone(i18n.KeyAdminNoticeOK),
-	"gone": widget.NoticeRefused(i18n.KeyAdminNoticeGone),
+	"hidden": widget.NoticeDone(i18n.KeyAdminNoticeReviewHidden),
+	"shown":  widget.NoticeDone(i18n.KeyAdminNoticeReviewShown),
+	"gone":   widget.NoticeRefused(i18n.KeyAdminNoticeGone),
 }
 
 func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
@@ -68,11 +69,19 @@ func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden
 	}
 	switch err := h.store.SetReviewHidden(r.Context(), r.PostFormValue("review"), hidden); {
 	case err == nil:
-		http.Redirect(w, r, "/admin/reviews?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, hiddenTarget(hidden), http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		http.Redirect(w, r, "/admin/reviews?gone=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set review hidden", "error", err)
 		admin.ServerError(w, r, h.log)
 	}
+}
+
+// hiddenTarget is where a write that took goes: the page says which change it was.
+func hiddenTarget(hidden bool) string {
+	if hidden {
+		return "/admin/reviews?hidden=1"
+	}
+	return "/admin/reviews?shown=1"
 }

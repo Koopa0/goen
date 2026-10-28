@@ -44,11 +44,23 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("POST /admin/stock/arrival", ac.RequireStaff(h.SetArrival))
 }
 
-var notices = map[string]widget.NoticeEntry{
-	"ok":               widget.NoticeDone(i18n.KeyAdminNoticeOK),
+// listNotices are what a write made on the stock list can ask the list to say;
+// skuNotices, what one made on a SKU page can ask that page to say. A code
+// belongs to the page its write returns to and to no other.
+var listNotices = map[string]widget.NoticeEntry{
+	"refused":  widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"received": widget.NoticeDone(i18n.KeyAdminNoticeReceived),
+	"price":    widget.NoticeDone(i18n.KeyAdminNoticePriceSaved),
+	"arrival":  widget.NoticeDone(i18n.KeyAdminNoticeArrivalSaved),
+}
+
+var skuNotices = map[string]widget.NoticeEntry{
 	"refused":          widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
 	"received":         widget.NoticeDone(i18n.KeyAdminNoticeReceived),
 	"receipt-conflict": widget.NoticeRefused(i18n.KeyAdminReceiptConflict),
+	"adjusted":         widget.NoticeDone(i18n.KeyAdminNoticeStockAdjusted),
+	"on":               widget.NoticeDone(i18n.KeyAdminNoticeVariantOn),
+	"off":              widget.NoticeDone(i18n.KeyAdminNoticeVariantOff),
 }
 
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +81,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		}
 		view.AtRisk, view.MoreSoldOut = stockrisk.NewRows(listed, now), more
 	}
-	view.Notice = widget.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, listNotices)
 	view.Return = stockReturn(r.URL.Query().Get("soldout"), view.Term, r.URL.Query().Get(keyset.Param), "", "")
 	respond.Component(w, r, h.log, http.StatusOK, Variants(VariantsMeta(r.Context()), view))
 }
@@ -97,7 +109,7 @@ func (h *Handler) Adjust(w http.ResponseWriter, r *http.Request) {
 	err := h.store.Adjust(r.Context(), sku, delta, u.ID, key)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, back+"?adjusted=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "stock adjustment refused",
 			"sku", sku, "delta", delta, "error", err)
@@ -245,10 +257,11 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 	}
 	sku := r.PostFormValue("sku")
 	back := "/admin/stock/" + url.PathEscape(sku)
-	err := h.store.SetActive(r.Context(), sku, r.PostFormValue("active") == "1")
+	active := r.PostFormValue("active") == "1"
+	err := h.store.SetActive(r.Context(), sku, active)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, back+activeQuery(active), http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "variant activation refused",
 			"sku", sku, "error", err)
@@ -274,7 +287,7 @@ func (h *Handler) SetPrice(w http.ResponseWriter, r *http.Request) {
 	err := h.store.SetPrice(r.Context(), r.PostFormValue("sku"), price, compare)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
+		http.Redirect(w, r, stockBack(r, "price"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "reprice refused",
 			"sku", r.PostFormValue("sku"), "error", err)
@@ -340,7 +353,7 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), time.Now(), r.URL.Query().Get(keyset.Param))
 	switch {
 	case err == nil:
-		view.Notice = widget.NoticeFrom(r, notices)
+		view.Notice = widget.NoticeFrom(r, skuNotices)
 		respond.Component(w, r, h.log, http.StatusOK, Movements(
 			frame.Page{Title: view.SKU}, &view))
 	case errors.Is(err, ErrNotFound):
@@ -364,11 +377,19 @@ func (h *Handler) SetArrival(w http.ResponseWriter, r *http.Request) {
 	err := h.store.SetArrival(r.Context(), r.PostFormValue("sku"), day)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
+		http.Redirect(w, r, stockBack(r, "arrival"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrNotFound):
 		admin.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "set variant arrival", "error", err)
 		admin.ServerError(w, r, h.log)
 	}
+}
+
+// activeQuery is what a write that took adds to the SKU page's address: the page says which change it was.
+func activeQuery(active bool) string {
+	if active {
+		return "?on=1"
+	}
+	return "?off=1"
 }

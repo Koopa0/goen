@@ -34,11 +34,11 @@ func TestStore_CreditOneCustomer(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 51 {
-		if _, err := s.GrantCredit(ctx, customerID, 100, "history grant", uuid.New()); err != nil {
+		if err := s.GrantCredit(ctx, customerID, 100, "history grant", uuid.New()); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := s.GrantCredit(ctx, otherID, 90000, "other customer's grant", uuid.New()); err != nil {
+	if err := s.GrantCredit(ctx, otherID, 90000, "other customer's grant", uuid.New()); err != nil {
 		t.Fatal(err)
 	}
 

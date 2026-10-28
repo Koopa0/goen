@@ -47,8 +47,6 @@ var (
 )
 
 var (
-	KeyAdminNoticeOK = key("admin.notice.ok", Message{ZhHant: "已更新。", En: "Saved."})
-
 	KeyAdminNoticeRefused = key("admin.notice.refused", Message{
 		ZhHant: "這個變更不符合狀態、庫存或活動的規則。請重新整理，確認目前的狀態後再試。",
 		En: "That change does not fit the status, stock or campaign rules. " +
@@ -60,8 +58,8 @@ var (
 	KeyAdminNoticeLeadFailed = key("admin.notice.lead.failed", Message{ZhHant: "未完成", En: "Did not finish"})
 
 	KeyAdminNoticeGone = key("admin.notice.gone", Message{
-		ZhHant: "這筆資料已不存在，或狀態已變更。請重新載入列表。",
-		En:     "That record is gone or its state has already changed. Reload the list.",
+		ZhHant: "這筆資料已不存在，或狀態已變更；下方是目前的資料。",
+		En:     "That record is gone or its state has already changed; what you see below is current.",
 	})
 )
 

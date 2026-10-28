@@ -43,7 +43,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":           widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"approved":     widget.NoticeDone(i18n.KeyAdminNoticeReturnApproved),
+	"exception":    widget.NoticeDone(i18n.KeyAdminNoticeReturnException),
+	"declined":     widget.NoticeDone(i18n.KeyAdminNoticeReturnDeclined),
 	"refused":      widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
 	"refundfailed": widget.NoticeFailed(i18n.KeyAdminNoticeRefundFailed),
 	"assessed":     widget.NoticeDone(i18n.KeyAdminNoticeAssessed),
@@ -97,7 +99,8 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("assessment_version"))
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/returns?ok=1", http.StatusSeeOther)
+		kind, _ := returns.ParseDecisionKind(r.PostFormValue("decision"))
+		http.Redirect(w, r, decidedTarget(kind), http.StatusSeeOther)
 	case errors.Is(err, refund.ErrIncomplete):
 		// A payout may preserve a database refusal as its cause, but once approval
 		// committed the operator needs the recovery notice, not the generic
@@ -426,4 +429,21 @@ func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) 
 	view := Confirmation{ID: row.ID.String(), OrderNumber: row.OrderNumber, Decision: string(kind), Reason: row.Reason, AmountCents: row.RefundableCents, Resolution: resolution, AssessmentVersion: r.PostFormValue("assessment_version"), Required: required, Retry: retry}
 	respond.Component(w, r, h.log, http.StatusOK, ConfirmReturn(frame.Page{Title: view.Title(r.Context())}, view))
 	return true
+}
+
+// decidedTarget is where a decision that took goes. Approval says only that the
+// return was approved: what was paid back is the return card's own status,
+// which follows the verified payout.
+func decidedTarget(kind returns.DecisionKind) string {
+	switch kind {
+	case returns.DecisionApprove:
+		return "/admin/returns?approved=1"
+	case returns.DecisionException:
+		return "/admin/returns?exception=1"
+	case returns.DecisionReject:
+		return "/admin/returns?declined=1"
+	default:
+		// Decide refused any other kind before it wrote.
+		return "/admin/returns"
+	}
 }

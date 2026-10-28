@@ -12,4 +12,6 @@ var (
 	KeyInvoiceUnitInvalid       = key("product.invoice.unit.invalid", Message{ZhHant: "請填寫不含控制字元且不超過六個字的發票單位。", En: "Enter an invoice unit of up to six characters without control characters."})
 	KeyInvoiceLineSave          = key("product.invoice.save", Message{ZhHant: "儲存發票資訊", En: "Save invoice details"})
 	KeyAuditProductInvoiceLine  = key("audit.product.invoice", Message{ZhHant: "修改商品發票資訊", En: "Edit product invoice details"})
+
+	KeyAdminNoticeProductInvoice = key("admin.notice.product.invoice", Message{ZhHant: "已儲存發票品名。", En: "Invoice line saved."})
 )

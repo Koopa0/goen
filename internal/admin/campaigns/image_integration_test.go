@@ -76,8 +76,8 @@ func TestHandler_SetImageLifecycle(t *testing.T) {
 
 	ok := httptest.NewRecorder()
 	h.SetImage(ok, campaignImageRequest(t, slug, "限時優惠商品").WithContext(ctx))
-	if ok.Code != http.StatusSeeOther || ok.Header().Get("Location") != "/admin/campaigns/"+slug+"?ok=1" {
-		t.Fatalf("upload answered %d to %q, want 303 to ?ok=1", ok.Code, ok.Header().Get("Location"))
+	if ok.Code != http.StatusSeeOther || ok.Header().Get("Location") != "/admin/campaigns/"+slug+"?image=1" {
+		t.Fatalf("upload answered %d to %q, want 303 to ?image=1", ok.Code, ok.Header().Get("Location"))
 	}
 	view, err = campaign.NewStore(pool).Campaign(ctx, slug)
 	if err != nil || !view.Image.Shown() || !strings.HasPrefix(view.Image.URL, "/media/") || view.Image.Alt != "限時優惠商品" {
@@ -246,7 +246,7 @@ func TestHandler_SetImageStorage(t *testing.T) {
 		diagnostics.Reset()
 		res := httptest.NewRecorder()
 		mux.ServeHTTP(res, uploadFailureRequest(t, ctx, path, " Recovered description ", false))
-		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/campaigns/"+slug+"?ok=1" {
+		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/campaigns/"+slug+"?image=1" {
 			t.Errorf("recovered image upload = %d to %q, want 303 to the editor", res.Code, res.Header().Get("Location"))
 		}
 		if writes.Calls != 2 || writes.Code != "" || !writes.Live || ctx.Err() != nil {

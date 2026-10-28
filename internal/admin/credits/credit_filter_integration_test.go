@@ -48,7 +48,7 @@ func TestHandler_CreditFilterAccess(t *testing.T) {
 		if err := owner.QueryRow(t.Context(), `INSERT INTO users(email,role,full_name) VALUES($1,'customer','Credit history customer') RETURNING id`, target.email).Scan(&target.id); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.GrantCredit(staff, target.id, 100, reason, uuid.New()); err != nil {
+		if err := store.GrantCredit(staff, target.id, 100, reason, uuid.New()); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := owner.Exec(t.Context(), `UPDATE users SET role=$2 WHERE id=$1`, target.id, string(target.role)); err != nil {

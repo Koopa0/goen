@@ -177,4 +177,14 @@ var (
 		ZhHant: "這個規格已停用，商店不再賣它。",
 		En:     "This variant is switched off, so the shop does not sell it.",
 	})
+
+	KeyAdminNoticePriceSaved = key("admin.notice.pricesaved", Message{ZhHant: "已儲存價格。", En: "Price saved."})
+
+	KeyAdminNoticeArrivalSaved = key("admin.notice.arrivalsaved", Message{ZhHant: "已儲存預計到貨日。", En: "Expected arrival saved."})
+
+	KeyAdminNoticeStockAdjusted = key("admin.notice.stockadjusted", Message{ZhHant: "已修正庫存。", En: "Stock corrected."})
+
+	KeyAdminNoticeVariantOn = key("admin.notice.varianton", Message{ZhHant: "已重新啟用規格。", En: "Variant switched back on."})
+
+	KeyAdminNoticeVariantOff = key("admin.notice.variantoff", Message{ZhHant: "已停用規格。", En: "Variant switched off."})
 )

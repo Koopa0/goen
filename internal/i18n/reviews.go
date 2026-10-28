@@ -109,4 +109,8 @@ var (
 	KeyAdminReviewShow = key("admin.review.show", Message{ZhHant: "恢復顯示", En: "Show again"})
 
 	KeyAdminReviewHide = key("admin.review.hide", Message{ZhHant: "隱藏", En: "Hide"})
+
+	KeyAdminNoticeReviewHidden = key("admin.notice.review.hidden", Message{ZhHant: "已隱藏評價。", En: "Review hidden."})
+
+	KeyAdminNoticeReviewShown = key("admin.notice.review.shown", Message{ZhHant: "已重新顯示評價。", En: "Review shown again."})
 )

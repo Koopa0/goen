@@ -170,4 +170,10 @@ var (
 	KeyAdminCouponLive = key("admin.coupon.live", Message{ZhHant: "使用中", En: "Live"})
 
 	KeyAdminCouponUsedUp = key("admin.coupon.usedup", Message{ZhHant: "已用完", En: "Used up"})
+
+	KeyAdminNoticeCouponCreated = key("admin.notice.coupon.created", Message{ZhHant: "已建立折扣碼。", En: "Discount code created."})
+
+	KeyAdminNoticeCouponOn = key("admin.notice.coupon.on", Message{ZhHant: "已啟用折扣碼。", En: "Discount code switched on."})
+
+	KeyAdminNoticeCouponOff = key("admin.notice.coupon.off", Message{ZhHant: "已停用折扣碼。", En: "Discount code switched off."})
 )

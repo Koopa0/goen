@@ -153,4 +153,8 @@ var (
 		ZhHant: "點數倍率（%，100 為基本）",
 		En:     "Points rate (%, 100 is the base)",
 	})
+
+	KeyAdminNoticeTierAdded = key("admin.notice.tier.added", Message{ZhHant: "已新增會員等級。", En: "Membership tier added."})
+
+	KeyAdminNoticeTierDeleted = key("admin.notice.tier.deleted", Message{ZhHant: "已刪除會員等級。", En: "Membership tier deleted."})
 )

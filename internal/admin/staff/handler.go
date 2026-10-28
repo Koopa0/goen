@@ -41,7 +41,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":          widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"added":       widget.NoticeDone(i18n.KeyStaffAdded),
+	"revoked":     widget.NoticeDone(i18n.KeyStaffRevoked),
+	"factor":      widget.NoticeDone(i18n.KeyStaffFactorRemoved),
 	"cleared":     widget.NoticeDone(i18n.KeyStaffCredentialCleared),
 	"self":        widget.NoticeRefused(i18n.KeyStaffSelf),
 	"last":        widget.NoticeRefused(i18n.KeyStaffLastAdmin),
@@ -93,7 +95,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/staff?cleared=1", http.StatusSeeOther)
 		return
 	}
-	h.redirect(w, r, err)
+	h.redirect(w, r, "/admin/staff?added=1", err)
 }
 
 func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +103,7 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.redirect(w, r, h.store.RevokeStaff(r.Context(), r.PostFormValue("user")))
+	h.redirect(w, r, "/admin/staff?revoked=1", h.store.RevokeStaff(r.Context(), r.PostFormValue("user")))
 }
 
 func (h *Handler) RemoveFactor(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +111,7 @@ func (h *Handler) RemoveFactor(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.redirect(w, r, h.store.RemoveFactor(r.Context(), r.PostFormValue("user")))
+	h.redirect(w, r, "/admin/staff?factor=1", h.store.RemoveFactor(r.Context(), r.PostFormValue("user")))
 }
 
 func actorID(r *http.Request) string {
@@ -119,10 +121,12 @@ func actorID(r *http.Request) string {
 	return ""
 }
 
-func (h *Handler) redirect(w http.ResponseWriter, r *http.Request, err error) {
+// redirect answers a roster write; done is where success goes, so the page says
+// which change it was.
+func (h *Handler) redirect(w http.ResponseWriter, r *http.Request, done string, err error) {
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/staff?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, done, http.StatusSeeOther)
 	case errors.Is(err, ErrSelf):
 		http.Redirect(w, r, "/admin/staff?self=1", http.StatusSeeOther)
 	case errors.Is(err, ErrLastAdmin):

@@ -34,9 +34,14 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":      widget.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused": widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"inuse":   widget.NoticeRefused(i18n.KeyAdminFaqpCategoryInUse),
+	"added":      widget.NoticeDone(i18n.KeyAdminNoticeFAQAdded),
+	"saved":      widget.NoticeDone(i18n.KeyAdminNoticeFAQSaved),
+	"deleted":    widget.NoticeDone(i18n.KeyAdminNoticeFAQDeleted),
+	"catadded":   widget.NoticeDone(i18n.KeyAdminNoticeFAQCategoryAdded),
+	"catsaved":   widget.NoticeDone(i18n.KeyAdminNoticeFAQCategorySaved),
+	"catdeleted": widget.NoticeDone(i18n.KeyAdminNoticeFAQCategoryDeleted),
+	"refused":    widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"inuse":      widget.NoticeRefused(i18n.KeyAdminFaqpCategoryInUse),
 }
 
 func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +70,7 @@ func (h *Handler) CreateFAQ(w http.ResponseWriter, r *http.Request) {
 	case len(errs) > 0:
 		h.rejectFAQ(w, r, f, errs)
 	default:
-		http.Redirect(w, r, "/admin/faq?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/faq?added=1", http.StatusSeeOther)
 	}
 }
 
@@ -76,7 +81,7 @@ func (h *Handler) EditFAQ(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	if r.PostFormValue("action") == "delete" {
-		h.answerRowWrite(w, r, "delete faq entry", "/admin/faq", h.store.DeleteFAQEntry(r.Context(), id))
+		h.answerRowWrite(w, r, "delete faq entry", "/admin/faq", "/admin/faq?deleted=1", h.store.DeleteFAQEntry(r.Context(), id))
 		return
 	}
 
@@ -92,7 +97,7 @@ func (h *Handler) EditFAQ(w http.ResponseWriter, r *http.Request) {
 	case len(errs) > 0:
 		h.rejectFAQ(w, r, f, errs)
 	default:
-		http.Redirect(w, r, "/admin/faq?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/faq?saved=1", http.StatusSeeOther)
 	}
 }
 
@@ -145,7 +150,7 @@ func (h *Handler) CreateFAQCategory(w http.ResponseWriter, r *http.Request) {
 	case len(errs) > 0:
 		h.rejectFAQCategory(w, r, f, errs)
 	default:
-		http.Redirect(w, r, "/admin/faq?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/faq?catadded=1", http.StatusSeeOther)
 	}
 }
 
@@ -161,7 +166,7 @@ func (h *Handler) EditFAQCategory(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/admin/faq?inuse=1", http.StatusSeeOther)
 			return
 		}
-		h.answerRowWrite(w, r, "delete faq category", "/admin/faq", err)
+		h.answerRowWrite(w, r, "delete faq category", "/admin/faq", "/admin/faq?catdeleted=1", err)
 		return
 	}
 
@@ -177,7 +182,7 @@ func (h *Handler) EditFAQCategory(w http.ResponseWriter, r *http.Request) {
 	case len(errs) > 0:
 		h.rejectFAQCategory(w, r, f, errs)
 	default:
-		http.Redirect(w, r, "/admin/faq?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/faq?catsaved=1", http.StatusSeeOther)
 	}
 }
 
@@ -203,10 +208,10 @@ func (h *Handler) rejectFAQCategory(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
-func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back string, err error) {
+func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back, done string, err error) {
 	switch {
 	case err == nil:
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, done, http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), what, "error", err)
 		admin.NotFound(w, r, h.log)

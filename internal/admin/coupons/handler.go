@@ -37,7 +37,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":      widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"created": widget.NoticeDone(i18n.KeyAdminNoticeCouponCreated),
+	"on":      widget.NoticeDone(i18n.KeyAdminNoticeCouponOn),
+	"off":     widget.NoticeDone(i18n.KeyAdminNoticeCouponOff),
 	"refused": widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
 }
 
@@ -84,7 +86,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Coupons(
 			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
 	default:
-		http.Redirect(w, r, "/admin/coupons?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/coupons?created=1", http.StatusSeeOther)
 	}
 }
 
@@ -129,8 +131,8 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	if err := h.store.SetCouponActive(r.Context(), r.PathValue("code"),
-		r.PostFormValue("active") == "true"); err != nil {
+	active := r.PostFormValue("active") == "true"
+	if err := h.store.SetCouponActive(r.Context(), r.PathValue("code"), active); err != nil {
 		switch {
 		case errors.Is(err, ErrNotFound):
 			admin.NotFound(w, r, h.log)
@@ -143,7 +145,15 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	http.Redirect(w, r, "/admin/coupons?ok=1", http.StatusSeeOther)
+	http.Redirect(w, r, activeTarget(active), http.StatusSeeOther)
+}
+
+// activeTarget is where a write that took goes: the page says which change it was.
+func activeTarget(active bool) string {
+	if active {
+		return "/admin/coupons?on=1"
+	}
+	return "/admin/coupons?off=1"
 }
 
 func whole(s string) (int64, bool) {

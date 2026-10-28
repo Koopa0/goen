@@ -145,3 +145,9 @@ var (
 )
 
 var KeyContactMyOrders = key("contact.myorders", Message{ZhHant: "我的訂單", En: "My orders"})
+
+var (
+	KeyAdminNoticeMessageHandled = key("admin.notice.message.handled", Message{ZhHant: "已標記為處理完畢。", En: "Marked as handled."})
+
+	KeyAdminNoticeMessageReopened = key("admin.notice.message.reopened", Message{ZhHant: "已重新開啟訊息。", En: "Message reopened."})
+)

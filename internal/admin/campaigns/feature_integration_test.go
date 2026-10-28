@@ -84,20 +84,20 @@ func TestHandler_FeatureProductMiss(t *testing.T) {
 	missing := "no-such-product-" + uuid.NewString()
 	if res := post(missing); res.Code != http.StatusSeeOther ||
 		!strings.Contains(res.Header().Get("Location"), "?refused=1") ||
-		strings.Contains(res.Header().Get("Location"), "?ok=1") {
-		t.Fatalf("unknown product redirect = %d %q, want refused without ok",
+		strings.Contains(res.Header().Get("Location"), "?featured=1") {
+		t.Fatalf("unknown product redirect = %d %q, want refused without featured",
 			res.Code, res.Header().Get("Location"))
 	}
 
 	productSlug := admintest.DiscountedProductSlug(t, pool)
 	if ok := post(productSlug); ok.Code != http.StatusSeeOther ||
-		!strings.Contains(ok.Header().Get("Location"), "?ok=1") {
-		t.Fatalf("first feature redirect = %d %q, want ok=1", ok.Code, ok.Header().Get("Location"))
+		!strings.Contains(ok.Header().Get("Location"), "?featured=1") {
+		t.Fatalf("first feature redirect = %d %q, want featured=1", ok.Code, ok.Header().Get("Location"))
 	}
 	if again := post(productSlug); again.Code != http.StatusSeeOther ||
 		!strings.Contains(again.Header().Get("Location"), "?refused=1") ||
-		strings.Contains(again.Header().Get("Location"), "?ok=1") {
-		t.Fatalf("already featured redirect = %d %q, want refused without ok",
+		strings.Contains(again.Header().Get("Location"), "?featured=1") {
+		t.Fatalf("already featured redirect = %d %q, want refused without featured",
 			again.Code, again.Header().Get("Location"))
 	}
 }

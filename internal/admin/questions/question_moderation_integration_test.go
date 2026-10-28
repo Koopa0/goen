@@ -55,7 +55,7 @@ func TestStore_ShowQuestionAdminRole(t *testing.T) {
 	req.SetPathValue("id", question.String())
 	res := httptest.NewRecorder()
 	ac.RequireStaff(h.AnswerQuestion)(res, req)
-	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/questions?ok=1" {
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/questions?questionshown=1" {
 		t.Fatalf("restore = %d, %s", res.Code, res.Body.String())
 	}
 	visible, err = s.Questions(ctx, questions.QueueVisible, "")

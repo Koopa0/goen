@@ -33,8 +33,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":      widget.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused": widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"answered":       widget.NoticeDone(i18n.KeyAdminNoticeQuestionAnswered),
+	"questionhidden": widget.NoticeDone(i18n.KeyAdminNoticeQuestionHidden),
+	"questionshown":  widget.NoticeDone(i18n.KeyAdminNoticeQuestionShown),
+	"answerhidden":   widget.NoticeDone(i18n.KeyAdminNoticeAnswerWithdrawn),
+	"refused":        widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
 }
 
 func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +69,8 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	var err error
-	switch Action(r.PostFormValue("action")) {
+	action := Action(r.PostFormValue("action"))
+	switch action {
 	case ActionHide:
 		err = h.store.HideQuestion(r.Context(), id)
 	case ActionShow:
@@ -81,7 +85,7 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/questions?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, savedTarget(action), http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
 		h.rejectAnswer(w, r, id)
 	case errors.Is(err, ErrNotFound):
@@ -107,4 +111,18 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Questions(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueQuestions)}, view))
+}
+
+// savedTarget is where a write that took goes: the page says which change it was.
+func savedTarget(action Action) string {
+	switch action {
+	case ActionHide:
+		return "/admin/questions?questionhidden=1"
+	case ActionShow:
+		return "/admin/questions?questionshown=1"
+	case ActionHideAnswer:
+		return "/admin/questions?answerhidden=1"
+	default:
+		return "/admin/questions?answered=1"
+	}
 }

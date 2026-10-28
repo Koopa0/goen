@@ -45,7 +45,7 @@ var (
 
 var (
 	KeyAdminNoticeCreditGranted = key("admin.notice.credit.granted", Message{
-		ZhHant: "已發放。這位顧客目前的餘額是 %s。",
-		En:     "Granted. This customer's balance is now %s.",
+		ZhHant: "已發放購物金。這位顧客目前的購物金餘額是 %s。",
+		En:     "Store credit granted. This customer's store credit balance is now %s.",
 	})
 )

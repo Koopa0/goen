@@ -36,8 +36,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":      widget.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused": widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"added":    widget.NoticeDone(i18n.KeyAdminNoticeHeroAdded),
+	"on":       widget.NoticeDone(i18n.KeyAdminNoticeHeroOn),
+	"off":      widget.NoticeDone(i18n.KeyAdminNoticeHeroOff),
+	"promoted": widget.NoticeDone(i18n.KeyAdminNoticeHeroPromoted),
+	"refused":  widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
 }
 
 func (h *Handler) Slides(w http.ResponseWriter, r *http.Request) {
@@ -52,10 +55,12 @@ func (h *Handler) Slides(w http.ResponseWriter, r *http.Request) {
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueHomePage)}, &view))
 }
 
-func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back string, err error) {
+// answerRowWrite answers a row write; done is where success goes, so the page
+// says which change it was.
+func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back, done string, err error) {
 	switch {
 	case err == nil:
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, done, http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), what, "error", err)
 		admin.NotFound(w, r, h.log)
@@ -120,7 +125,7 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 	case len(errs) > 0:
 		h.rejectHeroSlide(w, r, f, errs)
 	default:
-		http.Redirect(w, r, "/admin/slides?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/slides?added=1", http.StatusSeeOther)
 	}
 }
 
@@ -167,8 +172,9 @@ func (h *Handler) SetHeroActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.answerRowWrite(w, r, "toggle hero slide", "/admin/slides",
-		h.store.SetHeroSlideActive(r.Context(), r.PathValue("id"), r.PostFormValue("active") == "true"))
+	active := r.PostFormValue("active") == "true"
+	h.answerRowWrite(w, r, "toggle hero slide", "/admin/slides", activeTarget(active),
+		h.store.SetHeroSlideActive(r.Context(), r.PathValue("id"), active))
 }
 
 func (h *Handler) PromoteHero(w http.ResponseWriter, r *http.Request) {
@@ -176,5 +182,13 @@ func (h *Handler) PromoteHero(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.answerRowWrite(w, r, "promote hero slide", "/admin/slides", h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")))
+	h.answerRowWrite(w, r, "promote hero slide", "/admin/slides", "/admin/slides?promoted=1", h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")))
+}
+
+// activeTarget is where a write that took goes: the page says which change it was.
+func activeTarget(active bool) string {
+	if active {
+		return "/admin/slides?on=1"
+	}
+	return "/admin/slides?off=1"
 }

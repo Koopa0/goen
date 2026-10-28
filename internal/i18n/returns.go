@@ -491,4 +491,10 @@ var (
 		En: "This order is being refunded before shipment and can no longer ship. Once the refund has " +
 			"landed and the invoice is voided or credited, press Resume the refund to cancel it.",
 	})
+
+	KeyAdminNoticeReturnApproved = key("admin.notice.return.approved", Message{ZhHant: "已同意退貨。", En: "Return approved."})
+
+	KeyAdminNoticeReturnException = key("admin.notice.return.exception", Message{ZhHant: "已以人工例外同意退貨。", En: "Return approved as a staff exception."})
+
+	KeyAdminNoticeReturnDeclined = key("admin.notice.return.declined", Message{ZhHant: "已不同意退貨。", En: "Return declined."})
 )

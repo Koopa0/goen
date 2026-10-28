@@ -284,4 +284,20 @@ var (
 		En: "Separated by spaces or commas. A new zone needs at least one; clear its field later " +
 			"to make it match no postal code.",
 	})
+
+	KeyAdminNoticeShipMethodAdded = key("admin.notice.ship.methodadded", Message{ZhHant: "已新增配送方式。", En: "Delivery method added."})
+
+	KeyAdminNoticeShipMethodOn = key("admin.notice.ship.methodon", Message{ZhHant: "已啟用配送方式。", En: "Delivery method switched on."})
+
+	KeyAdminNoticeShipMethodOff = key("admin.notice.ship.methodoff", Message{ZhHant: "已停用配送方式。", En: "Delivery method switched off."})
+
+	KeyAdminNoticeShipZoneAdded = key("admin.notice.ship.zoneadded", Message{ZhHant: "已新增分區。", En: "Zone added."})
+
+	KeyAdminNoticeShipPrefixes = key("admin.notice.ship.prefixes", Message{ZhHant: "已儲存分區的郵遞區號。", En: "Zone postal codes saved."})
+
+	KeyAdminNoticeShipSurcharge = key("admin.notice.ship.surcharge", Message{ZhHant: "已儲存分區加價。", En: "Zone surcharge saved."})
+
+	KeyAdminNoticeShipZoneRemoved = key("admin.notice.ship.zoneremoved", Message{ZhHant: "已刪除分區。", En: "Zone removed."})
+
+	KeyAdminNoticeShipPublished = key("admin.notice.ship.published", Message{ZhHant: "已儲存運費。", En: "Delivery fees saved."})
 )

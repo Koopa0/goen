@@ -105,7 +105,7 @@ func TestHandler_CorrectDeliveryAbsentControl(t *testing.T) {
 				}
 				values.Del(tc.field)
 				w = postDeliveryWithStore(ctx, t, store, f.number, values)
-				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/orders/"+f.number+"?ok=1" {
+				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/orders/"+f.number+"?delivery=1" {
 					t.Fatalf("valid recovery status = %d location = %q, want 303 to updated order", w.Code, w.Header().Get("Location"))
 				}
 				updated, err := store.Order(ctx, f.number)

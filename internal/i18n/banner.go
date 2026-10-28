@@ -112,4 +112,10 @@ var (
 	KeyAdminHomeBannerClose = key("admin.home.banner.close", Message{ZhHant: "關閉", En: "Switch off"})
 
 	KeyAdminHomeBannerOpen = key("admin.home.banner.open", Message{ZhHant: "開啟", En: "Switch on"})
+
+	KeyAdminNoticeBannerAdded = key("admin.notice.banner.added", Message{ZhHant: "已新增促銷條。", En: "Promotional strip added."})
+
+	KeyAdminNoticeBannerOn = key("admin.notice.banner.on", Message{ZhHant: "已開啟促銷條。", En: "Promotional strip switched on."})
+
+	KeyAdminNoticeBannerOff = key("admin.notice.banner.off", Message{ZhHant: "已關閉促銷條。", En: "Promotional strip switched off."})
 )

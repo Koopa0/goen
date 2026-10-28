@@ -157,4 +157,12 @@ var (
 	KeyAdminHomeEndsAt = key("admin.home.endsat", Message{ZhHant: "至 %s", En: "until %s"})
 
 	KeyAdminHomePromote = key("admin.home.promote", Message{ZhHant: "設為顯示", En: "Show this one"})
+
+	KeyAdminNoticeHeroAdded = key("admin.notice.hero.added", Message{ZhHant: "已新增主視覺。", En: "Hero slide added."})
+
+	KeyAdminNoticeHeroOn = key("admin.notice.hero.on", Message{ZhHant: "已開啟主視覺。", En: "Hero slide switched on."})
+
+	KeyAdminNoticeHeroOff = key("admin.notice.hero.off", Message{ZhHant: "已關閉主視覺。", En: "Hero slide switched off."})
+
+	KeyAdminNoticeHeroPromoted = key("admin.notice.hero.promoted", Message{ZhHant: "已設為首頁顯示的主視覺。", En: "Hero slide set to show on the home page."})
 )

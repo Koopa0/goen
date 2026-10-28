@@ -39,9 +39,17 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":      widget.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused": widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"inuse":   widget.NoticeRefused(i18n.KeyAdminNoticeInUse),
+	"brandadded":   widget.NoticeDone(i18n.KeyAdminNoticeBrandAdded),
+	"brandsaved":   widget.NoticeDone(i18n.KeyAdminNoticeBrandSaved),
+	"branddeleted": widget.NoticeDone(i18n.KeyAdminNoticeBrandDeleted),
+	"catadded":     widget.NoticeDone(i18n.KeyAdminNoticeCategoryAdded),
+	"catsaved":     widget.NoticeDone(i18n.KeyAdminNoticeCategorySaved),
+	"catdeleted":   widget.NoticeDone(i18n.KeyAdminNoticeCategoryDeleted),
+	"image":        widget.NoticeDone(i18n.KeyAdminNoticeCategoryImage),
+	"imagetext":    widget.NoticeDone(i18n.KeyAdminNoticeCategoryImageText),
+	"imageremoved": widget.NoticeDone(i18n.KeyAdminNoticeCategoryImageRemoved),
+	"refused":      widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"inuse":        widget.NoticeRefused(i18n.KeyAdminNoticeInUse),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +105,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Taxonomy(
 			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueTaxonomy)}, &view))
 	default:
-		http.Redirect(w, r, "/admin/taxonomy?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, addedTarget(kind), http.StatusSeeOther)
 	}
 }
 
@@ -113,7 +121,8 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 
 	var err error
-	if r.PostFormValue("action") == "delete" {
+	deleted := r.PostFormValue("action") == "delete"
+	if deleted {
 		err = h.store.Delete(r.Context(), kind, slug)
 	} else {
 		err = h.store.Rename(r.Context(), kind, slug,
@@ -123,7 +132,7 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/taxonomy?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, editedTarget(kind, deleted), http.StatusSeeOther)
 	case errors.Is(err, ErrInUse):
 		http.Redirect(w, r, "/admin/taxonomy?inuse=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalid):
@@ -165,7 +174,9 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 		h.respondToUploadError(w, r, err)
 		return
 	}
+	done := "?image=1"
 	if upload == nil {
+		done = "?imagetext=1"
 		err = h.store.SetCategoryImageText(r.Context(), slug, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
 	} else {
 		defer upload.Close()
@@ -179,7 +190,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/categories/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/categories/"+slug+done, http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrImageRequired):
@@ -205,7 +216,7 @@ func (h *Handler) RemoveCategoryImage(w http.ResponseWriter, r *http.Request) {
 	switch err := h.store.ClearCategoryImage(r.Context(), slug); {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/categories/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/categories/"+slug+"?imageremoved=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		admin.NotFound(w, r, h.log)
 	default:
@@ -226,5 +237,27 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 	default:
 		h.log.ErrorContext(r.Context(), "category image upload", "error", err, "slug", r.PathValue("slug"))
 		admin.ServerError(w, r, h.log)
+	}
+}
+
+// addedTarget is where a create that took goes; kind is the route's own, "categories" or brands.
+func addedTarget(kind string) string {
+	if kind == "categories" {
+		return "/admin/taxonomy?catadded=1"
+	}
+	return "/admin/taxonomy?brandadded=1"
+}
+
+// editedTarget is where a rename or delete that took goes; kind is "category" or "brand".
+func editedTarget(kind string, deleted bool) string {
+	switch {
+	case kind == "category" && deleted:
+		return "/admin/taxonomy?catdeleted=1"
+	case kind == "category":
+		return "/admin/taxonomy?catsaved=1"
+	case deleted:
+		return "/admin/taxonomy?branddeleted=1"
+	default:
+		return "/admin/taxonomy?brandsaved=1"
 	}
 }

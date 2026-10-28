@@ -145,4 +145,16 @@ var (
 	})
 
 	KeyAdminPageFAQ = key("admin.page.faq", Message{ZhHant: "常見問題", En: "FAQ"})
+
+	KeyAdminNoticeFAQAdded = key("admin.notice.faq.added", Message{ZhHant: "已新增問題。", En: "Question added."})
+
+	KeyAdminNoticeFAQSaved = key("admin.notice.faq.saved", Message{ZhHant: "已儲存問題。", En: "Question saved."})
+
+	KeyAdminNoticeFAQDeleted = key("admin.notice.faq.deleted", Message{ZhHant: "已刪除問題。", En: "Question deleted."})
+
+	KeyAdminNoticeFAQCategoryAdded = key("admin.notice.faq.categoryadded", Message{ZhHant: "已新增問題分類。", En: "Question category added."})
+
+	KeyAdminNoticeFAQCategorySaved = key("admin.notice.faq.categorysaved", Message{ZhHant: "已儲存問題分類。", En: "Question category saved."})
+
+	KeyAdminNoticeFAQCategoryDeleted = key("admin.notice.faq.categorydeleted", Message{ZhHant: "已刪除問題分類。", En: "Question category deleted."})
 )

@@ -391,8 +391,8 @@ var (
 	})
 
 	KeyAdminNoticeTiersNeeds = key("admin.notice.tiersneeds", Message{
-		ZhHant: "會員等級的資料有誤，或找不到這個等級。門檻與折扣須為整數。",
-		En:     "The tier is not right, or it no longer exists. The threshold and discount must be whole numbers.",
+		ZhHant: "會員等級的資料有誤，或找不到這個等級。門檻與點數倍率須為整數。",
+		En:     "The tier is not right, or it no longer exists. The threshold and the points multiplier must be whole numbers.",
 	})
 
 	KeyAdminNoticeDeliveryNeeds = key("admin.notice.deliveryneeds", Message{
@@ -437,4 +437,16 @@ var (
 		En: "Those quantities do not work: no line can exceed what is still outstanding, or what this " +
 			"order is holding in stock.",
 	})
+
+	KeyAdminNoticePicking = key("admin.notice.picking", Message{ZhHant: "已開始備貨。", En: "Packing started."})
+
+	KeyAdminNoticeDelivered = key("admin.notice.delivered", Message{ZhHant: "已標記送達。", En: "Marked as delivered."})
+
+	KeyAdminNoticeCompleted = key("admin.notice.completed", Message{ZhHant: "已完成訂單。", En: "Order completed."})
+
+	KeyAdminNoticeCancelled = key("admin.notice.cancelled", Message{ZhHant: "已取消訂單。", En: "Order cancelled."})
+
+	KeyAdminNoticeStaffNote = key("admin.notice.staffnote", Message{ZhHant: "已儲存內部備註。", En: "Staff note saved."})
+
+	KeyAdminNoticeDeliveryCorrected = key("admin.notice.deliverycorrected", Message{ZhHant: "已更正收件資料。", En: "Delivery details corrected."})
 )

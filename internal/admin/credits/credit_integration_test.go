@@ -46,7 +46,7 @@ func TestStore_GrantCreditBounds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := s.GrantCredit(ctx, creditCustomerID(t, tt.email), tt.cents, tt.reason, uuid.New())
+			err := s.GrantCredit(ctx, creditCustomerID(t, tt.email), tt.cents, tt.reason, uuid.New())
 			if tt.wantErr == nil {
 				if err != nil {
 					t.Fatalf("a legal grant was refused: %v", err)
@@ -87,7 +87,7 @@ func TestStore_GrantCreditIdempotent(t *testing.T) {
 	auditsBefore := admintest.AuditRows(t, pool, audit.ActionGrantCredit)
 	firstOperation := uuid.New()
 	for range 3 {
-		if _, err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", firstOperation); err != nil {
+		if err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", firstOperation); err != nil {
 			t.Fatalf("retry one grant operation: %v", err)
 		}
 	}
@@ -115,10 +115,10 @@ func TestStore_GrantCreditIdempotent(t *testing.T) {
 	// Same customer, amount and reason can be a second legitimate compensation.
 	// Its durable request identity, not its business values, distinguishes it.
 	secondOperation := uuid.New()
-	if _, err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", secondOperation); err != nil {
+	if err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", secondOperation); err != nil {
 		t.Fatalf("second identical grant operation: %v", err)
 	}
-	if _, err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", secondOperation); err != nil {
+	if err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", secondOperation); err != nil {
 		t.Fatalf("retry second operation: %v", err)
 	}
 	read()

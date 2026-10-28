@@ -137,7 +137,7 @@ func TestStore_ConfigurationSurchargeForms(t *testing.T) {
 				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				response := httptest.NewRecorder()
 				mux.ServeHTTP(response, request)
-				if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/shipping?ok=1" {
+				if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/shipping?surcharge=1" {
 					t.Fatalf("submit surcharge form = %d %q, want 303 to saved configuration", response.Code, response.Header().Get("Location"))
 				}
 				var row storedSurcharge
@@ -1217,7 +1217,7 @@ func TestHandler_SetZoneSurchargeStale(t *testing.T) {
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				res = httptest.NewRecorder()
 				mux.ServeHTTP(res, req)
-				if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/shipping?ok=1" {
+				if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/shipping?surcharge=1" {
 					t.Errorf("fresh surcharge status/location=%d/%q, want 303 saved", res.Code, res.Header().Get("Location"))
 				}
 				assertSurchargeVersions(t, oldVersion, current, zone, 10000, 30000)
@@ -1575,7 +1575,7 @@ func TestHandler_DeleteZoneRefusals(t *testing.T) {
 							t.Fatalf("clear current surcharge: %v", err)
 						}
 					}
-					assertZoneRemovalResponse(t, ctx, mux, zone, "/admin/shipping?ok=1", i18n.KeyAdminNoticeOK)
+					assertZoneRemovalResponse(t, ctx, mux, zone, "/admin/shipping?zoneremoved=1", i18n.KeyAdminNoticeShipZoneRemoved)
 					assertZoneRemovalState(t, ctx, owner, zone, zoneRemovalState{DeleteAudits: 1})
 				})
 			}
@@ -1606,7 +1606,7 @@ func TestHandler_DeleteZoneMissingAndUnused(t *testing.T) {
 				}
 			}
 			zone, _ := zoneRemovalFixture(t, ctx, owner, store, false, false, false)
-			assertZoneRemovalResponse(t, ctx, mux, zone, "/admin/shipping?ok=1", i18n.KeyAdminNoticeOK)
+			assertZoneRemovalResponse(t, ctx, mux, zone, "/admin/shipping?zoneremoved=1", i18n.KeyAdminNoticeShipZoneRemoved)
 			assertZoneRemovalState(t, ctx, owner, zone, zoneRemovalState{DeleteAudits: 1})
 			res := httptest.NewRecorder()
 			mux.ServeHTTP(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping?inuse=1", http.NoBody))

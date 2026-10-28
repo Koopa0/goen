@@ -215,4 +215,22 @@ var (
 
 	// The days before a campaign began, which it is compared with.
 	KeyAdminCampBefore = key("admin.camp.before", Message{ZhHant: "活動前", En: "Before"})
+
+	KeyAdminNoticeCampaignCreated = key("admin.notice.campaign.created", Message{ZhHant: "已建立活動。", En: "Campaign created."})
+
+	KeyAdminNoticeCampaignWindow = key("admin.notice.campaign.window", Message{ZhHant: "已儲存活動檔期。", En: "Campaign dates saved."})
+
+	KeyAdminNoticeCampaignTone = key("admin.notice.campaign.tone", Message{ZhHant: "已儲存活動色調。", En: "Campaign tone saved."})
+
+	KeyAdminNoticeCampaignImage = key("admin.notice.campaign.image", Message{ZhHant: "已更換活動頁首圖片。", En: "Campaign header image replaced."})
+
+	KeyAdminNoticeCampaignImageRemoved = key("admin.notice.campaign.imageremoved", Message{ZhHant: "已移除活動頁首圖片。", En: "Campaign header image removed."})
+
+	KeyAdminNoticeCampaignFeatured = key("admin.notice.campaign.featured", Message{ZhHant: "已加入活動商品。", En: "Product added to the campaign."})
+
+	KeyAdminNoticeCampaignUnfeatured = key("admin.notice.campaign.unfeatured", Message{ZhHant: "已移出活動商品。", En: "Product removed from the campaign."})
+
+	KeyAdminNoticeCampaignOn = key("admin.notice.campaign.on", Message{ZhHant: "已啟用活動。", En: "Campaign switched on."})
+
+	KeyAdminNoticeCampaignOff = key("admin.notice.campaign.off", Message{ZhHant: "已停用活動。", En: "Campaign switched off."})
 )

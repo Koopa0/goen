@@ -338,7 +338,7 @@ func TestHandler_AdjustFromSKUPage(t *testing.T) {
 	form := url.Values{"sku": {sku}, "delta": {"-2"}, "idempotency": {uuid.NewString()}}
 	for attempt := range 2 {
 		got := post(form)
-		if got.Code != http.StatusSeeOther || got.Header().Get("Location") != "/admin/stock/"+sku+"?ok=1" {
+		if got.Code != http.StatusSeeOther || got.Header().Get("Location") != "/admin/stock/"+sku+"?adjusted=1" {
 			t.Fatalf("correction attempt %d = %d %q, want 303 to the SKU page", attempt+1, got.Code, got.Header().Get("Location"))
 		}
 	}
@@ -760,7 +760,7 @@ func TestHandler_SetActiveRetiring(t *testing.T) {
 		audits        int
 	}{
 		{name: "last active variant", variants: 1, notice: "refused", remainsActive: true, audits: 0},
-		{name: "another active variant", variants: 2, notice: "ok", remainsActive: false, audits: 1},
+		{name: "another active variant", variants: 2, notice: "off", remainsActive: false, audits: 1},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tx, err := pool.Begin(ctx)

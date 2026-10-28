@@ -63,7 +63,7 @@ func TestCategoryOneRow(t *testing.T) {
 	}
 
 	saved(t, post(t, h.CreateFAQCategory, "/admin/faq/categories", "",
-		url.Values{"name": {" " + name + " "}, "name_en": {nameEn}}), "/admin/faq?ok=1")
+		url.Values{"name": {" " + name + " "}, "name_en": {nameEn}}), "/admin/faq?catadded=1")
 	id := categoryID(t, staffCtx, desk, name)
 
 	t.Run("a second category of the same name", func(t *testing.T) {
@@ -78,7 +78,7 @@ func TestCategoryOneRow(t *testing.T) {
 	for _, q := range []string{"第一題-" + suffix, "第二題-" + suffix} {
 		saved(t, post(t, h.CreateFAQ, "/admin/faq", "", url.Values{
 			"category_id": {id}, "question": {q}, "answer": {"答案。"}, "answer_en": {"Answer."},
-		}), "/admin/faq?ok=1")
+		}), "/admin/faq?added=1")
 	}
 	t.Run("an entry with no category", func(t *testing.T) {
 		refused(t, post(t, h.CreateFAQ, "/admin/faq", "", url.Values{
@@ -130,18 +130,18 @@ func TestCategoryOneRow(t *testing.T) {
 	t.Run("a rename refused on its own row", func(t *testing.T) {
 		other := "其他-" + suffix
 		saved(t, post(t, h.CreateFAQCategory, "/admin/faq/categories", "",
-			url.Values{"name": {other}, "name_en": {"Taken " + suffix}}), "/admin/faq?ok=1")
+			url.Values{"name": {other}, "name_en": {"Taken " + suffix}}), "/admin/faq?catadded=1")
 		refused(t, post(t, h.EditFAQCategory, "/admin/faq/categories/"+id, id, url.Values{
 			"action": {"save"}, "name": {"改名-" + suffix}, "name_en": {"Taken " + suffix},
 		}), "faq-category-err-name_en-"+id, "改名-"+suffix)
 		saved(t, post(t, h.EditFAQCategory, "/admin/faq/categories/"+categoryID(t, staffCtx, desk, other),
-			categoryID(t, staffCtx, desk, other), url.Values{"action": {"delete"}}), "/admin/faq?ok=1")
+			categoryID(t, staffCtx, desk, other), url.Values{"action": {"delete"}}), "/admin/faq?catdeleted=1")
 	})
 
 	renamed, renamedEn := "退貨與換貨-"+suffix, "Returns and exchanges "+suffix
 	saved(t, post(t, h.EditFAQCategory, "/admin/faq/categories/"+id, id, url.Values{
 		"action": {"save"}, "name": {renamed}, "name_en": {renamedEn},
-	}), "/admin/faq?ok=1")
+	}), "/admin/faq?catsaved=1")
 	for _, locale := range i18n.Locales() {
 		want := renamed
 		if locale == i18n.En {
@@ -170,11 +170,11 @@ func TestCategoryOneRow(t *testing.T) {
 	}
 	for _, e := range view.Rows {
 		if strings.HasSuffix(e.Question, suffix) {
-			saved(t, post(t, h.EditFAQ, "/admin/faq/"+e.ID, e.ID, url.Values{"action": {"delete"}}), "/admin/faq?ok=1")
+			saved(t, post(t, h.EditFAQ, "/admin/faq/"+e.ID, e.ID, url.Values{"action": {"delete"}}), "/admin/faq?deleted=1")
 		}
 	}
 	saved(t, post(t, h.EditFAQCategory, "/admin/faq/categories/"+id, id,
-		url.Values{"action": {"delete"}}), "/admin/faq?ok=1")
+		url.Values{"action": {"delete"}}), "/admin/faq?catdeleted=1")
 	if res := post(t, h.EditFAQCategory, "/admin/faq/categories/"+id, id,
 		url.Values{"action": {"delete"}}); res.Code != http.StatusNotFound {
 		t.Errorf("deleting a deleted category = %d, want 404", res.Code)

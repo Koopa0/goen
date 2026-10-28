@@ -33,8 +33,8 @@ var (
 	})
 
 	KeyStaffLastAdmin = key("staff.lastadmin", Message{
-		ZhHant: "這是最後一位管理員。移除之後就沒有人能再新增管理員了。",
-		En:     "This is the last administrator. Remove them and nobody is left who can add one back.",
+		ZhHant: "沒有移除：這是最後一位管理員，移除後就沒有人能再新增管理員。",
+		En:     "Not removed: this is the last administrator, and without them nobody could add one back.",
 	})
 
 	KeyStaffInvalid = key("staff.invalid", Message{
@@ -43,8 +43,8 @@ var (
 	})
 
 	KeyStaffNeeds = key("staff.needs", Message{
-		ZhHant: "資料不完整，或這不是可用的員工帳號。請填寫有效的電子郵件與姓名。",
-		En:     "Something is missing, or that is not a usable staff account. Enter a valid email and a name.",
+		ZhHant: "資料不完整，或這不是可用的員工帳號。請填寫有效的電子郵件。",
+		En:     "Something is missing, or that is not a usable staff account. Enter a valid email address.",
 	})
 
 	KeyAdminStaffLead = key("admin.staff.lead", Message{
@@ -107,4 +107,10 @@ var (
 			"Ask another administrator to remove your second factor on the back office's staff page, then set it up again.\n\n" +
 			"If you did not enter those codes, someone else knows your password. Reset it first here, which signs out every session:\n%s",
 	})
+
+	KeyStaffAdded = key("staff.added", Message{ZhHant: "已新增人員。", En: "Staff member added."})
+
+	KeyStaffRevoked = key("staff.revoked", Message{ZhHant: "已移除這位人員的後台權限。", En: "Back-office access revoked."})
+
+	KeyStaffFactorRemoved = key("staff.factorremoved", Message{ZhHant: "已解除這位人員的兩階段驗證。", En: "Two-factor removed for this staff member."})
 )

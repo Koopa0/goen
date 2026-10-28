@@ -151,4 +151,22 @@ var (
 		ZhHant: "還有商品或子分類在用它，先把那些移到別的地方再刪。",
 		En:     "Products or child categories still point at it. Move those elsewhere first.",
 	})
+
+	KeyAdminNoticeBrandAdded = key("admin.notice.brand.added", Message{ZhHant: "已新增品牌。", En: "Brand added."})
+
+	KeyAdminNoticeBrandSaved = key("admin.notice.brand.saved", Message{ZhHant: "已儲存品牌。", En: "Brand saved."})
+
+	KeyAdminNoticeBrandDeleted = key("admin.notice.brand.deleted", Message{ZhHant: "已刪除品牌。", En: "Brand deleted."})
+
+	KeyAdminNoticeCategoryAdded = key("admin.notice.category.added", Message{ZhHant: "已新增分類。", En: "Category added."})
+
+	KeyAdminNoticeCategorySaved = key("admin.notice.category.saved", Message{ZhHant: "已儲存分類。", En: "Category saved."})
+
+	KeyAdminNoticeCategoryDeleted = key("admin.notice.category.deleted", Message{ZhHant: "已刪除分類。", En: "Category deleted."})
+
+	KeyAdminNoticeCategoryImage = key("admin.notice.category.image", Message{ZhHant: "已更換分類頁首圖片。", En: "Category header photograph replaced."})
+
+	KeyAdminNoticeCategoryImageText = key("admin.notice.category.imagetext", Message{ZhHant: "已儲存分類頁首圖片的替代文字。", En: "Category header photograph's alt text saved."})
+
+	KeyAdminNoticeCategoryImageRemoved = key("admin.notice.category.imageremoved", Message{ZhHant: "已移除分類頁首圖片。", En: "Category header photograph removed."})
 )

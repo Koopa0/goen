@@ -22,8 +22,8 @@ func postedFrom(t *testing.T, form url.Values) *http.Request {
 // was made on.
 func TestStockBackFilterAndPage(t *testing.T) {
 	t.Parallel()
-	got := stockBack(postedFrom(t, url.Values{"sku": {"A-1"}, "return": {"/admin/stock?soldout=1&after=TOKEN"}}), "ok")
-	if want := "/admin/stock?after=TOKEN&ok=1&soldout=1#row-A-1"; got != want {
+	got := stockBack(postedFrom(t, url.Values{"sku": {"A-1"}, "return": {"/admin/stock?soldout=1&after=TOKEN"}}), "price")
+	if want := "/admin/stock?after=TOKEN&price=1&soldout=1#row-A-1"; got != want {
 		t.Errorf("stockBack = %q, want %q", got, want)
 	}
 }
@@ -42,8 +42,8 @@ func TestStockBackRefusesForeign(t *testing.T) {
 // TestStockBackSearch: a stock write returns to the search it was made under.
 func TestStockBackSearch(t *testing.T) {
 	t.Parallel()
-	got := stockBack(postedFrom(t, url.Values{"sku": {"A-1"}, "return": {"/admin/stock?q=koto+cbl&after=TOKEN"}}), "ok")
-	if want := "/admin/stock?after=TOKEN&ok=1&q=koto+cbl#row-A-1"; got != want {
+	got := stockBack(postedFrom(t, url.Values{"sku": {"A-1"}, "return": {"/admin/stock?q=koto+cbl&after=TOKEN"}}), "arrival")
+	if want := "/admin/stock?after=TOKEN&arrival=1&q=koto+cbl#row-A-1"; got != want {
 		t.Errorf("stockBack = %q, want %q", got, want)
 	}
 }

@@ -4,6 +4,9 @@ import (
 	"os"
 	"regexp"
 	"testing"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // TestNoticesCoverRedirects: every redirect the coupon forms make carries a message.
@@ -29,5 +32,21 @@ func TestNoticesCoverRedirects(t *testing.T) {
 		if !sent[name] {
 			t.Errorf("notice %q names a parameter no redirect writes", name)
 		}
+	}
+}
+
+// TestNoticesDoneSentencesDiffer: no two actions share a sentence, so a save says
+// which change it was.
+func TestNoticesDoneSentencesDiffer(t *testing.T) {
+	t.Parallel()
+	seen := map[i18n.Key]string{}
+	for name, e := range notices {
+		if e.Outcome != widget.OutcomeDone {
+			continue
+		}
+		if first, dup := seen[e.Key]; dup {
+			t.Errorf("?%s=1 and ?%s=1 both say %q", first, name, e.Key)
+		}
+		seen[e.Key] = name
 	}
 }

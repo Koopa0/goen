@@ -1,11 +1,11 @@
 package credits
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/google/uuid"
 
@@ -39,7 +39,6 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":          widget.NoticeDone(i18n.KeyAdminNoticeOK),
 	"refused":     widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
 	"creditneeds": widget.NoticeRefused(i18n.KeyAdminNoticeCreditNeeds),
 }
@@ -66,7 +65,19 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 		view.Email = ledger.Customer.Email
 	}
 	view.OperationID = uuid.NewString()
-	view.Notice = creditNotice(r)
+	view.Notice = widget.NoticeFrom(r, notices)
+	// Only on the page of the customer a grant went to, and from the ledger's
+	// own balance now: the address carries no number, so a reload never states
+	// a stale one and a made-up link cannot state a false one.
+	if holder, asked := grantedHolder(r, ledger); asked {
+		balance, balanceErr := h.store.Balance(r.Context(), holder)
+		if balanceErr != nil {
+			h.log.ErrorContext(r.Context(), "read credit balance", "error", balanceErr)
+			admin.ServerError(w, r, h.log)
+			return
+		}
+		view.Notice = grantedNotice(r.Context(), balance)
+	}
 	respond.Component(w, r, h.log, http.StatusOK, Credit(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
 }
@@ -105,19 +116,22 @@ func creditView(ledger Ledger) View {
 	return view
 }
 
-// creditNotice is noticeFor plus the BALANCE a grant produced: the form is a
-// blank box, so a grant nothing confirms is one somebody makes twice.
-func creditNotice(r *http.Request) widget.Result {
-	if r.URL.Query().Get("ok") != "1" {
-		return widget.NoticeFrom(r, notices)
+// grantedHolder is whose balance the page is asked to state. The answer is a
+// customer the ledger found, so a link naming one that does not exist, or none,
+// states nothing and never a balance of zero.
+func grantedHolder(r *http.Request, ledger Ledger) (customer uuid.UUID, asked bool) {
+	if ledger.Customer == nil || r.URL.Query().Get("granted") != "1" {
+		return uuid.Nil, false
 	}
-	balance, err := strconv.ParseInt(r.URL.Query().Get("balance"), 10, 64)
-	if err != nil {
-		return widget.NoticeFrom(r, notices)
-	}
+	return ledger.Customer.ID, true
+}
+
+// grantedNotice is the sentence after a grant: what the customer's balance is.
+// The form is a blank box, so a grant nothing confirms is one somebody makes twice.
+func grantedNotice(ctx context.Context, balanceCents int64) widget.Result {
 	return widget.Result{
 		Outcome: widget.OutcomeDone,
-		Text:    fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoticeCreditGranted), money.TWD(balance)),
+		Text:    fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNoticeCreditGranted), money.TWD(balanceCents)),
 	}
 }
 
@@ -162,16 +176,13 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		admin.ServerError(w, r, h.log)
 		return
 	}
-	balance, err := h.store.GrantCredit(r.Context(), customerID, view.GrantCents, view.Reason, operationID)
+	err := h.store.GrantCredit(r.Context(), customerID, view.GrantCents, view.Reason, operationID)
 	switch {
 	case err == nil:
-		// The balance travels as a number and never the address it belongs to,
-		// because a query string is logged.
-		target := "/admin/credits?ok=1&balance=" + strconv.FormatInt(balance, 10)
-		if view.FilterCustomerID != "" {
-			target += "&customer=" + view.FilterCustomerID
-		}
-		http.Redirect(w, r, target, http.StatusSeeOther)
+		// Back to the ledger of whoever was paid, whose page names them and
+		// lists this grant first. Nothing else travels: no amount and no
+		// balance, which the page reads when it shows.
+		http.Redirect(w, r, "/admin/credits?customer="+customerID.String()+"&granted=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
 		http.Redirect(w, r, "/admin/credits?creditneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
