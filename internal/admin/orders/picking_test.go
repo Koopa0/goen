@@ -65,14 +65,27 @@ func TestPickingSlipsReadOnly(t *testing.T) {
 	}
 }
 
-// TestOrdersPickingLink: the picking link appears only on the picking tab.
+// TestOrdersPickingLink: the picking link appears only on the picking tab, and
+// only when the tab has orders (or is a later page of one that has).
 func TestOrdersPickingLink(t *testing.T) {
 	t.Parallel()
-	for _, v := range []View{{Status: QueuePicking}, {Status: QueueReady}, {Status: QueueAll}, {Status: QueuePicking, Term: "GO-ONE", Searched: true}} {
-		out := renderToString(t, Orders(frame.Page{Title: "Orders"}, v))
-		got := strings.Contains(out, `href="/admin/orders/picking/slips"`)
-		if want := v.Status == QueuePicking && !v.Searched; got != want {
-			t.Errorf("status=%q searched=%t: picking link=%t, want %t", v.Status, v.Searched, got, want)
+	packing := workView(QueuePicking, numberN(1))
+	searched := View{Status: QueuePicking, Term: "GO-ONE", Searched: true}
+	pastEnd := View{Status: QueuePicking, Bound: keyset.Bound{PastEnd: true, First: "/admin/orders?status=picking"}}
+	for name, tt := range map[string]struct {
+		v    View
+		want bool
+	}{
+		"packing with orders":   {packing, true},
+		"packing, empty":        {View{Status: QueuePicking}, false},
+		"packing, past its end": {pastEnd, true},
+		"packing, searched":     {searched, false},
+		"ready with orders":     {workView(QueueReady, numberN(1)), false},
+		"all":                   {View{Status: QueueAll}, false},
+	} {
+		out := renderToString(t, Orders(frame.Page{Title: "Orders"}, tt.v))
+		if got := strings.Contains(out, `href="/admin/orders/picking/slips"`); got != tt.want {
+			t.Errorf("%s: picking link=%t, want %t", name, got, tt.want)
 		}
 	}
 }

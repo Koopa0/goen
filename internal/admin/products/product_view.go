@@ -89,6 +89,7 @@ type ProductView struct {
 	IsNew             bool
 	Slug              string
 	Name              string
+	SavedName         string
 	Summary           string
 	Description       string
 	NameEn            string
@@ -191,11 +192,13 @@ func (v *ProductView) Action() string {
 	return "/admin/products/" + v.Slug
 }
 
+// Title names the page by the saved name: after a refusal Name holds the draft,
+// which may be empty or not the product's name at all.
 func (v *ProductView) Title(ctx context.Context) string {
 	if v.IsNew {
 		return i18n.T(ctx, i18n.KeyAdminPageNewProduct)
 	}
-	return v.Name
+	return v.SavedName
 }
 
 func (v *ProductView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }

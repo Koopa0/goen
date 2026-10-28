@@ -388,6 +388,29 @@ func TestOrdersBatchRefusalNames(t *testing.T) {
 	}
 }
 
+// A paragraph cannot hold a list: the browser would close the notice before the
+// refusals, and they would fall out of its role.
+func TestOrdersBatchRefusalStaysInsideItsNotice(t *testing.T) {
+	t.Parallel()
+	one, two := numberN(1), numberN(2)
+	v := workView(QueueReady, one, two)
+	v.Batch = BatchResult{Refused: []BatchRefusal{{Number: one, Reason: "已取消"}}, OthersStarted: 2}
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	doc := parseHTML(t, renderComponent(t, ctx, Orders(Meta(ctx), v)))
+	notices := findAll(doc, func(n *html.Node) bool {
+		return attr(n, "role") == "status" && strings.Contains(attr(n, "class"), "goen-notice")
+	})
+	if len(notices) != 1 {
+		t.Fatalf("got %d status notices, want 1", len(notices))
+	}
+	if got := findAll(notices[0], func(n *html.Node) bool { return n.Data == "ul" && attr(n, "class") == "goen-admin__refusals" }); len(got) != 1 {
+		t.Errorf("the notice holds %d refusal lists, want 1", len(got))
+	}
+	if !strings.Contains(plainText(notices[0]), "The other 2 orders have started packing.") {
+		t.Errorf("the notice lacks the count of the others started: %q", plainText(notices[0]))
+	}
+}
+
 func TestPickingSelectionTexts(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
