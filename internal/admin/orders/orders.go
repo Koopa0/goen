@@ -2,7 +2,7 @@
 // two work tabs, one order's page, and what staff do to an order from there:
 // move its status, ship its parcels, note it, correct its delivery, and file,
 // void or correct its uniform invoice; and, from a work tab, starting the
-// ticked orders' packing or printing their slips.
+// ticked orders' picking or printing their picking slips.
 package orders
 
 import (

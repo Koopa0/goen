@@ -78,8 +78,8 @@ func (s *Store) Dashboard(ctx context.Context) (View, error) {
 		UnansweredQuestionsOldestSince: sum.UnansweredQuestionsOldestSince,
 	}
 	// No status: the newest orders whatever state they are in. The tasks above
-	// already count each state, and a queue filtered to one of them hides the
-	// order somebody is standing at the counter asking about.
+	// already count the states that wait, and a queue filtered to one of them
+	// hides the order somebody is standing at the counter asking about.
 	recent, err := s.q.RecentOrders(ctx, recentRows)
 	if err != nil {
 		return View{}, fmt.Errorf("read recent orders: %w", err)
@@ -106,8 +106,8 @@ func (s *Store) HealthTasks(ctx context.Context) ([]worklist.Task, error) {
 	return s.health.Tasks(ctx)
 }
 
-// RecentSales is the shop's sales over a window of days shop days up to now and
-// the window before it. The dashboard is still worth opening without them, so
+// RecentSales is the shop's sales over a run of days shop days up to now and
+// the run before it. The dashboard is still worth opening without them, so
 // the caller decides what an error costs.
 func (s *Store) RecentSales(ctx context.Context, days int, now time.Time) (sales.Recent, error) {
 	return s.sales.Recent(ctx, days, now)
