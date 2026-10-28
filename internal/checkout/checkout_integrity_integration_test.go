@@ -51,7 +51,7 @@ func newIntegrityCheckout(t *testing.T) *integrityCheckout {
 	}
 	return &integrityCheckout{
 		s:      s,
-		h:      newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil),
+		h:      newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil),
 		userID: userID, cartID: cartID, token: token, variant: variant,
 		shipID: shipVersionFor(t, "home_delivery"),
 		coupon: insertCoupon(t, "INTEGRITY"+strings.ToUpper(uuid.NewString()[:8]), "amount", 10000, 0, 0, 0),

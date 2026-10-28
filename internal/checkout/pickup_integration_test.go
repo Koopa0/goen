@@ -210,7 +210,7 @@ func openPickupCheckout(
 // happy path end to end, through the three requests a real browser makes.
 func TestHandler_PickupRoundTrip(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
 	token, shipping := aPickupCart(t, s, "map-roundtrip")
 
 	// 1. 「選擇門市」: the form is posted to goen, which opens the map for the chain.
@@ -351,7 +351,7 @@ func placeThisCheckout(
 // repeating it.
 func TestHandler_PickupReturnForgedStore(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
 	token, shipping := aPickupCart(t, s, "map-forged")
 
 	_, cookie, _ := openPickupCheckout(t, h, token, shipping)
@@ -391,7 +391,7 @@ func TestHandler_PickupReturnForgedStore(t *testing.T) {
 // link sent to the victim, carrying a store and no nonce at all.
 func TestHandler_PageCraftedLink(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
 	token, shipping := aPickupCart(t, s, "map-crafted")
 
 	_, cookie, _ := openPickupCheckout(t, h, token, shipping)
@@ -424,7 +424,7 @@ func TestHandler_PageCraftedLink(t *testing.T) {
 // back in its own hidden inputs.
 func TestHandler_PlaceOrderUnvouchedStore(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
 	token, shipping := aPickupCart(t, s, "map-placement")
 
 	page, cookie, _ := openPickupCheckout(t, h, token, shipping)
@@ -517,7 +517,7 @@ func TestHandler_PlaceOrderPickupOffered(t *testing.T) {
 	}{"map enabled": {configuredMap(t), true}, "map disabled": {disabled, false}} {
 		t.Run(name, func(t *testing.T) {
 			s := checkout.NewStore(pool)
-			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), tt.storeMap)
+			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), tt.storeMap, nil)
 			token, shipping := aPickupCart(t, s, "pickup-offer")
 			page, _, status := openPickupCheckout(t, h, token, shipping)
 			if status != http.StatusOK {
@@ -558,7 +558,7 @@ func TestHandler_PlaceOrderForgedPickup(t *testing.T) {
 		} {
 			t.Run(name+"/"+forged.name, func(t *testing.T) {
 				s := checkout.NewStore(pool)
-				h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), storeMap)
+				h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), storeMap, nil)
 				token, shipping := aPickupCart(t, s, "forged-pickup")
 				page, _, status := openPickupCheckout(t, h, token, shipping)
 				if status != http.StatusOK {
@@ -591,7 +591,7 @@ func TestHandler_PlaceOrderForgedPickup(t *testing.T) {
 // a shopper who changes chain has no store.
 func TestHandler_PlaceOrderChainChange(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
 	token, shipping := aPickupCart(t, s, "map-chain-change")
 
 	start, cookie, _ := startPickup(t, h, token, aStart(shipping))
@@ -640,7 +640,7 @@ func TestHandler_PlaceOrderChainChange(t *testing.T) {
 // through placement.
 func TestHandler_PlaceOrderDuplicateCookie(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
 	token, shipping := aPickupCart(t, s, "map-duplicate-cookie")
 	_, stale, _ := startPickup(t, h, token, aStart(shipping))
 	start, matching, status := startPickup(t, h, token, aStart(shipping))
@@ -701,7 +701,7 @@ func aTypedStart(shipping uuid.UUID, couponCode string) url.Values {
 // checkout it returns to carries the store AND every field.
 func TestHandler_PickupStartKeepsTyped(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
 	token, shipping := aPickupCart(t, s, "map-typed")
 	code := insertCoupon(t, "MAPTYPED", "amount", 5000, 0, 0, 0)
 
@@ -758,7 +758,7 @@ func TestHandler_PickupStartKeepsTyped(t *testing.T) {
 // for ends it.
 func TestHandler_PlaceOrderClearsDraft(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
 	token, shipping := aPickupCart(t, s, "map-draft-cleared")
 	cartID, err := s.Carts().ByToken(t.Context(), token, uuid.NullUUID{})
 	if err != nil {
@@ -792,7 +792,7 @@ func TestHandler_PlaceOrderClearsDraft(t *testing.T) {
 // than its window is as good as none.
 func TestHandler_PageDraftExpires(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
 	token, shipping := aPickupCart(t, s, "map-draft-expired")
 	cartID, err := s.Carts().ByToken(t.Context(), token, uuid.NullUUID{})
 	if err != nil {
