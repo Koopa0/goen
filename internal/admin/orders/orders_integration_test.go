@@ -790,7 +790,7 @@ func TestStore_ListFindsOrder(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Orders(%q): %v", term, err)
 		}
-		if !hasOrder(view, number) {
+		if !hasOrder(&view, number) {
 			t.Errorf("searching %q did not find %s", term, number)
 		}
 		if view.Term != term {
@@ -809,7 +809,7 @@ func TestStore_ListSearchIgnoresStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
 	}
-	if !hasOrder(view, number) {
+	if !hasOrder(&view, number) {
 		t.Error("a search was filtered away by the status tab")
 	}
 }
@@ -849,7 +849,7 @@ func TestStore_ListErasedOrderNotFound(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Orders(%q): %v", term, err)
 		}
-		if hasOrder(view, number) {
+		if hasOrder(&view, number) {
 			t.Errorf("an erased order was found by %q, which it no longer holds", term)
 		}
 	}
@@ -857,7 +857,7 @@ func TestStore_ListErasedOrderNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
 	}
-	if !hasOrder(view, number) {
+	if !hasOrder(&view, number) {
 		t.Error("an erased order cannot be found by its own number; it is still an order")
 	}
 }
@@ -894,15 +894,15 @@ func TestStore_ListWildcardsLiteral(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
 	}
-	if !hasOrder(view, underscored) {
+	if !hasOrder(&view, underscored) {
 		t.Errorf("searching the underscored address did not find %s", underscored)
 	}
-	if hasOrder(view, lettered) {
+	if hasOrder(&view, lettered) {
 		t.Errorf("a typed _ matched %s, whose address has an x there", lettered)
 	}
 }
 
-func hasOrder(v orders.View, number string) bool {
+func hasOrder(v *orders.View, number string) bool {
 	for i := range v.Orders {
 		if v.Orders[i].Number == number {
 			return true

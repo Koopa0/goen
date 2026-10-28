@@ -20,6 +20,43 @@ AND (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;
 
+-- The two work tabs, oldest wait first. An order waits from its first paid event,
+-- else its latest successful payment, else its placing (store credit paid it in
+-- full: no payment row, no event); admin/dashboard counts the wait the same way.
+-- That value is computed, so it is built once in a CTE and the keyset compares
+-- the CTE's column, not a copy of the expression.
+-- name: AdminWorkQueue :many
+WITH waiting AS (
+    SELECT o.id,
+        coalesce(
+            (SELECT min(e.occurred_at) FROM order_events e
+             WHERE e.order_id = o.id AND e.kind = 'paid'),
+            (SELECT max(p.paid_at) FROM payments p
+             WHERE p.order_id = o.id AND p.status = 'succeeded'),
+            o.placed_at) AS since
+    FROM orders o
+    WHERE o.fulfillment_status = @status::text
+    -- Same line AdminOrders draws, so a tab and the row's own label agree.
+    AND (@funding::text = '' OR (@funding::text = 'funded') = (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0))
+)
+SELECT json_build_object('Since', w.since, 'ID', o.id)::text AS page_cursor,
+    o.id,
+    o.order_number,
+    o.fulfillment_status,
+    o.placed_at,
+    t.total_cents,
+    coalesce(pd.recipient_name, '') AS recipient,
+    order_is_committed(o.id) AS committed,
+    order_amount_after_credit(o.id) AS owed_cents,
+    w.since AS waiting_since
+FROM waiting w
+JOIN orders o ON o.id = w.id
+JOIN order_totals t ON t.order_id = o.id
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+WHERE (NOT @has_cursor::boolean OR (w.since, o.id) > (@after_since::timestamptz, @after_id::uuid))
+ORDER BY w.since, o.id
+LIMIT @row_limit::integer;
+
 -- An order-number-shaped term is matched exactly and anything else as a prefix.
 -- Each probe reads one table by its own index and the UNION joins the ids back to
 -- orders; OR-ing the three across the join could only be a join filter.
@@ -53,6 +90,22 @@ WHERE (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
        OR (o.placed_at = @after_at::timestamptz AND o.id < @after_id::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;
+
+-- How many orders a search finds, whatever page it is on: the same hits
+-- AdminSearchOrders lists.
+-- name: AdminSearchOrderCount :one
+WITH hits AS (
+    SELECT o.id FROM orders o WHERE o.order_number = upper(@term::text)
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE lower(pd.email) LIKE lower(@escaped_term::text) || '%'
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE pd.recipient_name LIKE @escaped_term::text || '%'
+)
+SELECT count(*)::bigint AS found
+FROM hits h
+JOIN order_totals t ON t.order_id = h.id;
 
 -- name: AdminOrderCounts :many
 SELECT fulfillment_status,

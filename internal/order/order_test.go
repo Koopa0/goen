@@ -98,3 +98,12 @@ func TestNormalizeNumber(t *testing.T) {
 		})
 	}
 }
+
+func TestPackingOverdue(t *testing.T) {
+	t.Parallel()
+	for days, want := range map[int]bool{0: false, 1: false, 2: false, 3: true, 10: true} {
+		if got := PackingOverdue(days); got != want {
+			t.Errorf("PackingOverdue(%d) = %t, want %t", days, got, want)
+		}
+	}
+}

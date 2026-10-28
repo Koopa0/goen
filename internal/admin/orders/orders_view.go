@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -28,6 +29,27 @@ type Row struct {
 }
 
 func (o Row) Total() string { return money.TWD(o.TotalCents) }
+
+// WorkRow is an order on a work tab, which says how long it has waited rather
+// than when it was placed.
+type WorkRow struct {
+	Row
+
+	WaitDays int
+	Overdue  bool
+}
+
+func workRow(row Row, waitingSince, now time.Time) WorkRow {
+	days := shoptime.DaysAgo(waitingSince, now)
+	return WorkRow{Row: row, WaitDays: days, Overdue: order.PackingOverdue(days)}
+}
+
+func (w WorkRow) WaitText(ctx context.Context) string {
+	if w.WaitDays <= 0 {
+		return i18n.T(ctx, i18n.KeyAdminWaitToday)
+	}
+	return i18n.Count(ctx, i18n.KeyAdminWaitDays, int64(w.WaitDays), w.WaitDays)
+}
 
 type Transition struct {
 	Value order.FulfillmentStatus
@@ -66,17 +88,28 @@ type View struct {
 	Searched bool
 	Status   QueueFilter
 	Orders   []Row
+	// Work holds the rows of the two work tabs, which Orders does not.
+	Work []WorkRow
+	// SearchCount is every order the search found, not the page's.
+	SearchCount int64
+	// PageGone is a position in the request that this list could not read.
+	PageGone bool
 	Tabs     []StatusTab
 	Notice   widget.Result
 }
 
-func (v View) Searching() bool { return v.Searched }
+// Resumed is whether the request carried a position this list could read.
+func (v *View) Resumed() bool { return v.First != "" }
 
-func (v View) TermTooShort() bool { return v.Term != "" && !v.Searched }
+func (v *View) Searching() bool { return v.Searched }
 
-func (v View) Empty() bool { return len(v.Orders) == 0 }
+func (v *View) TermTooShort() bool { return v.Term != "" && !v.Searched }
 
-func (v View) EmptyText(ctx context.Context) string {
+func (v *View) Empty() bool { return len(v.Orders) == 0 && len(v.Work) == 0 }
+
+func (v *View) Working() bool { return len(v.Work) > 0 }
+
+func (v *View) EmptyText(ctx context.Context) string {
 	if v.Searching() {
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueNoneFound), v.Term)
 	}

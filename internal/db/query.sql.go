@@ -2297,6 +2297,35 @@ func (q *Queries) AdminSearchCustomers(ctx context.Context, arg AdminSearchCusto
 	return items, nil
 }
 
+const adminSearchOrderCount = `-- name: AdminSearchOrderCount :one
+WITH hits AS (
+    SELECT o.id FROM orders o WHERE o.order_number = upper($1::text)
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE lower(pd.email) LIKE lower($2::text) || '%'
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE pd.recipient_name LIKE $2::text || '%'
+)
+SELECT count(*)::bigint AS found
+FROM hits h
+JOIN order_totals t ON t.order_id = h.id
+`
+
+type AdminSearchOrderCountParams struct {
+	Term        string
+	EscapedTerm string
+}
+
+// How many orders a search finds, whatever page it is on: the same hits
+// AdminSearchOrders lists.
+func (q *Queries) AdminSearchOrderCount(ctx context.Context, arg AdminSearchOrderCountParams) (int64, error) {
+	row := q.db.QueryRow(ctx, adminSearchOrderCount, arg.Term, arg.EscapedTerm)
+	var found int64
+	err := row.Scan(&found)
+	return found, err
+}
+
 const adminSearchOrders = `-- name: AdminSearchOrders :many
 WITH hits AS (
     SELECT o.id FROM orders o WHERE o.order_number = upper($5::text)
@@ -2921,6 +2950,104 @@ func (q *Queries) AdminVersionZones(ctx context.Context, versionIds []uuid.UUID)
 			&i.Code,
 			&i.Name,
 			&i.SurchargeCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminWorkQueue = `-- name: AdminWorkQueue :many
+WITH waiting AS (
+    SELECT o.id,
+        coalesce(
+            (SELECT min(e.occurred_at) FROM order_events e
+             WHERE e.order_id = o.id AND e.kind = 'paid'),
+            (SELECT max(p.paid_at) FROM payments p
+             WHERE p.order_id = o.id AND p.status = 'succeeded'),
+            o.placed_at) AS since
+    FROM orders o
+    WHERE o.fulfillment_status = $5::text
+    -- Same line AdminOrders draws, so a tab and the row's own label agree.
+    AND ($6::text = '' OR ($6::text = 'funded') = (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0))
+)
+SELECT json_build_object('Since', w.since, 'ID', o.id)::text AS page_cursor,
+    o.id,
+    o.order_number,
+    o.fulfillment_status,
+    o.placed_at,
+    t.total_cents,
+    coalesce(pd.recipient_name, '') AS recipient,
+    order_is_committed(o.id) AS committed,
+    order_amount_after_credit(o.id) AS owed_cents,
+    w.since AS waiting_since
+FROM waiting w
+JOIN orders o ON o.id = w.id
+JOIN order_totals t ON t.order_id = o.id
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+WHERE (NOT $1::boolean OR (w.since, o.id) > ($2::timestamptz, $3::uuid))
+ORDER BY w.since, o.id
+LIMIT $4::integer
+`
+
+type AdminWorkQueueParams struct {
+	HasCursor  bool
+	AfterSince time.Time
+	AfterID    uuid.UUID
+	RowLimit   int32
+	Status     string
+	Funding    string
+}
+
+type AdminWorkQueueRow struct {
+	PageCursor        string
+	ID                uuid.UUID
+	OrderNumber       string
+	FulfillmentStatus string
+	PlacedAt          time.Time
+	TotalCents        int64
+	Recipient         string
+	Committed         bool
+	OwedCents         int64
+	WaitingSince      time.Time
+}
+
+// The two work tabs, oldest wait first. An order waits from its first paid event,
+// else its latest successful payment, else its placing (store credit paid it in
+// full: no payment row, no event); admin/dashboard counts the wait the same way.
+// That value is computed, so it is built once in a CTE and the keyset compares
+// the CTE's column, not a copy of the expression.
+func (q *Queries) AdminWorkQueue(ctx context.Context, arg AdminWorkQueueParams) ([]AdminWorkQueueRow, error) {
+	rows, err := q.db.Query(ctx, adminWorkQueue,
+		arg.HasCursor,
+		arg.AfterSince,
+		arg.AfterID,
+		arg.RowLimit,
+		arg.Status,
+		arg.Funding,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminWorkQueueRow{}
+	for rows.Next() {
+		var i AdminWorkQueueRow
+		if err := rows.Scan(
+			&i.PageCursor,
+			&i.ID,
+			&i.OrderNumber,
+			&i.FulfillmentStatus,
+			&i.PlacedAt,
+			&i.TotalCents,
+			&i.Recipient,
+			&i.Committed,
+			&i.OwedCents,
+			&i.WaitingSince,
 		); err != nil {
 			return nil, err
 		}

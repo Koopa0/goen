@@ -23,6 +23,7 @@ templ searchForm(term string, clearable bool) {
 			name="q"
 			value={ term }
 			placeholder={ i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder) }
+			aria-describedby="order-search-hint"
 			autocomplete="off"
 		/>
 		@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
@@ -33,6 +34,7 @@ templ searchForm(term string, clearable bool) {
 				{ i18n.T(ctx, i18n.KeyAdminQueueClear) }
 			}
 		}
+		<p class="goen-admin__hint" id="order-search-hint">{ i18n.T(ctx, i18n.KeyAdminQueueSearchHint) }</p>
 	</form>
 }
 
@@ -41,6 +43,21 @@ templ orderNotFound(p frame.Page, v frame.MissingRecordView, number string) {
 	@frame.MissingRecord(p, v) {
 		@searchForm(number, false)
 	}
+}
+
+// queueRowHead is the three cells every queue row starts with, whichever tab it is on.
+templ queueRowHead(o Row) {
+	<td class="goen-admin__cellkey">
+		<a href={ templ.URL("/admin/orders/" + o.Number) }>{ o.Number }</a>
+	</td>
+	<td>
+		<div class="goen-admin__cellbadges">
+			@widget.Badge(widget.BadgeProps{Intent: o.StatusIntent}) {
+				{ o.StatusText }
+			}
+		</div>
+	</td>
+	<td>{ o.RecipientText(ctx) }</td>
 }
 
 // The tabs are links and the selected one is marked with aria-current alone: a second
@@ -54,30 +71,34 @@ templ Orders(p frame.Page, v View) {
 		</div>
 		@widget.Announce(v.Notice)
 		@searchForm(v.Term, v.Searching())
-		if v.Searching() {
-			<p class="goen-admin__hint">
-				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueSearchNote), v.Term) }
-			</p>
-		}
 		if v.TermTooShort() {
 			@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 				{ i18n.T(ctx, i18n.KeyAdminQueueSearchShort) }
 			}
 		}
-		<nav class="ui-filterbar goen-admin__tabs" aria-label={ i18n.T(ctx, i18n.KeyAdminOrderStatus) }>
-			for _, t := range v.Tabs {
-				<a
-					class="ui-filter"
-					href={ templ.URL("/admin/orders?status=" + string(t.Value)) }
-					if t.Selected {
-						aria-current="page"
-					}
-				>
-					{ t.Label }
-					<span class="ui-filter__count">{ t.CountText() }</span>
-				</a>
+		if v.Searching() {
+			<p class="goen-admin__searchline">{ i18n.Count(ctx, i18n.KeyAdminQueueSearchLine, v.SearchCount, v.Term, v.SearchCount) }</p>
+		} else {
+			<nav class="ui-filterbar goen-admin__tabs" aria-label={ i18n.T(ctx, i18n.KeyAdminOrderStatus) }>
+				for _, t := range v.Tabs {
+					<a
+						class="ui-filter"
+						href={ templ.URL("/admin/orders?status=" + string(t.Value)) }
+						if t.Selected {
+							aria-current="page"
+						}
+					>
+						{ t.Label }
+						<span class="ui-filter__count">{ t.CountText() }</span>
+					</a>
+				}
+			</nav>
+		}
+		if v.PageGone {
+			@widget.Notice(widget.NoticeProps{Intent: widget.IntentNeutral}) {
+				{ i18n.T(ctx, i18n.KeyAdminQueuePageGone) }
 			}
-		</nav>
+		}
 		if v.Status == QueuePicking && !v.Searching() {
 			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "/admin/orders/picking/slips") {
 				{ i18n.T(ctx, i18n.KeyAdminPickingSlips) }
@@ -95,26 +116,35 @@ templ Orders(p frame.Page, v View) {
 							<th scope="col">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
+							if v.Working() {
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColWaited) }</th>
+							} else {
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
+							}
 							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
 						</tr>
 					</thead>
 					<tbody>
 						for _, o := range v.Orders {
 							<tr>
-								<td class="goen-admin__cellkey">
-									<a href={ templ.URL("/admin/orders/" + o.Number) }>{ o.Number }</a>
-								</td>
-								<td>
-									<div class="goen-admin__cellbadges">
-										@widget.Badge(widget.BadgeProps{Intent: o.StatusIntent}) {
-											{ o.StatusText }
-										}
-									</div>
-								</td>
-								<td>{ o.RecipientText(ctx) }</td>
+								@queueRowHead(o)
 								<td>{ o.PlacedAt }</td>
 								<td class="goen-admin__cellnum">{ o.Total() }</td>
+							</tr>
+						}
+						for _, w := range v.Work {
+							<tr>
+								@queueRowHead(w.Row)
+								<td class="goen-admin__cellwait">
+									{ w.WaitText(ctx) }
+									if w.Overdue {
+										@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
+											<span aria-hidden="true">▲</span>
+											{ i18n.T(ctx, i18n.KeyAdminOverdue) }
+										}
+									}
+								</td>
+								<td class="goen-admin__cellnum">{ w.Total() }</td>
 							</tr>
 						}
 					</tbody>
