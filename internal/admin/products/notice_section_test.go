@@ -8,6 +8,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -72,7 +73,7 @@ func TestSection_NoticeSitsInItsSection(t *testing.T) {
 // the page does not have, is shown once at the head of the page.
 func TestSection_NoticeOfNoSectionStaysAtTheHead(t *testing.T) {
 	t.Parallel()
-	for _, raw := range []string{"", "bogus", "images", "SPECS", "sec-specs"} {
+	for _, raw := range []string{"", "bogus", "IMAGES", "SPECS", "sec-specs"} {
 		t.Run(raw, func(t *testing.T) {
 			t.Parallel()
 			got := noticeHolders(t, sectionOf(raw))
@@ -116,7 +117,75 @@ func TestSection_FormPostsToItsOwnSection(t *testing.T) {
 			t.Errorf("a form posts to #%s, which is no Section", fragment)
 		}
 	}
-	if withFragment != 5 {
-		t.Errorf("forms posting to a fragment = %d, want 5: details, the two option forms, variants, specs", withFragment)
+	if withFragment != 8 {
+		t.Errorf("forms posting to a fragment = %d, want 8: details, label, invoice, the two option forms, variants, specs, the image upload", withFragment)
 	}
+}
+
+// TestSection_ImageFormsPostToTheImagesSection: every image form posts to the
+// images section, so a refusal (422 at the form's URL) opens where the image is.
+func TestSection_ImageFormsPostToTheImagesSection(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	key := func(c string) string { return strings.Repeat(c, 32) }
+	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Product(frame.Page{Title: "Mug"}, ProductView{
+		Slug: "test", Name: "Mug",
+		Images:  []Image{{Photo: picture.Image{Digest: key("a1")}, Alt: "x"}, {Photo: picture.Image{Digest: key("b2")}, Alt: "y"}},
+		Library: []Image{{Photo: picture.Image{Digest: key("c3")}}},
+		Options: []Option{{ID: "o", Name: "Colour", Values: []OptionValue{{ID: "v", Value: "Red", Option: "Colour"}}}},
+	}))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || n.Data != "form" {
+			continue
+		}
+		action := refusalAttr(n, "action")
+		path, _, _ := strings.Cut(action, "#")
+		if !strings.HasPrefix(path, "/admin/products/test/images") {
+			continue
+		}
+		seen[strings.TrimPrefix(path, "/admin/products/test/images")] = true
+		if !strings.HasSuffix(action, "#sec-images") || !within(n, "sec-images") {
+			t.Errorf("image form %q does not post to the images section it sits in", action)
+		}
+	}
+	for _, kind := range []string{"", "/move", "/option", "/remove", "/reuse"} {
+		if !seen[kind] {
+			t.Errorf("no image form posting to /images%s was drawn", kind)
+		}
+	}
+}
+
+// TestSection_ImageNoticeUnderItsHeading: the notice of an image
+// change (a redirect that names the images section, or the stale-order 422) is
+// drawn right under the images heading, where the form's fragment takes the
+// reader, and not at the head of the page.
+func TestSection_ImageNoticeUnderItsHeading(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ProductView{
+		Slug: "test", Name: "Mug", NoticeIn: SectionImages,
+		Notice: widget.Result{Outcome: widget.OutcomeDone, Text: noticeSentence},
+	}
+	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Product(frame.Page{Title: "Mug"}, view))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || n.Data != "h2" || refusalText(n) != i18n.T(ctx, i18n.KeyAdminProdImages) {
+			continue
+		}
+		next := n.NextSibling
+		for next != nil && (next.Type != html.ElementNode) {
+			next = next.NextSibling
+		}
+		if next == nil || !strings.Contains(refusalText(next), noticeSentence) {
+			t.Error("the image notice does not follow the images heading")
+		}
+		return
+	}
+	t.Error("the page has no images heading")
 }

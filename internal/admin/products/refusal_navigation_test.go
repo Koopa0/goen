@@ -28,6 +28,8 @@ func TestProductRefusalSummary(t *testing.T) {
 				count                 int
 			}{
 				{"details", Product(frame.Page{}, ProductView{Slug: "test", Name: "", Summary: "kept", Errors: map[string]string{"name": bad, "summary": bad}}), "/admin/products/test#sec-details", "sec-details", "p-name", i18n.KeyAdminProdBasics, 2},
+				{"label", Product(frame.Page{}, ProductView{Slug: "test", Errors: map[string]string{"origin": bad, "min_age_months": bad}}), "/admin/products/test/label#sec-label", "sec-label", "label-origin", i18n.KeyProductLabel, 2},
+				{"invoice", Product(frame.Page{}, ProductView{Slug: "test", Errors: map[string]string{"tax_type": bad, "invoice_unit": bad}}), "/admin/products/test/invoice-line#sec-invoice", "sec-invoice", "invoice-tax", i18n.KeyProductInvoiceLine, 2},
 				{"variant", Product(frame.Page{}, ProductView{Slug: "test", VariantDraft: VariantDraft{SKU: "", Price: "wrong"}, Errors: map[string]string{"sku": bad, "price": bad}}), "/admin/products/test/variants#sec-variants", "sec-variants", "v-sku", i18n.KeyAdminProdVariantAdd, 2},
 				{"option", Product(frame.Page{}, ProductView{Slug: "test", Errors: map[string]string{"option": bad}}), "/admin/products/test/options#sec-options", "sec-options", "opt-name", i18n.KeyAdminProdOptionAdd, 1},
 				{"spec", Product(frame.Page{}, ProductView{Slug: "test", Errors: map[string]string{"spec_label": bad, "spec_value": bad}}), "/admin/products/test/specs#sec-specs", "sec-specs", "spec-label", i18n.KeyAdminProdSpecs, 2},

@@ -414,7 +414,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
-	http.Redirect(w, r, "/admin/products/"+slug+"?image=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/products/"+slug+"?image=1"+SectionImages.Query(), http.StatusSeeOther)
 }
 
 func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
@@ -430,7 +430,7 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.WarnContext(r.Context(), "reuse image", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?imageneeds=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?imageneeds=1"+SectionImages.Query(), http.StatusSeeOther)
 		return
 	}
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest,
@@ -447,7 +447,7 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
-	http.Redirect(w, r, "/admin/products/"+slug+"?image=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/products/"+slug+"?image=1"+SectionImages.Query(), http.StatusSeeOther)
 }
 
 func (h *Handler) rejectImageUpload(w http.ResponseWriter, r *http.Request, field string, key i18n.Key) {
@@ -476,11 +476,11 @@ func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrNotThisProductsOption):
 			h.log.WarnContext(r.Context(), "set image option refused", "error", err, "slug", slug)
 			//nolint:gosec // G710: slug is the route's own path value
-			http.Redirect(w, r, "/admin/products/"+slug+"?badoption=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/products/"+slug+"?badoption=1"+SectionImages.Query(), http.StatusSeeOther)
 		case errors.Is(err, ErrRefused):
 			h.log.WarnContext(r.Context(), "set image option refused", "error", err, "slug", slug)
 			//nolint:gosec // G710: slug is the route's own path value
-			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1"+SectionImages.Query(), http.StatusSeeOther)
 		default:
 			h.log.ErrorContext(r.Context(), "set image option", "error", err, "slug", slug)
 			admin.ServerError(w, r, h.log)
@@ -488,7 +488,7 @@ func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
-	http.Redirect(w, r, "/admin/products/"+slug+"?imageopt=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/products/"+slug+"?imageopt=1"+SectionImages.Query(), http.StatusSeeOther)
 }
 
 func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
@@ -505,7 +505,7 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, ErrRefused) {
 			h.log.WarnContext(r.Context(), "detach image refused", "error", err, "slug", slug)
 			//nolint:gosec // G710: slug is the route's own path value
-			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1"+SectionImages.Query(), http.StatusSeeOther)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "detach image", "error", err, "slug", slug)
@@ -513,7 +513,7 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
-	http.Redirect(w, r, "/admin/products/"+slug+"?imageremoved=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/products/"+slug+"?imageremoved=1"+SectionImages.Query(), http.StatusSeeOther)
 }
 
 func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
@@ -526,13 +526,13 @@ func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?imagemoved=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?imagemoved=1"+SectionImages.Query(), http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
 		h.log.WarnContext(r.Context(), "move image refused", "error", err, "slug", slug)
 		h.renderProduct(w, r, http.StatusUnprocessableEntity,
-			widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale)}, "")
+			widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale)}, SectionImages)
 	default:
 		h.log.ErrorContext(r.Context(), "move image", "error", err, "slug", slug)
 		admin.ServerError(w, r, h.log)

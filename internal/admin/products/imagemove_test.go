@@ -23,7 +23,7 @@ func TestProductImagesMoveForms(t *testing.T) {
 		t.Fatal(err)
 	}
 	forms := map[string]int{}
-	re := regexp.MustCompile(`(?s)<form method="post" action="/admin/products/p/images/move">\s*<input type="hidden" name="digest" value="([0-9a-f]+)"/?>\s*<input type="hidden" name="move" value="([a-z]+)"/?>`)
+	re := regexp.MustCompile(`(?s)<form method="post" action="/admin/products/p/images/move#sec-images">\s*<input type="hidden" name="digest" value="([0-9a-f]+)"/?>\s*<input type="hidden" name="move" value="([a-z]+)"/?>`)
 	for _, m := range re.FindAllStringSubmatch(b.String(), -1) {
 		forms[m[1]+" "+m[2]]++
 	}

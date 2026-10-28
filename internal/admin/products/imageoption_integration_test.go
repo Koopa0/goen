@@ -61,8 +61,8 @@ func TestHandler_UploadImageOptionValue(t *testing.T) {
 	req.SetPathValue("slug", slug)
 	res := httptest.NewRecorder()
 	h.UploadImage(res, req)
-	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?image=1" {
-		t.Fatalf("upload answered %d to %q, want 303 to ?image=1", res.Code, res.Header().Get("Location"))
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?image=1"+products.SectionImages.Query() {
+		t.Fatalf("upload answered %d to %q, want 303 to ?image=1&in=images", res.Code, res.Header().Get("Location"))
 	}
 
 	key, shows := theOnlyImageOf(t, slug)
@@ -72,8 +72,8 @@ func TestHandler_UploadImageOptionValue(t *testing.T) {
 
 	for _, want := range []string{blue, ""} {
 		res := postImageOption(t, h, ctx, slug, url.Values{"digest": {key}, "option_value": {want}})
-		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?imageopt=1" {
-			t.Fatalf("setting %q answered %d to %q, want 303 to ?imageopt=1",
+		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?imageopt=1"+products.SectionImages.Query() {
+			t.Fatalf("setting %q answered %d to %q, want 303 to ?imageopt=1&in=images",
 				want, res.Code, res.Header().Get("Location"))
 		}
 		if _, got := theOnlyImageOf(t, slug); got != want {
@@ -113,8 +113,8 @@ func TestStore_AttachImageForeignOption(t *testing.T) {
 		t.Fatalf("attach untagged: %v", err)
 	}
 	res := postImageOption(t, h, ctx, first, url.Values{"digest": {digest}, "option_value": {borrowed}})
-	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+first+"?badoption=1" {
-		t.Fatalf("tagging with another product's value answered %d to %q, want 303 to ?badoption=1",
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+first+"?badoption=1"+products.SectionImages.Query() {
+		t.Fatalf("tagging with another product's value answered %d to %q, want 303 to ?badoption=1&in=images",
 			res.Code, res.Header().Get("Location"))
 	}
 	if _, shows := theOnlyImageOf(t, first); shows != "" {

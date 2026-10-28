@@ -25,13 +25,31 @@ func TestProductLabelRefusedForm(t *testing.T) {
 		if err := productLabel(view).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{`method="post"`, `action="/admin/products/label/label"`, `value="&lt;origin&gt;"`, `value="1.001"`, `value="oz" selected`, `value="217"`, `aria-invalid="true"`, `label-unit-error`, `label-age-error`} {
+		for _, want := range []string{`method="post"`, `action="/admin/products/label/label#sec-label"`, `value="&lt;origin&gt;"`, `value="1.001"`, `value="oz" selected`, `value="217"`, `aria-invalid="true"`, `label-unit-error`, `label-age-error`} {
 			if !strings.Contains(body.String(), want) {
 				t.Errorf("%s: missing %s", locale, want)
 			}
 		}
 		if strings.Contains(body.String(), " required") {
 			t.Error("optional facts became required")
+		}
+	}
+}
+
+// TestProductLabelRefusalWithoutControl: a label refusal that names no control
+// is still summarised, and the summary links to the sentence that states it.
+func TestProductLabelRefusalWithoutControl(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		var body strings.Builder
+		if err := productLabel(ProductView{Slug: "label", Errors: map[string]string{"label": "Refused"}}).Render(ctx, &body); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{`href="#label-error"`, `id="label-error"`, i18n.T(ctx, i18n.KeyProductLabel)} {
+			if !strings.Contains(body.String(), want) {
+				t.Errorf("%s: label refusal lacks %s", locale, want)
+			}
 		}
 	}
 }

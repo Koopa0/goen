@@ -10,12 +10,13 @@ const (
 	SectionDetails  Section = "details"
 	SectionLabel    Section = "label"
 	SectionInvoice  Section = "invoice"
+	SectionImages   Section = "images"
 	SectionOptions  Section = "options"
 	SectionVariants Section = "variants"
 	SectionSpecs    Section = "specs"
 )
 
-var sections = [...]Section{SectionDetails, SectionLabel, SectionInvoice, SectionOptions, SectionVariants, SectionSpecs}
+var sections = [...]Section{SectionDetails, SectionLabel, SectionInvoice, SectionImages, SectionOptions, SectionVariants, SectionSpecs}
 
 // Query is the query a redirect appends to say which section the notice belongs to.
 func (s Section) Query() string { return "&in=" + string(s) }

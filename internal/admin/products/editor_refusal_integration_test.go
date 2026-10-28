@@ -228,7 +228,7 @@ func assertEditorImageControls(t *testing.T, body, slug, attached, library strin
 			}
 		}
 	}
-	for action, digest := range map[string]string{"/admin/products/" + slug + "/images/remove": attached, "/admin/products/" + slug + "/images/reuse": library} {
+	for action, digest := range map[string]string{"/admin/products/" + slug + "/images/remove#sec-images": attached, "/admin/products/" + slug + "/images/reuse#sec-images": library} {
 		found := false
 		for _, got := range controls[action] {
 			if got == digest {
@@ -734,7 +734,7 @@ func TestHandler_UploadImageFailureKinds(t *testing.T) {
 		diagnostics.Reset()
 		res := httptest.NewRecorder()
 		mux.ServeHTTP(res, uploadFailureRequest(t, ctx, path, " Recovered description ", false))
-		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?image=1" {
+		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?image=1"+products.SectionImages.Query() {
 			t.Errorf("recovered image upload = %d to %q, want 303 to the editor", res.Code, res.Header().Get("Location"))
 		}
 		if writes.Calls != 2 || writes.Code != "" || !writes.Live || ctx.Err() != nil {

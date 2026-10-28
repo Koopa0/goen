@@ -30,7 +30,7 @@ func TestProductImagesRemoveButtons(t *testing.T) {
 			field     string
 			want      map[string]string
 		}{
-			{name: "product images", component: productImages(ProductView{Slug: "phone", Images: []Image{{Photo: picture.Image{BundledKey: "front"}, Alt: "Front & side"}, {Photo: picture.Image{BundledKey: "back"}}}}), action: "/admin/products/phone/images/remove", field: "digest", want: map[string]string{"front": "Front & side", "back": "back"}},
+			{name: "product images", component: productImages(ProductView{Slug: "phone", Images: []Image{{Photo: picture.Image{BundledKey: "front"}, Alt: "Front & side"}, {Photo: picture.Image{BundledKey: "back"}}}}), action: "/admin/products/phone/images/remove#sec-images", field: "digest", want: map[string]string{"front": "Front & side", "back": "back"}},
 			{name: "product specifications", component: productSpecs(ProductView{Slug: "phone", Specs: []Spec{{ID: "weight", Label: "Weight <net>", Value: "100g"}, {ID: "width", Label: "Width", Value: "20mm"}}}), action: "/admin/products/phone/specs/remove", field: "spec", want: map[string]string{"weight": "Weight <net>", "width": "Width"}},
 		} {
 			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
