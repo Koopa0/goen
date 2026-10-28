@@ -191,7 +191,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	orderAccess := access.NewStore(pool, secureCookies)
 	basket := cart.NewHandler(cart.NewStore(pool), orderAccess, log, secureCookies, front.StoreMap)
 	checkouts := checkout.NewHandler(checkout.NewStore(pool), basket, orderAccess, log, secureCookies,
-		sessionCloser(front.Payments), front.StoreMap, barcodeChecker)
+		front.Payments, front.StoreMap, barcodeChecker)
 	authn := auth.NewHandler(auth.NewStore(pool), basket, orderAccess, log, secureCookies, front.Google)
 	authn.OfferDemoAccount(front.DemoAccount)
 	// One store decides whether this deployment has a second factor at all, so
@@ -339,13 +339,13 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	checkup := health.NewStore(adminPool).WithInvoicing(invoices.Enabled())
 	payouts := refunds.NewStore(adminPool, refunder, invoices)
 	salesFigures := reports.NewStore(adminPool, stockroom)
-	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoices, invoiceWriter), sessionCloser(gateway), log)
+	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoices, invoiceWriter), gateway, log)
 	landing := dashboard.NewHandler(dashboard.NewStore(adminPool, stockroom, checkup, salesFigures), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(salesFigures, log)
 	warehouse := stock.NewHandler(stockroom, log)
 	catalogueDesk := products.NewHandler(products.NewStore(adminPool), adminImages, log)
-	refundDesk := refunds.NewHandler(payouts, sessionCloser(gateway), log)
+	refundDesk := refunds.NewHandler(payouts, gateway, log)
 	returnDesk := returns.NewHandler(returns.NewStore(adminPool, payouts), log)
 	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap.Enabled(), log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
@@ -408,16 +408,6 @@ func storefrontStepUp(factors *twofactor.Store, storePool *pgxpool.Pool, log *sl
 		return nil
 	}
 	return twofactor.NewHandler(twofactor.NewStore(storePool, nil, nil), log).StepUp
-}
-
-// sessionCloser hands the gateway to the cancel doors, or nothing at all.
-// It returns an explicitly nil interface rather than a nil *Gateway, because a
-// typed nil in an interface is non-nil and each handler's nil check would miss.
-func sessionCloser(g *payment.Gateway) payment.SessionCloser {
-	if g == nil || !g.Enabled() {
-		return nil
-	}
-	return g
 }
 
 // disputeSource is the gateway as the health page's dispute source, or an

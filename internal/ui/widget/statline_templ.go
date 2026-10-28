@@ -8,7 +8,7 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 // The label comes before the figure in the document, so a screen reader hears what is counted first.
-func StatLine(stats []Stat, variant StatLineVariant) templ.Component {
+func StatLine(stats []Stat, layout StatLineLayout) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -29,8 +29,8 @@ func StatLine(stats []Stat, variant StatLineVariant) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		if items := shown(stats, variant); len(items) > 0 {
-			var templ_7745c5c3_Var2 = []any{variant.class()}
+		if items := shown(stats, layout); len(items) > 0 {
+			var templ_7745c5c3_Var2 = []any{layout.class()}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
