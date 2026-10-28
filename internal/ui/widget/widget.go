@@ -14,8 +14,10 @@ package widget
 
 import "github.com/a-h/templ"
 
-// ButtonStyle is a button's weight: one surface shows one primary; the rest are outline or ghost, which
-// stops a page reading as a row of equals. Danger marks an action that moves money or removes access.
+// ButtonStyle is a button's level. Primary (filled) is the one action a surface is for; Secondary (tonal) a step
+// forward that is not; Outline the other way, the way back or a single field's submit; Ghost (text) the least.
+// Danger removes what cannot be brought back, moves money, or removes access. The back office draws these from
+// admin.css and may draw them differently.
 type ButtonStyle string
 
 const (

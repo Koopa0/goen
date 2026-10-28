@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	nethtml "golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -27,6 +29,16 @@ func TestAccountWelcomeKeepsTheOriginalAction(t *testing.T) {
 				if !strings.Contains(body, want) {
 					t.Errorf("registration welcome omits %q", want)
 				}
+			}
+			doc, err := nethtml.Parse(strings.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			back := findDescendant(doc, func(n *nethtml.Node) bool {
+				return n.Type == nethtml.ElementNode && n.Data == "a" && attrValue(n, "href") == "/cart?qty=adjusted&next=%2Fcheckout"
+			})
+			if back == nil || !strings.Contains(attrValue(back, "class"), "goen-btn--secondary") {
+				t.Error("the way back to the original action is not a tonal button")
 			}
 		})
 	}
