@@ -934,6 +934,19 @@ input.goen-check {
   color: var(--fg);
 }
 
+/* The one item with a second line, which has to wrap: nowrap on it carried the
+   count past the rail and into the content column. */
+.goen-admin__nav .ui-navitem:has(.goen-admin__meta) {
+  flex-wrap: wrap;
+  padding-block: 6px;
+  row-gap: 0;
+  white-space: normal;
+}
+
+.goen-admin__nav .goen-admin__meta {
+  flex-basis: 100%;
+}
+
 /* The screen being read, stated by the ARIA attribute the markup already
    carries. A state class beside it would be a second place to disagree. The
    edge is inset so the focus ring, which is drawn outside, never covers it. */
