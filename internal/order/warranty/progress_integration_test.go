@@ -80,7 +80,7 @@ func TestStore_ReadyOwnParcelExpiry(t *testing.T) {
 				}
 				confirmation := warrantyResponseNodes(t, follow.Body.String())["warranty-registered"]
 				text := warrantyResponseText(confirmation)
-				if warrantyResponseAttrs(confirmation)["role"] != "status" || !strings.Contains(text, step.serial) || !strings.Contains(text, step.expires) || !strings.Contains(follow.Body.String(), `href="/account/warranty"`) {
+				if warrantyResponseAttrs(confirmation)["role"] != "status" || !strings.Contains(text, step.serial) || !strings.Contains(text, shownExpiry(t, locale, step.expires)) || !strings.Contains(follow.Body.String(), `href="/account/warranty"`) {
 					t.Fatalf("unit %s confirmation = %q, want serial %q, expiry %s and all-warranties link", step.unit, text, step.serial, step.expires)
 				}
 				if step.unit == "2" && strings.Contains(text, serials[0]) {

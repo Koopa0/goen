@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -16,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/warranty"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -74,6 +76,17 @@ func nextWarrantyGet(t *testing.T, handler http.Handler, f fixture, locale i18n.
 		t.Fatalf("GET %s = %d, want200: %s", target, rec.Code, rec.Body.String())
 	}
 	return rec
+}
+
+// shownExpiry is an expiry as the warranty pages state it: the shop's date text,
+// with the year only when it is not this one.
+func shownExpiry(t *testing.T, locale i18n.Locale, iso string) string {
+	t.Helper()
+	day, ok := shoptime.ParseInputDay(iso)
+	if !ok {
+		t.Fatalf("expiry %q is not a date", iso)
+	}
+	return shoptime.DateText(i18n.WithLocale(t.Context(), locale), shoptime.DateOf(day, time.Now()))
 }
 
 func nextWarrantyPost(t *testing.T, handler http.Handler, f fixture, locale i18n.Locale, unit, serial string) *httptest.ResponseRecorder {
@@ -162,7 +175,7 @@ func TestStore_ReadyReverseArrival(t *testing.T) {
 				}
 				follow := nextWarrantyGet(t, handler, f, locale, response.Header().Get("Location"))
 				confirmation := warrantyResponseText(warrantyResponseNodes(t, follow.Body.String())["warranty-registered"])
-				if !strings.Contains(confirmation, serial) || !strings.Contains(confirmation, step.expiry) {
+				if !strings.Contains(confirmation, serial) || !strings.Contains(confirmation, shownExpiry(t, locale, step.expiry)) {
 					t.Errorf("unit%s confirmation = %q, wantserial%s/expiry%s", step.unit, confirmation, serial, step.expiry)
 				}
 			}
