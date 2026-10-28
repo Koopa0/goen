@@ -22,7 +22,7 @@ func TestOrderNextStepSummary(t *testing.T) {
 		{"refund before other work", OrderView{RefundOpen: true, AllowanceAttention: "attention", AllowanceAwaitingUntil: "2026-10-13 12:00", Unpaid: true, Status: order.FulfillmentPending}, "出貨前退款還沒完成，請在退款區按「繼續退款」。", "The refund before shipment is unfinished; choose “Resume the refund” in the refund section."},
 		{"invoice attention before consent", OrderView{AllowanceAttention: "attention", AllowanceAwaitingUntil: "2026-10-13 12:00", Unpaid: true, Status: order.FulfillmentPending}, "發票折讓需要人工處理，請看發票區。", "The invoice allowance needs staff attention; see the invoice section."},
 		{"consent before payment", OrderView{AllowanceAwaitingUntil: "2026-10-13 12:00", Unpaid: true, Status: order.FulfillmentPending}, "發票折讓等待買方同意，期限 2026-10-13 12:00。", "The invoice allowance awaits the buyer’s consent until 2026-10-13 12:00."},
-		{"unpaid", OrderView{Unpaid: true, Status: order.FulfillmentPending}, "等待顧客付款，付款前無法備貨。", "Waiting for the customer to pay; picking cannot begin before payment."},
+		{"unpaid", OrderView{Unpaid: true, Status: order.FulfillmentPending}, "等待顧客付款，付款前無法備貨。", "Waiting for the customer to pay; packing cannot begin before payment."},
 		{"paid pending", OrderView{Status: order.FulfillmentPending, Next: []Transition{{Value: order.FulfillmentPicking}}}, "已付款，可以開始備貨。", "Paid; packing can begin."},
 		{"pending without a legal picking step", OrderView{Status: order.FulfillmentPending}, "這筆訂單沒有需要處理的事。", "This order needs no further action."},
 		{"picking", OrderView{Status: order.FulfillmentPicking}, "備貨中，出貨時填寫物流與單號。", "Packing is in progress; enter the carrier and tracking number when dispatching."},
@@ -165,7 +165,7 @@ func TestOrderStatusStepForms(t *testing.T) {
 					t.Errorf("%s: the status select remains", locale)
 				}
 				if len(tc.next) > 0 {
-					label, unpaid := "Steps you can take now", "An unpaid order cannot move into picking."
+					label, unpaid := "Steps you can take now", "An unpaid order cannot move into packing."
 					if locale == i18n.ZhHant {
 						label, unpaid = "可進行的下一步", "未付款的訂單無法進入備貨。"
 					}
@@ -196,7 +196,7 @@ func TestOrderUnpaidWarning(t *testing.T) {
 			for _, locale := range i18n.Locales() {
 				view := OrderView{Number: "GO-1", Status: tc.status, Next: []Transition{{Value: tc.next}}}
 				doc := orderStepsDocument(t, renderOrder(t, locale, &view))
-				warning := "An unpaid order cannot move into picking."
+				warning := "An unpaid order cannot move into packing."
 				if locale == i18n.ZhHant {
 					warning = "未付款的訂單無法進入備貨。"
 				}

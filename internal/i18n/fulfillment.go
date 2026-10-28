@@ -235,7 +235,7 @@ var (
 
 	KeyAdminOrderUnpaidStepHint = key("admin.order.unpaidstep.hint", Message{
 		ZhHant: "未付款的訂單無法進入備貨。",
-		En:     "An unpaid order cannot move into picking.",
+		En:     "An unpaid order cannot move into packing.",
 	})
 
 	KeyAdminOrderOtherSteps = key("admin.order.othersteps", Message{
@@ -275,7 +275,7 @@ var (
 
 	KeyAdminOrderNextUnpaid = key("admin.order.next.unpaid", Message{
 		ZhHant: "等待顧客付款，付款前無法備貨。",
-		En:     "Waiting for the customer to pay; picking cannot begin before payment.",
+		En:     "Waiting for the customer to pay; packing cannot begin before payment.",
 	})
 
 	KeyAdminOrderNextPending = key("admin.order.next.pending", Message{
@@ -361,7 +361,7 @@ var (
 
 	KeyAdminNoticeUnfunded = key("admin.notice.unfunded", Message{
 		ZhHant: "這筆訂單還沒收到款項，不能進入備貨。",
-		En:     "This order has not been paid, so it cannot move into picking.",
+		En:     "This order has not been paid, so it cannot move into packing.",
 	})
 
 	KeyAdminNoticeOwesParcel = key("admin.notice.owesparcel", Message{
