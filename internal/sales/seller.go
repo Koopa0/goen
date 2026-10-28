@@ -22,7 +22,8 @@ type Seller struct {
 	RevenueCents int64
 }
 
-// Revenue formats product gross before order-level adjustments; the list labels this separately from total revenue.
+// Revenue formats product gross before order-level adjustments; a list labels
+// it apart from total revenue.
 func (s Seller) Revenue() string { return money.TWD(s.RevenueCents) }
 
 // Facts is the line under the name: the brand, what was sold and for how much.

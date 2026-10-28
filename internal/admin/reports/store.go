@@ -89,10 +89,11 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (View, 
 
 // Recent reads paid orders and revenue over a window of days shop days up to
 // now and over the window before it, cut at the same time of day, in one
-// snapshot so the days add up to the totals. It reads too each of the last
-// twice as many shop days whole, and the window's best sellers. The latest
-// paid order is read last: failing to read it leaves the rest standing,
-// returned with sales.ErrLatestPaid.
+// snapshot so the days add up to the totals. The same snapshot reads every
+// shop day the two windows span, each whole but today, which ends at now, and
+// the current window's best sellers. The latest paid order is read last:
+// failing to read it leaves the rest standing, returned with
+// sales.ErrLatestPaid.
 func (s *Store) Recent(ctx context.Context, days int, now time.Time) (sales.Recent, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {

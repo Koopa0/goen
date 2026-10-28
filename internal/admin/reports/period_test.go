@@ -96,9 +96,9 @@ func TestEndsMidDay(t *testing.T) {
 	}
 }
 
-// TestWholeDays: the days a Recent lays out are the last twice as many shop
-// days, from a midnight to today, whatever the minute now is; an order at
-// 23:59:59 belongs to its day and one at 00:00:00 to the next.
+// TestWholeDays: the days a Recent lays out are the last 2*days shop days,
+// from a midnight to today, whatever the minute now is; an order at 23:59:59
+// belongs to its day and one at 00:00:00 to the next.
 func TestWholeDays(t *testing.T) {
 	t.Parallel()
 
