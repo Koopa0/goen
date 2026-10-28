@@ -36,7 +36,7 @@ func TestStore_MovementsRenamedStaff(t *testing.T) {
 	}
 
 	admintest.RenameUser(t, pool, idA, colleague)
-	view, err := s.Movements(ctx, sku, admintest.DatabaseNow(t, pool))
+	view, err := s.Movements(ctx, sku, admintest.DatabaseNow(t, pool), "")
 	if err != nil {
 		t.Fatalf("Movements: %v", err)
 	}

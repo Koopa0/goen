@@ -42,7 +42,7 @@ type position struct {
 	At time.Time
 }
 
-func (s *Store) Events(ctx context.Context, after ...string) (View, error) {
+func (s *Store) Events(ctx context.Context, after string) (View, error) {
 	const scope = "/admin/audit"
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AuditEvents(ctx, db.AuditEventsParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: maxRows + 1})

@@ -37,7 +37,7 @@ func TestStore_OrderUnsentRefundedUnits(t *testing.T) {
 		if len(view.Shippable) != 1 || view.Shippable[0].Remaining != want {
 			t.Errorf("the ship form offers %+v, want B × %d", view.Shippable, want)
 		}
-		picking, err := desk.Picking(ctx)
+		picking, err := desk.Picking(ctx, "")
 		if err != nil {
 			t.Fatalf("read the picking queue: %v", err)
 		}

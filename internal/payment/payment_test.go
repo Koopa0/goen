@@ -642,6 +642,15 @@ func TestNewGatewayNoKey(t *testing.T) {
 	}
 }
 
+// TestGateway_NilIsDisabled: A nil gateway reports disabled, so a caller that
+// was handed none asks Enabled instead of checking for nil first.
+func TestGateway_NilIsDisabled(t *testing.T) {
+	var g *payment.Gateway
+	if g.Enabled() {
+		t.Error("a nil gateway reports enabled")
+	}
+}
+
 // TestCaptureFromPaymentIntent: A checkout event names the intent and not its
 // charge.
 func TestCaptureFromPaymentIntent(t *testing.T) {

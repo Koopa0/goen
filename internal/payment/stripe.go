@@ -94,6 +94,16 @@ func NewGateway(apiKey, webhookSecret, baseURL string) (*Gateway, error) {
 	return newGateway(apiKey, webhookSecret, baseURL, &stripe.BackendConfig{})
 }
 
+// NewGatewayAt is NewGateway against a Stripe stand-in at stripeURL, through
+// the production HTTP client and with no network retries, so one refused
+// request is one request. Tests in other packages use it; the server does not.
+func NewGatewayAt(apiKey, webhookSecret, baseURL, stripeURL string) (*Gateway, error) {
+	noRetries := int64(0)
+	return newGateway(apiKey, webhookSecret, baseURL, &stripe.BackendConfig{
+		URL: stripe.String(stripeURL), MaxNetworkRetries: &noRetries,
+	})
+}
+
 func newGateway(apiKey, webhookSecret, baseURL string, backend *stripe.BackendConfig) (*Gateway, error) {
 	if apiKey == "" {
 		return &Gateway{baseURL: baseURL}, nil
@@ -114,7 +124,8 @@ func newGateway(apiKey, webhookSecret, baseURL string, backend *stripe.BackendCo
 	}, nil
 }
 
-func (g *Gateway) Enabled() bool { return g.client != nil }
+// Enabled reports whether a Stripe key is configured. A nil Gateway is disabled.
+func (g *Gateway) Enabled() bool { return g != nil && g.client != nil }
 
 func (g *Gateway) Sandbox() bool { return g.sandbox }
 

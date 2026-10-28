@@ -649,6 +649,7 @@ templ productReviews(v *ProductView) {
 								}
 								<span class="goen-pdp__reviewstars" aria-hidden="true">
 									@ratingStars(r.Rating * 2)
+									<span class="goen-pdp__reviewscore">{ r.RatingText() }</span>
 								</span>
 								if r.Verified {
 									@widget.Badge(widget.BadgeProps{}) {

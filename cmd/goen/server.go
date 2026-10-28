@@ -364,7 +364,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	tierDesk := tiers.NewHandler(tiers.NewStore(adminPool), log)
 	creditDesk := credits.NewHandler(credits.NewStore(adminPool), log)
 	workers := health.NewHandler(checkup, outbox.NewStore(adminPool, log),
-		healthPools, disputeSource(gateway), log)
+		healthPools, gateway, log)
 
 	// The back office. A signed-in customer gets a 404 rather than a 403, which
 	// would confirm that /admin is a real place.
@@ -408,15 +408,6 @@ func storefrontStepUp(factors *twofactor.Store, storePool *pgxpool.Pool, log *sl
 		return nil
 	}
 	return twofactor.NewHandler(twofactor.NewStore(storePool, nil, nil), log).StepUp
-}
-
-// disputeSource is the gateway as the health page's dispute source, or an
-// explicitly nil interface when Stripe is not configured.
-func disputeSource(g *payment.Gateway) health.DisputeSource {
-	if g == nil || !g.Enabled() {
-		return nil
-	}
-	return g
 }
 
 // poolsOnHealthPage names the pools whose statistics /admin/health shows. A nil
