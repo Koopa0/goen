@@ -1,6 +1,7 @@
 package orders
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -104,6 +105,73 @@ func TestBatchReason(t *testing.T) {
 
 // post sends the form to the handler with a store that is never reached: every
 // request here is answered before the database is asked anything.
+// A failure partway through leaves the orders before it committed: the answer
+// names the one that got no answer and the ones never tried, and counts those
+// that did start.
+func TestStartPacking_StopsAtAFailure(t *testing.T) {
+	t.Parallel()
+	nums := []string{numberN(1), numberN(2), numberN(3), numberN(4), numberN(5)}
+	timedOut := &pgconn.PgError{Code: "55P03"}
+	var tried []string
+	advance := func(_ context.Context, number string) error {
+		tried = append(tried, number)
+		switch number {
+		case nums[1]:
+			return fmt.Errorf("%w: %w", ErrRefused, &pgconn.PgError{Code: "23514", ConstraintName: "orders_funded_to_leave_pending"})
+		case nums[2]:
+			return fmt.Errorf("lock order: %w", timedOut)
+		}
+		return nil
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	batch := startPacking(ctx, slog.New(slog.DiscardHandler), nums, advance)
+
+	if !slices.Equal(tried, nums[:3]) {
+		t.Errorf("tried %v, want the loop to stop at the third", tried)
+	}
+	if !batch.Interrupted || batch.OthersStarted != 1 {
+		t.Errorf("interrupted %t, started %d, want true and 1", batch.Interrupted, batch.OthersStarted)
+	}
+	want := []BatchRefusal{
+		{nums[1], "還沒付清"},
+		{nums[2], "沒有回應，請再按一次「開始備貨」。"},
+		{nums[3], "還沒處理"},
+		{nums[4], "還沒處理"},
+	}
+	if !slices.Equal(batch.Refused, want) {
+		t.Errorf("refused = %v, want %v", batch.Refused, want)
+	}
+
+	zh := renderComponent(t, ctx, Orders(Meta(ctx), func() View { v := workView(QueueReady, nums...); v.Batch = batch; return v }()))
+	for _, line := range []string{
+		nums[1] + "：還沒付清", nums[2] + "：沒有回應，請再按一次「開始備貨」。",
+		nums[3] + "：還沒處理", nums[4] + "：還沒處理", "其他 1 筆已開始備貨。",
+	} {
+		if !strings.Contains(zh, line) {
+			t.Errorf("zh-Hant page lacks %q", line)
+		}
+	}
+	enCtx := i18n.WithLocale(t.Context(), i18n.En)
+	en := startPacking(enCtx, slog.New(slog.DiscardHandler), nums, advance)
+	if got := en.Refused[1].Reason; got != "No answer; press Start packing again." {
+		t.Errorf("en reason = %q", got)
+	}
+}
+
+func TestStartPacking_NoFailureNoStop(t *testing.T) {
+	t.Parallel()
+	nums := []string{numberN(1), numberN(2)}
+	batch := startPacking(t.Context(), slog.New(slog.DiscardHandler), nums, func(_ context.Context, number string) error {
+		if number == nums[0] {
+			return fmt.Errorf("%w: %w", ErrAlreadyThere, ErrRefused)
+		}
+		return nil
+	})
+	if batch.Interrupted || len(batch.Refused) != 0 || batch.OthersStarted != 2 {
+		t.Errorf("batch = %+v, want two started and nothing refused", batch)
+	}
+}
+
 func postBatch(t *testing.T, values url.Values) *httptest.ResponseRecorder {
 	t.Helper()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/orders/picking", strings.NewReader(values.Encode()))
@@ -315,7 +383,7 @@ func TestOrdersBatchRefusalNames(t *testing.T) {
 		}
 	}
 	none := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Orders(Meta(t.Context()), workView(QueueReady, one)))
-	if strings.Contains(none, "goen-admin__refusal") {
+	if strings.Contains(none, "goen-admin__refusals") {
 		t.Error("a batch nobody refused drew a refusal")
 	}
 }

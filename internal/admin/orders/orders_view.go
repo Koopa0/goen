@@ -53,9 +53,12 @@ func (w WorkRow) WaitText(ctx context.Context) string {
 
 // BatchResult is what a batch left behind when the database refused some of
 // its orders: those orders and why, and how many of the others did start.
+// Interrupted means the database stopped answering partway, so Refused also
+// holds the order that got no answer and the ones never tried.
 type BatchResult struct {
 	Refused       []BatchRefusal
 	OthersStarted int64
+	Interrupted   bool
 }
 
 type BatchRefusal struct {

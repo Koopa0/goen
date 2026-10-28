@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/koopa0/goen/internal/admin"
@@ -60,25 +61,13 @@ func (h *Handler) StartPicking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var batch BatchResult
-	var started int64
-	for _, number := range numbers {
+	batch := startPacking(ctx, h.log, numbers, func(ctx context.Context, number string) error {
 		sessions, advErr := h.store.Advance(ctx, number, order.FulfillmentPicking, audit.ActorID(ctx))
-		switch {
-		case advErr == nil:
+		if advErr == nil {
 			payment.CloseSessions(ctx, h.payments, h.log, number, sessions)
-			started++
-		case errors.Is(advErr, ErrAlreadyThere):
-			started++
-		case classifyAdvance(advErr) == advanceFailed:
-			h.log.ErrorContext(ctx, "advance order", "order", number, "error", advErr)
-			admin.ServerError(w, r, h.log)
-			return
-		default:
-			h.log.WarnContext(ctx, "order transition refused", "order", number, "error", advErr)
-			batch.Refused = append(batch.Refused, BatchRefusal{Number: number, Reason: batchReason(ctx, advErr)})
 		}
-	}
+		return advErr
+	})
 	if len(batch.Refused) == 0 {
 		http.Redirect(w, r, "/admin/orders?status=picking&started=1", http.StatusSeeOther)
 		return
@@ -86,7 +75,6 @@ func (h *Handler) StartPicking(w http.ResponseWriter, r *http.Request) {
 
 	// The orders that did start are committed; the page says so rather than
 	// carrying their numbers in a redirect.
-	batch.OthersStarted = started
 	view, err := h.store.List(ctx, QueueReady, "", "")
 	if err != nil {
 		h.log.ErrorContext(ctx, "read orders after a refused batch", "error", err)
@@ -94,7 +82,39 @@ func (h *Handler) StartPicking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Batch = batch
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Orders(Meta(ctx), view))
+	status := http.StatusUnprocessableEntity
+	if batch.Interrupted {
+		status = http.StatusServiceUnavailable
+	}
+	respond.Component(w, r, h.log, status, Orders(Meta(ctx), view))
+}
+
+// startPacking advances each number in turn. A refusal is that order's answer
+// and the loop goes on. An advance that fails is the database not answering, so
+// the loop stops there: the orders before it are committed, the ones after are
+// left untried, and pressing the button again starts them, because an order
+// already being packed counts as started.
+func startPacking(ctx context.Context, log *slog.Logger, numbers []string, advance func(context.Context, string) error) BatchResult {
+	var batch BatchResult
+	for i, number := range numbers {
+		advErr := advance(ctx, number)
+		switch {
+		case advErr == nil, errors.Is(advErr, ErrAlreadyThere):
+			batch.OthersStarted++
+		case classifyAdvance(advErr) == advanceFailed:
+			log.ErrorContext(ctx, "advance order", "order", number, "error", advErr, "started", batch.OthersStarted)
+			batch.Interrupted = true
+			batch.Refused = append(batch.Refused, BatchRefusal{Number: number, Reason: i18n.T(ctx, i18n.KeyAdminBatchReasonNoAnswer)})
+			for _, rest := range numbers[i+1:] {
+				batch.Refused = append(batch.Refused, BatchRefusal{Number: rest, Reason: i18n.T(ctx, i18n.KeyAdminBatchReasonNotTried)})
+			}
+			return batch
+		default:
+			log.WarnContext(ctx, "order transition refused", "order", number, "error", advErr)
+			batch.Refused = append(batch.Refused, BatchRefusal{Number: number, Reason: batchReason(ctx, advErr)})
+		}
+	}
+	return batch
 }
 
 // batchReason is why an order was left as it was, in the words a packer can act on.

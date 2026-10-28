@@ -20,6 +20,8 @@ var (
 	KeyAdminBatchReasonCancelled = key("admin.batch.reason.cancelled", Message{ZhHant: "已取消", En: "Cancelled"})
 	KeyAdminBatchReasonUnpaid    = key("admin.batch.reason.unpaid", Message{ZhHant: "還沒付清", En: "Not paid yet"})
 	KeyAdminBatchReasonChanged   = key("admin.batch.reason.changed", Message{ZhHant: "狀態已經變了", En: "Its status has changed"})
+	KeyAdminBatchReasonNoAnswer  = key("admin.batch.reason.noanswer", Message{ZhHant: "沒有回應，請再按一次「開始備貨」。", En: "No answer; press Start packing again."})
+	KeyAdminBatchReasonNotTried  = key("admin.batch.reason.nottried", Message{ZhHant: "還沒處理", En: "Not tried yet"})
 
 	KeyAdminBatchOthersStarted = countKey("admin.batch.othersstarted",
 		"其他 %d 筆已開始備貨。",

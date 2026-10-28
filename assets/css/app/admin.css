@@ -1494,8 +1494,9 @@ tr:has(.goen-admin__pick input:checked) td {
   background: var(--accent-faint);
 }
 
-.goen-admin__refusal {
-  display: block;
+.goen-admin__refusals {
+  margin: 4px 0;
+  padding-inline-start: 1.25em;
 }
 
 /* A cell of controls stays a table cell: display:flex on a <td> takes the

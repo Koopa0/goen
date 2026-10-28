@@ -121,11 +121,13 @@ templ batchRefusal(b BatchResult) {
 	if len(b.Refused) > 0 {
 		@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 			<strong class="goen-notice__lead">{ i18n.T(ctx, i18n.KeyAdminBatchRefused) }</strong>
-			for _, r := range b.Refused {
-				<span class="goen-admin__refusal">{ r.RefusalText(ctx) }</span>
-			}
+			<ul class="goen-admin__refusals">
+				for _, r := range b.Refused {
+					<li>{ r.RefusalText(ctx) }</li>
+				}
+			</ul>
 			if b.OthersStarted > 0 {
-				<span class="goen-admin__refusal">{ i18n.Count(ctx, i18n.KeyAdminBatchOthersStarted, b.OthersStarted, b.OthersStarted) }</span>
+				<p>{ i18n.Count(ctx, i18n.KeyAdminBatchOthersStarted, b.OthersStarted, b.OthersStarted) }</p>
 			}
 		}
 	}

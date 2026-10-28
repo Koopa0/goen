@@ -72,8 +72,6 @@ func pickingSnapshot(ctx context.Context, q *db.Queries, after string, numbers [
 	var resumed bool
 	if !selected {
 		from, resumed = keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
-		// An empty list, not nil: pgx sends nil as NULL.
-		numbers = []string{}
 	}
 	rows, err := q.PickingSlips(ctx, db.PickingSlipsParams{
 		HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit,

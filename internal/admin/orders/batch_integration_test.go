@@ -14,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
@@ -119,6 +120,43 @@ func TestHandler_StartPickingRefusals(t *testing.T) {
 	}
 }
 
+// TestHandler_StartPickingLockTimeout: an order whose row another desk holds
+// stops the batch with a 503 of the ready tab, not a bare 500. The order before
+// it has started, the held one is named with the try-again reason, and the one
+// after it is named as not tried and is still waiting.
+// Mutation left to CI: answer admin.ServerError when Advance fails.
+func TestHandler_StartPickingLockTimeout(t *testing.T) {
+	s := admintest.OrderStore(admintest.LockTimeoutPool(t, pool), admintest.HealthyGateway(t), nil, nil)
+	a, aID := readyOrder(t)
+	held, heldID := readyOrder(t)
+	c, cID := readyOrder(t)
+	admintest.HoldRow(t, pool, `SELECT 1 FROM orders WHERE order_number = $1 FOR UPDATE`, held)
+
+	w := postPicking(t, s, i18n.En, a, held, c)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("batch behind a held row = %d, want 503", w.Code)
+	}
+	body := w.Body.String()
+	for _, want := range []string{
+		held + ": No answer; press Start packing again.",
+		c + ": Not tried yet",
+		"The other 1 order has started packing.",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page lacks %q", want)
+		}
+	}
+	if got := admintest.FulfillmentOf(t, pool, aID); got != string(order.FulfillmentPicking) {
+		t.Errorf("the order before the held one = %q, want picking", got)
+	}
+	if got := admintest.FulfillmentOf(t, pool, cID); got == string(order.FulfillmentPicking) {
+		t.Errorf("the order after the held one = %q, want it untried", got)
+	}
+	if got := admintest.FulfillmentOf(t, pool, heldID); got == string(order.FulfillmentPicking) {
+		t.Errorf("the held order = %q, want it unchanged", got)
+	}
+}
+
 func sep(l i18n.Locale) string {
 	if l == i18n.ZhHant {
 		return "："
@@ -161,16 +199,25 @@ func TestStore_AdvanceAlreadyThere(t *testing.T) {
 	if !errors.Is(err, orders.ErrAlreadyThere) || !errors.Is(err, orders.ErrRefused) {
 		t.Errorf("second move = %v, want ErrAlreadyThere and ErrRefused", err)
 	}
-	_, err = s.Advance(ctx, admintest.PlaceUnpaidOrder(t, pool), order.FulfillmentShipped, uuid.NullUUID{})
-	if errors.Is(err, orders.ErrAlreadyThere) || errors.Is(err, orders.ErrCancelled) {
-		t.Errorf("an illegal move = %v, not already there or cancelled", err)
+	_, err = s.Advance(ctx, admintest.PlaceUnpaidOrder(t, pool), order.FulfillmentDelivered, uuid.NullUUID{})
+	if !errors.Is(err, orders.ErrRefused) || !db.IsConstraint(err, "orders_legal_transition") ||
+		errors.Is(err, orders.ErrAlreadyThere) || errors.Is(err, orders.ErrCancelled) {
+		t.Errorf("an illegal move out of a live order = %v, want a refusal by orders_legal_transition, not already there or cancelled", err)
+	}
+	cancelled := admintest.PlaceUnpaidOrder(t, pool)
+	if _, cancelErr := s.Advance(ctx, cancelled, order.FulfillmentCancelled, uuid.NullUUID{}); cancelErr != nil {
+		t.Fatal(cancelErr)
+	}
+	_, err = s.Advance(ctx, cancelled, order.FulfillmentPicking, uuid.NullUUID{})
+	if !errors.Is(err, orders.ErrCancelled) || !errors.Is(err, orders.ErrRefused) {
+		t.Errorf("a move out of a cancelled order = %v, want ErrCancelled and ErrRefused", err)
 	}
 }
 
-// TestHandler_PickingSlipsSelection: the slips and totals are of the named
+// TestStore_PickingOf: the slips and totals are of the named
 // orders only; a cursor in the request does nothing, and there is no next page.
 // Mutation left to CI: drop the numbers condition from PickingTotals.
-func TestHandler_PickingSlipsSelection(t *testing.T) {
+func TestStore_PickingOf(t *testing.T) {
 	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	ctx, _ := admintest.StaffContext(t, pool)
 	var picking [3]string
