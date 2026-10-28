@@ -96,4 +96,12 @@ var (
 	})
 
 	KeyAdminQWaiting = key("admin.question.waiting", Message{ZhHant: "待回覆", En: "Awaiting an answer"})
+
+	KeyAdminNoticeQuestionAnswered = key("admin.notice.question.answered", Message{ZhHant: "已送出回覆。", En: "Reply sent."})
+
+	KeyAdminNoticeQuestionHidden = key("admin.notice.question.hidden", Message{ZhHant: "已隱藏提問。", En: "Question hidden."})
+
+	KeyAdminNoticeQuestionShown = key("admin.notice.question.shown", Message{ZhHant: "已重新顯示提問。", En: "Question shown again."})
+
+	KeyAdminNoticeAnswerWithdrawn = key("admin.notice.answer.withdrawn", Message{ZhHant: "已撤下回覆。", En: "Reply withdrawn."})
 )
