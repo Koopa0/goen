@@ -145,11 +145,15 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	done := "/admin/coupons?off=1"
+	http.Redirect(w, r, activeTarget(active), http.StatusSeeOther)
+}
+
+// activeTarget is where a write that took goes: the page says which change it was.
+func activeTarget(active bool) string {
 	if active {
-		done = "/admin/coupons?on=1"
+		return "/admin/coupons?on=1"
 	}
-	http.Redirect(w, r, done, http.StatusSeeOther)
+	return "/admin/coupons?off=1"
 }
 
 func whole(s string) (int64, bool) {

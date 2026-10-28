@@ -173,11 +173,7 @@ func (h *Handler) SetHeroActive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	active := r.PostFormValue("active") == "true"
-	done := "/admin/slides?off=1"
-	if active {
-		done = "/admin/slides?on=1"
-	}
-	h.answerRowWrite(w, r, "toggle hero slide", "/admin/slides", done,
+	h.answerRowWrite(w, r, "toggle hero slide", "/admin/slides", activeTarget(active),
 		h.store.SetHeroSlideActive(r.Context(), r.PathValue("id"), active))
 }
 
@@ -187,4 +183,12 @@ func (h *Handler) PromoteHero(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.answerRowWrite(w, r, "promote hero slide", "/admin/slides", "/admin/slides?promoted=1", h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")))
+}
+
+// activeTarget is where a write that took goes: the page says which change it was.
+func activeTarget(active bool) string {
+	if active {
+		return "/admin/slides?on=1"
+	}
+	return "/admin/slides?off=1"
 }

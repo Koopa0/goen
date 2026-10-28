@@ -85,11 +85,7 @@ func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	active := r.PostFormValue("active") == "1"
-	done := "/admin/banners?off=1"
-	if active {
-		done = "/admin/banners?on=1"
-	}
-	h.answerRowWrite(w, r, "toggle promo banner", "/admin/banners", done,
+	h.answerRowWrite(w, r, "toggle promo banner", "/admin/banners", activeTarget(active),
 		h.store.SetBannerActive(r.Context(), r.PathValue("id"), active))
 }
 
@@ -128,4 +124,12 @@ func (h *Handler) rejectBanner(
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Banners(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminHomeBanner)}, &view))
+}
+
+// activeTarget is where a write that took goes: the page says which change it was.
+func activeTarget(active bool) string {
+	if active {
+		return "/admin/banners?on=1"
+	}
+	return "/admin/banners?off=1"
 }

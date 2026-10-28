@@ -135,10 +135,8 @@ func (h *Handler) SetMethodActive(w http.ResponseWriter, r *http.Request) {
 	active := r.PostFormValue("active") == "1"
 	err := h.store.SetMethodActive(r.Context(), r.PathValue("id"), active)
 	switch {
-	case err == nil && active:
-		http.Redirect(w, r, "/admin/shipping?on=1", http.StatusSeeOther)
 	case err == nil:
-		http.Redirect(w, r, "/admin/shipping?off=1", http.StatusSeeOther)
+		http.Redirect(w, r, activeTarget(active), http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "toggle shipping method", "error", err)
 		admin.NotFound(w, r, h.log)
@@ -417,4 +415,12 @@ func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, messag
 	view.Errors = map[string]string{"surcharge": message}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueShipping)}, view))
+}
+
+// activeTarget is where a write that took goes: the page says which change it was.
+func activeTarget(active bool) string {
+	if active {
+		return "/admin/shipping?on=1"
+	}
+	return "/admin/shipping?off=1"
 }

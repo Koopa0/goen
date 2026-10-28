@@ -257,10 +257,9 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := r.PathValue("slug")
 	var err error
-	done := "?featured=1"
-	if r.PostFormValue("action") == "remove" {
+	remove := r.PostFormValue("action") == "remove"
+	if remove {
 		err = h.store.UnfeatureProduct(r.Context(), slug, r.PostFormValue("product"))
-		done = "?unfeatured=1"
 	} else {
 		err = h.store.FeatureProduct(r.Context(), slug, r.PostFormValue("product"))
 	}
@@ -268,7 +267,7 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, back+done, http.StatusSeeOther)
+		http.Redirect(w, r, back+featuredQuery(remove), http.StatusSeeOther)
 	case db.IsConstraint(err, "sale_campaign_needs_discount"):
 		h.log.WarnContext(r.Context(), "feature product", "campaign", slug, "error", err)
 		//nolint:gosec // G710: slug is the route's own path value
@@ -295,10 +294,8 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 	}
 	active := r.PostFormValue("active") == "true"
 	switch err := h.store.SetActive(r.Context(), slug, active); {
-	case err == nil && active:
-		http.Redirect(w, r, back+"?on=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 	case err == nil:
-		http.Redirect(w, r, back+"?off=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
+		http.Redirect(w, r, back+activeQuery(active), http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "set campaign active", "campaign", slug, "error", err)
 		admin.NotFound(w, r, h.log)
@@ -324,4 +321,20 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 		h.log.ErrorContext(r.Context(), "campaign image upload", "error", err, "slug", r.PathValue("slug"))
 		admin.ServerError(w, r, h.log)
 	}
+}
+
+// featuredQuery is what a write that took adds to the campaign's address: the page says which change it was.
+func featuredQuery(removed bool) string {
+	if removed {
+		return "?unfeatured=1"
+	}
+	return "?featured=1"
+}
+
+// activeQuery is what a write that took adds to the page's address: the page says which change it was.
+func activeQuery(active bool) string {
+	if active {
+		return "?on=1"
+	}
+	return "?off=1"
 }

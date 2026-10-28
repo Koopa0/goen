@@ -104,10 +104,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		view.Draft = TaxonDraft(typed)
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Taxonomy(
 			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueTaxonomy)}, &view))
-	case kind == "categories":
-		http.Redirect(w, r, "/admin/taxonomy?catadded=1", http.StatusSeeOther)
 	default:
-		http.Redirect(w, r, "/admin/taxonomy?brandadded=1", http.StatusSeeOther)
+		http.Redirect(w, r, addedTarget(kind), http.StatusSeeOther)
 	}
 }
 
@@ -133,14 +131,8 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 			r.PostFormValue("comparable") != "")
 	}
 	switch {
-	case err == nil && kind == "category" && deleted:
-		http.Redirect(w, r, "/admin/taxonomy?catdeleted=1", http.StatusSeeOther)
-	case err == nil && kind == "category":
-		http.Redirect(w, r, "/admin/taxonomy?catsaved=1", http.StatusSeeOther)
-	case err == nil && deleted:
-		http.Redirect(w, r, "/admin/taxonomy?branddeleted=1", http.StatusSeeOther)
 	case err == nil:
-		http.Redirect(w, r, "/admin/taxonomy?brandsaved=1", http.StatusSeeOther)
+		http.Redirect(w, r, editedTarget(kind, deleted), http.StatusSeeOther)
 	case errors.Is(err, ErrInUse):
 		http.Redirect(w, r, "/admin/taxonomy?inuse=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalid):
@@ -245,5 +237,27 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 	default:
 		h.log.ErrorContext(r.Context(), "category image upload", "error", err, "slug", r.PathValue("slug"))
 		admin.ServerError(w, r, h.log)
+	}
+}
+
+// addedTarget is where a create that took goes; kind is the route's own, "categories" or brands.
+func addedTarget(kind string) string {
+	if kind == "categories" {
+		return "/admin/taxonomy?catadded=1"
+	}
+	return "/admin/taxonomy?brandadded=1"
+}
+
+// editedTarget is where a rename or delete that took goes; kind is "category" or "brand".
+func editedTarget(kind string, deleted bool) string {
+	switch {
+	case kind == "category" && deleted:
+		return "/admin/taxonomy?catdeleted=1"
+	case kind == "category":
+		return "/admin/taxonomy?catsaved=1"
+	case deleted:
+		return "/admin/taxonomy?branddeleted=1"
+	default:
+		return "/admin/taxonomy?brandsaved=1"
 	}
 }

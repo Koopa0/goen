@@ -260,10 +260,8 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 	active := r.PostFormValue("active") == "1"
 	err := h.store.SetActive(r.Context(), sku, active)
 	switch {
-	case err == nil && active:
-		http.Redirect(w, r, back+"?on=1", http.StatusSeeOther)
 	case err == nil:
-		http.Redirect(w, r, back+"?off=1", http.StatusSeeOther)
+		http.Redirect(w, r, back+activeQuery(active), http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "variant activation refused",
 			"sku", sku, "error", err)
@@ -386,4 +384,12 @@ func (h *Handler) SetArrival(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "set variant arrival", "error", err)
 		admin.ServerError(w, r, h.log)
 	}
+}
+
+// activeQuery is what a write that took adds to the SKU page's address: the page says which change it was.
+func activeQuery(active bool) string {
+	if active {
+		return "?on=1"
+	}
+	return "?off=1"
 }
