@@ -189,7 +189,7 @@ func (v *View) SalesSentence(ctx context.Context) string {
 }
 
 func Meta(ctx context.Context) frame.Page {
-	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminQueueDashboardTitle)}
 }
 
 // dashboardRunwayRows is how many of the days cover rows the dashboard lists.
