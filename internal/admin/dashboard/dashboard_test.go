@@ -192,21 +192,21 @@ func TestView_DeskTasksCountShopDays(t *testing.T) {
 }
 
 // TestView_DeskTasksOverdue holds the line past which a paid order waiting to be
-// packed is late: order.PackWithinDays shop days, no sooner. Only the two order
+// packed is late: order.PickWithinDays shop days, no sooner. Only the two order
 // tasks have such a line.
-// Mutation: PackingOverdue with >= turns the day-at-the-line case red; marking
+// Mutation: PickingOverdue with >= turns the day-at-the-line case red; marking
 // every task turns the returns case red.
 func TestView_DeskTasksOverdue(t *testing.T) {
 	t.Parallel()
 	now := shopNoon(t, 2026, time.October, 29)
 	ago := func(days int) time.Time { return now.AddDate(0, 0, -days) }
-	for _, days := range []int{order.PackWithinDays - 1, order.PackWithinDays, order.PackWithinDays + 1} {
+	for _, days := range []int{order.PickWithinDays - 1, order.PickWithinDays, order.PickWithinDays + 1} {
 		v := &View{
 			ReadyOrders: 1, ReadyOldestSince: ago(days),
 			PickingOrders: 1, PickingOldestSince: ago(days),
 			PendingReturns: 1, PendingReturnsOldestSince: ago(days + 10),
 		}
-		want := days > order.PackWithinDays
+		want := days > order.PickWithinDays
 		for _, task := range v.DeskTasks(now) {
 			orderTask := task.Label == i18n.KeyAdminStatusReadyToPick || task.Label == i18n.KeyAdminStatusPicking
 			if task.Overdue != (orderTask && want) {
@@ -382,14 +382,14 @@ func TestView_SalesCaption(t *testing.T) {
 	}
 }
 
-// TestDashboardSellers: the best sellers of the week are drawn as the report
+// TestDashboardBestSellers: the best sellers of the week are drawn as the report
 // draws them; a week that could not be read does not say nothing was sold.
-func TestDashboardSellers(t *testing.T) {
+func TestDashboardBestSellers(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	render := func(v View) string { return renderComponent(t, ctx, Dashboard(Meta(ctx), v)) }
-	one := sales.Seller{Slug: "mug", Name: "馬克杯", Units: 3, RevenueCents: 90000}
-	two := sales.Seller{Slug: "pot", Name: "茶壺", Units: 1, RevenueCents: 50000}
+	one := sales.BestSeller{Slug: "mug", Name: "馬克杯", Units: 3, RevenueCents: 90000}
+	two := sales.BestSeller{Slug: "pot", Name: "茶壺", Units: 1, RevenueCents: 50000}
 	empty := i18n.Count(ctx, i18n.KeyAdminQueueSellersNone, WeekDays, WeekDays)
 
 	if html := render(View{}); !strings.Contains(html, empty) || strings.Contains(html, "goen-report__rows") {
@@ -398,11 +398,11 @@ func TestDashboardSellers(t *testing.T) {
 	if html := render(View{WeekUnavailable: true}); strings.Contains(html, empty) {
 		t.Error("a week that could not be read says nothing was sold")
 	}
-	html := render(View{Sellers: []sales.Seller{one}})
+	html := render(View{BestSellers: []sales.BestSeller{one}})
 	if !strings.Contains(html, `href="/admin/products/mug"`) || strings.Contains(html, "goen-chartbar") {
 		t.Error("one seller is not a link to its product, or is drawn against nothing")
 	}
-	if html := render(View{Sellers: []sales.Seller{one, two}}); strings.Count(html, "goen-chartbar") < 2 {
+	if html := render(View{BestSellers: []sales.BestSeller{one, two}}); strings.Count(html, "goen-chartbar") < 2 {
 		t.Error("two sellers are not drawn as bars")
 	}
 }

@@ -109,7 +109,7 @@ func TestReportListSkeleton(t *testing.T) {
 	stock := renderComponent(t, ctx, stockrisk.Rows([]stockrisk.Row{{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow}}}}, 0, 30))
 	report := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
-		Sellers: []sales.Seller{{Slug: "a", Name: "Alpha", Brand: "Aurora", Units: 40}, {Slug: "b", Name: "Beta", Units: 10}},
+		BestSellers: []sales.BestSeller{{Slug: "a", Name: "Alpha", Brand: "Aurora", Units: 40}, {Slug: "b", Name: "Beta", Units: 10}},
 	}))
 	for name, markup := range map[string]string{"stock": stock, "best sellers": report} {
 		for _, want := range []string{

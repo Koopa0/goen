@@ -113,7 +113,7 @@ func (s *Store) Recent(ctx context.Context, days int, now time.Time) (sales.Rece
 	if recent.Days, err = readWholeDays(ctx, q, now, days); err != nil {
 		return sales.Recent{}, err
 	}
-	if recent.Sellers, err = readSellers(ctx, q, current, sales.RecentSellers); err != nil {
+	if recent.BestSellers, err = readBestSellers(ctx, q, current, sales.RecentBestSellers); err != nil {
 		return sales.Recent{}, err
 	}
 
@@ -178,16 +178,16 @@ func readWholeDays(ctx context.Context, q *db.Queries, now time.Time, days int) 
 	return whole, nil
 }
 
-// readSellers is the period's best sellers, at most limit of them.
-func readSellers(ctx context.Context, q *db.Queries, p period, limit int32) ([]sales.Seller, error) {
+// readBestSellers is the period's best sellers, at most limit of them.
+func readBestSellers(ctx context.Context, q *db.Queries, p period, limit int32) ([]sales.BestSeller, error) {
 	rows, err := q.BestSellersBetween(ctx, db.BestSellersBetweenParams{FromAt: p.from, ToAt: p.to, LimitTo: limit})
 	if err != nil {
 		return nil, fmt.Errorf("read best sellers: %w", err)
 	}
-	sellers := make([]sales.Seller, 0, len(rows))
+	sellers := make([]sales.BestSeller, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		sellers = append(sellers, sales.Seller{
+		sellers = append(sellers, sales.BestSeller{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand, Units: r.Units, RevenueCents: r.RevenueCents,
 		})
 	}
@@ -218,7 +218,7 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (Vi
 	if err != nil {
 		return View{}, fmt.Errorf("read previous completion: %w", err)
 	}
-	sellers, err := readSellers(ctx, q, current, maxRows)
+	sellers, err := readBestSellers(ctx, q, current, maxRows)
 	if err != nil {
 		return View{}, err
 	}
@@ -249,7 +249,7 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (Vi
 			Placed:       prevCompletion.Placed, Committed: prevCompletion.Committed,
 		},
 	}
-	view.Sellers = sellers
+	view.BestSellers = sellers
 	for _, d := range departments {
 		view.Departments = append(view.Departments, Department{Name: d.Name, SalesCents: d.SalesCents})
 	}

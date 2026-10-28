@@ -102,7 +102,7 @@ func TestReportBestSellerGross(t *testing.T) {
 		t.Run(string(tt.locale), func(t *testing.T) {
 			t.Parallel()
 			var b bytes.Buffer
-			view := View{Placed: 1, Orders: 1, Committed: 1, RevenueCents: 90000, Sellers: []sales.Seller{{Name: "Discounted item", Slug: "discounted", Units: 2, RevenueCents: 100000}}}
+			view := View{Placed: 1, Orders: 1, Committed: 1, RevenueCents: 90000, BestSellers: []sales.BestSeller{{Name: "Discounted item", Slug: "discounted", Units: 2, RevenueCents: 100000}}}
 			if err := Report(frame.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
 				t.Fatal(err)
 			}
@@ -169,7 +169,7 @@ func TestReportBestSellersBars(t *testing.T) {
 
 	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
-		Sellers: []sales.Seller{
+		BestSellers: []sales.BestSeller{
 			{Slug: "a", Name: "Alpha", Units: 40},
 			{Slug: "b", Name: "Beta", Units: 40},
 			{Slug: "c", Name: "Gamma", Units: 10},
@@ -201,7 +201,7 @@ func TestReportOneSeller(t *testing.T) {
 
 	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
-		Sellers: []sales.Seller{{Slug: "a", Name: "Alpha", Units: 40}},
+		BestSellers: []sales.BestSeller{{Slug: "a", Name: "Alpha", Units: 40}},
 	}))
 	if strings.Contains(html, "goen-chartbar") {
 		t.Error("report draws a bar for a single best seller, which compares it with nothing")
