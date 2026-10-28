@@ -176,7 +176,7 @@ var (
 	// the foundation its page and /deals are built on, the product tile included,
 	// and the header picture it resolves.
 	campaignMayImport = []string{
-		"assets", "internal/i18n", "internal/picture", "internal/ui/widget", "internal/ui/frame", "internal/ui/tile", "internal/web/respond",
+		"internal/i18n", "internal/picture", "internal/ui/widget", "internal/ui/frame", "internal/ui/tile", "internal/web/respond",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{

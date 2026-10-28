@@ -3941,7 +3941,15 @@ input.goen-check {
 
 .goen-empty__links {
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
+}
+
+/* The pills wrap their words here: a department name at 200% text is wider than the
+   column, and left-aligned it runs off the right edge instead of both. */
+.goen-empty__links .goen-pagehead__chip {
+  overflow-wrap: anywhere;
+  padding-block: 0.5rem;
+  white-space: normal;
 }
 
 .goen-listing__count {
@@ -6475,26 +6483,27 @@ input.goen-check {
   }
 }
 
-/* The browse screens join this rule rather than declare a second one. They
-   cannot join it by class name: `compare_test.go:33` reads `class="ui-empty"`
-   as the whole attribute and `check-layout.mjs:75,99` uses the same name as a
-   row marker, so their box keeps that spelling and this rule reaches it by
-   descent. base.css sets the same six properties on `.ui-empty` from a sheet
-   the document links earlier, so every one of them is decided here. */
+/* An empty page says so under its own heading, on the heading's edge: a sentence, a
+   line saying what to do, and at most one way on. No picture: it repeated the sentence.
+   The browse screens reach this rule by descent because their box keeps the `ui-empty`
+   spelling that compare_page_test and check-layout read. base.css sets the same
+   properties on `.ui-empty` from a sheet the document links earlier, so every one of
+   them is decided here. */
 .goen-empty,
 .goen-compare .ui-empty,
 .goen-listing .ui-empty {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 56px 16px;
-  text-align: center;
+  gap: 0.5rem;
+  padding: 2rem 0 4.5rem;
+  text-align: start;
 }
 
-/* The disc a state announces itself from: an empty cart, an order that has just
-   been placed. One recipe, because they are the same gesture — a glyph large
-   enough to read across a page, in a circle that says it is not a control. */
+/* The disc a confirmation announces itself from: an email link sent, a
+   registration that has ended. One recipe, because they are the same gesture — a
+   glyph large enough to read across a page, in a circle that says it is not a
+   control. */
 .goen-medallion {
   align-items: center;
   background: var(--elevated);
@@ -6512,26 +6521,32 @@ input.goen-check {
   width: 40px;
 }
 
-.goen-empty__art {
-  display: block;
-  height: 96px;
-  width: 128px;
-}
-
-.goen-empty__title {
-  color: var(--n-900);
-  font-size: 1rem;
-  font-weight: var(--fw-medium);
-  line-height: 1.5;
+.goen-empty__title,
+.goen-empty .ui-empty__title {
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-ed-20);
+  font-weight: var(--fw-display);
+  line-height: 1.4;
   margin: 0;
+  max-width: 32ch;
+  text-wrap: balance;
 }
 
-.goen-empty__text {
-  color: var(--n-500);
-  font-size: var(--fs-14);
-  line-height: 1.5;
+.goen-empty__text,
+.goen-empty .ui-empty__desc {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-15);
+  line-height: 1.6;
   margin: 0;
   max-width: 40ch;
+}
+
+.goen-empty > .goen-btn,
+.ui-empty > .goen-btn,
+.goen-empty__links {
+  margin-top: 1rem;
 }
 
 .goen-checkout__main,
@@ -8056,27 +8071,6 @@ input.goen-check {
   flex: 1 1 16rem;
 }
 
-/* The empty state's two sentences are compared by the whole class attribute
-   (internal/order/warranty/warranty_test.go:180,184), so the paragraphs carry the
-   shared spelling alone and every declaration is made here. */
-.goen-empty .ui-empty__title {
-  color: var(--n-900);
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  font-weight: var(--fw-medium);
-  line-height: 1.5;
-  margin: 0;
-}
-
-.goen-empty .ui-empty__desc {
-  color: var(--n-500);
-  font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  line-height: 1.5;
-  margin: 0;
-  max-width: 40ch;
-}
-
 /* ----- Policy, FAQ, shipping and the public warranty ----- */
 
 /* One 48rem column of prose. */
@@ -9068,9 +9062,11 @@ html:active-view-transition-type(page)::view-transition-new(*) {
 
 /* A photo that leaves one page and arrives on the next travels as one image:
    assets/js/transitions.js names the clicked photo on the way out and the shown
-   one on the way in, and only for that navigation. The old photo stays opaque the whole way
-   and the new one fades in on top of it, so there is no half-transparent dip
-   in the middle; an unmatched old photo just fades out. */
+   one on the way in, and only for that navigation. The two take the browser's
+   own cross-fade: the old fades out as the new fades in, blended so that their
+   opacities add up to one, which leaves neither a dip in the middle nor a
+   wash-out. That holds only while both run for the same time and curve, as the
+   rules above make them. An unmatched old photo just fades out. */
 ::view-transition-group(*.photo),
 html:active-view-transition-type(page)::view-transition-group(*.photo) {
   animation-duration: var(--dur-move);
@@ -9097,30 +9093,6 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
   border-radius: var(--r-hero);
 }
 
-::view-transition-old(*.photo) {
-  animation: none;
-}
-
-::view-transition-old(*.photo):only-child {
-  animation: goen-photo-out var(--dur-base) var(--ease-standard) both;
-}
-
-/* The browser's own fade also sets the new snapshot to plus-lighter, by an
-   animation that outranks any declaration; over the old photo, held opaque,
-   that adds the two and washes the photo out. These keyframes change the
-   opacity and nothing else. */
-::view-transition-new(*.photo) {
-  animation: goen-fade-in var(--dur-slow) var(--ease-standard) both;
-}
-
-@keyframes goen-photo-out {
-  to { opacity: 0; }
-}
-
-@keyframes goen-fade-in {
-  from { opacity: 0; }
-}
-
 /* The global reduce block at the top of this file matches elements, and these
    snapshots are not elements, so reduced motion is spelled again. Motion that
    moves, scales or resizes is dropped and the two pages dissolve at the base
@@ -9138,6 +9110,76 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
   html:active-view-transition-type(page)::view-transition-old(*),
   html:active-view-transition-type(page)::view-transition-new(*) {
     animation-duration: var(--dur-base);
+  }
+}
+
+/* A slide the visitor chooses cross-fades with the one in view: assets/js/goen.js
+   starts a view transition of type "slide". The page itself is not captured,
+   so the tabs, their pill and the header stay live and take the clicks; only
+   the slide and its words are named, and only while that type runs. The two
+   slides take the browser's own cross-fade, whose opacities add up to one, so
+   no frame shows the page through the seam between a slide's panels. The words
+   leave before the new words arrive, so two headings never print over each
+   other. */
+html:active-view-transition-type(slide) {
+  view-transition-name: none;
+}
+
+html:active-view-transition-type(slide) .goen-header,
+html:active-view-transition-type(slide) .goen-footer {
+  view-transition-name: none;
+}
+
+html:active-view-transition-type(slide) .goen-hero__slide[data-shown] {
+  view-transition-name: hero-slide;
+}
+
+html:active-view-transition-type(slide) .goen-hero__slide[data-shown]:not([data-leaving]) .goen-hero__inner {
+  view-transition-name: hero-copy;
+}
+
+/* The words being left take a name of their own: paired with the new words
+   they would be drawn in the new words' box, moved and scaled. */
+html:active-view-transition-type(slide) .goen-hero__slide[data-leaving] .goen-hero__inner {
+  view-transition-name: hero-copy-out;
+}
+
+html:active-view-transition-type(slide)::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-group(hero-slide),
+::view-transition-group(hero-copy),
+::view-transition-group(hero-copy-out) {
+  animation-name: none;
+}
+
+/* Both slides are set together: the sum of their opacities is one only while
+   they run for the same time. */
+::view-transition-old(hero-slide),
+::view-transition-new(hero-slide) {
+  animation-duration: var(--dur-slow);
+}
+
+::view-transition-new(hero-copy) {
+  animation-delay: calc(var(--dur-slow) - var(--dur-base));
+}
+
+/* Named snapshots outrank the (*) rules of the reduce block above. Nothing
+   here moves: the slides dissolve in the base step, both together, and the
+   words being left go at once, so the two never show together. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(hero-slide),
+  ::view-transition-new(hero-slide) {
+    animation-duration: var(--dur-base);
+  }
+
+  ::view-transition-old(hero-copy-out) {
+    display: none;
+  }
+
+  ::view-transition-new(hero-copy) {
+    animation-delay: 0s;
   }
 }
 
