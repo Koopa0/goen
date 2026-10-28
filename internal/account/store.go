@@ -38,7 +38,7 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (View, error) {
+func (s *Store) Overview(ctx context.Context, u user.User, after string) (View, error) {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
 		return View{}, fmt.Errorf("parse user id: %w", err)

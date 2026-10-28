@@ -23,7 +23,7 @@ const (
 	FilterThreeStarsAndBelow
 )
 
-func (s *Store) Reviews(ctx context.Context, filter Filter, after ...string) (View, error) {
+func (s *Store) Reviews(ctx context.Context, filter Filter, after string) (View, error) {
 	if filter != FilterAll && filter != FilterThreeStarsAndBelow {
 		return View{}, ErrInvalid
 	}

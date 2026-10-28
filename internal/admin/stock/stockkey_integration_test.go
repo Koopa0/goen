@@ -25,7 +25,7 @@ func stockOfSKU(t *testing.T, sku string) int32 {
 
 func formKeyOf(t *testing.T, s *stock.Store, sku string) string {
 	t.Helper()
-	view, err := s.Variants(t.Context(), false, "")
+	view, err := s.Variants(t.Context(), false, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestStore_ReceiveEarlierLevel(t *testing.T) {
 		t.Fatal(err)
 	}
 	keyOf := func() string {
-		view, err := s.Movements(ctx, sku, time.Now())
+		view, err := s.Movements(ctx, sku, time.Now(), "")
 		if err != nil {
 			t.Fatal(err)
 		}

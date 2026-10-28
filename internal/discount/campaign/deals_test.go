@@ -24,7 +24,7 @@ func renderToString(t *testing.T, c templ.Component) string {
 // campaign page link keeps the product page, and a product page link keeps the
 // campaign page.
 func TestDealsView_PageHref(t *testing.T) {
-	v := DealsView{Page: 3, PageSize: 24, Total: 100, Campaigns: Listed{Page: 2, PageSize: 6, Total: 13, Rows: []Summary{{Slug: "seventh", Title: "Seventh campaign"}}}}
+	v := DealsView{Page: 3, PageSize: 24, Total: 100, Campaigns: Listed{Page: 2, PageSize: ListedPageSize, Total: 2*ListedPageSize + 1, Rows: []Summary{{Slug: "seventh", Title: "Seventh campaign"}}}}
 	if got := v.CampaignPageHref(3); got != "/deals?campaign_page=3&page=3#campaigns" {
 		t.Errorf("campaign href = %s", got)
 	}
@@ -53,6 +53,17 @@ func navLabelled(t *testing.T, html, label string) string {
 	return html[start : start+end]
 }
 
+// TestListedPageSizeFillsRows: a page of the strip ends on a full row at every
+// column count the strip's grid reaches, so no page stops short.
+func TestListedPageSizeFillsRows(t *testing.T) {
+	t.Parallel()
+	for _, columns := range []int{2, 3, 4} {
+		if ListedPageSize%columns != 0 {
+			t.Errorf("a page of %d campaigns ends on a short row at %d columns", ListedPageSize, columns)
+		}
+	}
+}
+
 // TestDealsPagers: the campaign pager keeps its ends visible and the product
 // pager its label.
 func TestDealsPagers(t *testing.T) {
@@ -63,7 +74,7 @@ func TestDealsPagers(t *testing.T) {
 		disabled  string
 		mustLinks string
 	}{{1, i18n.T(ctx, i18n.KeyPrevPage), "campaign_page=2"}, {3, i18n.T(ctx, i18n.KeyNextPage), "campaign_page=2"}} {
-		v := DealsView{Page: 3, PageSize: 24, Total: 100, Campaigns: Listed{Page: tt.page, PageSize: 6, Total: 13, Rows: []Summary{{Slug: "seventh", Title: "Seventh campaign"}}}}
+		v := DealsView{Page: 3, PageSize: 24, Total: 100, Campaigns: Listed{Page: tt.page, PageSize: ListedPageSize, Total: 2*ListedPageSize + 1, Rows: []Summary{{Slug: "seventh", Title: "Seventh campaign"}}}}
 		html := renderToString(t, Deals(DealsMeta(ctx), v))
 		nav := navLabelled(t, html, campaigns)
 		if want := `aria-disabled="true">` + tt.disabled + `</span>`; !strings.Contains(nav, want) {

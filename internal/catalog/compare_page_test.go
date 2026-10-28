@@ -205,10 +205,8 @@ func TestCompareRow_Differs(t *testing.T) {
 	}
 }
 
-// TestCompareDifferingRow holds that a differing row is marked and says so
-// aloud.
-//
-// The weight is not the only signal.
+// TestCompareDifferingRow holds that only a differing row is marked, and says
+// so.
 func TestCompareDifferingRow(t *testing.T) {
 	t.Parallel()
 	v := compareOf("a", "b")
@@ -221,7 +219,7 @@ func TestCompareDifferingRow(t *testing.T) {
 		t.Errorf("want exactly the differing row marked, got %d marks", strings.Count(html, "is-differs"))
 	}
 	if !strings.Contains(html, "規格不同") {
-		t.Error("the marked row does not say it differs to a screen reader")
+		t.Error("the marked row does not say it differs")
 	}
 }
 
@@ -330,8 +328,110 @@ func TestComparePickerLandmark(t *testing.T) {
 	t.Parallel()
 
 	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), comparePicker(CompareView{}))
-	if !strings.Contains(out, `role="search" aria-label="`) {
-		t.Errorf("the comparison picker is an unnamed search landmark: %s", out)
+	if !strings.Contains(out, `role="search" aria-labelledby="compare-q-label"`) || strings.Contains(out, "aria-label=") {
+		t.Errorf("the comparison picker is not named by its visible label: %s", out)
+	}
+	if !strings.Contains(out, `<label class="goen-compare__pickerlabel" id="compare-q-label" for="compare-q">`) {
+		t.Errorf("the landmark points at no label: %s", out)
+	}
+}
+
+// TestComparePickerLabelAndPlace holds that the search has a visible label and
+// sits in one place whatever the count.
+//
+// With none, one or two products the box is above the empty state or the
+// table, never after it, and it is the storefront's field.
+func TestComparePickerLabelAndPlace(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		v    CompareView
+		next string
+	}{
+		{"none", compareOf(), `class="ui-empty"`},
+		{"one", compareOf("a"), `class="ui-empty"`},
+		{"two", compareOf("a", "b"), `class="goen-compare__table"`},
+	} {
+		html := renderToString(t, Compare(frame.Page{Title: "比較"}, tt.v))
+		if n := strings.Count(html, `id="compare-q"`); n != 1 {
+			t.Errorf("%s: the search appears %d times, want 1", tt.name, n)
+		}
+		if strings.Contains(html, `goen-sr-only" for="compare-q"`) || !strings.Contains(html, `class="goen-compare__pickerlabel" id="compare-q-label" for="compare-q"`) {
+			t.Errorf("%s: the search label is not visible", tt.name)
+		}
+		if !strings.Contains(html, `<input class="goen-input" id="compare-q"`) {
+			t.Errorf("%s: the search is not the storefront field", tt.name)
+		}
+		if at, next := strings.Index(html, `id="compare-q"`), strings.Index(html, tt.next); next < 0 || at > next {
+			t.Errorf("%s: the search (at %d) does not come before %s (at %d)", tt.name, at, tt.next, next)
+		}
+	}
+}
+
+// TestCompareMarks holds that a differing row says so in sight and that only
+// the dash of an unstated value is dimmed.
+//
+// The department page previews the same table, so it carries both marks.
+func TestCompareMarks(t *testing.T) {
+	t.Parallel()
+	v := compareOf("a", "b")
+	v.Rows = []CompareRow{
+		{Label: "螢幕", Values: []string{"6.1", "6.7"}, SharedBy: 2},
+		{Label: "電池", Values: []string{"4000 mAh", ""}, SharedBy: 1},
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for name, html := range map[string]string{
+		"page":    renderToString(t, Compare(frame.Page{Title: "比較"}, v)),
+		"preview": renderComponent(t, ctx, compareTable(v, true)),
+	} {
+		_, row, _ := strings.Cut(html, `<th scope="row">螢幕`)
+		row, _, _ = strings.Cut(row, "</th>")
+		if !strings.Contains(row, `<span class="goen-compare__differs">規格不同</span>`) {
+			t.Errorf("%s: the differing row has no visible mark: %s", name, row)
+		}
+		if strings.Contains(html, `goen-sr-only">規格不同`) {
+			t.Errorf("%s: the differs mark is hidden", name)
+		}
+		if strings.Contains(html, "is-partial") {
+			t.Errorf("%s: a partial row is still greyed whole", name)
+		}
+		if n := strings.Count(html, `<td class="goen-compare__none">—</td>`); n != 1 {
+			t.Errorf("%s: %d dimmed dashes, want 1", name, n)
+		}
+	}
+}
+
+// TestCompareShelfAfterTable holds that a full comparison ends in a way on: the
+// shelf link comes after the table, and the department preview has none.
+func TestCompareShelfAfterTable(t *testing.T) {
+	t.Parallel()
+	v := compareOf("a", "b")
+	v.Products[0].Category, v.ShelfSlug = "手機", "phones"
+	html := renderToString(t, Compare(frame.Page{Title: "比較"}, v))
+	link, end := strings.Index(html, `href="/c/phones"`), strings.Index(html, "</table>")
+	if link < 0 || end < 0 || link < end {
+		t.Errorf("the shelf link (at %d) does not follow the table (ends at %d)", link, end)
+	}
+	if preview := renderComponent(t, i18n.WithLocale(t.Context(), i18n.ZhHant), compareTable(v, true)); strings.Contains(preview, "/c/phones") {
+		t.Error("the preview carries the shelf link")
+	}
+}
+
+// TestCompareRow_Stated holds that a product states a spec only when the row
+// has a value for it.
+func TestCompareRow_Stated(t *testing.T) {
+	t.Parallel()
+	row := CompareRow{Values: []string{"5G", "", "4G"}}
+	for _, tt := range []struct {
+		i    int
+		want bool
+	}{{-1, false}, {0, true}, {1, false}, {2, true}, {3, false}} {
+		if got := row.Stated(tt.i); got != tt.want {
+			t.Errorf("Stated(%d) = %v, want %v", tt.i, got, tt.want)
+		}
+	}
+	if got := (CompareRow{}).Stated(0); got {
+		t.Error("a row with no values states one")
 	}
 }
 

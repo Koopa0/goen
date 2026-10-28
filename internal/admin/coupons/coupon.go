@@ -147,7 +147,7 @@ type position struct {
 	At   time.Time
 }
 
-func (s *Store) Coupons(ctx context.Context, after ...string) (View, error) {
+func (s *Store) Coupons(ctx context.Context, after string) (View, error) {
 	const scope = "/admin/coupons"
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminCoupons(ctx, db.AdminCouponsParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})

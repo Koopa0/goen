@@ -105,7 +105,7 @@ func Points(p frame.Page, v PointsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if v.Notice != "" {
+			if v.Notice.Text != "" {
 				templ_7745c5c3_Var6 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -119,9 +119,9 @@ func Points(p frame.Page, v PointsView) templ.Component {
 					}
 					ctx = templ.InitializeContext(ctx)
 					var templ_7745c5c3_Var7 string
-					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
+					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice.Text)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `loyalty/points.templ`, Line: 30, Col: 15}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `loyalty/points.templ`, Line: 30, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -129,7 +129,7 @@ func Points(p frame.Page, v PointsView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "points-notice", Class: "ui-alert--info"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: v.Notice.Outcome.Intent(), ID: "points-notice"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

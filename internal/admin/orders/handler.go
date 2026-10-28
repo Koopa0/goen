@@ -28,13 +28,13 @@ import (
 
 type Handler struct {
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
-	// on a deployment with no Stripe key, where no session was ever opened.
-	sessions payment.SessionCloser
+	// or disabled on a deployment with no Stripe key, where no session was ever opened.
+	sessions *payment.Gateway
 	store    *Store
 	log      *slog.Logger
 }
 
-func NewHandler(store *Store, sessions payment.SessionCloser, log *slog.Logger) *Handler {
+func NewHandler(store *Store, sessions *payment.Gateway, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("orders: NewHandler requires a store and a logger")
 	}

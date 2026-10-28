@@ -111,17 +111,17 @@ type queuePosition struct {
 	ID       uuid.UUID
 }
 
-func (s *Store) Queue(ctx context.Context, after ...string) (Queue, error) {
+func (s *Store) Queue(ctx context.Context, after string) (Queue, error) {
 	return s.queue(ctx, uuid.NullUUID{}, after)
 }
 
 // RequestQueue is the queue narrowed to one request: where a credit posting
 // that settled it leads.
-func (s *Store) RequestQueue(ctx context.Context, request uuid.UUID, after ...string) (Queue, error) {
+func (s *Store) RequestQueue(ctx context.Context, request uuid.UUID, after string) (Queue, error) {
 	return s.queue(ctx, uuid.NullUUID{UUID: request, Valid: true}, after)
 }
 
-func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after []string) (Queue, error) {
+func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after string) (Queue, error) {
 	scope := keyset.ScopeURL("/admin/returns", "request", request.UUID.String())
 	if !request.Valid {
 		scope = "/admin/returns"

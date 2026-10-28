@@ -123,12 +123,7 @@ templ heroCarousel(slides []hero.Slide) {
 			<div class="goen-hero__controls">
 				<nav class="goen-hero__tabs" aria-label={ i18n.T(ctx, i18n.KeySlides) }>
 					for i, s := range slides {
-						<a
-							href={ templ.SafeURL(fmt.Sprintf("#hero-%d", i+1)) }
-							if i == 0 {
-								aria-current="true"
-							}
-						>{ s.Title }</a>
+						<a href={ templ.SafeURL(fmt.Sprintf("#hero-%d", i+1)) }>{ s.Title }</a>
 					}
 				</nav>
 				<div class="goen-hero__nav" data-js hidden>

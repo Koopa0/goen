@@ -125,7 +125,7 @@ func TestStore_Movements(t *testing.T) {
 		t.Fatalf("find a stocked variant: %v", err)
 	}
 
-	before, err := s.Movements(ctx, sku, time.Now())
+	before, err := s.Movements(ctx, sku, time.Now(), "")
 	if err != nil {
 		t.Fatalf("Movements: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestStore_Movements(t *testing.T) {
 		t.Fatalf("AdjustStock: %v", adjErr)
 	}
 
-	after, err := s.Movements(ctx, sku, time.Now())
+	after, err := s.Movements(ctx, sku, time.Now(), "")
 	if err != nil {
 		t.Fatalf("Movements: %v", err)
 	}
@@ -618,7 +618,7 @@ func TestStore_MovementsReleaseOrder(t *testing.T) {
 		t.Fatalf("cancel: %v", err)
 	}
 
-	view, err := stock.NewStore(pool).Movements(ctx, sku, time.Now())
+	view, err := stock.NewStore(pool).Movements(ctx, sku, time.Now(), "")
 	if err != nil {
 		t.Fatalf("Movements: %v", err)
 	}
@@ -657,7 +657,7 @@ func TestStore_VariantsSoldOutNotForSale(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Dashboard: %v", err)
 		}
-		soldOut, err := s.Variants(ctx, true, "")
+		soldOut, err := s.Variants(ctx, true, "", "")
 		if err != nil {
 			t.Fatalf("Variants(sold out): %v", err)
 		}

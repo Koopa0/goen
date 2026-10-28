@@ -27,11 +27,11 @@ func TestReadOrderCursorRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	token := u.Query().Get("after")
-	got := readOrderCursor("owner", []string{token})
+	got := readOrderCursor("owner", token)
 	if !got.Valid || got.ID != id || !got.At.Equal(at) {
 		t.Fatal("order cursor lost its boundary")
 	}
-	if readOrderCursor("another", []string{token}).Valid {
+	if readOrderCursor("another", token).Valid {
 		t.Fatal("a token minted for one customer was accepted for another")
 	}
 }
@@ -59,7 +59,7 @@ func TestOrderCursorRefusesUnusableTokens(t *testing.T) {
 		"owner mismatch":  mint(orderPosition{ID: uuid.New(), Owner: "another"}),
 		"no owner at all": mint(orderPosition{ID: uuid.New()}),
 	} {
-		if readOrderCursor("owner", []string{token}).Valid {
+		if readOrderCursor("owner", token).Valid {
 			t.Errorf("%s: unusable token accepted", name)
 		}
 	}

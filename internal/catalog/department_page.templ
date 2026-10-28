@@ -10,17 +10,15 @@ import (
 // Each part wraps whole, a dot stays with the words before it and the arrow with the last words, so a wrapped
 // line never starts on a dot or an arrow.
 templ departmentNotice(n *DepartmentNotice) {
-	<section class="goen-deptnotice" aria-label={ i18n.T(ctx, i18n.KeyCampaignEyebrow) }>
-		<div class="goen-deptnotice__in">
-			<a class="goen-deptnotice__name" href={ templ.URL(n.Href) }>
-				<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</span>
-				<b>{ n.Title }</b>&nbsp;<span aria-hidden="true">·</span>{ " " }
-				@campaign.Ends(n.End) {
-					&nbsp;<span aria-hidden="true">&rarr;</span>
-				}
-			</a>
-		</div>
-	</section>
+	<p class="goen-deptnotice">
+		<a class="goen-deptnotice__name" href={ templ.URL(n.Href) }>
+			<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</span>
+			<b>{ n.Title }</b>&nbsp;<span aria-hidden="true">·</span>{ " " }
+			@campaign.Ends(n.End) {
+				&nbsp;<span aria-hidden="true">&rarr;</span>
+			}
+		</a>
+	</p>
 }
 
 templ departmentSlot(h *DepartmentHead) {

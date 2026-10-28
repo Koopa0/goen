@@ -7,12 +7,9 @@
 package tile
 
 import (
-	"context"
-	"fmt"
 	"slices"
 	"strconv"
 
-	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 )
 
@@ -57,10 +54,6 @@ func (t *Tile) Sizes() string {
 
 func AnyComparable(tiles []Tile) bool {
 	return slices.ContainsFunc(tiles, func(t Tile) bool { return t.Comparable })
-}
-
-func (t *Tile) CompareLabel(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), t.Name)
 }
 
 func (t *Tile) SoldOut() bool { return !t.InStock }

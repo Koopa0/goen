@@ -286,7 +286,7 @@ func TestStore_DecideClawbackRetry(t *testing.T) {
 		t.Fatalf("completion without clawback = %v, want return_requests_completed_points_settled",
 			completeErr)
 	}
-	view, err := s.Queue(ctx)
+	view, err := s.Queue(ctx, "")
 	if err != nil {
 		t.Fatalf("read queue: %v", err)
 	}
@@ -319,7 +319,7 @@ retry:
 	if completeErr := s.Complete(ctx, requestID.String(), "已退款、驗貨並回收點數"); completeErr != nil {
 		t.Fatalf("complete return after clawback retry: %v", completeErr)
 	}
-	view, err = s.Queue(ctx)
+	view, err = s.Queue(ctx, "")
 	if err != nil {
 		t.Fatalf("read repaired queue: %v", err)
 	}
@@ -374,7 +374,7 @@ func TestStore_DecideClawbackAfterErasure(t *testing.T) {
 	}
 
 	s := storeOver(pool, admintest.Refunder{})
-	view, err := s.Queue(ctx)
+	view, err := s.Queue(ctx, "")
 	if err != nil {
 		t.Fatalf("read erased-owner recovery queue: %v", err)
 	}
@@ -964,7 +964,7 @@ func TestStore_QueueStalledRefundRetry(t *testing.T) {
 			s := storeOver(isolated, tc.refunder)
 			_ = s.Decide(staffCtx, requestID.String(), "approved", "退款", "")
 
-			view, err := s.Queue(staffCtx)
+			view, err := s.Queue(staffCtx, "")
 			if err != nil {
 				t.Fatalf("read queue: %v", err)
 			}
@@ -1007,7 +1007,7 @@ func TestStore_QueueStalledRefundRetry(t *testing.T) {
 			t.Fatalf("construct settled card half: %v", err)
 		}
 		s := storeOver(isolated, admintest.Refunder{})
-		view, err := s.Queue(staffCtx)
+		view, err := s.Queue(staffCtx, "")
 		if err != nil {
 			t.Fatalf("read split queue: %v", err)
 		}
@@ -1104,7 +1104,7 @@ func TestStore_QueueOldRecoveryBounded(t *testing.T) {
 		}
 	})
 
-	queue, err := s.Queue(ctx)
+	queue, err := s.Queue(ctx, "")
 	if err != nil {
 		t.Fatalf("read bounded return queue: %v", err)
 	}
@@ -1493,7 +1493,7 @@ func TestStore_QueueComingBack(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 2)
 
-	view, err := s.Queue(ctx)
+	view, err := s.Queue(ctx, "")
 	if err != nil {
 		t.Fatalf("read the queue: %v", err)
 	}
@@ -1569,7 +1569,7 @@ func TestStore_QueuePayoutChannels(t *testing.T) {
 			if err := s.Decide(ctx, requestID.String(), "approved", "核准", ""); err != nil {
 				t.Fatalf("Decide: %v", err)
 			}
-			view, err := s.Queue(ctx)
+			view, err := s.Queue(ctx, "")
 			if err != nil {
 				t.Fatalf("Returns: %v", err)
 			}
@@ -1644,7 +1644,7 @@ func TestStore_QueueConstantQueries(t *testing.T) {
 	}
 
 	counted := context.WithValue(ctx, returnQueryCountKey{}, struct{}{})
-	view, err := storeOver(traced, admintest.Refunder{}).Queue(counted)
+	view, err := storeOver(traced, admintest.Refunder{}).Queue(counted, "")
 	if err != nil {
 		t.Fatalf("read the traced return queue: %v", err)
 	}
@@ -1748,7 +1748,7 @@ func TestStore_QueueRescissionWindow(t *testing.T) {
 			}
 			requestID := returnedOrderAtOn(t, isolated, delivered, requested)
 
-			view, err := s.Queue(ctx)
+			view, err := s.Queue(ctx, "")
 			if err != nil {
 				t.Fatalf("read the queue: %v", err)
 			}
@@ -1953,7 +1953,7 @@ func TestStore_DecideMissingTimelineEvent(t *testing.T) {
 	if events != 0 {
 		t.Fatalf("failed timeline append left %d events, want 0", events)
 	}
-	view, err := s.Queue(ctx)
+	view, err := s.Queue(ctx, "")
 	if err != nil {
 		t.Fatalf("read event-recovery queue: %v", err)
 	}
@@ -2045,7 +2045,7 @@ func TestStore_DecideSplitCardTerminal(t *testing.T) {
 					"completed-tense word and the card half has not settled", events)
 			}
 
-			queue, err := s.Queue(ctx)
+			queue, err := s.Queue(ctx, "")
 			if err != nil {
 				t.Fatalf("read split terminal queue: %v", err)
 			}

@@ -8,7 +8,7 @@ import (
 
 // AssertRefusedInput checks that the input with the id shows the raw text the
 // person typed, is marked invalid, and is described by a nonempty error
-// element named id+"-error".
+// element named id+"-error", which may follow an example named id+"-example".
 func AssertRefusedInput(t *testing.T, body, id, raw string) {
 	t.Helper()
 	input := InputElementByID(t, body, id)
@@ -19,8 +19,8 @@ func AssertRefusedInput(t *testing.T, body, id, raw string) {
 		t.Errorf("input %q aria-invalid = %q, want true", id, got)
 	}
 	errorID := id + "-error"
-	if got := InputAttribute(t, input, "aria-describedby"); got != errorID {
-		t.Errorf("input %q aria-describedby = %q, want %q", id, got, errorID)
+	if got := InputAttribute(t, input, "aria-describedby"); got != errorID && got != id+"-example "+errorID {
+		t.Errorf("input %q aria-describedby = %q, want %q, after its example if it has one", id, got, errorID)
 	}
 	if !regexp.MustCompile(`<p[^>]*id="` + regexp.QuoteMeta(errorID) + `"[^>]*>[^<]+</p>`).
 		MatchString(body) {

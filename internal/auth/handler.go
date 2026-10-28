@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/clientip"
 	"github.com/koopa0/goen/internal/web/compress"
@@ -691,42 +692,50 @@ func (h *Handler) forgetSession(w http.ResponseWriter, r *http.Request) {
 
 // Notice is what the account page says after one of the changes here sent the
 // customer back to it, named in the query of the redirect. The account page's
-// own notices come first; this is the rest.
-func Notice(r *http.Request) string {
+// own notices come first; this is the rest. A change that was refused reports
+// [widget.OutcomeRefused], so the page shows it as a refusal; the zero Result
+// means nothing applies.
+func Notice(r *http.Request) widget.Result {
 	ctx := r.Context()
 	q := r.URL.Query()
+	refused := func(key i18n.Key) widget.Result {
+		return widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(ctx, key)}
+	}
+	done := func(text string) widget.Result {
+		return widget.Result{Outcome: widget.OutcomeDone, Text: text}
+	}
 	switch {
 	case q.Get("password") == "wrong":
-		return i18n.T(ctx, i18n.KeyWrongCurrentPassword)
+		return refused(i18n.KeyWrongCurrentPassword)
 	case q.Get("password") == "invalid":
-		return i18n.T(ctx, i18n.KeyNewPasswordRefused)
+		return refused(i18n.KeyNewPasswordRefused)
 	case q.Get("erase") == "confirm":
-		return i18n.T(ctx, i18n.KeyEraseNeedsEmail)
+		return refused(i18n.KeyEraseNeedsEmail)
 	case q.Get("erase") == "return":
-		return i18n.T(ctx, i18n.KeyEraseOpenReturn)
+		return refused(i18n.KeyEraseOpenReturn)
 	case q.Get("erase") == "admin":
-		return i18n.T(ctx, i18n.KeyEraseLastAdmin)
+		return refused(i18n.KeyEraseLastAdmin)
 	case q.Get("email") == "sent":
-		return emailSentNotice(ctx, q)
+		return done(emailSentNotice(ctx, q))
 	case q.Get("email") == "invalid":
-		return i18n.T(ctx, i18n.KeyEmailInvalidNotice)
+		return refused(i18n.KeyEmailInvalidNotice)
 	case q.Get("email") == "staff":
-		return i18n.T(ctx, i18n.KeyEmailStaffFixed)
+		return refused(i18n.KeyEmailStaffFixed)
 	case q.Get("unlinked") == "1":
-		return i18n.T(ctx, i18n.KeyGoogleUnlinked)
+		return done(i18n.T(ctx, i18n.KeyGoogleUnlinked))
 	case q.Get("lastmethod") == "1":
-		return i18n.T(ctx, i18n.KeyGoogleLastMethod)
+		return refused(i18n.KeyGoogleLastMethod)
 	case q.Get("demo") == "fixed":
-		return i18n.T(ctx, i18n.KeyDemoAccountFixed)
+		return refused(i18n.KeyDemoAccountFixed)
 	}
 	return otherDevicesNotice(r)
 }
 
-func otherDevicesNotice(r *http.Request) string {
+func otherDevicesNotice(r *http.Request) widget.Result {
 	if r.URL.Query().Get("other_devices") == "signed_out" {
-		return i18n.T(r.Context(), i18n.KeyOtherDevicesSignedOut)
+		return widget.Result{Outcome: widget.OutcomeDone, Text: i18n.T(r.Context(), i18n.KeyOtherDevicesSignedOut)}
 	}
-	return ""
+	return widget.Result{}
 }
 
 func emailSentNotice(ctx context.Context, q url.Values) string {

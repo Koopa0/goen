@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/go-cmp/cmp"
@@ -78,5 +79,33 @@ func TestHandler_RenderCheckoutUnavailable(t *testing.T) {
 	want := renderedDelivery{Status: http.StatusOK, Postal: true}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("unavailable checkout delivery (-want +got):\n%s", diff)
+	}
+}
+
+// TestHandler_TakesPayment: The checkout takes payment only where Stripe is
+// configured; a missing or keyless gateway is a shop that sells without paying.
+func TestHandler_TakesPayment(t *testing.T) {
+	keyless, err := payment.NewGateway("", "", "https://goen.example")
+	if err != nil {
+		t.Fatalf("NewGateway() without a key: %v", err)
+	}
+	keyed, err := payment.NewGateway("sk_test_notarealkey", "whsec_notused", "https://goen.example")
+	if err != nil {
+		t.Fatalf("NewGateway() with a key: %v", err)
+	}
+
+	for name, tt := range map[string]struct {
+		gateway *payment.Gateway
+		want    bool
+	}{
+		"no gateway":      {nil, false},
+		"gateway no key":  {keyless, false},
+		"gateway has key": {keyed, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := (&Handler{payments: tt.gateway}).TakesPayment(); got != tt.want {
+				t.Errorf("TakesPayment() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

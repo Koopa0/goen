@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // PointsEntryKind is closed by loyalty_entries_kind_shape. Declared here because
@@ -123,7 +124,7 @@ type PointsView struct {
 	Minimum   int64
 
 	Entries []PointsEntry
-	Notice  string
+	Notice  widget.Result
 	// OperationID identifies one rendered redemption form across HTTP retries.
 	OperationID string
 }

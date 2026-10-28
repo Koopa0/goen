@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -106,8 +107,8 @@ func TestHandler_NoticeForQueryFlags(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, flag := range []string{"ok=1", "badform=1", "redeemed=forged", "small=1"} {
 			req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodGet, "/account/points?"+flag, http.NoBody)
-			if got := h.noticeFor(req, "owner"); got != "" {
-				t.Errorf("noticeFor(%s, %s) = %q, want no assertion", locale, flag, got)
+			if got := h.noticeFor(req, "owner"); got != (widget.Result{}) {
+				t.Errorf("noticeFor(%s, %s) = %+v, want no assertion", locale, flag, got)
 			}
 		}
 	}

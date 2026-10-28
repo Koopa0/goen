@@ -58,12 +58,12 @@ func TestProductDetailsRefusalDrafts(t *testing.T) {
 					paragraphs[attrs["id"]] = n.FirstChild.Data
 				}
 			}
-			for _, tt := range []struct{ id, field, value string }{
-				{id: "p-summary", field: "summary", value: view.Summary},
-				{id: "p-description", field: "description", value: view.Description},
-				{id: "spec-label", field: "spec_label", value: "Capacity & size"},
+			for _, tt := range []struct{ id, field, value, describedBy string }{
+				{id: "p-summary", field: "summary", value: view.Summary, describedBy: "p-summary-error"},
+				{id: "p-description", field: "description", value: view.Description, describedBy: "p-description-error"},
+				{id: "spec-label", field: "spec_label", value: "Capacity & size", describedBy: "spec-label-example spec-label-error"},
 			} {
-				want := []string{tt.value, "true", tt.id + "-error", view.Errors[tt.field]}
+				want := []string{tt.value, "true", tt.describedBy, view.Errors[tt.field]}
 				got := []string{fields[tt.id]["value"], fields[tt.id]["aria-invalid"], fields[tt.id]["aria-describedby"], paragraphs[tt.id+"-error"]}
 				if diff := cmp.Diff(want, got); diff != "" {
 					t.Errorf("refused control %q (-want +got):\n%s", tt.id, diff)

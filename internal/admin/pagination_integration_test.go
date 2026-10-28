@@ -331,7 +331,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `rel="next"`) {
 		t.Fatalf("inbox has no plain next link: status %d", w.Code)
 	}
-	inbox, err := messageStore.Messages(ctx)
+	inbox, err := messageStore.Messages(ctx, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // TestReadRedemptionConfirmationBinding: a redemption confirmation is bound to
@@ -85,15 +86,15 @@ func TestHandler_NoticeForConfirmed(t *testing.T) {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), tt.locale), http.MethodGet, "/account/points?redeemed="+token, http.NoBody)
-			if got := h.noticeFor(req, owner); got != tt.want {
-				t.Errorf("confirmed notice = %q, want %q", got, tt.want)
+			if got, want := h.noticeFor(req, owner), (widget.Result{Outcome: widget.OutcomeDone, Text: tt.want}); got != want {
+				t.Errorf("confirmed notice = %+v, want %+v", got, want)
 			}
-			if got := h.noticeFor(req, "73aef63a-e93e-47ca-bfe5-ec3c4a30576a"); got != "" {
-				t.Errorf("foreign-owner notice = %q, want no success assertion", got)
+			if got := h.noticeFor(req, "73aef63a-e93e-47ca-bfe5-ec3c4a30576a"); got != (widget.Result{}) {
+				t.Errorf("foreign-owner notice = %+v, want no success assertion", got)
 			}
 			other := &Handler{confirmationKey: "rotated-handler-key"}
-			if got := other.noticeFor(req, owner); got != "" {
-				t.Errorf("rotated-handler notice = %q, want no success assertion", got)
+			if got := other.noticeFor(req, owner); got != (widget.Result{}) {
+				t.Errorf("rotated-handler notice = %+v, want no success assertion", got)
 			}
 		})
 	}

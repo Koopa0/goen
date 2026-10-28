@@ -44,8 +44,8 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 		if strings.Count(many, `fetchpriority="high"`) != 1 {
 			t.Errorf("%s carousel prioritises more than the first photograph", locale)
 		}
-		if strings.Count(many, `aria-current="true"`) != 1 {
-			t.Errorf("%s carousel marks %d tabs as current, want 1", locale, strings.Count(many, `aria-current="true"`))
+		if strings.Contains(many, "aria-current") {
+			t.Errorf("%s carousel marks a tab as current before the script has run", locale)
 		}
 		if strings.Count(many, `data-js hidden`) != 1 {
 			t.Errorf("%s carousel does not leave its arrows to the script", locale)

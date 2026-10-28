@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // TestHandler_ForgotPageMasked: ForgotPage names only the masked submitted
@@ -62,8 +63,8 @@ func TestNoticeEmailSent(t *testing.T) {
 		t.Run(tt.address, func(t *testing.T) {
 			t.Parallel()
 			req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), i18n.En), http.MethodGet, "/account?"+url.Values{"email": {"sent"}, "address": {tt.address}}.Encode(), http.NoBody)
-			if got := Notice(req); got != tt.want {
-				t.Errorf("Notice() = %q, want %q", got, tt.want)
+			if got, want := Notice(req), (widget.Result{Outcome: widget.OutcomeDone, Text: tt.want}); got != want {
+				t.Errorf("Notice() = %+v, want %+v", got, want)
 			}
 		})
 	}

@@ -46,7 +46,7 @@ func TestStore_QuestionsRenamedStaff(t *testing.T) {
 	}
 
 	admintest.RenameUser(t, p, idA, colleague)
-	view, err := s.Questions(ctx, questions.QueueVisible)
+	view, err := s.Questions(ctx, questions.QueueVisible, "")
 	if err != nil {
 		t.Fatalf("Questions: %v", err)
 	}
