@@ -44,6 +44,7 @@ func NewHandler(store *Store, payments *payment.Gateway, log *slog.Logger) *Hand
 func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/orders", ac.RequireStaff(h.List))
 	mux.HandleFunc("GET /admin/orders/picking/slips", ac.RequireStaff(h.PickingSlips))
+	mux.HandleFunc("POST /admin/orders/picking", ac.RequireStaff(h.StartPicking))
 	mux.HandleFunc("GET /admin/orders/{number}", ac.RequireStaff(h.Order))
 	mux.HandleFunc("POST /admin/orders/{number}/status", ac.RequireStaff(h.Advance))
 	mux.HandleFunc("POST /admin/orders/{number}/ship", ac.RequireStaff(h.Ship))
@@ -96,6 +97,38 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		Order(frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
+// advanceOutcome is what a status change ended in, in the terms both the order's
+// own form and the batch form answer in.
+type advanceOutcome int
+
+const (
+	advanced advanceOutcome = iota
+	advancePaidCancel
+	advanceUnfunded
+	advanceOwesParcel
+	advanceRefused
+	advanceFailed
+)
+
+// classifyAdvance reads the error of Store.Advance. Both handlers answer by it,
+// so a refusal one of them knows is a refusal the other knows.
+func classifyAdvance(err error) advanceOutcome {
+	switch {
+	case err == nil:
+		return advanced
+	case errors.Is(err, ErrPaidCancel), db.IsConstraint(err, "orders_paid_cancel_needs_refund"):
+		return advancePaidCancel
+	case db.IsConstraint(err, "orders_funded_to_leave_pending"):
+		return advanceUnfunded
+	case db.IsConstraint(err, "orders_finished_when_shipped"):
+		return advanceOwesParcel
+	case errors.Is(err, ErrRefused):
+		return advanceRefused
+	default:
+		return advanceFailed
+	}
+}
+
 func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -107,17 +140,17 @@ func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sessions, err := h.store.Advance(r.Context(), number, order.FulfillmentStatus(r.PostFormValue("status")), audit.ActorID(r.Context()))
-	switch {
-	case err == nil:
+	switch classifyAdvance(err) {
+	case advanced:
 		payment.CloseSessions(r.Context(), h.payments, h.log, number, sessions)
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case errors.Is(err, ErrPaidCancel), db.IsConstraint(err, "orders_paid_cancel_needs_refund"):
+	case advancePaidCancel:
 		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case db.IsConstraint(err, "orders_funded_to_leave_pending"):
+	case advanceUnfunded:
 		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case db.IsConstraint(err, "orders_finished_when_shipped"):
+	case advanceOwesParcel:
 		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case errors.Is(err, ErrRefused):
+	case advanceRefused:
 		// Logged in full; the page names the rule only for the refusals a shop
 		// assistant can act on, because a constraint name is not one of them.
 		h.log.WarnContext(r.Context(), "order transition refused",
@@ -284,6 +317,8 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 var notices = map[string]widget.NoticeEntry{
 	"ok":              widget.NoticeDone(i18n.KeyAdminNoticeOK),
 	"refused":         widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"started":         widget.NoticeDone(i18n.KeyAdminBatchStarted),
+	"nosel":           widget.NoticeRefused(i18n.KeyAdminBatchNone),
 	"shipped":         widget.NoticeDone(i18n.KeyAdminNoticeShipped),
 	"parceldelivered": widget.NoticeDone(i18n.KeyAdminNoticeShipmentDelivered),
 	"toolate":         widget.NoticeRefused(i18n.KeyAdminNoticeTooLate),

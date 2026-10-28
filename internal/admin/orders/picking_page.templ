@@ -12,6 +12,9 @@ templ Picking(p frame.Page, v *PickingView) {
 			<div>
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPickingSlips) }</h1>
 				<p class="ui-page-head__sub">{ v.ScopeText(ctx) }</p>
+				if gone := v.GoneText(ctx); gone != "" {
+					<p class="ui-page-head__sub">{ gone }</p>
+				}
 			</div>
 			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, "/admin/orders?status=picking") {
 				{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }

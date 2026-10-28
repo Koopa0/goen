@@ -1447,6 +1447,58 @@ input.goen-check {
   margin-inline-start: 8px;
 }
 
+/* A work tab's rows are ticked and sent together. The label is the 44px target;
+   the box inside it stays 18px. A ticked row is tinted as well as ticked. */
+.goen-admin__batch {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.goen-admin__batchbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.goen-admin__batchbar .goen-admin__hint {
+  flex: 1 1 16rem;
+}
+
+.goen-admin .ui-table .goen-admin__cellpick {
+  padding-block: 0;
+  padding-inline: 4px 0;
+  width: 44px;
+}
+
+.goen-admin__pick {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.goen-admin__pick input {
+  accent-color: var(--accent);
+  height: 18px;
+  margin: 0;
+  min-height: 0;
+  width: 18px;
+}
+
+tr:has(.goen-admin__pick input:checked) td {
+  background: var(--accent-faint);
+}
+
+.goen-admin__refusals {
+  margin: 4px 0;
+  padding-inline-start: 1.25em;
+}
+
 /* A cell of controls stays a table cell: display:flex on a <td> takes the
    element out of the row and the columns stop lining up. */
 .goen-admin__cellactions {

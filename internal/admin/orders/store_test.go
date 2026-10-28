@@ -32,6 +32,39 @@ func TestRefusedIfNoRowRefusesOnlyAMissingRow(t *testing.T) {
 	}
 }
 
+// A move out of a cancelled order is told apart from any other illegal move,
+// by the order the lock found and not by the constraint alone.
+func TestAdvanceRefusal(t *testing.T) {
+	t.Parallel()
+	legal := &pgconn.PgError{Code: "23514", ConstraintName: "orders_legal_transition"}
+	unfunded := &pgconn.PgError{Code: "23514", ConstraintName: "orders_funded_to_leave_pending"}
+	for _, tt := range []struct {
+		name      string
+		err       error
+		from      order.FulfillmentStatus
+		cancelled bool
+	}{
+		{"illegal move out of a live order", legal, order.FulfillmentPicking, false},
+		{"illegal move out of a cancelled order", legal, order.FulfillmentCancelled, true},
+		{"another rule out of a cancelled order", unfunded, order.FulfillmentCancelled, false},
+		{"not a constraint", errors.New("connection lost"), order.FulfillmentCancelled, false},
+	} {
+		got := advanceRefusal(tt.err, tt.from)
+		if errors.Is(got, ErrCancelled) != tt.cancelled {
+			t.Errorf("%s: cancelled = %t, want %t", tt.name, !tt.cancelled, tt.cancelled)
+		}
+		if errors.Is(got, tt.err) != true {
+			t.Errorf("%s: %v no longer wraps %v", tt.name, got, tt.err)
+		}
+	}
+	if err := advanceRefusal(legal, order.FulfillmentPicking); !errors.Is(err, ErrRefused) {
+		t.Errorf("a refused move = %v, want ErrRefused", err)
+	}
+	if err := advanceRefusal(errors.New("connection lost"), order.FulfillmentPicking); errors.Is(err, ErrRefused) {
+		t.Errorf("a lost connection = %v, which reads as a refusal", err)
+	}
+}
+
 func TestRowCarriesTheColourOfItsWord(t *testing.T) {
 	t.Parallel()
 	row := orderRow(t.Context(), &db.AdminOrdersRow{FulfillmentStatus: string(order.FulfillmentPicking), Committed: true}, false)

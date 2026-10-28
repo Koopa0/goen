@@ -395,12 +395,12 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 	// orders_check_transition lets a same-status UPDATE through, so a double
 	// submit would otherwise record the step and its audit row twice.
 	if order.FulfillmentStatus(row.FulfillmentStatus) == status {
-		return nil, ErrRefused
+		return nil, fmt.Errorf("%w: %w", ErrAlreadyThere, ErrRefused)
 	}
 	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 		OrderNumber: number, Status: string(status),
 	}); advanceErr != nil {
-		return nil, db.WrapRefusal(advanceErr, ErrRefused)
+		return nil, advanceRefusal(advanceErr, order.FulfillmentStatus(row.FulfillmentStatus))
 	}
 	if status == order.FulfillmentCancelled {
 		// The database admits cancelling a paid order once its refund before
@@ -483,6 +483,17 @@ func advanceKind(status order.FulfillmentStatus) (string, error) {
 		return "", ErrRefused
 	}
 	return eventKindFor(status)
+}
+
+// advanceRefusal is the database's refusal of a move out of from. An order that
+// was cancelled is told apart from one that only changed, because staff cannot
+// act on the second the way they can on the first.
+func advanceRefusal(err error, from order.FulfillmentStatus) error {
+	refusal := db.WrapRefusal(err, ErrRefused)
+	if from == order.FulfillmentCancelled && db.IsConstraint(err, "orders_legal_transition") {
+		return fmt.Errorf("%w: %w", ErrCancelled, refusal)
+	}
+	return refusal
 }
 
 type statusEffect struct {
