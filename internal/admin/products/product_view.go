@@ -299,6 +299,23 @@ func (v *ProductView) labelInput() *LabelInput {
 	return v.LabelInput
 }
 
+// LabelRefusal lists the label form's controls in the order they are drawn;
+// "label" is the refusal that names no control, drawn above them.
+func (v *ProductView) LabelRefusal() widget.Refusal {
+	texts := v.labelInput().TextFields()
+	fields := make([]widget.RefusalField, 0, len(texts)+4)
+	fields = append(fields, widget.RefusalField{Key: "label", ID: "label-error"})
+	for _, f := range texts {
+		fields = append(fields, widget.RefusalField{Key: f.Name, ID: "label-" + f.Name})
+	}
+	fields = append(fields, widget.RefusalField{Key: "net_quantity", ID: "label-quantity"}, widget.RefusalField{Key: "net_unit", ID: "label-unit"}, widget.RefusalField{Key: "min_age_months", ID: "label-age"})
+	return widget.SummarizeRefusal(i18n.KeyProductLabel, v.Errors, fields...)
+}
+
+func (v *ProductView) InvoiceLineRefusal() widget.Refusal {
+	return widget.SummarizeRefusal(i18n.KeyProductInvoiceLine, v.Errors, widget.RefusalField{Key: "tax_type", ID: "invoice-tax"}, widget.RefusalField{Key: "invoice_unit", ID: "invoice-unit"})
+}
+
 func (v *ProductView) InvoiceLineAction() string {
 	return "/admin/products/" + v.Slug + "/invoice-line"
 }

@@ -376,7 +376,7 @@ templ productDetails(v ProductView) {
 // imageMoveForm is one plain POST: with scripting off it is a form, and a stale
 // page answers 422 with the current order.
 templ imageMoveForm(v ProductView, digest, move string, label i18n.Key) {
-	<form method="post" action={ templ.SafeURL(v.ImageMoveAction()) }>
+	<form method="post" action={ templ.SafeURL(v.ImageMoveAction() + "#sec-images") }>
 		<input type="hidden" name="digest" value={ digest }/>
 		<input type="hidden" name="move" value={ move }/>
 		@widget.Button(widget.ButtonProps{
@@ -405,7 +405,7 @@ templ productImages(v ProductView) {
 							@imageMoveForm(v, img.Key(), "down", i18n.KeyAdminImageDown)
 						}
 						if v.HasOptions() {
-							<form method="post" action={ templ.SafeURL(v.ImageOptionAction()) }>
+							<form method="post" action={ templ.SafeURL(v.ImageOptionAction() + "#sec-images") }>
 								<input type="hidden" name="digest" value={ img.Key() }/>
 								<label class="goen-sr-only" for={ "image-option-" + img.Key() }>{ i18n.T(ctx, i18n.KeyAdminProdImageOption) }</label>
 								<select class="goen-input" id={ "image-option-" + img.Key() } name="option_value">
@@ -419,7 +419,7 @@ templ productImages(v ProductView) {
 								}
 							</form>
 						}
-						<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
+						<form method="post" action={ templ.SafeURL(v.ImageRemoveAction() + "#sec-images") }>
 							<input type="hidden" name="digest" value={ img.Key() }/>
 							@widget.Button(widget.ButtonProps{
 								ButtonStyle: widget.ButtonStyleOutline,
@@ -447,7 +447,7 @@ templ productImages(v ProductView) {
 		<form
 			class="goen-admin__form"
 			method="post"
-			action={ templ.SafeURL(v.ImageAction()) }
+			action={ templ.SafeURL(v.ImageAction() + "#sec-images") }
 			enctype="multipart/form-data"
 		>
 			<div class="goen-admin__field">
@@ -559,7 +559,7 @@ templ productImages(v ProductView) {
 			<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdLibrary) }</h3>
 			<div class="goen-admin__library">
 				for _, img := range v.Library {
-					<form class="goen-admin__libraryitem" method="post" action={ templ.SafeURL(v.ReuseAction()) }>
+					<form class="goen-admin__libraryitem" method="post" action={ templ.SafeURL(v.ReuseAction() + "#sec-images") }>
 						<input type="hidden" name="digest" value={ img.Key() }/>
 						<img src={ img.URL() } srcset={ img.Srcset() } sizes="80px" alt="" width="80" height="80" loading="lazy" decoding="async"/>
 						<label class="goen-sr-only" for={ "reuse-alt-" + img.Key() }>{ i18n.T(ctx, i18n.KeyAdminAltText) }</label>

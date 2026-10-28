@@ -228,7 +228,7 @@ func assertEditorImageControls(t *testing.T, body, slug, attached, library strin
 			}
 		}
 	}
-	for action, digest := range map[string]string{"/admin/products/" + slug + "/images/remove": attached, "/admin/products/" + slug + "/images/reuse": library} {
+	for action, digest := range map[string]string{"/admin/products/" + slug + "/images/remove#sec-images": attached, "/admin/products/" + slug + "/images/reuse#sec-images": library} {
 		found := false
 		for _, got := range controls[action] {
 			if got == digest {
