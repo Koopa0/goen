@@ -1,7 +1,6 @@
 package policy
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,7 +22,7 @@ func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
 // testRules' windows are not the shop's: a page that printed a number of its own instead of the field's would show.
 var testRules = Rules{
 	FreeDeliveryCents: 300000, LowestFeeCents: 6000, PickupOffered: true,
-	RescissionDays: 8, ReturnDays: 15, HoldMinutes: 61, PayStartMinutes: 28,
+	RescissionDays: 8, ReturnDays: 15, PayStartMinutes: 28,
 }
 
 // TestRulesSectionStoredRules: the shop rules section states the stored rules
@@ -36,11 +35,11 @@ func TestRulesSectionStoredRules(t *testing.T) {
 		page := renderIn(t, locale, RulesSection(testRules))
 		for _, want := range []string{
 			`<dl class="ui-statline ui-statline--wide">`,
-			strconv.FormatInt(testRules.HoldMinutes, 10) + " <small>",
+			strconv.FormatInt(testRules.PayStartMinutes, 10) + " <small>",
 			strconv.FormatInt(testRules.RescissionDays, 10) + " <small>",
 			strconv.FormatInt(testRules.ReturnDays, 10) + " <small>",
-			fmt.Sprintf(i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyRuleHoldNote),
-				strconv.FormatInt(testRules.PayStartMinutes, 10)),
+			i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyRulePayStartNote),
+			i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyRulePayStart),
 			`<small class="ui-statline__pre">NT$</small>3,000`,
 			"NT$60",
 			i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeySectionRules),

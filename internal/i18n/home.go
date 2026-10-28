@@ -17,14 +17,13 @@ var (
 
 	KeySectionRules = key("home.rules", Message{ZhHant: "購物規則", En: "Shop rules"})
 
-	KeyRuleHold = key("home.rules.hold", Message{ZhHant: "庫存保留", En: "Stock reservation"})
+	KeyRulePayStart = key("home.rules.pay_start", Message{ZhHant: "付款時限", En: "Time to pay"})
 
 	KeyRuleUnitMinutes = key("home.rules.unit.minutes", Message{ZhHant: "分鐘", En: "min"})
 
-	// %s is the minutes a customer has to start paying.
-	KeyRuleHoldNote = key("home.rules.hold.note", Message{
-		ZhHant: "送出訂單起算；%s 分鐘內開始付款",
-		En:     "From placing the order; start paying within %s min",
+	KeyRulePayStartNote = key("home.rules.pay_start.note", Message{
+		ZhHant: "送出訂單起算；商品保留到付款完成",
+		En:     "From placing the order; the goods are held until payment is complete",
 	})
 
 	KeyRuleRescission = key("home.rules.rescission", Message{ZhHant: "猶豫期", En: "Right to cancel"})

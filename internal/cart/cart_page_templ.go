@@ -565,9 +565,9 @@ func Page(p frame.Page, v View) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var32 string
-					templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(v.HoldNote(ctx))
+					templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(v.PayStartNote(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart/cart_page.templ`, Line: 142, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart/cart_page.templ`, Line: 142, Col: 54}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 					if templ_7745c5c3_Err != nil {

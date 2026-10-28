@@ -350,15 +350,21 @@ func TestView_StockNoticeBlocked(t *testing.T) {
 	}
 }
 
-// TestPageStockHold holds that the cart shows how long the stock is held, under
-// the checkout button.
-func TestPageStockHold(t *testing.T) {
+// TestPagePayStartNote holds that the cart says the stock is held once the order
+// is placed, and how long the customer has to start paying, under the checkout
+// button; it does not say the cart itself holds anything.
+func TestPagePayStartNote(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	lines := []Line{{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}}
-	markup := renderToString(t, Page(Meta(ctx), View{Lines: lines, HoldMinutes: 61}))
-	if !strings.Contains(markup, "庫存保留 61 分鐘") {
-		t.Error("the cart does not say how long the stock is held")
+	for locale, want := range map[i18n.Locale]string{
+		i18n.ZhHant: "送出訂單後保留，請在 28 分鐘內開始付款",
+		i18n.En:     "Held once you place the order; start paying within 28 minutes",
+	} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		markup := renderIn(t, locale, Page(Meta(ctx), View{Lines: lines, PayStartMinutes: 28}))
+		if !strings.Contains(markup, want) {
+			t.Errorf("%s: the cart lacks %q under the checkout button", locale, want)
+		}
 	}
 }
 
