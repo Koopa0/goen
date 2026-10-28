@@ -48,6 +48,18 @@ func eventsOf(t *testing.T, id uuid.UUID) int {
 	return n
 }
 
+// pickingEventsOf counts the order's picking events only: starting packing also
+// records a paid event, through payment.CompleteFunding, when the order has none.
+func pickingEventsOf(t *testing.T, id uuid.UUID) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM order_events WHERE order_id = $1 AND kind = $2`,
+		id, string(order.EventPicking)).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
 // TestHandler_StartPickingBatch: the ticked orders all start packing, each
 // through Advance, and the answer is a redirect to the packing tab.
 // Mutation left to CI: skip the Advance call, or answer the tab it came from.
@@ -57,7 +69,7 @@ func TestHandler_StartPickingBatch(t *testing.T) {
 	b, bID := readyOrder(t)
 	c, cID := readyOrder(t)
 
-	before := eventsOf(t, aID)
+	before := pickingEventsOf(t, aID)
 	w := postPicking(t, s, i18n.En, c, a, b, a)
 	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/orders?status=picking&started=1" {
 		t.Fatalf("batch = %d %q, want 303 to the packing tab", w.Code, w.Header().Get("Location"))
@@ -67,8 +79,8 @@ func TestHandler_StartPickingBatch(t *testing.T) {
 			t.Errorf("order %s = %q, want picking", id, got)
 		}
 	}
-	if got := eventsOf(t, aID) - before; got != 1 {
-		t.Errorf("an order listed twice gained %d events, want 1", got)
+	if got := pickingEventsOf(t, aID) - before; got != 1 {
+		t.Errorf("an order listed twice gained %d picking events, want 1", got)
 	}
 }
 
