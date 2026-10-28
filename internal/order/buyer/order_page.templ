@@ -185,7 +185,7 @@ templ Order(p frame.Page, v *OrderView) {
 					</dl>
 					<div class="goen-summary__actions">
 						<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
-							@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
+							@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, "submit") {
 								{ i18n.T(ctx, i18n.KeyOrderReorder) }
 							}
 							<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
