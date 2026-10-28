@@ -167,12 +167,17 @@ func TestProductView_BuyFacts(t *testing.T) {
 }
 
 // TestProductView_Highlights holds that the highlights are at most three
-// values.
+// values, and only on a product whose department compares.
 func TestProductView_Highlights(t *testing.T) {
 	t.Parallel()
-	v := ProductView{Specs: []ProductSpec{{Value: "a"}, {Value: ""}, {Value: "b"}, {Value: "c"}, {Value: "d"}}}
+	specs := []ProductSpec{{Value: "a"}, {Value: ""}, {Value: "b"}, {Value: "c"}, {Value: "d"}}
+	v := ProductView{Specs: specs, Comparable: true}
 	if got := strings.Join(v.Highlights(), ","); got != "a,b,c" {
 		t.Errorf("Highlights() = %q, want a,b,c", got)
+	}
+	v = ProductView{Specs: specs}
+	if got := v.Highlights(); got != nil {
+		t.Errorf("Highlights() of a product that does not compare = %q, want none", got)
 	}
 }
 
