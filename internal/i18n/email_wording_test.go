@@ -14,7 +14,7 @@ func TestMessagesZhHantEmailField(t *testing.T) {
 	for _, k := range []Key{
 		KeyEmailRequired, KeyEmailMalformed, KeyRestockBadEmail,
 		KeyAdminCustLead, KeyAdminCustPlaceholder, KeyAdminCustEmailUnconfirmed,
-		KeyAdminQueueSearchPlaceholder, KeyAdminQueueSearchNote, KeyStaffNeeds,
+		KeyAdminQueueSearchPlaceholder, KeyAdminQueueSearchHint, KeyStaffNeeds,
 	} {
 		message := T(ctx, k)
 		if !strings.Contains(message, label) || strings.Contains(strings.ToLower(message), "email") {

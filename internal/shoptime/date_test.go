@@ -98,6 +98,28 @@ func TestDaysBetween(t *testing.T) {
 	}
 }
 
+// TestDaysAgo checks that DaysAgo counts shop days and not elapsed hours.
+func TestDaysAgo(t *testing.T) {
+	t.Parallel()
+	taipei := time.FixedZone("CST", 8*3600)
+	for _, tt := range []struct {
+		name   string
+		t, now time.Time
+		want   int
+	}{
+		{"earlier the same day", time.Date(2026, 10, 9, 0, 5, 0, 0, taipei), time.Date(2026, 10, 9, 23, 55, 0, 0, taipei), 0},
+		{"two minutes across midnight", time.Date(2026, 10, 9, 23, 59, 0, 0, taipei), time.Date(2026, 10, 10, 0, 1, 0, 0, taipei), 1},
+		{"a full day and a bit, one day on", time.Date(2026, 10, 9, 10, 0, 0, 0, taipei), time.Date(2026, 10, 10, 23, 0, 0, 0, taipei), 1},
+		{"three days", time.Date(2026, 10, 7, 23, 0, 0, 0, taipei), time.Date(2026, 10, 10, 1, 0, 0, 0, taipei), 3},
+		// 16:30 UTC on the 9th is 00:30 on the 10th in Taipei, so it is today at 09:00 UTC on the 10th.
+		{"a UTC clock still answers for Taipei", time.Date(2026, 10, 9, 16, 30, 0, 0, time.UTC), time.Date(2026, 10, 10, 9, 0, 0, 0, time.UTC), 0},
+	} {
+		if got := shoptime.DaysAgo(tt.t, tt.now); got != tt.want {
+			t.Errorf("%s: DaysAgo = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
 // TestDaysLeft checks that DaysLeft counts to the last day.
 //
 // A midnight end is exclusive, so its last day is the day before; a mid-day end

@@ -103,55 +103,38 @@ type listPosition struct {
 	ID uuid.UUID
 }
 
+// workPosition is a reader's place on a work tab. Its fields are not
+// listPosition's, so a position minted when these tabs ran newest first reads
+// back as no position at all.
+type workPosition struct {
+	Since time.Time
+	ID    uuid.UUID
+}
+
+func usableWorkPosition(p workPosition) bool { return p.ID != uuid.Nil && !p.Since.IsZero() }
+
 func (s *Store) List(ctx context.Context, status QueueFilter, term, after string) (View, error) {
 	term = strings.TrimSpace(term)
 	scope := keyset.ScopeURL("/admin/orders", "q", term, "status", string(status))
-	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
 	searched := utf8.RuneCountInString(term) >= formtext.MinSearchRunes
-	var rows []db.AdminOrdersRow
+	view := View{Status: status, Term: term, Searched: searched}
 	var err error
-	if searched {
-		// A search ignores the status filter: somebody on the phone wants that
-		// order, not that order if it is in the tab they had open.
-		var found []db.AdminSearchOrdersRow
-		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
-			Term: term, EscapedTerm: db.EscapeLike(term), RowLimit: keyset.PageLimit,
-		}); err == nil {
-			rows = make([]db.AdminOrdersRow, 0, len(found))
-			// A conversion, not a field copy: it stops compiling when the two
-			// queries' columns drift, so a new column cannot be dropped silently.
-			for i := range found {
-				rows = append(rows, db.AdminOrdersRow(found[i]))
-			}
-		}
-	} else {
-		filter, funding := string(status), ""
-		switch status {
-		case QueueAwaitingPayment:
-			filter, funding = string(order.FulfillmentPending), "unpaid"
-		case QueueReady:
-			filter, funding = string(order.FulfillmentPending), "funded"
-		default: // a fulfilment status filters by itself
-		}
-		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, Status: filter, Funding: funding, RowLimit: keyset.PageLimit})
+	switch {
+	case searched:
+		err = s.fillSearch(ctx, &view, scope, after)
+	case status == QueueReady || status == QueuePicking:
+		err = s.fillWork(ctx, &view, scope, after, time.Now())
+	default:
+		err = s.fillQueue(ctx, &view, scope, after)
 	}
 	if err != nil {
-		return View{}, fmt.Errorf("read orders: %w", err)
+		return View{}, err
 	}
 	counts, err := s.q.AdminOrderCounts(ctx)
 	if err != nil {
 		return View{}, fmt.Errorf("read order counts: %w", err)
 	}
 
-	// Both branches asked for one row more than the page shows, so the drop is
-	// here rather than in each of them. The tab counts above come from
-	// AdminOrderCounts and not from len(rows), so the extra row was never in
-	// them to begin with.
-	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
-	view := View{
-		Bound:  bound,
-		Status: status, Term: term, Searched: searched,
-	}
 	countsByFilter := make(map[QueueFilter]int64, len(counts))
 	var total int64
 	for _, c := range counts {
@@ -175,10 +158,90 @@ func (s *Store) List(ctx context.Context, status QueueFilter, term, after string
 			Count: countsByFilter[tab.filter], Selected: tab.filter == status,
 		})
 	}
-	if view.Orders, err = s.orderRows(ctx, rows); err != nil {
-		return View{}, err
-	}
 	return view, nil
+}
+
+// fillSearch lists the orders a term finds on this page and says how many it
+// finds in all.
+func (s *Store) fillSearch(ctx context.Context, view *View, scope, after string) error {
+	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
+	// A search ignores the status filter: somebody on the phone wants that
+	// order, not that order if it is in the tab they had open.
+	found, err := s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
+		Term: view.Term, EscapedTerm: db.EscapeLike(view.Term), RowLimit: keyset.PageLimit,
+	})
+	if err != nil {
+		return fmt.Errorf("read orders: %w", err)
+	}
+	rows := make([]db.AdminOrdersRow, 0, len(found))
+	// A conversion, not a field copy: it stops compiling when the two
+	// queries' columns drift, so a new column cannot be dropped silently.
+	for i := range found {
+		rows = append(rows, db.AdminOrdersRow(found[i]))
+	}
+	if view.SearchCount, err = s.q.AdminSearchOrderCount(ctx, db.AdminSearchOrderCountParams{Term: view.Term, EscapedTerm: db.EscapeLike(view.Term)}); err != nil {
+		return fmt.Errorf("count found orders: %w", err)
+	}
+	return s.fillRows(ctx, view, scope, resumed, rows)
+}
+
+// fillWork lists a work tab, the order that has waited longest first.
+func (s *Store) fillWork(ctx context.Context, view *View, scope, after string, now time.Time) error {
+	from, resumed := keyset.Resume(scope, after, usableWorkPosition)
+	status, funding := string(order.FulfillmentPicking), ""
+	if view.Status == QueueReady {
+		status, funding = string(order.FulfillmentPending), "funded"
+	}
+	found, err := s.q.AdminWorkQueue(ctx, db.AdminWorkQueueParams{
+		HasCursor: resumed, AfterSince: from.Since, AfterID: from.ID,
+		Status: status, Funding: funding, RowLimit: keyset.PageLimit,
+	})
+	if err != nil {
+		return fmt.Errorf("read work queue: %w", err)
+	}
+	found, view.Bound = keyset.PageBound(scope, resumed, found, keyset.PageSize, func(r *db.AdminWorkQueueRow) string { return r.PageCursor })
+	rows := make([]db.AdminOrdersRow, len(found))
+	for i := range found {
+		f := &found[i]
+		rows[i] = db.AdminOrdersRow{
+			PageCursor: f.PageCursor, ID: f.ID, OrderNumber: f.OrderNumber, FulfillmentStatus: f.FulfillmentStatus,
+			PlacedAt: f.PlacedAt, TotalCents: f.TotalCents, Recipient: f.Recipient, Committed: f.Committed, OwedCents: f.OwedCents,
+		}
+	}
+	base, err := s.orderRows(ctx, rows)
+	if err != nil {
+		return err
+	}
+	view.Work = make([]WorkRow, len(base))
+	for i := range base {
+		view.Work[i] = workRow(base[i], found[i].WaitingSince, now)
+	}
+	return nil
+}
+
+// fillQueue lists the other tabs, newest first.
+func (s *Store) fillQueue(ctx context.Context, view *View, scope, after string) error {
+	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
+	filter, funding := string(view.Status), ""
+	if view.Status == QueueAwaitingPayment {
+		filter, funding = string(order.FulfillmentPending), "unpaid"
+	}
+	rows, err := s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, Status: filter, Funding: funding, RowLimit: keyset.PageLimit})
+	if err != nil {
+		return fmt.Errorf("read orders: %w", err)
+	}
+	return s.fillRows(ctx, view, scope, resumed, rows)
+}
+
+// fillRows is the end of the two newest-first reads. Both asked for one row
+// more than the page shows, so the drop is here rather than in each of them.
+// The tab counts come from AdminOrderCounts and not from len(rows), so the
+// extra row was never in them to begin with.
+func (s *Store) fillRows(ctx context.Context, view *View, scope string, resumed bool, rows []db.AdminOrdersRow) error {
+	rows, view.Bound = keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
+	var err error
+	view.Orders, err = s.orderRows(ctx, rows)
+	return err
 }
 
 func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {

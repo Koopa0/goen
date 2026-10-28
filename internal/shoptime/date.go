@@ -44,6 +44,10 @@ func DaysBetween(from, to Date) int {
 	return int(civil(to).Sub(civil(from)) / (24 * time.Hour))
 }
 
+// DaysAgo is how many shop days lie between t's day and now's: 0 for anything
+// earlier today, 1 for a moment just before midnight seen just after it.
+func DaysAgo(t, now time.Time) int { return DaysBetween(DateOf(t, now), DateOf(now, now)) }
+
 // DaysLeft is how many days remain after today up to the last day of a period
 // ending at endsAt; negative once it has ended.
 func DaysLeft(now, endsAt time.Time) int {
