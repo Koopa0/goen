@@ -50,3 +50,24 @@ func TestSeller_Href(t *testing.T) {
 		t.Errorf("Href = %q, want %q", got, want)
 	}
 }
+
+// TestTopUnits: the scale of a best seller list is its largest sale wherever
+// that sits in the list.
+func TestTopUnits(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		sellers []Seller
+		want    int64
+	}{
+		{"none", nil, 0},
+		{"one", []Seller{{Units: 4}}, 4},
+		{"largest first", []Seller{{Units: 9}, {Units: 3}}, 9},
+		{"largest last", []Seller{{Units: 3}, {Units: 9}}, 9},
+	}
+	for _, tt := range tests {
+		if got := TopUnits(tt.sellers); got != tt.want {
+			t.Errorf("TopUnits(%s) = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
