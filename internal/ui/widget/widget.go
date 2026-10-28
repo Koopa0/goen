@@ -224,7 +224,8 @@ func (p CardProps) class() string {
 }
 
 // NoticeProps renders a paragraph, not a division: a handler test locates the
-// checkout's re-quote notice by its element.
+// checkout's re-quote notice by its element. NoticeBlock is the same notice as a
+// division, for the one whose content is a list or paragraphs of its own.
 type NoticeProps struct {
 	Intent Intent
 	ID     string
