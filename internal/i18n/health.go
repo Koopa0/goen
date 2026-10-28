@@ -41,7 +41,7 @@ var (
 
 	KeyAdminHPInvoiceBuyerUnconfirmed = key("admin.hp.invoice.buyerunconfirmed", Message{ZhHant: "買受人尚未同意折讓，確認連結已逾期。", En: "The buyer has not agreed to the allowance and the consent link expired."})
 
-	KeyAdminHPInvoiceAmountHeld = key("admin.hp.invoice.amountheld", Message{ZhHant: "加值中心仍保留折讓額度，請查核折讓狀態。", En: "The provider still holds the allowance amount; check its status."})
+	KeyAdminHPInvoiceAmountHeld = key("admin.hp.invoice.amountheld", Message{ZhHant: "加值中心仍保留折讓金額，請查核折讓狀態。", En: "The provider still holds the allowance amount; check its status."})
 
 	KeyAdminHPInvoiceMismatch = key("admin.hp.invoice.mismatch", Message{ZhHant: "加值中心的發票或折讓資料與這次操作不符。", En: "The provider invoice or allowance does not match this operation."})
 
@@ -117,12 +117,12 @@ var (
 	})
 
 	KeyAdminHPCheckoutsNote = key("admin.hp.checkouts.note", Message{
-		ZhHant: "過了付款期限，Stripe 的結帳就會結束；goen 得知後取消訂單，退回購物金和優惠券。" +
-			"Stripe 的通知沒來時，goen 會自己去問。這裡有數字代表問了好幾次仍沒結果，購物金和優惠券還被占著。",
+		ZhHant: "過了付款期限，Stripe 的結帳就會結束；goen 得知後取消訂單，退回購物金和折扣碼。" +
+			"Stripe 的通知沒來時，goen 會自己去問。這裡有數字代表問了好幾次仍沒結果，購物金和折扣碼還被占著。",
 		En: "A checkout ends at Stripe when its order's payment deadline passes; once goen hears, it cancels " +
-			"the order and gives back its store credit and coupon. When Stripe's notice does not come, goen " +
+			"the order and gives back its store credit and discount code. When Stripe's notice does not come, goen " +
 			"asks Stripe itself. A count here means asking again and again has not settled it, so the credit " +
-			"and coupon are still spent.",
+			"and discount code are still spent.",
 	})
 
 	KeyAdminHPProjectionName = key("admin.hp.projection.name", Message{
@@ -433,9 +433,9 @@ var (
 	})
 
 	KeyHealthCheckoutsStuck = countKey("health.checkouts.stuck",
-		"%d 筆逾期訂單的結帳還沒結束，購物金和優惠券仍被占著",
-		"%d lapsed order's checkout is still unsettled, so its credit and coupon stay spent",
-		"%d lapsed orders' checkouts are still unsettled, so their credit and coupons stay spent")
+		"%d 筆逾期訂單的結帳還沒結束，購物金和折扣碼仍被占著",
+		"%d lapsed order's checkout is still unsettled, so its credit and discount code stay spent",
+		"%d lapsed orders' checkouts are still unsettled, so their credit and discount codes stay spent")
 
 	KeyHealthRefundsClear = key("health.refunds.clear", Message{
 		ZhHant: "沒有卡住的退款",

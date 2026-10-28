@@ -65,7 +65,7 @@ var (
 		En:     "Narrow-screen version (English)",
 	})
 
-	KeyAdminHomeBannerCode = key("admin.home.banner.code", Message{ZhHant: "優惠碼", En: "Coupon code"})
+	KeyAdminHomeBannerCode = key("admin.home.banner.code", Message{ZhHant: "折扣碼", En: "Discount code"})
 
 	KeyAdminHomeBannerCTALabel = key("admin.home.banner.cta.label", Message{
 		ZhHant: "按鈕文字",

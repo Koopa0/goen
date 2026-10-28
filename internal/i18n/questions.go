@@ -55,7 +55,6 @@ var (
 	KeyAdminQuestionShow         = key("admin.question.show", Message{ZhHant: "恢復顯示這則提問", En: "Show this question again"})
 	KeyAdminQuestionsHidden      = key("admin.questions.hidden", Message{ZhHant: "查看隱藏的提問", En: "View hidden questions"})
 	KeyAdminQuestionsVisible     = key("admin.questions.visible", Message{ZhHant: "查看顯示中的提問", En: "View visible questions"})
-	KeyAdminPageQuestions        = key("admin.page.questions", Message{ZhHant: "顧客提問", En: "Customer questions"})
 
 	KeyAdminQuestionsLead = key("admin.questions.lead", Message{
 		ZhHant: "還沒有官方回覆的提問排在前面，其中等最久的排第一。你的回覆會標示「官方回覆」，排在該提問的其他回答之上。",

@@ -4,10 +4,10 @@ var (
 	KeyAdminCoupLead = key("admin.coup.lead", Message{
 		ZhHant: "金額用「元」，百分比用整數。停用的折扣碼會保留紀錄，不會刪除。",
 		En: "Amounts are in whole New Taiwan dollars and percentages are whole numbers. " +
-			"Switching a coupon off keeps its record; nothing is deleted.",
+			"Switching a discount code off keeps its record; nothing is deleted.",
 	})
 
-	KeyAdminCoupCode = key("admin.coup.code", Message{ZhHant: "折扣碼", En: "Coupon code"})
+	KeyAdminCoupCode = key("admin.coup.code", Message{ZhHant: "折扣碼", En: "Discount code"})
 
 	KeyAdminCoupKind = key("admin.coup.kind", Message{ZhHant: "類型", En: "Type"})
 
@@ -55,16 +55,16 @@ var (
 	KeyAdminCoupMaxHint = key("admin.coup.max.hint", Message{ZhHant: "0 表示不限量。", En: "0 means no limit."})
 
 	KeyAdminCoupPerCustomer = key("admin.coup.percustomer", Message{
-		ZhHant: "每位會員可用次數",
-		En:     "Uses per member account",
+		ZhHant: "每個顧客帳號可用次數",
+		En:     "Uses per customer account",
 	})
 
 	KeyAdminCoupPerCustomerHint = key("admin.coup.percustomer.hint", Message{
-		ZhHant: "只計算會員帳號；訪客結帳不受此限制，只受總使用次數限制。",
-		En:     "Counted per member account. Guest checkouts are not limited by it, only by the total redemptions.",
+		ZhHant: "只計算顧客帳號；訪客結帳不受此限制，只受總使用次數限制。",
+		En:     "Counted per customer account. Guest checkouts are not limited by it, only by the total redemptions.",
 	})
 
-	KeyAdminCoupCreate = key("admin.coup.create", Message{ZhHant: "建立折扣碼", En: "Create the coupon"})
+	KeyAdminCoupCreate = key("admin.coup.create", Message{ZhHant: "建立折扣碼", En: "Create the discount code"})
 
 	KeyAdminCoupConditions = key("admin.coup.conditions", Message{ZhHant: "條件", En: "Conditions"})
 
@@ -72,7 +72,7 @@ var (
 
 	KeyAdminCoupExpiry = key("admin.coup.expiry", Message{ZhHant: "到期", En: "Expiry"})
 
-	KeyAdminCoupEmpty = key("admin.coup.empty", Message{ZhHant: "還沒有任何折扣碼。", En: "No coupons yet."})
+	KeyAdminCoupEmpty = key("admin.coup.empty", Message{ZhHant: "還沒有任何折扣碼。", En: "No discount codes yet."})
 
 	KeyAdminCoupUsed = key("admin.coup.used", Message{ZhHant: "已使用 %s", En: "%s"})
 
@@ -80,7 +80,7 @@ var (
 
 	KeyFormCouponCode = key("form.coupon.code", Message{
 		ZhHant: "折扣碼只能用英數與連字號，2 到 32 個字元。",
-		En:     "A coupon code takes letters, digits and hyphens, 2 to 32 characters.",
+		En:     "A discount code takes letters, digits and hyphens, 2 to 32 characters.",
 	})
 
 	KeyFormCouponDescription = key("form.coupon.description", Message{
@@ -99,8 +99,8 @@ var (
 	})
 
 	KeyFormCouponPerCustomer = key("form.coupon.percustomer", Message{
-		ZhHant: "每位會員至少可以用一次。",
-		En:     "Each member account gets at least one use.",
+		ZhHant: "每個顧客帳號至少可以用一次。",
+		En:     "Each customer account gets at least one use.",
 	})
 
 	KeyFormCouponDays = key("form.coupon.days", Message{
@@ -140,7 +140,7 @@ var (
 
 	KeyFormCouponTaken = key("form.coupon.taken", Message{
 		ZhHant: "這組折扣碼已經存在了。",
-		En:     "That coupon code already exists.",
+		En:     "That discount code already exists.",
 	})
 
 	KeyCouponKindAmount = key("coupon.kind.amount", Message{ZhHant: "折抵金額", En: "Fixed amount"})
@@ -149,7 +149,7 @@ var (
 
 	KeyCouponKindShipping = key("coupon.kind.shipping", Message{ZhHant: "免運", En: "Free shipping"})
 
-	KeyAdminPageCoupons = key("admin.page.coupons", Message{ZhHant: "折扣碼", En: "Coupons"})
+	KeyAdminPageCoupons = key("admin.page.coupons", Message{ZhHant: "折扣碼", En: "Discount codes"})
 
 	KeyAdminCouponCap = key("admin.coupon.cap", Message{ZhHant: "（上限 %s）", En: "(capped at %s)"})
 
@@ -157,7 +157,7 @@ var (
 
 	KeyAdminCouponTotalLimit = key("admin.coupon.totallimit", Message{ZhHant: "限量 %d", En: "%d in total"})
 
-	KeyAdminCouponPerPerson = key("admin.coupon.perperson", Message{ZhHant: "每位會員 %d 次", En: "%d per member"})
+	KeyAdminCouponPerPerson = key("admin.coupon.perperson", Message{ZhHant: "每個顧客帳號 %d 次", En: "%d per customer account"})
 
 	KeyAdminCouponUsed = key("admin.coupon.used", Message{ZhHant: "%d 次", En: "%d used"})
 

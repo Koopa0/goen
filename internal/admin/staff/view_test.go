@@ -125,3 +125,19 @@ func TestStaffCountSingular(t *testing.T) {
 		}
 	}
 }
+
+// TestStaffRoleHint: the role select says what separates the two roles, and
+// the select points at that sentence. A first-level desk carries no eyebrow.
+func TestStaffRoleHint(t *testing.T) {
+	t.Parallel()
+	body := renderStaff(t, i18n.En, Staff(frame.Page{Title: "Staff"}, View{Roles: []user.Role{user.RoleStaff, user.RoleAdmin}}))
+	if !strings.Contains(body, `<p class="goen-admin__hint" id="staff-role-hint">`+i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeyAdminRoleHint)+`</p>`) {
+		t.Error("the staff page does not say what an administrator can do that staff cannot")
+	}
+	if !strings.Contains(body, `id="staff-role" name="role" aria-describedby="staff-role-hint"`) {
+		t.Error("the role select is not described by the hint")
+	}
+	if strings.Contains(body, "ui-page-head__eyebrow") {
+		t.Error("the staff page still carries a page-head eyebrow")
+	}
+}

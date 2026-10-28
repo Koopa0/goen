@@ -86,8 +86,6 @@ var (
 var (
 	KeyAdminErasedAccount = key("admin.erased.account", Message{ZhHant: "（已刪除帳號）", En: "(erased account)"})
 
-	KeyAdminPageReviews = key("admin.page.reviews", Message{ZhHant: "顧客評價", En: "Customer reviews"})
-
 	KeyAdminReviewsLead = key("admin.reviews.lead", Message{
 		ZhHant: "評價送出後立即顯示，不經審核。隱藏只用於例外，隱藏的評價不計入評分。",
 		En:     "Reviews appear as soon as they are posted, without approval. Hiding is for exceptions, and a hidden review no longer counts toward the rating.",

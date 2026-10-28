@@ -53,7 +53,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Taxonomy(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueTaxonomy)}, &view))
 }
 
 // Create takes the kind from the path, which the router constrains, never from a form.
@@ -95,7 +95,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		view.Which, view.Errors = kind, errs
 		view.Draft = TaxonDraft(typed)
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Taxonomy(
-			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueTaxonomy)}, &view))
 	default:
 		http.Redirect(w, r, "/admin/taxonomy?ok=1", http.StatusSeeOther)
 	}

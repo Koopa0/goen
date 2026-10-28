@@ -494,7 +494,7 @@ func (v *OrderView) MailKeptText(ctx context.Context) string {
 }
 
 func Meta(ctx context.Context) frame.Page {
-	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminPageOrderList)}
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminQueueOrders)}
 }
 
 // Payment is how an order was paid. Method is empty for an order nothing has
