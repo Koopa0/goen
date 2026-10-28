@@ -27,9 +27,7 @@ templ Compare(p frame.Page, v CompareView) {
 			if v.Dropped {
 				<p class="goen-compare__note" role="status">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareOverflow), MaxCompare, MaxCompare) }</p>
 			}
-			if v.Enough() {
-				@comparePicker(v)
-			}
+			@comparePicker(v)
 			if !v.Enough() {
 				<div class="ui-empty">
 					<span class="goen-medallion" aria-hidden="true">
@@ -57,9 +55,9 @@ templ Compare(p frame.Page, v CompareView) {
 					</ul>
 				}
 				@compareSuggestions(v)
-				@comparePicker(v)
 			} else {
 				@compareTable(v, false)
+				@compareShelf(v)
 			}
 		</div>
 	}
@@ -70,12 +68,12 @@ templ comparePicker(v CompareView) {
 	if v.Full() {
 		<p class="goen-compare__note" role="status">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
 	} else {
-		<form class="goen-compare__picker" method="get" action="/compare" role="search" aria-label={ i18n.T(ctx, i18n.KeyCompareSearchLabel) }>
+		<form class="goen-compare__picker" method="get" action="/compare" role="search" aria-labelledby="compare-q-label">
 			for _, item := range v.Products {
 				<input type="hidden" name="p" value={ item.Slug }/>
 			}
-			<label class="goen-sr-only" for="compare-q">{ i18n.T(ctx, i18n.KeyCompareSearchLabel) }</label>
-			<input class="ui-input" id="compare-q" type="search" name="q" value={ v.Query } maxlength="100"/>
+			<label class="goen-compare__pickerlabel" id="compare-q-label" for="compare-q">{ i18n.T(ctx, i18n.KeyCompareSearchLabel) }</label>
+			<input class="goen-input" id="compare-q" type="search" name="q" value={ v.Query } maxlength="100"/>
 			@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx, i18n.KeySearch) }
 			}
@@ -134,6 +132,10 @@ templ compareSuggestions(v CompareView) {
 			</ul>
 		</section>
 	}
+	@compareShelf(v)
+}
+
+templ compareShelf(v CompareView) {
 	if v.ShelfHref() != "" {
 		<p class="goen-compare__shelf">
 			<a href={ templ.SafeURL(v.ShelfHref()) }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareBrowse), v.Products[0].Category) } <span aria-hidden="true">&rarr;</span></a>
@@ -222,15 +224,19 @@ templ compareTable(v CompareView, preview bool) {
 					</tr>
 				}
 				for _, row := range v.Rows {
-					<tr class={ templ.KV("is-partial", !row.Comparable(v.Count())), templ.KV("is-differs", row.Marked(v.Count())) }>
+					<tr class={ templ.KV("is-differs", row.Marked(v.Count())) }>
 						<th scope="row">
 							{ row.Label }
 							if row.Marked(v.Count()) {
-								<span class="goen-sr-only">{ " · " + i18n.T(ctx, i18n.KeyCompareDiffers) }</span>
+								<span class="goen-compare__differs">{ i18n.T(ctx, i18n.KeyCompareDiffers) }</span>
 							}
 						</th>
 						for i := range v.Products {
-							<td>{ row.Value(i) }</td>
+							if row.Stated(i) {
+								<td>{ row.Value(i) }</td>
+							} else {
+								<td class="goen-compare__none">{ row.Value(i) }</td>
+							}
 						}
 					</tr>
 				}

@@ -3964,6 +3964,16 @@ input.goen-check {
   text-decoration: underline;
 }
 
+.goen-compare__head .goen-compare__name {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.goen-compare__head .goen-compare__name:hover {
+  text-decoration-thickness: 2px;
+}
+
 .goen-compare__brand {
   color: var(--fg-muted);
   font-size: var(--fs-12);
@@ -3980,20 +3990,24 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-/* A row only some products state is a footnote, not a comparison. It reads
-   quieter so the eye lands on the rows that can actually be compared. */
-.goen-compare__table .is-partial td,
-.goen-compare__table .is-partial th {
-  color: var(--fg-muted);
-}
-
-/* A row the products disagree on: a ground and the ink colour, and the row
-   label says so aloud. Shown by more than colour for a reader who cannot see
-   the ground. */
+/* A row the products disagree on: the words under its label are the cue, the
+   ground is only a band for the eye to follow along the row. */
 .goen-compare__table .is-differs td,
 .goen-compare__table .is-differs th {
   background: var(--n-50);
   color: var(--n-900);
+}
+
+.goen-compare__differs {
+  color: var(--fg-muted);
+  display: block;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-regular);
+  margin-top: 2px;
+}
+
+.goen-compare__none {
+  color: var(--fg-muted);
 }
 
 /* A fact line on a head laid on a tone's ground takes the tone's text colours. */
@@ -9191,13 +9205,24 @@ form[data-request-pending] [aria-disabled="true"] {
 .goen-compare__picker {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
+  max-width: 36rem;
 }
 
-.goen-compare__picker .ui-input {
+.goen-compare__pickerlabel {
+  color: var(--fg);
+  flex-basis: 100%;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+}
+
+.goen-compare__picker .goen-input {
+  appearance: none;
   flex: 1;
   min-width: 0;
+  width: auto;
 }
 
 .goen-compare__chosen {

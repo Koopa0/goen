@@ -17,8 +17,8 @@ var (
 		En:     "Browse everything in %s",
 	})
 
-	// KeyCompareDiffers is said to a screen reader on a row where the products
-	// disagree, which the page otherwise shows by weight alone.
+	// KeyCompareDiffers is the small mark under the label of a row where the
+	// products disagree.
 	KeyCompareDiffers = key("compare.differs", Message{ZhHant: "規格不同", En: "Differs"})
 
 	KeyCompareDescription = key("compare.description", Message{
