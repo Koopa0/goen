@@ -32,7 +32,7 @@ func TestHandler_DecideCreditFunded(t *testing.T) {
 	if w.Code != http.StatusSeeOther {
 		t.Fatalf("confirmed approval answered %d, want 303; body=%s", w.Code, w.Body.String())
 	}
-	if got, want := w.Header().Get("Location"), "/admin/returns?ok=1"; got != want {
+	if got, want := w.Header().Get("Location"), "/admin/returns?approved=1"; got != want {
 		t.Errorf("confirmed approval redirects to %q, want %q", got, want)
 	}
 	if status, refunds := returnPayoutOn(t, pool, requestID); status != "approved" || refunds != 0 {
