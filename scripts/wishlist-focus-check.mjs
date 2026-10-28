@@ -34,8 +34,8 @@ export async function checkWishlistFocus({ send, evaluate, navigate, fail, origi
           fail(label, `wrong product controls, locale or text size: ${JSON.stringify(initial)}`);
           continue;
         }
-        const ringed = new Set();
-        for (let tab = 0; tab < 200 && ringed.size < 2; tab++) {
+        const reached = new Set();
+        for (let tab = 0; tab < 200 && reached.size < 2; tab++) {
           await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
           await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
           const got = await evaluate(`(() => {
@@ -78,11 +78,11 @@ export async function checkWishlistFocus({ send, evaluate, navigate, fail, origi
             return { control: kind, left: box.left, right: box.right, height: box.height, outline, ring, viewport, overhang, labelLeft, columnLeft, faults };
           })()`);
           if (!got) continue;
-          ringed.add(got.control);
+          reached.add(got.control);
           if (got.faults.length) fail(label, `${got.control}: ${got.faults.join('; ')}`);
           console.log(`${label}: ${JSON.stringify(got)}`);
         }
-        if (ringed.size !== 2) fail(label, 'native Tab did not ring both wishlist and compare controls');
+        if (reached.size !== 2) fail(label, 'native Tab did not reach both wishlist and compare controls');
       }
   } finally {
     await send('Emulation.setEmulatedMedia', { features: [] });
