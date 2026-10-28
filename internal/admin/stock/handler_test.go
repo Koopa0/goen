@@ -8,6 +8,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // TestHandler_RedirectNotices: every redirect the stock forms make carries a
@@ -30,13 +33,63 @@ func TestHandler_RedirectNotices(t *testing.T) {
 		t.Fatal("no redirect parameter found; the parser stopped matching")
 	}
 	for name := range sent {
-		if _, ok := notices[name]; !ok {
+		_, onList := listNotices[name]
+		_, onSKU := skuNotices[name]
+		if !onList && !onSKU {
 			t.Errorf("?%s=1 carries no message: the page renders nothing after the button", name)
 		}
 	}
-	for name := range notices {
-		if !sent[name] {
-			t.Errorf("notice %q names a parameter no redirect writes", name)
+	for _, group := range []map[string]widget.NoticeEntry{listNotices, skuNotices} {
+		for name := range group {
+			if !sent[name] {
+				t.Errorf("notice %q names a parameter no redirect writes", name)
+			}
+		}
+	}
+}
+
+// TestNoticesBelongToTheirPage: a code is shown by the page its write returns
+// to and by no other, so ?adjusted=1 on the list and ?price=1 on a SKU page say
+// nothing.
+func TestNoticesBelongToTheirPage(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		code        string
+		list, onSKU bool
+	}{
+		{"price", true, false},
+		{"arrival", true, false},
+		{"adjusted", false, true},
+		{"on", false, true},
+		{"off", false, true},
+		{"receipt-conflict", false, true},
+		{"received", true, true},
+		{"refused", true, true},
+	} {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/stock?"+tc.code+"=1", http.NoBody)
+		if shown := widget.NoticeFrom(req, listNotices).Text != ""; shown != tc.list {
+			t.Errorf("?%s=1 on the stock list shows a notice = %t, want %t", tc.code, shown, tc.list)
+		}
+		if shown := widget.NoticeFrom(req, skuNotices).Text != ""; shown != tc.onSKU {
+			t.Errorf("?%s=1 on a SKU page shows a notice = %t, want %t", tc.code, shown, tc.onSKU)
+		}
+	}
+}
+
+// TestDoneNoticesAreDistinct: no two actions share a sentence, so a save says
+// which change it was.
+func TestDoneNoticesAreDistinct(t *testing.T) {
+	t.Parallel()
+	for _, group := range []map[string]widget.NoticeEntry{listNotices, skuNotices} {
+		seen := map[i18n.Key]string{}
+		for name, e := range group {
+			if e.Outcome != widget.OutcomeDone {
+				continue
+			}
+			if first, dup := seen[e.Key]; dup {
+				t.Errorf("?%s=1 and ?%s=1 both say %q", first, name, e.Key)
+			}
+			seen[e.Key] = name
 		}
 	}
 }
