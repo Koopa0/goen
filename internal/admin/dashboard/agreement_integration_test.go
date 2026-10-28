@@ -71,6 +71,10 @@ func TestStore_DashboardQueueTabs(t *testing.T) {
 			sawIn = sawIn || o.Number == want.in
 			sawOut = sawOut || o.Number == want.out
 		}
+		for _, w := range view.Work { // the packing tabs fill Work, the others Orders
+			sawIn = sawIn || w.Number == want.in
+			sawOut = sawOut || w.Number == want.out
+		}
 		if !sawIn || sawOut {
 			t.Errorf("tab %q lists the expected order = %t and the other = %t, want true and false", status, sawIn, sawOut)
 		}

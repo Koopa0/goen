@@ -100,11 +100,19 @@ func TestStore_ListWorkTabsOldestFirst(t *testing.T) {
 
 // TestStore_AdminWorkQueueKeysetWalk: reading the work queue two rows at a time from each page's last
 // row gives the whole queue once, in order, and the cursor it hands out is the position List reads back.
-// Mutation left to CI: compare (w.since, o.id) with < instead of >, or drop o.id from the ORDER BY.
+// Two orders waiting since the same instant sit side by side, so a one-row walk puts its page boundary between them.
+// Mutation left to CI: compare (w.since, o.id) with < instead of > (red), or drop o.id from the ORDER BY (likely red:
+// the tied pair is then in no fixed order).
 func TestStore_AdminWorkQueueKeysetWalk(t *testing.T) {
 	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	for range 3 {
 		admintest.PaidUnshippedOrder(t, pool, 20000, 0, false)
+	}
+	// Paid by credit alone, an order waits from its placing, so one UPDATE ties the two.
+	tiedA, _ := admintest.PlaceOrderPaidByCredit(t, pool, 0)
+	tiedB, _ := admintest.PlaceOrderPaidByCredit(t, pool, 0)
+	if _, err := pool.Exec(t.Context(), `UPDATE orders SET placed_at = now() - interval '40 days' WHERE order_number = ANY($1)`, []string{tiedA, tiedB}); err != nil {
+		t.Fatalf("tie the two orders' wait: %v", err)
 	}
 	q := db.New(pool)
 	read := func(limit int32, after *db.AdminWorkQueueRow) []db.AdminWorkQueueRow {
@@ -126,21 +134,38 @@ func TestStore_AdminWorkQueueKeysetWalk(t *testing.T) {
 		return out
 	}
 	whole := read(10000, nil)
-	if len(whole) < 3 {
-		t.Fatalf("the queue holds %d orders, want the 3 just paid at least", len(whole))
+	if len(whole) < 5 {
+		t.Fatalf("the queue holds %d orders, want the 5 just paid at least", len(whole))
 	}
-	var walked []db.AdminWorkQueueRow
-	var last *db.AdminWorkQueueRow
-	for range len(whole) + 1 {
-		page := read(2, last)
-		if len(page) == 0 {
-			break
+	inOrder := func(a, b db.AdminWorkQueueRow) int {
+		if c := a.WaitingSince.Compare(b.WaitingSince); c != 0 {
+			return c
 		}
-		walked = append(walked, page...)
-		last = &page[len(page)-1]
+		return slices.Compare(a.ID[:], b.ID[:])
 	}
-	if !slices.Equal(ids(walked), ids(whole)) {
-		t.Fatalf("a two-row walk lists %d orders in another order than the whole read's %d", len(walked), len(whole))
+	if !slices.IsSortedFunc(whole, inOrder) {
+		t.Error("the queue is not in (waiting since, id) order")
+	}
+	indexOf := func(number string) int {
+		return slices.IndexFunc(whole, func(r db.AdminWorkQueueRow) bool { return r.OrderNumber == number })
+	}
+	if a, b := indexOf(tiedA), indexOf(tiedB); a < 0 || b < 0 || a-b != 1 && b-a != 1 || !whole[a].WaitingSince.Equal(whole[b].WaitingSince) {
+		t.Fatalf("the two orders paid at the same instant are at %d and %d, want next to each other with one wait", a, b)
+	}
+	for _, size := range []int32{1, 2} {
+		var walked []db.AdminWorkQueueRow
+		var last *db.AdminWorkQueueRow
+		for range len(whole) + 1 {
+			page := read(size, last)
+			if len(page) == 0 {
+				break
+			}
+			walked = append(walked, page...)
+			last = &page[len(page)-1]
+		}
+		if !slices.Equal(ids(walked), ids(whole)) {
+			t.Fatalf("a %d-row walk lists %d orders in another order than the whole read's %d", size, len(walked), len(whole))
+		}
 	}
 
 	ctx, _ := admintest.StaffContext(t, pool)
