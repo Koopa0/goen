@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -54,6 +55,27 @@ func refusedPageTitle(t *testing.T, body string) string {
 	return ""
 }
 
+func refusedPageHeading(t *testing.T, body string) string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "h1" {
+			var text strings.Builder
+			for c := range n.Descendants() {
+				if c.Type == html.TextNode {
+					text.WriteString(c.Data)
+				}
+			}
+			return text.String()
+		}
+	}
+	t.Fatal("the page has no <h1>")
+	return ""
+}
+
 // TestHandler_EditorRefusalsKeepDraft: product editor refusals keep their draft
 // and the image controls.
 func TestHandler_EditorRefusalsKeepDraft(t *testing.T) {
@@ -91,6 +113,7 @@ func TestHandler_EditorRefusalsKeepDraft(t *testing.T) {
 			form       url.Values
 		}{
 			{name: "detail", path: "", form: url.Values{"name": {view.Name}, "category": {view.CategoryID}, "summary": {strings.Repeat("s", 501)}, "description": {strings.Repeat("d", 20001)}, "description_en": {view.DescriptionEn}}},
+			{name: "cleared name", path: "", form: url.Values{"name": {""}, "category": {view.CategoryID}}},
 			{name: "variant", path: "/variants", form: url.Values{"sku": {"refused variant"}, "price": {"unreadable"}}},
 			{name: "option", path: "/options", form: url.Values{"name": {""}, "name_en": {"Option sentinel"}}},
 			{name: "specification", path: "/specs", form: url.Values{"label": {" Capacity "}, "value": {" New value "}, "label_en": {" Authored English label "}, "value_en": {" Authored English value "}}},
@@ -104,8 +127,11 @@ func TestHandler_EditorRefusalsKeepDraft(t *testing.T) {
 					t.Fatalf("refused editor status=%d, want 422", res.Code)
 				}
 				body := res.Body.String()
-				if want := strings.SplitN(i18n.T(ctx, i18n.KeyAdminRefusedTitle), "%s", 2)[0]; !strings.HasPrefix(refusedPageTitle(t, body), want) {
+				if want := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefusedTitle), baseline.Name); !strings.HasPrefix(refusedPageTitle(t, body), want) {
 					t.Errorf("refused editor <title> = %q, want it to start with %q", refusedPageTitle(t, body), want)
+				}
+				if got := refusedPageHeading(t, body); got != baseline.Name {
+					t.Errorf("refused editor <h1> = %q, want the saved name %q", got, baseline.Name)
 				}
 				assertEditorImageControls(t, body, slug, attached, library)
 				switch tt.name {
