@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -60,16 +59,21 @@ func TestPageFactsAndDays(t *testing.T) {
 	}
 }
 
-// TestPageEmptyIllustration: the empty campaign shows its illustration as
-// decoration. The other pages' rows of this test are catalog's
-// TestListingAndSearchEmptyArt.
-func TestPageEmptyIllustration(t *testing.T) {
+// TestPageEmptyHasNoPicture: the empty campaign says so in words alone. The
+// other pages' rows of this test are catalog's TestListingEmptyStatesHaveNoPicture.
+func TestPageEmptyHasNoPicture(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	page := renderComponent(t, ctx, campaign.Page(frame.Page{}, campaign.View{Title: "x"}))
-	want := `<img class="goen-empty__art" src="` + assets.URL(assets.EmptyCampaignImage) + `" alt="" width="128" height="96"`
-	if !strings.Contains(page, want) {
-		t.Errorf("campaign empty state omits %s", want)
+	_, rest, ok := strings.Cut(page, `class="ui-empty">`)
+	if !ok {
+		t.Fatal("empty campaign renders no ui-empty box")
+	}
+	box, _, _ := strings.Cut(rest, `</div>`)
+	for _, picture := range []string{`<img`, `goen-medallion`} {
+		if strings.Contains(box, picture) {
+			t.Errorf("empty campaign draws %q", picture)
+		}
 	}
 }
 
