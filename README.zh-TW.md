@@ -10,9 +10,9 @@
 
 **示範站：[goen.koopa0.dev](https://goen.koopa0.dev)**
 
-![繁體中文店面首頁：有照片、寫出剩下天數的活動輪播，接著是活動的商品、各個館別，以及一個館別與它的商品](assets/readme/storefront.zh-TW.png)
+![繁體中文店面首頁：有照片、寫出剩下天數的活動輪播，接著是活動的商品、各個館別、一個館別與它的商品，以及列出付款時限、猶豫期、退貨與免運門檻的規則列](assets/readme/storefront.zh-TW.png)
 
-![繁體中文後台總覽：等你處理的工作、近 7 天與前 7 天的營收和已付款訂單，以及最新訂單](assets/readme/backoffice.zh-TW.png)
+![繁體中文後台總覽：等你處理的工作和已等的天數、近 14 天營收與近 7 天對比前 7 天、快賣完的庫存，以及近 7 天熱賣商品](assets/readme/backoffice.zh-TW.png)
 
 ## 功能
 
