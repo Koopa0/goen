@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
@@ -101,7 +102,7 @@ templ Report(p frame.Page, v *View) {
 				</div>
 			} else {
 				<ul class="goen-report__rows" role="list">
-					{{ top := v.TopUnits() }}
+					{{ top := sales.TopUnits(v.Sellers) }}
 					for _, item := range v.Sellers {
 						@widget.ReportRow(item.Name, item.Href(), item.Facts(ctx)) {
 							if len(v.Sellers) > 1 {

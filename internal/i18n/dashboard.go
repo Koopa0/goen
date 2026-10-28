@@ -112,9 +112,6 @@ var (
 		"No paid orders in the last %d day.",
 		"No paid orders in the last %d days.")
 
-	// The table column that names the earlier stretch on each of its days.
-	KeyAdminQueueSalesPeriod = key("admin.queue.salesperiod", Message{ZhHant: "期間", En: "Period"})
-
 	KeyAdminQueueSellersHeading = countKey("admin.queue.sellersheading",
 		"近 %d 天熱賣商品",
 		"Best sellers, last %d day",

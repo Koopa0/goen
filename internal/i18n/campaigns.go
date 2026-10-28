@@ -211,8 +211,6 @@ var (
 
 	KeyAdminCampUnits = key("admin.camp.units", Message{ZhHant: "件數", En: "Units"})
 
-	KeyAdminCampPeriod = key("admin.camp.period", Message{ZhHant: "時段", En: "Period"})
-
 	// The days before a campaign began, which it is compared with.
 	KeyAdminCampBefore = key("admin.camp.before", Message{ZhHant: "活動前", En: "Before"})
 

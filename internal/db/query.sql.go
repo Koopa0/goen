@@ -18607,14 +18607,12 @@ func (q *Queries) StaffTOTPStatus(ctx context.Context) ([]StaffTOTPStatusRow, er
 const statedWindows = `-- name: StatedWindows :one
 SELECT rescission_days()::bigint AS rescission_days,
        return_goodwill_days()::bigint AS return_days,
-       checkout_hold_minutes()::bigint AS hold_minutes,
        checkout_pay_start_minutes()::bigint AS pay_start_minutes
 `
 
 type StatedWindowsRow struct {
 	RescissionDays  int64
 	ReturnDays      int64
-	HoldMinutes     int64
 	PayStartMinutes int64
 }
 
@@ -18623,12 +18621,7 @@ type StatedWindowsRow struct {
 func (q *Queries) StatedWindows(ctx context.Context) (StatedWindowsRow, error) {
 	row := q.db.QueryRow(ctx, statedWindows)
 	var i StatedWindowsRow
-	err := row.Scan(
-		&i.RescissionDays,
-		&i.ReturnDays,
-		&i.HoldMinutes,
-		&i.PayStartMinutes,
-	)
+	err := row.Scan(&i.RescissionDays, &i.ReturnDays, &i.PayStartMinutes)
 	return i, err
 }
 
