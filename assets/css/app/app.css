@@ -4026,13 +4026,8 @@ input.goen-check {
   color: var(--tone-muted);
 }
 
-/* The band's last row: one more panel on the tone, under the head's two and
-   the same seam apart. */
-.goen-band > .goen-deptnotice {
-  background: var(--tone-ground);
-  border-radius: var(--r-hero);
-  margin-top: var(--s-2);
-  padding: var(--s-5) var(--head-inset);
+.goen-deptnotice {
+  margin: 0;
 }
 
 /* The whole line is the link, read as words: the campaign's name and the arrow
@@ -5915,7 +5910,6 @@ input.goen-check {
 .goen-promo,
 .goen-campaign__band .goen-pagehead[data-tone="ink"],
 .goen-listing__head .goen-pagehead[data-tone="ink"] .goen-band__body,
-.goen-listing__head .goen-pagehead[data-tone="ink"] .goen-deptnotice,
 .goen-hero__slide[data-tone="ink"],
 .goen-band[data-tone="ink"] {
   --ring: var(--n-0);
@@ -9312,11 +9306,10 @@ form[data-request-pending] [aria-disabled="true"] {
     outline: 1px solid CanvasText;
   }
 
-  /* The tone is dropped, so each of the head's panels keeps an edge of its own;
-     the photograph's panel clips the outline of its picture. */
+  /* The tone is dropped, so each of the head's two panels keeps an edge of its
+     own; the photograph's panel clips the outline of its picture. */
   .goen-pagehead .goen-band__media,
-  .goen-pagehead .goen-band__body,
-  .goen-pagehead .goen-band > .goen-deptnotice {
+  .goen-pagehead .goen-band__body {
     outline: 1px solid CanvasText;
     outline-offset: -1px;
   }
