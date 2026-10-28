@@ -21,7 +21,7 @@ templ List(p frame.Page, v ListView) {
 			})
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</h1>
-				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyWarrantySub) }</p>
+				<p class="goen-pagehead__sub">{ v.Sub(ctx) }</p>
 			</div>
 			if len(v.Ready) > 0 {
 				<section aria-labelledby="warranty-ready-heading">
@@ -33,6 +33,7 @@ templ List(p frame.Page, v ListView) {
 								if item.Line.Label != "" {
 									<span class="goen-warranty__meta">{ item.Line.Label }</span>
 								}
+								<span class="goen-warranty__meta">{ item.Meta(ctx) }</span>
 								<p class="goen-warranty__meta">{ item.Line.CoverText(ctx) }</p>
 								@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, templ.SafeURL(item.Href())) {
 									{ i18n.T(ctx, i18n.KeyWarrantyRegisterReady) }
@@ -45,9 +46,11 @@ templ List(p frame.Page, v ListView) {
 			if v.Empty() {
 				<div class="goen-empty">
 					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyWarrantyNone) }</p>
-					<p class="ui-empty__desc">
-						{ i18n.T(ctx, i18n.KeyWarrantyNoneHint) }<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>{ i18n.T(ctx, i18n.KeyWarrantyNoneTail) }
-					</p>
+					if v.ExplainsWhereToRegister() {
+						<p class="ui-empty__desc">
+							{ i18n.T(ctx, i18n.KeyWarrantyNoneHint) }<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>{ i18n.T(ctx, i18n.KeyWarrantyNoneTail) }
+						</p>
+					}
 				</div>
 			} else {
 				<ul class="goen-warranty" role="list">
