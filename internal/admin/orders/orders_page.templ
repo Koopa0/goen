@@ -60,6 +60,77 @@ templ queueRowHead(o Row) {
 	<td>{ o.RecipientText(ctx) }</td>
 }
 
+// queueTable is a queue's rows. On a work tab each row starts with a box to tick,
+// for the form that wraps the table there.
+templ queueTable(v View) {
+	<div class="goen-admin__tablewrap">
+		<table class="ui-table goen-admin__table">
+			<thead>
+				<tr>
+					if v.Working() {
+						<th class="goen-admin__cellpick" scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminBatchColumn) }</span></th>
+					}
+					<th scope="col">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</th>
+					<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+					<th scope="col">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</th>
+					if v.Working() {
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColWaited) }</th>
+					} else {
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
+					}
+					<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, o := range v.Orders {
+					<tr>
+						@queueRowHead(o)
+						<td>{ o.PlacedAt }</td>
+						<td class="goen-admin__cellnum">{ o.Total() }</td>
+					</tr>
+				}
+				for _, w := range v.Work {
+					<tr>
+						<td class="goen-admin__cellpick">
+							<label class="goen-admin__pick">
+								<input type="checkbox" name="order" value={ w.Number }/>
+								<span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminBatchSelect), w.Number) }</span>
+							</label>
+						</td>
+						@queueRowHead(w.Row)
+						<td class="goen-admin__cellwait">
+							{ w.WaitText(ctx) }
+							if w.Overdue {
+								@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
+									<span aria-hidden="true">▲</span>
+									{ i18n.T(ctx, i18n.KeyAdminOverdue) }
+								}
+							}
+						</td>
+						<td class="goen-admin__cellnum">{ w.Total() }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// batchRefusal names the orders a batch left as they were and why, and how many
+// of the others started. Nothing is drawn for a batch that was not refused.
+templ batchRefusal(b BatchResult) {
+	if len(b.Refused) > 0 {
+		@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
+			<strong class="goen-notice__lead">{ i18n.T(ctx, i18n.KeyAdminBatchRefused) }</strong>
+			for _, r := range b.Refused {
+				<span class="goen-admin__refusal">{ r.RefusalText(ctx) }</span>
+			}
+			if b.OthersStarted > 0 {
+				<span class="goen-admin__refusal">{ i18n.Count(ctx, i18n.KeyAdminBatchOthersStarted, b.OthersStarted, b.OthersStarted) }</span>
+			}
+		}
+	}
+}
+
 // The tabs are links and the selected one is marked with aria-current alone: a second
 // class saying the same thing is a second source of truth for which tab is on.
 templ Orders(p frame.Page, v View) {
@@ -70,6 +141,7 @@ templ Orders(p frame.Page, v View) {
 			</div>
 		</div>
 		@widget.Announce(v.Notice)
+		@batchRefusal(v.Batch)
 		@searchForm(v.Term, v.Searching())
 		if v.TermTooShort() {
 			@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
@@ -108,48 +180,28 @@ templ Orders(p frame.Page, v View) {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ v.EmptyText(ctx) }</p>
 			</div>
+		} else if v.Working() && v.Status == QueueReady {
+			<form class="goen-admin__batch" method="post" action="/admin/orders/picking">
+				<div class="goen-admin__batchbar">
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Attrs: templ.Attributes{"aria-describedby": "batch-hint"}}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminQueueStartPicking) }
+					}
+					<p class="goen-admin__hint" id="batch-hint">{ i18n.T(ctx, i18n.KeyAdminBatchHintStart) }</p>
+				</div>
+				@queueTable(v)
+			</form>
+		} else if v.Working() && v.Status == QueuePicking {
+			<form class="goen-admin__batch" method="get" action="/admin/orders/picking/slips">
+				<div class="goen-admin__batchbar">
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary, Attrs: templ.Attributes{"name": "picked", "value": "1", "aria-describedby": "batch-hint"}}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminBatchPrint) }
+					}
+					<p class="goen-admin__hint" id="batch-hint">{ i18n.T(ctx, i18n.KeyAdminBatchHintPrint) }</p>
+				</div>
+				@queueTable(v)
+			</form>
 		} else if !v.Empty() {
-			<div class="goen-admin__tablewrap">
-				<table class="ui-table goen-admin__table">
-					<thead>
-						<tr>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</th>
-							if v.Working() {
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColWaited) }</th>
-							} else {
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
-							}
-							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
-						</tr>
-					</thead>
-					<tbody>
-						for _, o := range v.Orders {
-							<tr>
-								@queueRowHead(o)
-								<td>{ o.PlacedAt }</td>
-								<td class="goen-admin__cellnum">{ o.Total() }</td>
-							</tr>
-						}
-						for _, w := range v.Work {
-							<tr>
-								@queueRowHead(w.Row)
-								<td class="goen-admin__cellwait">
-									{ w.WaitText(ctx) }
-									if w.Overdue {
-										@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
-											<span aria-hidden="true">▲</span>
-											{ i18n.T(ctx, i18n.KeyAdminOverdue) }
-										}
-									}
-								</td>
-								<td class="goen-admin__cellnum">{ w.Total() }</td>
-							</tr>
-						}
-					</tbody>
-				</table>
-			</div>
+			@queueTable(v)
 		}
 		@widget.ListPager(v.Bound)
 	}

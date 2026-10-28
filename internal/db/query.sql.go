@@ -13273,14 +13273,16 @@ WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
                                           JOIN return_requests r ON r.id = rl.return_request_id
                                           WHERE rl.order_line_id = ol.id
                                             AND r.unsent AND r.status <> 'rejected'), 0))
-  AND (NOT $2::boolean OR o.placed_at > $3::timestamptz
-       OR (o.placed_at = $3::timestamptz AND o.id > $4::uuid))
+  AND (coalesce(cardinality($2::text[]), 0) = 0 OR o.order_number = ANY($2::text[]))
+  AND (NOT $3::boolean OR o.placed_at > $4::timestamptz
+       OR (o.placed_at = $4::timestamptz AND o.id > $5::uuid))
 ORDER BY o.placed_at, o.id
-LIMIT $5::integer
+LIMIT $6::integer
 `
 
 type PickingSlipsParams struct {
 	Locale    string
+	Numbers   []string
 	HasCursor bool
 	AfterAt   time.Time
 	AfterID   uuid.UUID
@@ -13313,6 +13315,7 @@ type PickingSlipsRow struct {
 func (q *Queries) PickingSlips(ctx context.Context, arg PickingSlipsParams) ([]PickingSlipsRow, error) {
 	rows, err := q.db.Query(ctx, pickingSlips,
 		arg.Locale,
+		arg.Numbers,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
@@ -13369,6 +13372,7 @@ SELECT ol.sku,
                                      AND r.unsent AND r.status <> 'rejected'), 0))::bigint AS remaining
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
 WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
+  AND (coalesce(cardinality($1::text[]), 0) = 0 OR o.order_number = ANY($1::text[]))
   AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
   AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                               WHERE sl.order_line_id = ol.id), 0)
@@ -13387,10 +13391,11 @@ type PickingTotalsRow struct {
 	Remaining    int64
 }
 
-// Totals span the entire queue, regardless of the slip page. A SKU whose
-// snapshots have different labels keeps its most recent order's wording.
-func (q *Queries) PickingTotals(ctx context.Context) ([]PickingTotalsRow, error) {
-	rows, err := q.db.Query(ctx, pickingTotals)
+// Totals span the entire queue, regardless of the slip page, or only the orders
+// named in @numbers when it is not empty. A SKU whose snapshots have different
+// labels keeps its most recent order's wording.
+func (q *Queries) PickingTotals(ctx context.Context, numbers []string) ([]PickingTotalsRow, error) {
+	rows, err := q.db.Query(ctx, pickingTotals, numbers)
 	if err != nil {
 		return nil, err
 	}

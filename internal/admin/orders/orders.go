@@ -25,6 +25,12 @@ var (
 	// ErrPaidCancel is the status form asked to cancel a paid order. A paid
 	// order is cancelled only by refunding it before shipment.
 	ErrPaidCancel = errors.New("orders: a paid order is cancelled by refunding it before shipment")
+	// ErrAlreadyThere is a move to the status the order already holds, found
+	// under the order's lock. A refusal for one order's form, a success for a
+	// batch that a second press repeats.
+	ErrAlreadyThere = errors.New("orders: the order already has that status")
+	// ErrCancelled is a move refused because the order was cancelled.
+	ErrCancelled = errors.New("orders: the order is cancelled")
 )
 
 // queueTabs is the orders queue's closed set of filters, in the order it shows

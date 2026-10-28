@@ -21,6 +21,8 @@ func TestOrdersRedirectedNotice(t *testing.T) {
 	}{
 		{"ok", widget.OutcomeDone},
 		{"refused", widget.OutcomeRefused},
+		{"started", widget.OutcomeDone},
+		{"nosel", widget.OutcomeRefused},
 		{"shipped", widget.OutcomeDone},
 		{"parceldelivered", widget.OutcomeDone},
 		{"toolate", widget.OutcomeRefused},

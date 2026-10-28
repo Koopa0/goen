@@ -474,6 +474,7 @@ WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
                                           JOIN return_requests r ON r.id = rl.return_request_id
                                           WHERE rl.order_line_id = ol.id
                                             AND r.unsent AND r.status <> 'rejected'), 0))
+  AND (coalesce(cardinality(@numbers::text[]), 0) = 0 OR o.order_number = ANY(@numbers::text[]))
   AND (NOT @has_cursor::boolean OR o.placed_at > @after_at::timestamptz
        OR (o.placed_at = @after_at::timestamptz AND o.id > @after_id::uuid))
 ORDER BY o.placed_at, o.id
@@ -500,8 +501,9 @@ FROM (
 WHERE l.remaining > 0
 ORDER BY l.order_id, l.position, l.id;
 
--- Totals span the entire queue, regardless of the slip page. A SKU whose
--- snapshots have different labels keeps its most recent order's wording.
+-- Totals span the entire queue, regardless of the slip page, or only the orders
+-- named in @numbers when it is not empty. A SKU whose snapshots have different
+-- labels keeps its most recent order's wording.
 -- name: PickingTotals :many
 SELECT ol.sku,
        (array_agg(ol.product_name ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1]::text AS product_name,
@@ -514,6 +516,7 @@ SELECT ol.sku,
                                      AND r.unsent AND r.status <> 'rejected'), 0))::bigint AS remaining
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
 WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
+  AND (coalesce(cardinality(@numbers::text[]), 0) = 0 OR o.order_number = ANY(@numbers::text[]))
   AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
   AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                               WHERE sl.order_line_id = ol.id), 0)

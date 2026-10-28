@@ -15,7 +15,7 @@ func TestHandler_RoutesRefuseOutsiders(t *testing.T) {
 	routetest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
 		NewHandler(&Store{}, nil, slog.New(slog.DiscardHandler)).Routes(mux, ac)
 	},
-		"GET /admin/orders", "GET /admin/orders/{number}",
+		"GET /admin/orders", "GET /admin/orders/{number}", "GET /admin/orders/picking/slips", "POST /admin/orders/picking",
 		"POST /admin/orders/{number}/status", "POST /admin/orders/{number}/ship",
 		"POST /admin/orders/{number}/note", "POST /admin/orders/{number}/delivery",
 		"POST /admin/orders/{number}/shipments/{shipment}/delivered",

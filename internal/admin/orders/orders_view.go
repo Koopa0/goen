@@ -51,6 +51,17 @@ func (w WorkRow) WaitText(ctx context.Context) string {
 	return i18n.Count(ctx, i18n.KeyAdminWaitDays, int64(w.WaitDays), w.WaitDays)
 }
 
+// BatchResult is what a batch left behind when the database refused some of
+// its orders: those orders and why, and how many of the others did start.
+type BatchResult struct {
+	Refused       []BatchRefusal
+	OthersStarted int64
+}
+
+type BatchRefusal struct {
+	Number, Reason string
+}
+
 type Transition struct {
 	Value order.FulfillmentStatus
 	Label string
@@ -96,6 +107,8 @@ type View struct {
 	PageGone bool
 	Tabs     []StatusTab
 	Notice   widget.Result
+	// Batch is the refusal of a batch that started packing only some of its orders.
+	Batch BatchResult
 }
 
 // Resumed is whether the request carried a position this list could read.
