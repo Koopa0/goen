@@ -34,7 +34,8 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":         widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"added":      widget.NoticeDone(i18n.KeyAdminNoticeTierAdded),
+	"deleted":    widget.NoticeDone(i18n.KeyAdminNoticeTierDeleted),
 	"refused":    widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
 	"tiersneeds": widget.NoticeRefused(i18n.KeyAdminNoticeTiersNeeds),
 }
@@ -64,7 +65,7 @@ func (h *Handler) CreateTier(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.store.CreateTier(r.Context(), r.PostFormValue("code"),
 		r.PostFormValue("name"), r.PostFormValue("name_en"), threshold, percent)
-	h.redirectTiers(w, r, err)
+	h.redirectTiers(w, r, "/admin/tiers?added=1", err)
 }
 
 func (h *Handler) DeleteTier(w http.ResponseWriter, r *http.Request) {
@@ -72,13 +73,15 @@ func (h *Handler) DeleteTier(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.redirectTiers(w, r, h.store.DeleteTier(r.Context(), r.PostFormValue("tier")))
+	h.redirectTiers(w, r, "/admin/tiers?deleted=1", h.store.DeleteTier(r.Context(), r.PostFormValue("tier")))
 }
 
-func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err error) {
+// redirectTiers answers a tier write; done is where success goes, so the page
+// says which change it was.
+func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, done string, err error) {
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/tiers?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, done, http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrNotFound):
 		http.Redirect(w, r, "/admin/tiers?tiersneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):

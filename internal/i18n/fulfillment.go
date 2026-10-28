@@ -391,8 +391,8 @@ var (
 	})
 
 	KeyAdminNoticeTiersNeeds = key("admin.notice.tiersneeds", Message{
-		ZhHant: "會員等級的資料有誤，或找不到這個等級。門檻與折扣須為整數。",
-		En:     "The tier is not right, or it no longer exists. The threshold and discount must be whole numbers.",
+		ZhHant: "會員等級的資料有誤，或找不到這個等級。門檻與點數倍率須為整數。",
+		En:     "The tier is not right, or it no longer exists. The threshold and the points multiplier must be whole numbers.",
 	})
 
 	KeyAdminNoticeDeliveryNeeds = key("admin.notice.deliveryneeds", Message{
