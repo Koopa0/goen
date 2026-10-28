@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
@@ -275,8 +276,8 @@ templ productBuy(v *ProductView) {
 				}
 			</div>
 			if v.OnSale {
-				{{ before, middle, after := v.Campaign.Source(ctx) }}
-				<p class="goen-pdp__source">{ before }<a href={ templ.SafeURL(v.Campaign.Href()) }>{ v.Campaign.Title }</a>{ middle }<span class="goen-pdp__left">{ v.Campaign.End.Left(ctx) }</span>{ after }</p>
+				{{ before, after := v.Campaign.Source(ctx) }}
+				<p class="goen-pdp__source">{ before }<a href={ templ.SafeURL(v.Campaign.Href()) }>{ v.Campaign.Title }</a>{ after }&nbsp;<span aria-hidden="true">·</span>{ " " }@campaign.Ends(v.Campaign.End)</p>
 			}
 		}
 		if v.Summary != "" {
