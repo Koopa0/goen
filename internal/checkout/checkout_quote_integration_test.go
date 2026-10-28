@@ -121,7 +121,7 @@ func TestHandler_PlaceOrderCreditChanged(t *testing.T) {
 		t.Fatalf("post competing debit: %v", err)
 	}
 
-	h := newHandler(s, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), nil, nil)
 
 	res := httptest.NewRecorder()
 	done := make(chan error, 1)
@@ -452,7 +452,7 @@ func TestHandler_PlaceOrderBadQuote(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			//nolint:gosec // G124: the browser's own cart cookie
 			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
-			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 
 			res := httptest.NewRecorder()
 			h.PlaceOrder(res, req)
@@ -739,7 +739,7 @@ func TestHandler_PlaceOrderCouponMinimum(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 
 	res := httptest.NewRecorder()
 	served := make(chan error, 1)

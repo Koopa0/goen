@@ -178,7 +178,7 @@ func TestHandler_PlaceOrderBadAttemptID(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			//nolint:gosec // G124: the browser's own cart cookie
 			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
-			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 
 			res := httptest.NewRecorder()
 			h.PlaceOrder(res, req)
@@ -257,7 +257,7 @@ func TestHandler_PlaceOrderReplay(t *testing.T) {
 		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 		return req
 	}
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 
 	first := httptest.NewRecorder()
 	h.PlaceOrder(first, request())
@@ -420,7 +420,7 @@ func raceTheSameAttempt(t *testing.T, clicks int, credit bool, gate string) {
 	submit := func(name string) *click {
 		c := &click{app: name + "-" + uuid.NewString(), res: httptest.NewRecorder(), done: make(chan error, 1)}
 		p := applicationPool(t, c.app)
-		h := newHandler(checkout.NewStore(p), access.NewStore(p, false), slog.New(slog.DiscardHandler), nil)
+		h := newHandler(checkout.NewStore(p), access.NewStore(p, false), slog.New(slog.DiscardHandler), nil, nil)
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test

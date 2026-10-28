@@ -4,28 +4,31 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestListingAndSearchEmptyArt holds that the empty states of the listing and
-// the search show their illustration as decoration.
-//
-// The cart's row of this test is internal/cart's TestPageEmptyIllustration,
-// the campaign's internal/discount/campaign's TestPageEmptyIllustration.
-func TestListingAndSearchEmptyArt(t *testing.T) {
+// TestListingEmptyStatesHaveNoPicture holds that the empty pages of the listing, the
+// search and the comparison say so in words alone. The cart's row of this test
+// is internal/cart's TestPageEmptyHasNoPicture, the campaign's
+// internal/discount/campaign's TestPageEmptyHasNoPicture.
+func TestListingEmptyStatesHaveNoPicture(t *testing.T) {
 	t.Parallel()
-	for name, tt := range map[string]struct {
-		page  string
-		asset string
-	}{
-		"category":        {renderToString(t, Listing(frame.Page{}, ListingView{Slug: "phones"}, nil, nil)), assets.EmptySearchImage},
-		"search prompt":   {renderToString(t, Search(frame.Page{}, SearchView{})), assets.EmptySearchImage},
-		"search no match": {renderToString(t, Search(frame.Page{}, SearchView{Query: "zzz"})), assets.EmptySearchImage},
+	for name, page := range map[string]string{
+		"category":        renderToString(t, Listing(frame.Page{}, ListingView{Slug: "phones"}, nil, nil)),
+		"search prompt":   renderToString(t, Search(frame.Page{}, SearchView{})),
+		"search no match": renderToString(t, Search(frame.Page{}, SearchView{Query: "zzz"})),
+		"compare one":     renderToString(t, Compare(frame.Page{}, compareOf("pixelight-9-pro"))),
 	} {
-		want := `<img class="goen-empty__art" src="` + assets.URL(tt.asset) + `" alt="" width="128" height="96"`
-		if !strings.Contains(tt.page, want) {
-			t.Errorf("%s empty state omits %s", name, want)
+		_, rest, ok := strings.Cut(page, `class="ui-empty">`)
+		if !ok {
+			t.Errorf("%s renders no ui-empty box", name)
+			continue
+		}
+		box, _, _ := strings.Cut(rest, `</div>`)
+		for _, picture := range []string{`<img`, `goen-medallion`} {
+			if strings.Contains(box, picture) {
+				t.Errorf("%s empty state draws %q", name, picture)
+			}
 		}
 	}
 }

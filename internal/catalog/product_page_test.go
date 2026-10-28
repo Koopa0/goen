@@ -385,21 +385,45 @@ func TestProductReviewFormWarns(t *testing.T) {
 }
 
 // TestProductReviewFormUndelivered holds that the review form is replaced until
-// the product arrives.
+// the product arrives, and that the sentence saying so is not printed under an
+// empty state that already says it.
 func TestProductReviewFormUndelivered(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewNotDelivered}
-	var body strings.Builder
-	if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name     string
+		ratings  int64
+		reviews  []ProductReview
+		wantNote bool
+	}{
+		{
+			name: "after the reviews", ratings: 1, wantNote: true,
+			reviews: []ProductReview{{Rating: 5, Body: "Good."}},
+		},
+		{name: "under the empty state"},
 	}
-	markup := body.String()
-	if strings.Contains(markup, `id="write-review"`) {
-		t.Error("a customer who has not received the product is offered the review form")
-	}
-	if !strings.Contains(markup, i18n.T(ctx, i18n.KeyReviewAfterDelivery)) {
-		t.Error("the page does not say when they can review")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			view := ProductView{
+				Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewNotDelivered,
+				RatingCount: tt.ratings, Rating: 5, Reviews: tt.reviews,
+			}
+			var body strings.Builder
+			if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
+				t.Fatal(err)
+			}
+			markup := body.String()
+			if strings.Contains(markup, `id="write-review"`) {
+				t.Error("a customer who has not received the product is offered the review form")
+			}
+			if got := strings.Contains(markup, i18n.T(ctx, i18n.KeyReviewAfterDelivery)); got != tt.wantNote {
+				t.Errorf("the page says when they can review = %v, want %v", got, tt.wantNote)
+			}
+			if !tt.wantNote && !strings.Contains(markup, i18n.T(ctx, i18n.KeyNoReviewsYet)) {
+				t.Error("the empty state does not say there are no reviews yet")
+			}
+		})
 	}
 }
 

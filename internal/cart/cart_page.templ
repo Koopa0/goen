@@ -3,7 +3,6 @@ package cart
 import (
 	"fmt"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -55,7 +54,6 @@ templ Page(p frame.Page, v View) {
 			</div>
 			if v.Empty() {
 				<div class="goen-empty">
-					@widget.EmptyArt(assets.EmptyCartImage)
 					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyEmptyCart) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyCartEmptyDesc) }</p>
 					@widget.ButtonLink(widget.ButtonProps{

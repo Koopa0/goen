@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
-	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Deals(p frame.Page, v DealsView) {
@@ -25,10 +24,12 @@ templ Deals(p frame.Page, v DealsView) {
 					@pager(i18n.T(ctx, i18n.KeyCampaignPagination), v.Campaigns.Page > 1, v.Campaigns.Page < v.Campaigns.Pages(), v.CampaignPageHref(v.Campaigns.Page-1), v.CampaignPageHref(v.Campaigns.Page+1), strconv.Itoa(v.Campaigns.Page), strconv.Itoa(v.Campaigns.Pages()))
 				</section>
 			}
-			if v.Total == 0 {
-				@widget.Notice(widget.NoticeProps{}) {
-					{ i18n.T(ctx, i18n.KeyDealsEmpty) }
-				}
+			if v.Total == 0 && !v.HasCampaigns() {
+				<div class="goen-empty">
+					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyDealsEmpty) }</p>
+				</div>
+			} else if v.Total == 0 {
+				<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyDealsEmpty) }</p>
 			} else {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				<ul class="goen-tiles__grid" role="list">

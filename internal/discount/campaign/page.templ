@@ -1,7 +1,6 @@
 package campaign
 
 import (
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
@@ -42,7 +41,6 @@ templ Page(p frame.Page, v View) {
 			</header>
 			if v.Empty() {
 				<div class="ui-empty">
-					@widget.EmptyArt(assets.EmptyCampaignImage)
 					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyCampaignEmpty) }</p>
 					<p class="goen-empty__text">
 						{ i18n.T(ctx, i18n.KeyCampaignEmptyHint) } <a href="/deals">{ i18n.T(ctx, i18n.KeyCampaignEmptyLink) }</a>

@@ -64,7 +64,7 @@ func checkoutAs(
 // account's name, phone and email, and ticks the recipient box.
 func TestHandler_PageMemberPrefill(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 	token, u := aMember(t, s, "recipient-member")
 
 	page := checkoutAs(t, h, token, &u, "")
@@ -85,7 +85,7 @@ func TestHandler_PageMemberPrefill(t *testing.T) {
 // controls nor any prefill.
 func TestHandler_PageGuestNoPrefill(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 	// A cart nobody owns: a signed-out request for a member's cart is turned away.
 	token := bearer.New()
 	cartID, err := s.Carts().Create(t.Context(), token, uuid.NullUUID{})
@@ -112,7 +112,7 @@ func TestHandler_PageGuestNoPrefill(t *testing.T) {
 // what was there, so unticking puts it back.
 func TestHandler_PlaceOrderRecipientBox(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 	token, u := aMember(t, s, "recipient-typed")
 
 	apply := func(fields url.Values) string {
@@ -164,7 +164,7 @@ func TestHandler_PlaceOrderRecipientBox(t *testing.T) {
 // the map stands, and the box reports that it is not the account's.
 func TestHandler_PageDraftKeepsRecipient(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
 	token, u := aMember(t, s, "recipient-draft")
 
 	shipping := shipVersionFor(t, "store_pickup")

@@ -3941,7 +3941,15 @@ input.goen-check {
 
 .goen-empty__links {
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
+}
+
+/* The pills wrap their words here: a department name at 200% text is wider than the
+   column, and left-aligned it runs off the right edge instead of both. */
+.goen-empty__links .goen-pagehead__chip {
+  overflow-wrap: anywhere;
+  padding-block: 0.5rem;
+  white-space: normal;
 }
 
 .goen-listing__count {
@@ -4589,8 +4597,8 @@ input.goen-check {
 /* ---------- Product page ----------
 
    A breadcrumb over two columns: the gallery 7/12 and the buy column 5/12 from
-   1024, stacked below. Under them an accordion, the reviews, the questions and
-   a row of similar products, in source order.
+   1024, stacked below. Under them the description, an accordion, the reviews,
+   the questions and a row of similar products, in source order.
 
    Two choices are not the obvious ones, each for a reason the page's own
    behaviour sets:
@@ -4607,8 +4615,7 @@ input.goen-check {
    row's own position in the document never changed, so the compensation was the
    whole of the movement. It is switched off here, on the page, rather than on
    the region that swaps — the node the browser anchors to is below that region,
-   which is why doing it there had no effect. The band below the buy box is such
-   a node too, so it is switched off there as well. */
+   which is why doing it there had no effect. */
 .goen-pdp {
   display: flex;
   flex-direction: column;
@@ -5435,31 +5442,19 @@ input.goen-check {
   min-width: 0;
 }
 
-.goen-band--product {
-  margin-block: 0 4rem;
-  overflow-anchor: none;
+/* Nothing has been said yet, so the two sections share one row, on the
+   columns of the gallery and the buy box above them. */
+.goen-pdp__opinions {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
 }
 
-.goen-band--product .goen-pdp__desc {
-  margin-bottom: 0;
-}
-
-.goen-band--product .goen-pdp__sectiontitle,
-.goen-band--product .goen-pdp__prose {
-  color: var(--tone-text);
-}
-
-.goen-band--product .goen-pdp__brand {
-  color: var(--tone-muted);
-}
-
-/* No photograph: the copy sits on the page's own column, as the hero's does. */
-.goen-band--text .goen-band__grid {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.goen-band--text .goen-band__body {
-  padding-inline: max(var(--page-gutter), calc((100% - var(--page-width)) / 2));
+@media (min-width: 1024px) {
+  .goen-pdp__opinions {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
 }
 
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
@@ -6488,26 +6483,27 @@ input.goen-check {
   }
 }
 
-/* The browse screens join this rule rather than declare a second one. They
-   cannot join it by class name: `compare_test.go:33` reads `class="ui-empty"`
-   as the whole attribute and `check-layout.mjs:75,99` uses the same name as a
-   row marker, so their box keeps that spelling and this rule reaches it by
-   descent. base.css sets the same six properties on `.ui-empty` from a sheet
-   the document links earlier, so every one of them is decided here. */
+/* An empty page says so under its own heading, on the heading's edge: a sentence, a
+   line saying what to do, and at most one way on. No picture: it repeated the sentence.
+   The browse screens reach this rule by descent because their box keeps the `ui-empty`
+   spelling that compare_page_test and check-layout read. base.css sets the same
+   properties on `.ui-empty` from a sheet the document links earlier, so every one of
+   them is decided here. */
 .goen-empty,
 .goen-compare .ui-empty,
 .goen-listing .ui-empty {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 56px 16px;
-  text-align: center;
+  gap: 0.5rem;
+  padding: 2rem 0 4.5rem;
+  text-align: start;
 }
 
-/* The disc a state announces itself from: an empty cart, an order that has just
-   been placed. One recipe, because they are the same gesture — a glyph large
-   enough to read across a page, in a circle that says it is not a control. */
+/* The disc a confirmation announces itself from: an email link sent, a
+   registration that has ended. One recipe, because they are the same gesture — a
+   glyph large enough to read across a page, in a circle that says it is not a
+   control. */
 .goen-medallion {
   align-items: center;
   background: var(--elevated);
@@ -6525,26 +6521,32 @@ input.goen-check {
   width: 40px;
 }
 
-.goen-empty__art {
-  display: block;
-  height: 96px;
-  width: 128px;
-}
-
-.goen-empty__title {
-  color: var(--n-900);
-  font-size: 1rem;
-  font-weight: var(--fw-medium);
-  line-height: 1.5;
+.goen-empty__title,
+.goen-empty .ui-empty__title {
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-ed-20);
+  font-weight: var(--fw-display);
+  line-height: 1.4;
   margin: 0;
+  max-width: 32ch;
+  text-wrap: balance;
 }
 
-.goen-empty__text {
-  color: var(--n-500);
-  font-size: var(--fs-14);
-  line-height: 1.5;
+.goen-empty__text,
+.goen-empty .ui-empty__desc {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-15);
+  line-height: 1.6;
   margin: 0;
   max-width: 40ch;
+}
+
+.goen-empty > .goen-btn,
+.ui-empty > .goen-btn,
+.goen-empty__links {
+  margin-top: 1rem;
 }
 
 .goen-checkout__main,
@@ -8067,27 +8069,6 @@ input.goen-check {
 
 .goen-warranty__field {
   flex: 1 1 16rem;
-}
-
-/* The empty state's two sentences are compared by the whole class attribute
-   (internal/order/warranty/warranty_test.go:180,184), so the paragraphs carry the
-   shared spelling alone and every declaration is made here. */
-.goen-empty .ui-empty__title {
-  color: var(--n-900);
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  font-weight: var(--fw-medium);
-  line-height: 1.5;
-  margin: 0;
-}
-
-.goen-empty .ui-empty__desc {
-  color: var(--n-500);
-  font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  line-height: 1.5;
-  margin: 0;
-  max-width: 40ch;
 }
 
 /* ----- Policy, FAQ, shipping and the public warranty ----- */

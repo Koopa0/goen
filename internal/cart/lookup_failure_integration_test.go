@@ -86,7 +86,7 @@ func TestHandler_LookupCartFailures(t *testing.T) {
 				logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
 				grants := access.NewStore(app, false)
 				h := cart.NewHandler(s, grants, logger, false, nil)
-				placement := checkout.NewHandler(checkout.NewStore(app), h, grants, logger, false, nil, nil)
+				placement := checkout.NewHandler(checkout.NewStore(app), h, grants, logger, false, nil, nil, nil)
 				accounts := auth.NewHandler(auth.NewStore(app), h, access.NewStore(app, false), logger, false, nil)
 				method, path, handler := http.MethodGet, "/cart", http.HandlerFunc(h.Page)
 				form := url.Values{"variant": {variant.String()}, "quantity": {"1"}, "remove": {"1"}}
@@ -199,7 +199,7 @@ func TestHandler_LookupCartFailures(t *testing.T) {
 			var continued bool
 			route := h.WithCount(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { continued = true }))
 			if tt.handler != nil {
-				route = tt.handler(h, checkout.NewHandler(checkout.NewStore(app), h, grants, logger, false, nil, nil))
+				route = tt.handler(h, checkout.NewHandler(checkout.NewStore(app), h, grants, logger, false, nil, nil, nil))
 			}
 			requestCtx, cancel := context.WithCancel(t.Context())
 			defer cancel()

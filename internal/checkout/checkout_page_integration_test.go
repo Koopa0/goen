@@ -29,7 +29,7 @@ var checkedShipping = regexp.MustCompile(`name="shipping" value="([^"]*)" checke
 // and hands this browser the cookie that opens it.
 func TestHandler_PlaceOrderGuest(t *testing.T) {
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 	cartID, token := checkouttest.NewCartSession(t, s)
 	if err := s.Carts().Add(t.Context(), cartID, ordertest.FreshVariant(t, pool, "rendered"), 1); err != nil {
 		t.Fatalf("add: %v", err)
