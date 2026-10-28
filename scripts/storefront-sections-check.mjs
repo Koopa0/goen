@@ -564,8 +564,9 @@ try {
   }
 
   // A product's main photograph sits on one rounded well in the photograph's
-  // own ground, whatever the department's tone: no tone frame around it, no
-  // white edge on the picture, and a placeholder whose words can be read.
+  // own ground. The product page carries no department tone, so nothing tones
+  // the well: no tone frame around it, no white edge on the picture, and a
+  // placeholder whose words can be read.
   {
     const channels = text => {
       const got = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(text);
@@ -606,8 +607,8 @@ try {
       const image = shot.querySelector('.goen-pdp__shotimg');
       const placeholder = shot.querySelector('.goen-ph');
       const result = {
-        tone: gallery.dataset.tone,
-        photo: resolve('--photo'), toneGround: resolve('--tone-ground'),
+        toned: !!(gallery.closest('[data-tone]') || gallery.querySelector('[data-tone]')),
+        photo: resolve('--photo'),
         background: style.backgroundColor, corners,
         padding: sides.map(side => style['padding' + side]),
         shotBorder: sides.map(side => style['border' + side + 'Width']),
@@ -625,30 +626,26 @@ try {
       probe.remove();
       return result;
     })()`);
-    for (const tone of ['ink', 'sage']) {
-      for (const photo of [true, false]) {
-        for (const width of [375, 1440]) {
-          const label = `product photograph ${tone} ${photo ? 'with' : 'without'} a photograph ${width}px`;
-          await open(`/product?tone=${tone}&photo=${photo ? 1 : 0}`, width);
-          const drawn = await measure();
-          assert.ok(drawn, `${label}: no photograph well on the page`);
-          assert.equal(drawn.tone, tone, `${label}: the gallery carries tone ${drawn.tone}`);
-          assert.notEqual(drawn.toneGround, drawn.photo, `${label}: the tone's ground equals the photograph ground, so this proves nothing`);
-          assert.equal(drawn.background, drawn.photo, `${label}: the well is ${drawn.background}, not the photograph ground ${drawn.photo}`);
-          assert.notEqual(drawn.background, drawn.toneGround, `${label}: the well wears the tone ${drawn.toneGround}`);
-          assert.deepEqual(drawn.padding, Array(4).fill('0px'), `${label}: the well has padding ${drawn.padding}`);
-          assert.deepEqual(drawn.shotBorder, Array(4).fill('0px'), `${label}: the well has a border ${drawn.shotBorder}`);
-          assert.deepEqual(drawn.corners, Array(4).fill('16px'), `${label}: corners ${drawn.corners}, not 16px`);
-          if (photo) {
-            assert.deepEqual(drawn.imageBorder, Array(4).fill('0px'), `${label}: the picture has an edge ${drawn.imageBorder}`);
-            assert.equal(drawn.imageClip, 'border-box', `${label}: the picture's background is clipped to ${drawn.imageClip}`);
-            for (const gap of drawn.inset) assert.ok(Math.abs(gap) < 0.5, `${label}: the picture sits ${drawn.inset} inside the well`);
-            console.log(`${label}: ${drawn.background} well, 16px corners, picture edge to edge`);
-          } else {
-            const contrast = ratio(channels(drawn.textColor), channels(drawn.background));
-            assert.ok(contrast >= 4.5, `${label}: placeholder ${drawn.textColor} on ${drawn.background} is ${contrast.toFixed(2)}:1`);
-            console.log(`${label}: ${drawn.background} well, 16px corners, placeholder text ${contrast.toFixed(2)}:1`);
-          }
+    for (const photo of [true, false]) {
+      for (const width of [375, 1440]) {
+        const label = `product photograph ${photo ? 'with' : 'without'} a photograph ${width}px`;
+        await open(`/product?photo=${photo ? 1 : 0}`, width);
+        const drawn = await measure();
+        assert.ok(drawn, `${label}: no photograph well on the page`);
+        assert.equal(drawn.toned, false, `${label}: a department tone reaches the photograph well`);
+        assert.equal(drawn.background, drawn.photo, `${label}: the well is ${drawn.background}, not the photograph ground ${drawn.photo}`);
+        assert.deepEqual(drawn.padding, Array(4).fill('0px'), `${label}: the well has padding ${drawn.padding}`);
+        assert.deepEqual(drawn.shotBorder, Array(4).fill('0px'), `${label}: the well has a border ${drawn.shotBorder}`);
+        assert.deepEqual(drawn.corners, Array(4).fill('16px'), `${label}: corners ${drawn.corners}, not 16px`);
+        if (photo) {
+          assert.deepEqual(drawn.imageBorder, Array(4).fill('0px'), `${label}: the picture has an edge ${drawn.imageBorder}`);
+          assert.equal(drawn.imageClip, 'border-box', `${label}: the picture's background is clipped to ${drawn.imageClip}`);
+          for (const gap of drawn.inset) assert.ok(Math.abs(gap) < 0.5, `${label}: the picture sits ${drawn.inset} inside the well`);
+          console.log(`${label}: ${drawn.background} well, 16px corners, picture edge to edge`);
+        } else {
+          const contrast = ratio(channels(drawn.textColor), channels(drawn.background));
+          assert.ok(contrast >= 4.5, `${label}: placeholder ${drawn.textColor} on ${drawn.background} is ${contrast.toFixed(2)}:1`);
+          console.log(`${label}: ${drawn.background} well, 16px corners, placeholder text ${contrast.toFixed(2)}:1`);
         }
       }
     }

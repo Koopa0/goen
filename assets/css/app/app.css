@@ -4589,8 +4589,8 @@ input.goen-check {
 /* ---------- Product page ----------
 
    A breadcrumb over two columns: the gallery 7/12 and the buy column 5/12 from
-   1024, stacked below. Under them an accordion, the reviews, the questions and
-   a row of similar products, in source order.
+   1024, stacked below. Under them the description, an accordion, the reviews,
+   the questions and a row of similar products, in source order.
 
    Two choices are not the obvious ones, each for a reason the page's own
    behaviour sets:
@@ -4607,8 +4607,7 @@ input.goen-check {
    row's own position in the document never changed, so the compensation was the
    whole of the movement. It is switched off here, on the page, rather than on
    the region that swaps — the node the browser anchors to is below that region,
-   which is why doing it there had no effect. The band below the buy box is such
-   a node too, so it is switched off there as well. */
+   which is why doing it there had no effect. */
 .goen-pdp {
   display: flex;
   flex-direction: column;
@@ -5448,33 +5447,6 @@ input.goen-check {
     display: grid;
     grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
   }
-}
-
-.goen-band--product {
-  margin-block: 0 4rem;
-  overflow-anchor: none;
-}
-
-.goen-band--product .goen-pdp__desc {
-  margin-bottom: 0;
-}
-
-.goen-band--product .goen-pdp__sectiontitle,
-.goen-band--product .goen-pdp__prose {
-  color: var(--tone-text);
-}
-
-.goen-band--product .goen-pdp__brand {
-  color: var(--tone-muted);
-}
-
-/* No photograph: the copy sits on the page's own column, as the hero's does. */
-.goen-band--text .goen-band__grid {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.goen-band--text .goen-band__body {
-  padding-inline: max(var(--page-gutter), calc((100% - var(--page-width)) / 2));
 }
 
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
