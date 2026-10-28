@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/inventory"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
@@ -108,7 +109,7 @@ func TestReportListSkeleton(t *testing.T) {
 	stock := renderComponent(t, ctx, stockrisk.Rows([]stockrisk.Row{{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow}}}}, 0, 30))
 	report := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
-		Sellers: []Seller{{Slug: "a", Name: "Alpha", Brand: "Aurora", Units: 40}, {Slug: "b", Name: "Beta", Units: 10}},
+		Sellers: []sales.Seller{{Slug: "a", Name: "Alpha", Brand: "Aurora", Units: 40}, {Slug: "b", Name: "Beta", Units: 10}},
 	}))
 	for name, markup := range map[string]string{"stock": stock, "best sellers": report} {
 		for _, want := range []string{
@@ -120,22 +121,6 @@ func TestReportListSkeleton(t *testing.T) {
 				t.Errorf("%s list lacks the shared row markup %s", name, want)
 			}
 		}
-	}
-}
-
-// TestSeller_FactsBrand: seller facts name the brand then what sold.
-//
-// From stockrisk_test.go, moved whole.
-func TestSeller_FactsBrand(t *testing.T) {
-	t.Parallel()
-
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	got := Seller{Brand: "Aurora", Units: 4, RevenueCents: 120000}.Facts(ctx)
-	if want := "Aurora · 4 units sold · Product gross NT$1,200"; got != want {
-		t.Errorf("Seller.Facts = %q, want %q", got, want)
-	}
-	if got := (Seller{Units: 4, RevenueCents: 120000}).Facts(ctx); strings.HasPrefix(got, " ·") || strings.HasPrefix(got, "·") {
-		t.Errorf("Seller.Facts without a brand = %q, want no leading separator", got)
 	}
 }
 
