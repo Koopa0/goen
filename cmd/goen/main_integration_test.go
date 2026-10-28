@@ -191,7 +191,7 @@ func TestNewRouterAssetsStateless(t *testing.T) {
 			StorePool: counted, Payments: gateway, BaseURL: "http://127.0.0.1",
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: counted, Payments: gateway, Refunder: gateway,
+			AdminPool: counted, Payments: gateway,
 		},
 	}, slog.New(slog.DiscardHandler))
 
@@ -277,7 +277,7 @@ func TestNewRouterSignedInNoStore(t *testing.T) {
 			StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: pool, Payments: gateway, Refunder: gateway, TOTPKey: bytes.Repeat([]byte{7}, 32),
+			AdminPool: pool, Payments: gateway, TOTPKey: bytes.Repeat([]byte{7}, 32),
 		},
 	}, slog.New(slog.DiscardHandler))
 
@@ -453,7 +453,7 @@ func TestNewRouterStoreMapReturnNoQuery(t *testing.T) {
 			StorePool: counted, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap,
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: counted, Payments: gateway, Refunder: gateway, StoreMap: storeMap,
+			AdminPool: counted, Payments: gateway, StoreMap: storeMap,
 		},
 	}, slog.New(slog.DiscardHandler))
 
@@ -555,7 +555,7 @@ func TestNewRouterHealthCount(t *testing.T) {
 	key := bytes.Repeat([]byte{7}, 32)
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1"},
-		BackOffice: BackOfficeConfig{AdminPool: traced, Payments: gateway, Refunder: gateway, TOTPKey: key},
+		BackOffice: BackOfficeConfig{AdminPool: traced, Payments: gateway, TOTPKey: key},
 	}, slog.New(slog.DiscardHandler))
 	startSession := func(role string, verified bool) string {
 		t.Helper()

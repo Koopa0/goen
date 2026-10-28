@@ -397,11 +397,11 @@ func (s *Store) refundCard(
 		return "", "", err
 	}
 
-	intentID, err := s.refunder.PaymentIntentFor(ctx, claim.PaymentProviderRef)
+	intentID, err := s.gateway.PaymentIntentFor(ctx, claim.PaymentProviderRef)
 	if err != nil {
 		return "", "", fmt.Errorf("resolve payment intent for return %s: %w", returnID, err)
 	}
-	providerRef, state, err := s.refunder.Refund(
+	providerRef, state, err := s.gateway.Refund(
 		ctx, intentID, claim.RequestKey, claim.AmountCents,
 	)
 	if err != nil {

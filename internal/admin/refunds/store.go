@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/payment/refund"
 )
 
@@ -36,20 +37,20 @@ var (
 )
 
 type Store struct {
-	pool     *pgxpool.Pool
-	q        *db.Queries
-	refunder Refunder
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	gateway *payment.Gateway
 	// invoices corrects the 統一發票 of an order refunded before shipment. Nil
 	// leaves that to staff, for a store that never cancels an order.
 	invoices *issuer.Store
 }
 
-// NewStore returns a Store over the admin pool. refunder may be one that
-// refuses: a back office without Stripe credentials can still decide returns,
-// and a refund it cannot pay must fail loudly.
-func NewStore(pool *pgxpool.Pool, refunder Refunder, invoices *issuer.Store) *Store {
-	if pool == nil || refunder == nil {
-		panic("refunds: NewStore requires a pool and a refunder")
+// NewStore returns a Store over the admin pool. gateway may be one with no
+// Stripe key: a back office without credentials can still decide returns, and
+// a refund it cannot pay must fail loudly.
+func NewStore(pool *pgxpool.Pool, gateway *payment.Gateway, invoices *issuer.Store) *Store {
+	if pool == nil || gateway == nil {
+		panic("refunds: NewStore requires a pool and a payment gateway")
 	}
-	return &Store{pool: pool, q: db.New(pool), refunder: refunder, invoices: invoices}
+	return &Store{pool: pool, q: db.New(pool), gateway: gateway, invoices: invoices}
 }

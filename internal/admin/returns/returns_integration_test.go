@@ -31,7 +31,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/auth"
@@ -141,7 +140,7 @@ func deliveredOrderAtOn(t *testing.T, p *pgxpool.Pool, delivered time.Time) (num
 // TestStore_DecideLoyaltyReversal: a return takes back its points and spend.
 func TestStore_DecideLoyaltyReversal(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 
 	t.Run("full return", func(t *testing.T) {
 		requestID, orderID, userID := admintest.LoyaltyReturn(t, pool, []int64{1200000}, 0)
@@ -273,7 +272,7 @@ func TestStore_DecideClawbackRetry(t *testing.T) {
 		t.Fatalf("record timeline before clawback: %v", err)
 	}
 
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	if err := s.Inspect(ctx, requestID.String(), []returns.LineInspection{{
 		OrderLineID: returnLineID(t, requestID), Received: 1, Restocked: 0,
 	}}, actor); err != nil {
@@ -373,7 +372,7 @@ func TestStore_DecideClawbackAfterErasure(t *testing.T) {
 		t.Fatal("erasure did not detach the order owner")
 	}
 
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	view, err := s.Queue(ctx, "")
 	if err != nil {
 		t.Fatalf("read erased-owner recovery queue: %v", err)
@@ -624,20 +623,25 @@ func TestStore_DecideRefundAmount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
-			s := storeOver(pool, admintest.Refunder{})
+			stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+			s := storeOver(pool, stripe.Gateway())
 			requestID, _ := couponedShippedOrder(t, tt.lines)
 
 			if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 				t.Fatalf("approve: %v — a return the shop cannot pay for is the defect", err)
 			}
 			var amount int64
+			var requestKey string
 			if err := pool.QueryRow(ctx, `
-				SELECT amount_cents FROM refunds WHERE return_request_id = $1`,
-				requestID).Scan(&amount); err != nil {
+				SELECT amount_cents, request_key FROM refunds WHERE return_request_id = $1`,
+				requestID).Scan(&amount, &requestKey); err != nil {
 				t.Fatalf("read refund: %v", err)
 			}
 			if amount != tt.want {
 				t.Errorf("refunded %d, want %d — %s", amount, tt.want, tt.why)
+			}
+			if sent := stripe.Refunds(); len(sent) != 1 || sent[0].AmountCents != tt.want || sent[0].IdempotencyKey != requestKey {
+				t.Errorf("refunds sent to Stripe = %+v, want one of %d keyed %q, the row's own", sent, tt.want, requestKey)
 			}
 		})
 	}
@@ -648,7 +652,7 @@ func TestStore_DecideDeliveryFeeOnce(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	orderID, number, lines := twoLineOrderForSequentialReturns(t)
 	customerReturns := buyer.NewStore(pool)
-	shop := storeOver(pool, admintest.Refunder{})
+	shop := storeOver(pool, admintest.HealthyGateway(t))
 
 	openAndApprove := func(reason string, lineID uuid.UUID) int64 {
 		t.Helper()
@@ -703,7 +707,7 @@ func TestStore_DecideDeliveryFeeOnce(t *testing.T) {
 // says.
 func TestStore_DecideRefundsOrderAmount(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
@@ -742,32 +746,26 @@ func TestStore_DecideRefundsOrderAmount(t *testing.T) {
 func TestStore_DecideFailedRefundRow(t *testing.T) {
 	tests := []struct {
 		name       string
-		refunder   admintest.Refunder
+		stripe     admintest.StripeBehaviour
 		wantStatus string
 		why        string
 	}{
 		{
 			name:       "stripe unreachable before anything was asked",
-			refunder:   admintest.Refunder{FailIntent: true},
+			stripe:     admintest.StripeBehaviour{LookupUnanswered: true},
 			wantStatus: "pending",
 			why:        "goen never asked Stripe to refund, so the claim is still outstanding",
 		},
 		{
 			name:       "the request timed out, so nobody knows what Stripe did",
-			refunder:   admintest.Refunder{RefundErr: errors.New("context deadline exceeded")},
+			stripe:     admintest.StripeBehaviour{Create: admintest.StripeCreateUnanswered},
 			wantStatus: "pending",
 			why: "goen did not hear an answer, and 'failed' would claim the money " +
 				"is still at the shop AND free the capture to be claimed twice",
 		},
 		{
-			name: "stripe refused the refund",
-			refunder: admintest.Refunder{RefundErr: fmt.Errorf("%w: %w",
-				refund.ErrCreateRejected,
-				&stripe.Error{
-					Type: stripe.ErrorTypeInvalidRequest,
-					Code: stripe.ErrorCodeChargeAlreadyRefunded,
-					Msg:  "charge has already been refunded",
-				})},
+			name:       "stripe refused the refund",
+			stripe:     admintest.StripeBehaviour{Create: admintest.StripeCreateRejected},
 			wantStatus: "failed",
 			why:        "Stripe was asked and said no",
 		},
@@ -775,11 +773,19 @@ func TestStore_DecideFailedRefundRow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
-			s := storeOver(pool, tt.refunder)
+			stripe := admintest.NewStripe(t, tt.stripe)
+			s := storeOver(pool, stripe.Gateway())
 			requestID, _ := admintest.ReturnedOrder(t, pool, 2)
 
 			if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err == nil {
 				t.Fatal("a refund that did not happen was reported as success")
+			}
+			wantCreates := 1
+			if tt.stripe.LookupUnanswered {
+				wantCreates = 0
+			}
+			if lookups, creates := len(stripe.Lookups()), len(stripe.Refunds()); lookups != 1 || creates != wantCreates {
+				t.Errorf("Stripe saw %d payment intent lookups and %d refund creates, want 1 and %d", lookups, creates, wantCreates)
 			}
 
 			var status string
@@ -821,15 +827,13 @@ func TestStore_DecideStalledRetry(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 2)
 
-	stalled := storeOver(pool, admintest.Refunder{
-		RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
-	})
+	stalled := storeOver(pool, admintest.NewStripe(t, admintest.StripeBehaviour{Create: admintest.StripeCreateUnanswered}).Gateway())
 
 	if err := stalled.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err == nil {
 		t.Fatal("a refund that timed out was reported as success")
 	}
 
-	healthy := storeOver(pool, admintest.Refunder{})
+	healthy := storeOver(pool, admintest.HealthyGateway(t))
 	if err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 		t.Fatalf("the retry was refused, so a stalled refund can never be finished "+
 			"and the customer is never paid: %v", err)
@@ -875,9 +879,7 @@ func TestStore_CompleteWaitsForPayout(t *testing.T) {
 	requestID, _, _ := admintest.LoyaltyReturn(t, pool, []int64{1200000}, 0)
 	lineID := returnLineID(t, requestID)
 
-	stalled := storeOver(pool, admintest.Refunder{
-		RefundErr: errors.New("provider outcome is ambiguous"),
-	})
+	stalled := storeOver(pool, admintest.NewStripe(t, admintest.StripeBehaviour{Create: admintest.StripeCreateUnanswered}).Gateway())
 	if err := stalled.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err == nil {
 		t.Fatal("ambiguous provider refund was reported as settled")
 	}
@@ -896,7 +898,7 @@ func TestStore_CompleteWaitsForPayout(t *testing.T) {
 		t.Fatalf("incomplete payout refused by %v, want return_requests_completed_money_settled", err)
 	}
 
-	healthy := storeOver(pool, admintest.Refunder{})
+	healthy := storeOver(pool, admintest.HealthyGateway(t))
 	if err := healthy.Decide(ctx, requestID.String(), "approved", "完成退款", ""); err != nil {
 		t.Fatalf("retry approved payout and clawback: %v", err)
 	}
@@ -937,31 +939,28 @@ func TestStore_QueueStalledRefundRetry(t *testing.T) {
 
 	for _, tc := range []struct {
 		name            string
-		refunder        admintest.Refunder
+		stripe          admintest.StripeBehaviour
 		wantOutstanding bool
 		wantBlocked     bool
 	}{
 		{
-			name: "an ambiguous transport failure remains retryable",
-			refunder: admintest.Refunder{
-				RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
-			},
+			name:            "an ambiguous transport failure remains retryable",
+			stripe:          admintest.StripeBehaviour{Create: admintest.StripeCreateUnanswered},
 			wantOutstanding: true,
 		},
 		{
 			name:            "a provider refusal offers a successor",
-			refunder:        admintest.Refunder{State: refund.Failed},
+			stripe:          admintest.StripeBehaviour{RefundStatus: refund.Failed},
 			wantOutstanding: true,
 		},
 		{
-			name:     "a settled payout offers nothing twice",
-			refunder: admintest.Refunder{},
+			name: "a settled payout offers nothing twice",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			staffCtx, _ := admintest.StaffContext(t, isolated)
 			requestID, _ := admintest.ReturnedOrder(t, isolated, 1)
-			s := storeOver(isolated, tc.refunder)
+			s := storeOver(isolated, admintest.NewStripe(t, tc.stripe).Gateway())
 			_ = s.Decide(staffCtx, requestID.String(), "approved", "退款", "")
 
 			view, err := s.Queue(staffCtx, "")
@@ -1006,7 +1005,7 @@ func TestStore_QueueStalledRefundRetry(t *testing.T) {
 			WHERE o.order_number = $2 AND p.status = 'succeeded'`, requestID, orderNumber); err != nil {
 			t.Fatalf("construct settled card half: %v", err)
 		}
-		s := storeOver(isolated, admintest.Refunder{})
+		s := storeOver(isolated, admintest.HealthyGateway(t))
 		view, err := s.Queue(staffCtx, "")
 		if err != nil {
 			t.Fatalf("read split queue: %v", err)
@@ -1031,7 +1030,7 @@ func TestStore_QueueStalledRefundRetry(t *testing.T) {
 func TestStore_QueueOldRecoveryBounded(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
-	s := storeOver(pool, admintest.Refunder{State: refund.Failed})
+	s := storeOver(pool, admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Failed}).Gateway())
 	decideErr := s.Decide(ctx, requestID.String(), "approved", "terminal retry", "")
 	if !errors.Is(decideErr, refund.ErrIncomplete) || errors.Is(decideErr, returns.ErrRefused) || errors.Is(decideErr, refund.ErrRefused) {
 		t.Fatalf("terminal decision = %v, want only refund.ErrIncomplete", decideErr)
@@ -1130,7 +1129,7 @@ func TestStore_QueueOldRecoveryBounded(t *testing.T) {
 func TestHandler_DecideTerminalRefund(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
-	h := handlerOver(storeOver(pool, admintest.Refunder{State: refund.Cancelled}))
+	h := handlerOver(storeOver(pool, admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Cancelled}).Gateway()))
 	form := url.Values{
 		"decision":   {"approved"},
 		"confirm":    {"approved"},
@@ -1155,7 +1154,7 @@ func TestHandler_DecideTerminalRefund(t *testing.T) {
 func TestStore_DecideResolutionBound(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	tooLong := strings.Repeat("界", 301)
 	if err := s.Decide(ctx, requestID.String(), "approved", tooLong, ""); !errors.Is(err, returns.ErrInvalid) {
 		t.Fatalf("overlong Store resolution = %v, want ErrInvalid", err)
@@ -1199,7 +1198,7 @@ func TestStore_DecidePendingRefund(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
-			s := storeOver(pool, admintest.Refunder{State: tt.state})
+			s := storeOver(pool, admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: tt.state}).Gateway())
 			requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 
 			if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
@@ -1256,7 +1255,7 @@ func TestStore_DecidePendingRefund(t *testing.T) {
 // TestStore_DecideRejectNoMoney: rejecting a return moves no money.
 func TestStore_DecideRejectNoMoney(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID := admintest.ReturnedOrderAtWithReason(t, pool,
 		admintest.ShopNoonDaysAgo(t, 15), time.Now(), "late return")
 
@@ -1295,7 +1294,7 @@ func TestStore_DecideRejectNoMoney(t *testing.T) {
 // TestStore_DecideOnce: a return is decided once.
 func TestStore_DecideOnce(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
@@ -1319,7 +1318,7 @@ func TestStore_DecideOnce(t *testing.T) {
 // no audit row.
 func TestStore_DecideLoserNoAudit(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 
 	before := auditRowsFor(t, requestID)
@@ -1396,7 +1395,7 @@ func auditRowsFor(t *testing.T, requestID uuid.UUID) int {
 // TestStore_DecideRefundCap: a refund cannot exceed what was captured.
 func TestStore_DecideRefundCap(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, orderNumber := admintest.ReturnedOrder(t, pool, 2)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
@@ -1442,7 +1441,7 @@ func TestStore_DecideRefundCap(t *testing.T) {
 // return_within_shipment first and never reaches this guard.
 func TestStore_DecideOverClaimWords(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, orderNumber := admintest.ReturnedOrder(t, pool, 2)
 
 	var paymentID uuid.UUID
@@ -1490,7 +1489,7 @@ func TestStore_DecideOverClaimWords(t *testing.T) {
 // TestStore_QueueComingBack: the return queue shows what is coming back.
 func TestStore_QueueComingBack(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, _ := admintest.ReturnedOrder(t, pool, 2)
 
 	view, err := s.Queue(ctx, "")
@@ -1519,7 +1518,7 @@ func TestStore_QueueComingBack(t *testing.T) {
 // TestStore_QueuePayoutChannels: the return queue names the refund channels.
 func TestStore_QueuePayoutChannels(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 
 	tests := []struct {
 		name   string
@@ -1644,7 +1643,7 @@ func TestStore_QueueConstantQueries(t *testing.T) {
 	}
 
 	counted := context.WithValue(ctx, returnQueryCountKey{}, struct{}{})
-	view, err := storeOver(traced, admintest.Refunder{}).Queue(counted, "")
+	view, err := storeOver(traced, admintest.HealthyGateway(t)).Queue(counted, "")
 	if err != nil {
 		t.Fatalf("read the traced return queue: %v", err)
 	}
@@ -1686,7 +1685,7 @@ func TestStore_QueueConstantQueries(t *testing.T) {
 func TestStore_QueueRescissionWindow(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
-	s := storeOver(isolated, admintest.Refunder{})
+	s := storeOver(isolated, admintest.HealthyGateway(t))
 
 	cases := []struct {
 		name           string
@@ -1775,7 +1774,7 @@ func TestStore_QueueRescissionWindow(t *testing.T) {
 // TestStore_DecideBothSources: a return pays back both sources.
 func TestStore_DecideBothSources(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 2, 60000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", ""); err != nil {
@@ -1814,7 +1813,7 @@ func TestStore_DecideBothSources(t *testing.T) {
 // TestStore_DecidePartialCardFirst: a partial return pays the card first.
 func TestStore_DecidePartialCardFirst(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 1, 60000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "退一件", ""); err != nil {
@@ -1842,7 +1841,7 @@ func TestStore_DecidePartialCardFirst(t *testing.T) {
 // TestStore_DecideCreditOnly: a wholly credit-funded return needs no provider.
 func TestStore_DecideCreditOnly(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
 
 	if decideErr := s.Decide(ctx, requestID.String(), "approved", "全額購物金", ""); decideErr != nil {
@@ -1869,7 +1868,7 @@ func TestStore_DecideCreditOnly(t *testing.T) {
 // timeline.
 func TestStore_DecideCreditOnlyTimeline(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, _, _ := admintest.CreditFundedReturn(t, pool, 2, 200000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "全額購物金", ""); err != nil {
@@ -1937,7 +1936,7 @@ func TestStore_DecideMissingTimelineEvent(t *testing.T) {
 		t.Fatalf("install event failure: %v", err)
 	}
 
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	if err := s.Decide(ctx, requestID.String(), "approved", "全額購物金", ""); err == nil {
 		t.Fatal("injected timeline failure was reported as a complete payout")
 	}
@@ -2005,18 +2004,17 @@ func TestStore_DecideMissingTimelineEvent(t *testing.T) {
 // the card attempt terminates.
 func TestStore_DecideSplitCardTerminal(t *testing.T) {
 	tests := []struct {
-		name     string
-		refunder admintest.Refunder
+		name   string
+		stripe admintest.StripeBehaviour
 	}{
-		{name: "provider object failed", refunder: admintest.Refunder{State: refund.Failed}},
-		{name: "create API rejected", refunder: admintest.Refunder{RefundErr: fmt.Errorf(
-			"%w: provider rejected create", refund.ErrCreateRejected)}},
+		{name: "provider object failed", stripe: admintest.StripeBehaviour{RefundStatus: refund.Failed}},
+		{name: "create API rejected", stripe: admintest.StripeBehaviour{Create: admintest.StripeCreateRejected}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
 			requestID, _, accountID := admintest.CreditFundedReturn(t, pool, 2, 60000)
-			s := storeOver(pool, tt.refunder)
+			s := storeOver(pool, admintest.NewStripe(t, tt.stripe).Gateway())
 
 			err := s.Decide(ctx, requestID.String(), "approved", "split terminal", "")
 			if !errors.Is(err, refund.ErrIncomplete) || errors.Is(err, returns.ErrRefused) || errors.Is(err, refund.ErrRefused) {
@@ -2067,7 +2065,7 @@ func TestStore_DecideSplitCardTerminal(t *testing.T) {
 // records the credit that landed.
 func TestStore_DecideSplitCardPending(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{State: refund.Pending})
+	s := storeOver(pool, admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Pending}).Gateway())
 	requestID, _, _ := admintest.CreditFundedReturn(t, pool, 2, 60000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "分拆退款", ""); err != nil {
@@ -2123,7 +2121,7 @@ func TestStore_DecideSplitCardPending(t *testing.T) {
 // credit once.
 func TestCompensateReturnTwice(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	requestID, _, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "第一次", ""); err != nil {
@@ -2273,7 +2271,7 @@ func returnLineID(t *testing.T, requestID uuid.UUID) uuid.UUID {
 // TestStore_InspectRestocks: an inspected return puts the sellable units back.
 func TestStore_InspectRestocks(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := storeOver(admintest.AdminRolePool(t, pool), admintest.Refunder{})
+	s := storeOver(admintest.AdminRolePool(t, pool), admintest.HealthyGateway(t))
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "restock", 2)
 	lineID := returnLineID(t, requestID)
@@ -2320,7 +2318,7 @@ func TestStore_InspectRestocks(t *testing.T) {
 // line.
 func TestStore_CompleteUninspected(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "uninspected", 2)
 	lineID := returnLineID(t, requestID)
@@ -2365,7 +2363,7 @@ func TestStore_CompleteUninspected(t *testing.T) {
 // TestStore_InspectBeforeApproval: inspecting is refused before approval.
 func TestStore_InspectBeforeApproval(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "unapproved", 2)
 	lineID := returnLineID(t, requestID)
@@ -2385,7 +2383,7 @@ func TestStore_InspectBeforeApproval(t *testing.T) {
 // TestStore_InspectRestockOverArrived: restocking more than arrived is refused.
 func TestStore_InspectRestockOverArrived(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "overrestock", 1)
 	lineID := returnLineID(t, requestID)
@@ -2410,7 +2408,7 @@ func TestStore_InspectRestockOverArrived(t *testing.T) {
 // adjustment.
 func TestStore_InspectOnce(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "twice", 2)
 	lineID := returnLineID(t, requestID)
@@ -2465,7 +2463,7 @@ func TestStore_InspectOnce(t *testing.T) {
 // return the shop had just refused.
 func TestStore_DecideLoserNoCredit(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	// WHOLLY credit-funded: no payment row exists, so the payout on this path is
 	// one INSERT into the ledger and there is no provider to blame.
 	requestID, _, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
@@ -2551,16 +2549,16 @@ func TestStore_DecideSplitResumeCard(t *testing.T) {
 	}
 	before := admintest.CreditBalance(t, pool, accountID)
 
-	sent := &atomic.Int64{}
-	s := storeOver(pool, admintest.Refunder{Sent: sent})
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s := storeOver(pool, stripe.Gateway())
 	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", ""); err != nil {
 		t.Fatalf("the retry was refused (%v), so the CARD half can never be sent "+
 			"and the customer stays short — goen consumes no refund webhook, so "+
 			"pressing 同意 again is the only door", err)
 	}
-	if sent.Load() != 1 {
+	if len(stripe.Refunds()) != 1 {
 		t.Errorf("the provider was called %d time(s); the card half was the one "+
-			"still owed", sent.Load())
+			"still owed", len(stripe.Refunds()))
 	}
 	if after := admintest.CreditBalance(t, pool, accountID); after != before {
 		t.Errorf("store credit went %d -> %d; the credit half had already landed "+
@@ -2597,7 +2595,7 @@ func TestStore_DecideTerminalCardErasure(t *testing.T) {
 	}
 	before := admintest.CreditBalance(t, pool, accountID)
 
-	failed := storeOver(pool, admintest.Refunder{State: refund.Failed})
+	failed := storeOver(pool, admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Failed}).Gateway())
 	if err := failed.Decide(ctx, requestID.String(), "approved", "erasure retry", ""); err == nil {
 		t.Fatal("known-failed card attempt was reported as settled")
 	}
@@ -2619,13 +2617,13 @@ func TestStore_DecideTerminalCardErasure(t *testing.T) {
 		t.Fatal("erasure did not detach the order owner")
 	}
 
-	sent := &atomic.Int64{}
-	healthy := storeOver(pool, admintest.Refunder{Sent: sent})
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	healthy := storeOver(pool, stripe.Gateway())
 	if err := healthy.Decide(ctx, requestID.String(), "approved", "erasure retry", ""); err != nil {
 		t.Fatalf("retry terminal card attempt after erasure: %v", err)
 	}
-	if sent.Load() != 1 {
-		t.Errorf("provider calls after erasure = %d, want one successor", sent.Load())
+	if len(stripe.Refunds()) != 1 {
+		t.Errorf("provider calls after erasure = %d, want one successor", len(stripe.Refunds()))
 	}
 	if after := admintest.CreditBalance(t, pool, accountID); after != before {
 		t.Errorf("erased account credit changed %d -> %d; exact credit was already posted",
@@ -2649,7 +2647,7 @@ func TestStore_DecideTerminalCardErasure(t *testing.T) {
 // DB-derived key.
 func TestStore_DecideRefusalNewAttempt(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.ReturnDesk(pool, admintest.Refunder{State: refund.Failed})
+	s := admintest.ReturnDesk(pool, admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Failed}).Gateway())
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err == nil {
@@ -2677,7 +2675,7 @@ func TestStore_DecideRefusalNewAttempt(t *testing.T) {
 		t.Errorf("refund is %q, want failed — Stripe was asked and said no", refundStatus)
 	}
 
-	healthy := admintest.ReturnDesk(pool, admintest.Refunder{})
+	healthy := admintest.ReturnDesk(pool, admintest.HealthyGateway(t))
 	if err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 		t.Fatalf("retry after a known provider refusal: %v", err)
 	}
@@ -2778,8 +2776,8 @@ func TestStore_DecideSplitResumeFailed(t *testing.T) {
 	before := admintest.CreditBalance(t, pool, accountID)
 
 	// The retry must RESUME the credit half rather than refuse the whole return.
-	sent := &atomic.Int64{}
-	s := admintest.ReturnDesk(pool, admintest.Refunder{Sent: sent})
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s := admintest.ReturnDesk(pool, stripe.Gateway())
 	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", ""); err != nil {
 		t.Fatalf("the retry was refused (%v), so the credit half can never be paid "+
 			"and the customer stays short", err)
@@ -2790,7 +2788,7 @@ func TestStore_DecideSplitResumeFailed(t *testing.T) {
 
 	// And the card half is not sent TO STRIPE twice. The durable row proves the
 	// outcome; this provider-side counter proves the retry made no remote call.
-	if n := sent.Load(); n != 0 {
+	if n := len(stripe.Refunds()); n != 0 {
 		t.Errorf("the retry sent %d refund(s) to the provider; the card half had "+
 			"already landed and resuming means paying only what is MISSING", n)
 	}
@@ -2805,7 +2803,7 @@ func TestStore_DecideSplitResumeFailed(t *testing.T) {
 	// same authoritative view under lock. A card-only definition would leave the
 	// 統一發票 recording part of a sale that was reversed.
 	withInvoices := admintest.OrderStore(
-		pool, admintest.Refunder{}, noDocuments{}, admintest.DisabledInvoiceWriter{},
+		pool, admintest.HealthyGateway(t), noDocuments{}, admintest.DisabledInvoiceWriter{},
 	)
 	view, viewErr := withInvoices.Order(ctx, orderNumber)
 	if viewErr != nil {

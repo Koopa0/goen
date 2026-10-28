@@ -68,7 +68,7 @@ func TestHandler_OrderDeliveryMethodLanguage(t *testing.T) {
 			if err := tx.Commit(t.Context()); err != nil {
 				t.Fatal(err)
 			}
-			store := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.Refunder{}, nil, nil)
+			store := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.HealthyGateway(t), nil, nil)
 			mux := http.NewServeMux()
 			admintest.OrderDesk(store).Routes(mux, admintest.BackOffice)
 			for _, locale := range []struct {

@@ -193,8 +193,8 @@ store before anything else.
 - Package imports are policy, and `internal/repocheck/deps_test.go` is the whole
   of it: a vocabulary package is a leaf with a fixed list of what it may
   import (`money` and `email` import no goen package, `shipping` and `credit`
-  only `i18n`, `order` only `i18n` and `web/formtext`, `payment/refund` only
-  `i18n` and `money`); a back-office desk is imported only by `cmd/goen`, and
+  only `i18n`, `order` only `i18n` and `web/formtext`, `payment/refund` and `sales`
+  only `i18n` and `money`); a back-office desk is imported only by `cmd/goen`, and
   reaches another desk through an interface it declares; nothing outside
   `internal/admin` and `cmd/goen` imports a back-office package. Each rule's
   reason is printed when it fails.

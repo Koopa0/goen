@@ -55,7 +55,7 @@ func assertNamedByAddress(t *testing.T, ctx context.Context, view *orders.OrderV
 // on the order events. The order_events branch of the timeline.
 func TestStore_OrderRenamedStaffEvents(t *testing.T) {
 	ctx, idA, address, colleague := renamedStaff(t)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	number, _, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
 	if _, err := s.Advance(ctx, number, order.FulfillmentPicking, uuid.NullUUID{UUID: idA, Valid: true}); err != nil {
 		t.Fatalf("A moves the order to picking: %v", err)
@@ -86,7 +86,7 @@ func TestStore_OrderRenamedStaffEvents(t *testing.T) {
 // timeline.
 func TestStore_OrderRenamedStaffInvoice(t *testing.T) {
 	ctx, idA, address, colleague := renamedStaff(t)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
 	if _, err := pool.Exec(ctx, `
 		WITH invoice AS (
@@ -126,7 +126,7 @@ func TestStore_OrderRenamedStaffInvoice(t *testing.T) {
 // audit trail.
 func TestStore_OrderRenamedStaffCardRefund(t *testing.T) {
 	ctx, idA, address, colleague := renamedStaff(t)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
 	var refundID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -161,7 +161,7 @@ func TestStore_OrderRenamedStaffCardRefund(t *testing.T) {
 // store-credit entry's own actor.
 func TestStore_OrderRenamedStaffCreditRefund(t *testing.T) {
 	ctx, idA, address, colleague := renamedStaff(t)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
 	customer := ordertest.Customer(t, pool)
 	if _, err := pool.Exec(ctx, `SELECT post_store_credit($1, 120000, NULL, $2, $3, $4)`,

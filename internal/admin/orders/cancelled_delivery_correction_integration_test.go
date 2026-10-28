@@ -25,7 +25,7 @@ import (
 func TestHandler_CorrectDeliveryCancelled(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	writer := admintest.AdminRolePool(t, pool)
-	store := admintest.OrderStore(writer, admintest.Refunder{}, nil, nil)
+	store := admintest.OrderStore(writer, admintest.HealthyGateway(t), nil, nil)
 	mux := http.NewServeMux()
 	admintest.OrderDesk(store).Routes(mux, admintest.BackOffice)
 

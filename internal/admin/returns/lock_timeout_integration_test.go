@@ -19,7 +19,7 @@ import (
 func TestStore_LockTimeoutFailure(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	staff := uuid.NullUUID{UUID: actor, Valid: true}
-	s := storeOver(admintest.LockTimeoutPool(t, pool), admintest.Refunder{})
+	s := storeOver(admintest.LockTimeoutPool(t, pool), admintest.HealthyGateway(t))
 	for _, tt := range []struct {
 		name  string
 		write func(id string) error

@@ -137,7 +137,6 @@ type BackOfficeConfig struct {
 	// and nil leaves it off the page.
 	MaintenancePool *pgxpool.Pool
 	Payments        *payment.Gateway
-	Refunder        refunds.Refunder
 	// TOTPKey is parsed key material from twofactor.ParseKey; nil disables
 	// enrolment.
 	TOTPKey []byte
@@ -309,7 +308,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 // backOfficeRoutes registers /admin, every desk on the `admin` pool. The store
 // pool reaches it only as statistics on the health page.
 func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *twofactor.Store, log *slog.Logger, healthPools []health.NamedPool) {
-	adminPool, gateway, refunder := cfg.AdminPool, cfg.Payments, cfg.Refunder
+	adminPool, gateway := cfg.AdminPool, cfg.Payments
 	// factorStore (built in newRouter) runs the second factor on the ADMIN pool.
 	// On the storefront pool `store`
 	// would need write on staff_totp_credentials and users.role, so any slip
@@ -333,7 +332,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	adminImages := media.NewHandler(media.NewStore(adminPool), log)
 	stockroom := stock.NewStore(adminPool)
 	checkup := health.NewStore(adminPool).WithInvoicing(invoices.Enabled())
-	payouts := refunds.NewStore(adminPool, refunder, invoices)
+	payouts := refunds.NewStore(adminPool, gateway, invoices)
 	salesFigures := reports.NewStore(adminPool, stockroom)
 	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoices, invoiceWriter), gateway, log)
 	landing := dashboard.NewHandler(dashboard.NewStore(adminPool, stockroom, checkup, salesFigures), log)
