@@ -28,8 +28,8 @@ func TestProductImagesRefusalDrafts(t *testing.T) {
 			want      map[string]string
 			errorID   string
 		}{
-			{name: "product upload", component: productImages(ProductView{Slug: "p", Images: []Image{{Photo: picture.Image{Digest: saved}, Alt: "Saved description"}}, Options: []Option{{Name: "Style", Values: []OptionValue{{ID: "chosen", Value: "Chosen"}}}}, ImageUploadDraft: ProductImageUploadDraft{Alt: alt, AltEn: altEn, OptionValue: "chosen"}, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"p-alt": alt, "p-alt-en": altEn, "p-image-option": "chosen"}, errorID: "p-image"},
-			{name: "product reuse", component: productImages(ProductView{Slug: "p", Images: []Image{{Photo: picture.Image{Digest: saved}, Alt: "Saved description"}}, Library: []Image{{Photo: picture.Image{Digest: "library"}}, {Photo: picture.Image{Digest: "other"}}}, ImageReuseDraft: ProductImageReuseDraft{Digest: "library", Alt: alt, AltEn: altEn}, Errors: map[string]string{"reuse_alt": "Correct the description"}}), want: map[string]string{"reuse-alt-library": alt, "reuse-alt-en-library": altEn, "reuse-alt-other": "", "reuse-alt-en-other": "", "p-alt": "", "p-alt-en": ""}, errorID: "reuse-alt-library"},
+			{name: "product upload", component: productImages(ProductView{Slug: "p", Images: []Image{{Photo: picture.Image{Digest: saved}, Alt: "Saved description"}}, Options: []Option{{Name: "Style", Values: []OptionValue{{ID: "chosen", Value: "Chosen"}}}}, ImageUploadDraft: ImageUploadDraft{Alt: alt, AltEn: altEn, OptionValue: "chosen"}, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"p-alt": alt, "p-alt-en": altEn, "p-image-option": "chosen"}, errorID: "p-image"},
+			{name: "product reuse", component: productImages(ProductView{Slug: "p", Images: []Image{{Photo: picture.Image{Digest: saved}, Alt: "Saved description"}}, Library: []Image{{Photo: picture.Image{Digest: "library"}}, {Photo: picture.Image{Digest: "other"}}}, ImageReuseDraft: ImageReuseDraft{Digest: "library", Alt: alt, AltEn: altEn}, Errors: map[string]string{"reuse_alt": "Correct the description"}}), want: map[string]string{"reuse-alt-library": alt, "reuse-alt-en-library": altEn, "reuse-alt-other": "", "reuse-alt-en-other": "", "p-alt": "", "p-alt-en": ""}, errorID: "reuse-alt-library"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -134,10 +134,10 @@ func TestProductImagesRefusalMarksControl(t *testing.T) {
 				}
 				want := map[string]string{"p-alt": "", "p-alt-en": "", "reuse-alt-library": "", "reuse-alt-en-library": "", "reuse-alt-other": "", "reuse-alt-en-other": ""}
 				if tt.reuse {
-					v.ImageReuseDraft = ProductImageReuseDraft{Digest: "library", Alt: " Raw primary ", AltEn: " Raw English "}
+					v.ImageReuseDraft = ImageReuseDraft{Digest: "library", Alt: " Raw primary ", AltEn: " Raw English "}
 					want["reuse-alt-library"], want["reuse-alt-en-library"] = " Raw primary ", " Raw English "
 				} else {
-					v.ImageUploadDraft = ProductImageUploadDraft{Alt: " Raw primary ", AltEn: " Raw English ", OptionValue: "chosen"}
+					v.ImageUploadDraft = ImageUploadDraft{Alt: " Raw primary ", AltEn: " Raw English ", OptionValue: "chosen"}
 					want["p-alt"], want["p-alt-en"], want["p-image-option"] = " Raw primary ", " Raw English ", "chosen"
 					if tt.field == "image_option" {
 						v.ImageUploadDraft.OptionValue = "foreign"

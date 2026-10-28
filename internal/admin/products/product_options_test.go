@@ -22,9 +22,9 @@ func TestProductOptionsFrozenNote(t *testing.T) {
 		note := i18n.T(ctx, i18n.KeyFormOptionBeforeVariants)
 		for _, tt := range []struct {
 			name     string
-			variants []ProductVariant
+			variants []Variant
 			wantForm bool
-		}{{"no variants", nil, true}, {"one variant", []ProductVariant{{SKU: "A"}}, false}} {
+		}{{"no variants", nil, true}, {"one variant", []Variant{{SKU: "A"}}, false}} {
 			v := ProductView{Slug: "p", Variants: tt.variants}
 			var b strings.Builder
 			if err := productOptions(v).Render(ctx, &b); err != nil {
@@ -109,14 +109,14 @@ func TestProductOptionsRefusedChoices(t *testing.T) {
 	}
 }
 
-// TestProductFormSectionNav: the product page jumps to its sections and keeps
+// TestProductSectionNav: the product page jumps to its sections and keeps
 // its status moves at the top.
-func TestProductFormSectionNav(t *testing.T) {
+func TestProductSectionNav(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	var b strings.Builder
-	view := ProductView{Slug: "p", Status: "active", Variants: []ProductVariant{{SKU: "A"}}}
-	if err := ProductForm(frame.Page{Title: "p"}, view).Render(ctx, &b); err != nil {
+	view := ProductView{Slug: "p", Status: "active", Variants: []Variant{{SKU: "A"}}}
+	if err := Product(frame.Page{Title: "p"}, view).Render(ctx, &b); err != nil {
 		t.Fatal(err)
 	}
 	page := b.String()

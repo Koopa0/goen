@@ -9,10 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestCampaignFormProductOffers: campaign products show the offer in both lists and languages.
-func TestCampaignFormProductOffers(t *testing.T) {
+// TestCampaignProductOffers: campaign products show the offer in both lists and languages.
+func TestCampaignProductOffers(t *testing.T) {
 	t.Parallel()
-	products := []CampaignProduct{
+	products := []Product{
 		{Slug: "on-sale", Name: "Discounted product", Image: picture.Image{Digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, HasVariant: true, HasDiscountedVariant: true, PriceCents: 99000, CompareCents: 129000, SellableUnits: 5},
 		{Slug: "sold-out", Name: "Unavailable product", HasVariant: true, HasDiscountedVariant: true, PriceCents: 199000, CompareCents: 299000},
 		{Slug: "plain-selected", Name: "Available regular variant with a sold-out discount", HasVariant: true, HasDiscountedVariant: true, PriceCents: 70000, SellableUnits: 3},
@@ -21,7 +21,7 @@ func TestCampaignFormProductOffers(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		view := CampaignView{Slug: "product-offers", Term: "product", Products: products[:2], Matches: products}
-		body := renderComponent(t, ctx, CampaignForm(frame.Page{Title: "Campaign"}, view))
+		body := renderComponent(t, ctx, Campaign(frame.Page{Title: "Campaign"}, view))
 		for _, want := range []string{"NT$1,290", "NT$990", "23%", i18n.T(ctx, i18n.KeySoldOut), "/media/" + products[0].Image.Digest} {
 			if want == "" || strings.Count(body, want) < 2 {
 				t.Errorf("%s campaign HTML count of %q = %d, want at least 2", locale, want, strings.Count(body, want))

@@ -24,10 +24,20 @@ const minExportedNames = 4500
 // repetitiveNameExceptions lists the exported names that repeat their package
 // and stay, key "dir.Name", value the reason. An entry may only disappear: one
 // whose name no longer exists or no longer repeats its package fails, and so
-// does one without a reason. A name goen chooses is renamed, not listed.
+// does one without a reason. A name goen chooses is renamed, not listed, but
+// for a desk's view of one record beside its list's View (orders.OrderView
+// beside orders.View), where the singular is what tells the two apart.
 var repetitiveNameExceptions = map[string]string{
 	"internal/db.DBTX": "sqlc chooses it: it writes type DBTX interface into the db.go of every package it " +
 		"generates, and the sqlc queries take it as their connection",
+	"internal/admin/orders.OrderView": "one order's page beside the orders list, View: the singular is " +
+		"what tells the two apart, as the templates Order and Orders do",
+	"internal/admin/customers.CustomerView": "one customer's page beside the search list, View: the singular " +
+		"is what tells the two apart, as the templates Customer and Customers do",
+	"internal/admin/campaigns.CampaignView": "one campaign's page beside the campaign list, View: the singular " +
+		"is what tells the two apart, as the templates Campaign and Campaigns do",
+	"internal/admin/products.ProductView": "one product's page beside the product list, View: the singular " +
+		"is what tells the two apart, as the templates Product and Products do",
 }
 
 // TestNoExportedNameRepeatsItsPackage holds CONTRIBUTING's naming rule 6 for
@@ -36,7 +46,8 @@ var repetitiveNameExceptions = map[string]string{
 // package, so chubby.ChubbyFile says chubby twice and is chubby.File
 // (go.dev/wiki/CodeReviewComments#package-names, and Google's "repetitive with
 // package"). A name that is the package name itself is the type or page the
-// package is named for (user.User, banners.Banners) and passes; a compound
+// package is named for (user.User, banners.Banners) and passes, and so does the
+// singular a plural package is named for (orders.Order); a compound
 // package's name repeats only part of itself (cartitem.Item) and never matches.
 func TestNoExportedNameRepeatsItsPackage(t *testing.T) {
 	t.Parallel()
@@ -83,7 +94,8 @@ func checkRepetitiveNames(root string, dirs []string, exceptions map[string]stri
 			pkg := f.Name.Name
 			for _, name := range exportedNames(f) {
 				examined++
-				if !repeatsPackage(pkg, name) {
+				n := repeatedPrefix(pkg, name)
+				if n == 0 {
 					continue
 				}
 				key := dir + "." + name
@@ -96,7 +108,7 @@ func checkRepetitiveNames(root string, dirs []string, exceptions map[string]stri
 					problems = append(problems, fmt.Sprintf("repetitiveNameExceptions[%q] gives no reason: say why the name stays, or rename it", key))
 				default:
 					problems = append(problems, fmt.Sprintf("%s/%s: %s.%s repeats its package; name it %s (CONTRIBUTING, Naming, rule 6)",
-						dir, filepath.Base(file), pkg, name, name[len(pkg):]))
+						dir, filepath.Base(file), pkg, name, name[n:]))
 				}
 			}
 		}
@@ -140,16 +152,38 @@ func exportedNames(f *ast.File) []string {
 	return names
 }
 
-// repeatsPackage reports whether name begins with the package name, in any
-// case, and goes on with a word of its own: FAQCategory in faq and StaffRow in
-// staff do, while Staff itself, Staffing (one word) and QuestionShowAction in
-// questions (the s begins Show) do not.
-func repeatsPackage(pkg, name string) bool {
-	if len(name) <= len(pkg) || !strings.EqualFold(name[:len(pkg)], pkg) {
-		return false
+// repeatedPrefix returns how many bytes at the start of name repeat its
+// package, 0 for none: the package name or, for a package named for a plural,
+// its singular (questions, Question; warranties, Warranty), in any case and
+// followed by a word of its own. QuestionShowAction in questions, WarrantyRow
+// in warranties, FAQCategory in faq and StaffRow in staff repeat it; Order and
+// Orders in orders, Questionnaire in questions and Staffing in staff do not.
+func repeatedPrefix(pkg, name string) int {
+	n := 0
+	for _, stem := range []string{pkg, singular(pkg)} {
+		if stem == "" || len(name) <= len(stem) || !strings.EqualFold(name[:len(stem)], stem) {
+			continue
+		}
+		next, _ := utf8.DecodeRuneInString(name[len(stem):])
+		if (unicode.IsUpper(next) || unicode.IsDigit(next)) && len(stem) > n {
+			n = len(stem)
+		}
 	}
-	next, _ := utf8.DecodeRuneInString(name[len(pkg):])
-	return unicode.IsUpper(next) || unicode.IsDigit(next)
+	return n
+}
+
+// singular is the record a plural package name counts, by English's regular
+// plural: warranties gives warranty and questions gives question. A name that
+// does not end in s has none. A stem that is not a word (access gives acces)
+// matches nothing a Go name would spell.
+func singular(pkg string) string {
+	switch {
+	case strings.HasSuffix(pkg, "ies"):
+		return strings.TrimSuffix(pkg, "ies") + "y"
+	case strings.HasSuffix(pkg, "s"):
+		return strings.TrimSuffix(pkg, "s")
+	}
+	return ""
 }
 
 // TestCheckRepetitiveNames runs the check over fixture packages: each fault
@@ -168,7 +202,10 @@ func TestCheckRepetitiveNames(t *testing.T) {
 			"foo/foo.go":      "package foo\ntype fooView struct{}\ntype T struct{}\nfunc (T) FooView() {}\n",
 			"foo/foo_test.go": "package foo\ntype FooView struct{}\n",
 		}, nil, ""},
-		{"one word, not two", map[string]string{"questions/q.go": "package questions\nconst QuestionShowAction = 1\ntype Questionnaire struct{}\n"}, nil, ""},
+		{"one word, not two", map[string]string{"questions/q.go": "package questions\ntype Questionnaire struct{}\ntype Question struct{}\nfunc Questions() {}\n"}, nil, ""},
+		{"singular of the package", map[string]string{"questions/q.go": "package questions\nconst QuestionShowAction = 1\n"}, nil, "questions.QuestionShowAction repeats its package; name it ShowAction"},
+		{"singular of an -ies package", map[string]string{"warranties/w.go": "package warranties\ntype WarrantyRow struct{}\n"}, nil, "warranties.WarrantyRow repeats its package; name it Row"},
+		{"singular excepted with a reason", map[string]string{"orders/o.go": "package orders\ntype View struct{}\ntype OrderView struct{}\n"}, map[string]string{"orders.OrderView": reason}, ""},
 		{"a compound's last part", map[string]string{"cart/cartitem/item.go": "package cartitem\ntype Item struct{}\n"}, nil, ""},
 		{"type", map[string]string{"foo/foo.go": "package foo\ntype FooView struct{}\n"}, nil, "foo.FooView repeats its package; name it View"},
 		{"generated component", map[string]string{"foo/page_templ.go": "// Code generated by templ - DO NOT EDIT.\n\npackage foo\nfunc FooList() {}\n"}, nil, "foo.FooList repeats"},

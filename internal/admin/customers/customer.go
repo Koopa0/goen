@@ -70,7 +70,7 @@ func (s *Store) Search(ctx context.Context, term string, after ...string) (View,
 	view.Bound = bound
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, CustomerRow{
+		view.Rows = append(view.Rows, Row{
 			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
 			Since:    shoptime.Day(r.CreatedAt),
 			Verified: r.Verified, Orders: r.Orders,

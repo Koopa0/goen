@@ -469,14 +469,14 @@ th {
    the section around it, which is what decides the level announced. */
 .goen-card {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   padding: 1.5rem;
 }
 
 .goen-notice {
   background: var(--elevated);
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: 12px;
   color: var(--fg-muted);
   font-size: var(--fs-14);
   margin: 0;
@@ -1056,7 +1056,7 @@ body:has(.goen-hero) .goen-header {
 .goen-dept__well {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   display: block;
   margin-bottom: 0.5rem;
   overflow: hidden;
@@ -1138,7 +1138,7 @@ body:has(.goen-hero) .goen-header {
   .goen-dept__photo {
     aspect-ratio: 4 / 3;
     background: var(--photo);
-    border-radius: var(--r-lg);
+    border-radius: 12px;
     display: block;
     object-fit: cover;
     width: 15rem;
@@ -1393,7 +1393,7 @@ body:has(.goen-hero) .goen-header {
 .goen-langmenu__panel {
   background: var(--n-0);
   border: 1px solid var(--n-200);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   box-shadow: var(--sh-lg);
   min-width: 11rem;
   padding: 4px;
@@ -1407,7 +1407,7 @@ body:has(.goen-hero) .goen-header {
   align-items: center;
   background: none;
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: 12px;
   color: var(--n-700);
   cursor: pointer;
   display: flex;
@@ -1958,6 +1958,57 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
+/* A campaign's name takes its own line; the last day and the link share the
+   next, and wrap under each other when a long name or large text leaves no
+   room. */
+.goen-home__head:has(> .goen-home__ends) > .goen-home__heading {
+  flex: 1 0 100%;
+}
+
+.goen-home__ends {
+  color: var(--fg-muted);
+  flex: 1 1 auto;
+  font-size: var(--fs-15);
+  line-height: 1.5;
+  margin: 0.25rem 0 0;
+}
+
+/* The phrase a campaign's end is said in (campaign.Ends): the last day and its
+   dot are one unit that does not break, and the days left do not break inside
+   the number. Where the box is narrower than that, at large text on a phone, the
+   unit may wrap instead of widening the page. */
+.goen-ends__until {
+  position: relative; /* its screen-reader text is absolute; a scroller clips it only when it is positioned inside */
+  white-space: nowrap;
+}
+
+@container (width < 20rem) {
+  .goen-ends__until {
+    white-space: normal;
+  }
+}
+
+.goen-ends__dot {
+  margin-inline: 0.25em;
+}
+
+.goen-ends__left {
+  font-weight: var(--fw-medium);
+  word-break: keep-all;
+}
+
+.goen-home__ends .goen-ends__left {
+  color: var(--fg);
+}
+
+/* Standing alone the English phrase begins a sentence; inside the notice and the
+   offers row it follows words. */
+.goen-home__ends::first-letter,
+.goen-hero__ends::first-letter,
+.goen-pagehead__ends::first-letter {
+  text-transform: uppercase;
+}
+
 .goen-home__more {
   align-items: center;
   color: var(--accent-text);
@@ -2091,6 +2142,18 @@ body:has(.goen-hero) .goen-header {
 /* The slide's ink comes from its tone, so a statline and a period read on every
    ground, the dark one included. */
 .goen-hero__slide {
+  color: var(--tone-text);
+}
+
+.goen-hero__ends {
+  color: var(--tone-muted);
+  container-type: inline-size;
+  font-size: var(--fs-16);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.goen-hero__ends .goen-ends__left {
   color: var(--tone-text);
 }
 
@@ -2896,9 +2959,15 @@ body:has(.goen-hero) .goen-header {
 .goen-tile__media {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   overflow: hidden;
   position: relative;
+}
+
+@media (min-width: 48rem) {
+  .goen-tile__media {
+    border-radius: 16px;
+  }
 }
 
 .goen-tile__img {
@@ -3104,95 +3173,11 @@ input.goen-check {
   }
 }
 
-/* ---------- Home product row ----------
-   A campaign with at least four products whose first photograph is wide enough:
-   the first product is a 2×2 tile on the campaign's tone, three more cards, and
-   the campaign card as the eighth cell. Under 1024px the lead takes a full row
-   and the card a full row after the cards. */
-
-.goen-home__facts {
-  margin: calc(var(--s-3) * -1) 0 var(--s-6);
-}
-
-.goen-tiles__grid--lead > .goen-tile__cell--lead,
-.goen-tiles__grid--lead > .goen-rowcard {
-  grid-column: 1 / -1;
-}
-
-.goen-tile__cell--lead .goen-tile__media {
-  aspect-ratio: 4 / 3;
-  background: var(--tone-ground);
-}
-
-.goen-tile__cell--lead .goen-tile__img {
-  background: var(--photo);
-  border-radius: var(--r-md);
-  height: calc(100% - 2 * var(--s-5));
-  inset: var(--s-5) auto auto var(--s-5);
-  padding: 0;
-  position: absolute;
-  width: calc(100% - 2 * var(--s-5));
-}
-
-.goen-tile__cell--lead .goen-tile__name,
-.goen-tile__cell--lead .goen-tile__price {
-  font-size: var(--fs-18);
-}
-
-.goen-rowcard {
-  background: var(--tone-ground);
-  border-radius: var(--r-lg);
-  color: var(--tone-text);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  min-width: 0;
-  padding: var(--s-4) var(--s-5);
-}
-
-.goen-rowcard .ui-statline dt,
-.goen-rowcard .ui-statline dd small,
-.goen-rowcard .ui-statline__note {
-  color: var(--tone-muted);
-}
-
-.goen-tiles__grid--lead[data-tone] .ui-period {
-  --period-fill: var(--tone-mark);
-}
-
-.goen-tiles__grid--lead[data-tone="ink"] .ui-period {
-  --period-track: var(--period-track-on-ink);
-}
-
-.goen-rowcard > .ui-period {
-  margin-top: var(--s-2);
-}
-
-.goen-rowcard .goen-home__more {
-  align-self: flex-start;
-  color: var(--tone-mark);
-  margin-top: auto;
-  white-space: normal;
-}
-
-@media (min-width: 64rem) {
-  .goen-tiles__grid--lead > .goen-tile__cell--lead {
-    grid-column: 1 / 3;
-    grid-row: 1 / 3;
-  }
-
-  .goen-tiles__grid--lead > .goen-rowcard {
-    grid-column: auto;
-  }
-
-  .goen-tile__cell--lead .goen-tile__media {
-    aspect-ratio: auto;
-    flex: 1;
-    min-height: 16rem;
-  }
-
-  .goen-tile__cell--lead .goen-tile__body {
-    flex: none;
+/* The home row is a sample of a longer list, drawn in whole rows: at three
+   columns the fourth product would stand alone, so the link carries it. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .goen-home__row > li:nth-child(n + 4) {
+    display: none;
   }
 }
 
@@ -3884,7 +3869,16 @@ input.goen-check {
 
 .goen-campaigns__meta {
   color: var(--fg-muted);
+  container-type: inline-size;
   font-size: var(--fs-12);
+}
+
+.goen-campaigns__meta > [aria-hidden] {
+  margin-inline: 0.25em;
+}
+
+.goen-campaigns__meta .goen-ends__left {
+  color: var(--fg);
 }
 
 /* The comparison table. It scrolls inside its own box so the PAGE never moves
@@ -3901,7 +3895,7 @@ input.goen-check {
 
 .goen-compare__scroll {
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   overflow-x: auto;
   position: relative;
 }
@@ -3940,7 +3934,7 @@ input.goen-check {
 }
 
 .goen-compare__image {
-  border-radius: var(--r-md);
+  border-radius: 8px;
   height: 96px;
   margin: 0;
   object-fit: cover;
@@ -4041,23 +4035,16 @@ input.goen-check {
   margin-inline-end: var(--s-2);
 }
 
-.goen-deptnotice__until {
+.goen-deptnotice .goen-ends__until {
   color: var(--tone-muted);
-  white-space: nowrap;
 }
 
-.goen-deptnotice__name > [aria-hidden="true"],
-.goen-deptnotice__until > [aria-hidden="true"] {
+.goen-deptnotice__name > [aria-hidden="true"] {
   color: var(--tone-muted);
   margin-inline: 0.25em;
 }
 
-.goen-deptnotice__left {
-  font-weight: var(--fw-medium);
-  word-break: keep-all;
-}
-
-.goen-deptnotice__left > [aria-hidden] {
+.goen-deptnotice .goen-ends__left > [aria-hidden] {
   color: var(--tone-mark);
 }
 
@@ -4147,7 +4134,7 @@ input.goen-check {
 .goen-story__well {
   aspect-ratio: 4 / 3;
   background: var(--well);
-  border-radius: var(--r-md);
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -4261,11 +4248,17 @@ input.goen-check {
 .goen-compare__suggestmedia {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   display: block;
   margin-bottom: 0.75rem;
   overflow: hidden;
   width: 100%;
+}
+
+@media (min-width: 48rem) {
+  .goen-compare__suggestmedia {
+    border-radius: 16px;
+  }
 }
 
 .goen-compare__suggestmedia img {
@@ -4435,7 +4428,7 @@ input.goen-check {
   .goen-filters__prices {
     background: var(--n-0);
     border: 1px solid var(--n-200);
-    border-radius: var(--r-lg);
+    border-radius: 16px;
     box-shadow: 0 16px 32px -16px rgb(0 0 0 / 0.2);
     left: 0;
     margin: 0;
@@ -4444,6 +4437,10 @@ input.goen-check {
     position: absolute;
     top: calc(100% + 0.75rem);
     z-index: 4;
+  }
+
+  .goen-filters__options .goen-filters__option {
+    border-radius: 4px;
   }
 
   .goen-filters__end .goen-filters__apply {
@@ -4569,7 +4566,7 @@ input.goen-check {
 .goen-pdp__thumbimg {
   aspect-ratio: 4 / 3;
   background: var(--photo);
-  border-radius: 2px;
+  border-radius: 8px;
   display: block;
   height: auto;
   object-fit: contain;
@@ -5517,7 +5514,7 @@ input.goen-check {
 /* The review form is the one panel on the page: --n-50 ground, no border. */
 .goen-pdp__reviewform {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   max-width: 40rem; /* content-box: the form inside is as wide as .goen-qa__form */
   padding: 1.5rem;
 }
@@ -5763,6 +5760,16 @@ input.goen-check {
   font-size: var(--fs-14);
 }
 
+/* A campaign's end in one phrase; the box is the container its day unit wraps
+   against. */
+.goen-pagehead__ends {
+  color: var(--fg-muted);
+  container-type: inline-size;
+  font-size: var(--fs-16);
+  line-height: 1.5;
+  margin: 0;
+}
+
 .goen-pagehead__sub,
 .goen-order__meta {
   color: var(--fg-muted);
@@ -5778,7 +5785,7 @@ input.goen-check {
    the background. */
 .goen-pay__window {
   background: var(--accent-faint);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   margin-top: var(--s-6);
   outline: 1px solid transparent;
   padding: 1.25rem 1.5rem;
@@ -5870,7 +5877,6 @@ input.goen-check {
 }
 
 .goen-promo,
-.goen-tiles__grid--lead[data-tone="ink"] > .goen-rowcard,
 .goen-campaign__band .goen-pagehead[data-tone="ink"],
 .goen-listing__head .goen-pagehead[data-tone="ink"] .goen-band__body,
 .goen-listing__head .goen-pagehead[data-tone="ink"] .goen-deptnotice,
@@ -5894,7 +5900,7 @@ input.goen-check {
 
 .goen-pagehead[data-tone] {
   background: var(--tone-ground);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   padding: 1.25rem 1rem;
 }
 
@@ -5957,8 +5963,13 @@ input.goen-check {
 }
 
 .goen-pagehead[data-tone] .goen-pagehead__sub,
-.goen-pagehead[data-tone] .goen-pagehead__eyebrow {
+.goen-pagehead[data-tone] .goen-pagehead__eyebrow,
+.goen-pagehead[data-tone] .goen-pagehead__ends {
   color: var(--tone-muted);
+}
+
+.goen-pagehead[data-tone] .goen-ends__left {
+  color: var(--tone-text);
 }
 
 .goen-cart__layout,
@@ -6009,7 +6020,7 @@ input.goen-check {
   align-self: start;
   aspect-ratio: 1 / 1;
   background: var(--photo);
-  border-radius: var(--r-md);
+  border-radius: 8px;
   display: block;
   overflow: hidden;
   width: 100%;
@@ -6039,7 +6050,7 @@ input.goen-check {
 
 .goen-cart__alert {
   background: var(--warn-bg);
-  border-radius: var(--r-md);
+  border-radius: 12px;
   color: var(--warn);
   font-size: var(--fs-14);
   margin: 0;
@@ -6427,7 +6438,7 @@ input.goen-check {
   align-items: flex-start;
   background: var(--n-0);
   border: 1px solid var(--n-300);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   box-sizing: border-box;
   color: inherit;
   container: ship / inline-size;
@@ -6556,7 +6567,7 @@ input.goen-check {
 .goen-pickup {
   background: var(--elevated);
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -7209,7 +7220,7 @@ input.goen-check {
 .goen-auth__demo {
   background: var(--accent-faint);
   border: 1px solid transparent;
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   color: var(--muted);
   display: flex;
   flex-direction: column;
@@ -7470,7 +7481,7 @@ input.goen-check {
    of its own. */
 .goen-account__credit {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
@@ -7723,7 +7734,7 @@ input.goen-check {
 
 .goen-points__figure {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -8186,7 +8197,7 @@ input.goen-check {
 .about__art {
   aspect-ratio: 16 / 9;
   background: var(--tone-ground);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   display: block;
   height: auto;
   width: 100%;
@@ -8544,7 +8555,7 @@ input.goen-check {
    would show as a second beige beside the head wherever the photograph is
    missing. */
 .goen-campaign__band {
-  border-radius: var(--r-lg);
+  border-radius: var(--r-hero);
   display: grid;
   gap: 0;
   overflow: hidden;
@@ -8574,7 +8585,8 @@ input.goen-check {
   text-wrap: balance;
 }
 
-.goen-campaign__band .ui-statline {
+.goen-campaign__band .ui-statline,
+.goen-campaign__band .goen-pagehead__ends {
   margin-top: 1rem;
 }
 

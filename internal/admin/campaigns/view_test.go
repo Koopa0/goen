@@ -131,7 +131,7 @@ func TestCampaignsFieldExamples(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"campaign", Campaigns(p, View{Draft: CampaignDraft{Title: typed, Slug: typed}, Errors: errors("title", "slug")}), map[string]string{"k-title": prefix + title, "k-slug": prefix + "summer-sale"}},
+					{"campaign", Campaigns(p, View{Draft: Draft{Title: typed, Slug: typed}, Errors: errors("title", "slug")}), map[string]string{"k-title": prefix + title, "k-slug": prefix + "summer-sale"}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)
@@ -198,9 +198,9 @@ func exampleElementByID(n *nethtml.Node, id string) *nethtml.Node {
 	return nil
 }
 
-// TestCampaignFormImageRefusal: campaign image refusal renders drafts apart from saved images.
+// TestCampaignImageRefusal: campaign image refusal renders drafts apart from saved images.
 // From TestProductImagesRefusalDrafts.
-func TestCampaignFormImageRefusal(t *testing.T) {
+func TestCampaignImageRefusal(t *testing.T) {
 	t.Parallel()
 	const alt = ` 新照片「正面」 & 側面 `
 	const altEn = ` New photograph "front" & side `
@@ -213,7 +213,7 @@ func TestCampaignFormImageRefusal(t *testing.T) {
 			want      map[string]string
 			errorID   string
 		}{
-			{name: "campaign", component: CampaignForm(frame.Page{}, CampaignView{Slug: "c", Image: widget.HeaderImage{Image: picture.Image{Digest: saved}, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"c-alt": alt, "c-alt-en": altEn}, errorID: "c-image"},
+			{name: "campaign", component: Campaign(frame.Page{}, CampaignView{Slug: "c", Image: widget.HeaderImage{Image: picture.Image{Digest: saved}, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"c-alt": alt, "c-alt-en": altEn}, errorID: "c-image"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -291,9 +291,9 @@ func imageDraftControlValue(n *nethtml.Node, attrs map[string]string) string {
 	return attrs["value"]
 }
 
-// TestCampaignFormRemoveButtons: campaign remove buttons name their record.
+// TestCampaignRemoveButtons: campaign remove buttons name their record.
 // From TestProductImagesRemoveButtons.
-func TestCampaignFormRemoveButtons(t *testing.T) {
+func TestCampaignRemoveButtons(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {
 		locale i18n.Locale
@@ -310,8 +310,8 @@ func TestCampaignFormRemoveButtons(t *testing.T) {
 			field     string
 			want      map[string]string
 		}{
-			{name: "featured products", component: CampaignForm(frame.Page{}, CampaignView{Slug: "event", Products: []CampaignProduct{{Slug: "pixelight", Name: "Pixelight <Pro> & more"}, {Slug: "meridian", Name: "Meridian"}}}), action: "/admin/campaigns/event/products", field: "product", want: map[string]string{"pixelight": "Pixelight <Pro> & more", "meridian": "Meridian"}},
-			{name: "campaign image", component: CampaignForm(frame.Page{}, CampaignView{Slug: "event", Image: widget.HeaderImage{Image: picture.Image{Digest: "abababababababababababababababababababababababababababababababab"}, Alt: "Summer <sale>"}}), action: "/admin/campaigns/event/image/remove", want: map[string]string{"": locale.image + " Summer <sale>"}},
+			{name: "featured products", component: Campaign(frame.Page{}, CampaignView{Slug: "event", Products: []Product{{Slug: "pixelight", Name: "Pixelight <Pro> & more"}, {Slug: "meridian", Name: "Meridian"}}}), action: "/admin/campaigns/event/products", field: "product", want: map[string]string{"pixelight": "Pixelight <Pro> & more", "meridian": "Meridian"}},
+			{name: "campaign image", component: Campaign(frame.Page{}, CampaignView{Slug: "event", Image: widget.HeaderImage{Image: picture.Image{Digest: "abababababababababababababababababababababababababababababababab"}, Alt: "Summer <sale>"}}), action: "/admin/campaigns/event/image/remove", want: map[string]string{"": locale.image + " Summer <sale>"}},
 		} {
 			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()

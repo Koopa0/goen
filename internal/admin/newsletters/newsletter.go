@@ -175,15 +175,15 @@ func (s *Store) SendNewsletter(ctx context.Context, issueID string, actor uuid.N
 	return len(subscribers), nil
 }
 
-func (s *Store) NewsletterIssues(ctx context.Context, limit int32) ([]NewsletterIssue, error) {
+func (s *Store) NewsletterIssues(ctx context.Context, limit int32) ([]Issue, error) {
 	rows, err := s.q.NewsletterIssues(ctx, limit)
 	if err != nil {
 		return nil, fmt.Errorf("reading issues: %w", err)
 	}
-	out := make([]NewsletterIssue, 0, len(rows))
+	out := make([]Issue, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		issue := NewsletterIssue{
+		issue := Issue{
 			ID: r.ID.String(), Subject: r.Subject, Body: r.Body,
 			Sent: r.SentAt.Valid, Recipients: r.Recipients, SentBy: r.SentByEmail,
 		}

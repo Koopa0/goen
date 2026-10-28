@@ -497,7 +497,7 @@ func Questions(p frame.Page, v View) templ.Component {
 									}
 									return nil
 								})
-								templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Size: widget.SizeSmall, Attrs: templ.Attributes{"name": "action", "value": string(QuestionHideAnswerAction)}}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var29), templ_7745c5c3_Buffer)
+								templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Size: widget.SizeSmall, Attrs: templ.Attributes{"name": "action", "value": string(ActionHideAnswer)}}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var29), templ_7745c5c3_Buffer)
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
@@ -670,7 +670,7 @@ func Questions(p frame.Page, v View) templ.Component {
 						templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
 							ButtonStyle: widget.ButtonStyleOutline,
 							Size:        widget.SizeSmall,
-							Attrs:       templ.Attributes{"name": "action", "value": string(QuestionAnswerAction)},
+							Attrs:       templ.Attributes{"name": "action", "value": string(ActionAnswer)},
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var38), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err

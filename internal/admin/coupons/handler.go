@@ -72,7 +72,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		view.Errors = errs
-		view.Draft = CouponDraft{
+		view.Draft = Draft{
 			Code: f.Code, Description: f.Description, Kind: f.Kind,
 			Value:       r.PostFormValue("value"),
 			Cap:         r.PostFormValue("cap"),

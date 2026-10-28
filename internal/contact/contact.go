@@ -1,4 +1,5 @@
-// Package contact accepts and stores messages sent from the contact form.
+// Package contact accepts and stores messages sent from the contact form; it
+// does not hold the staff queue that handles them (admin/messages).
 package contact
 
 import (

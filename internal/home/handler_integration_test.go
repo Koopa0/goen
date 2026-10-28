@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -873,10 +874,10 @@ func TestStore_LoadLowestFeeAlwaysFree(t *testing.T) {
 	}
 }
 
-// TestStore_LoadLeadTileWidth: The lead tile is the campaign's first product,
-// so its first photograph's width decides; a photograph whose width was never
-// stored counts as too narrow.
-func TestStore_LoadLeadTileWidth(t *testing.T) {
+// TestStore_LoadRowOrder: A campaign's row puts the products that can be bought
+// and have a photograph first, each group in the order the back office set; a
+// sold-out product or one without a photograph comes after them.
+func TestStore_LoadRowOrder(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	emptyHeroSlides(t)
 	stopCampaigns(t)
@@ -885,64 +886,67 @@ func TestStore_LoadLeadTileWidth(t *testing.T) {
 		t.Fatalf("begin: %v", err)
 	}
 	defer db.Rollback(ctx, tx)
-	if _, err = tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ('lead-width', '主圖寬度', now() + interval '3 days')`); err != nil {
+	var campaignID uuid.UUID
+	if err = tx.QueryRow(ctx, `
+		INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ('row-order', '排序', now() + interval '3 days')
+		RETURNING id`).Scan(&campaignID); err != nil {
 		t.Fatalf("insert campaign: %v", err)
 	}
-	var campaignID uuid.UUID
-	if err = tx.QueryRow(ctx, `SELECT id FROM sale_campaigns WHERE slug = 'lead-width'`).Scan(&campaignID); err != nil {
-		t.Fatalf("read campaign: %v", err)
+	// In the order the back office set them.
+	products := []struct {
+		name  string
+		stock int
+		photo bool
+	}{
+		{"sold out", 0, true},
+		{"no photograph", 5, false},
+		{"first buyable", 5, true},
+		{"second buyable", 5, true},
 	}
-	productIDs := make([]uuid.UUID, 0, 4)
-	for range 4 {
+	slugs := make([]string, 0, len(products))
+	for i, p := range products {
 		var id uuid.UUID
-		if err := tx.QueryRow(ctx, `
+		var slug string
+		if err = tx.QueryRow(ctx, `
 			WITH p AS (
 			    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 			    SELECT (SELECT id FROM brands LIMIT 1),
 			           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
-			           'lead-' || gen_random_uuid(), '主圖商品', 'active', now()
-			    RETURNING id
+			           'order-' || gen_random_uuid(), '排序商品', 'active', now()
+			    RETURNING id, slug
 			), v AS (
 			    INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
-			    SELECT p.id, 'LEAD-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, 5, 0, 0 FROM p
+			    SELECT p.id, 'ORDER-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, $1, 0, 0 FROM p
 			)
-			SELECT id FROM p`).Scan(&id); err != nil {
-			t.Fatalf("create product: %v", err)
+			SELECT id, slug FROM p`, p.stock).Scan(&id, &slug); err != nil {
+			t.Fatalf("%s: create product: %v", p.name, err)
 		}
-		productIDs = append(productIDs, id)
+		if p.photo {
+			if _, err = tx.Exec(ctx, `
+				INSERT INTO product_images (product_id, bundled_key, alt_text, width, height, position)
+				VALUES ($1, 'order.webp', '照片', 1200, 1200, 0)`, id); err != nil {
+				t.Fatalf("%s: insert photograph: %v", p.name, err)
+			}
+		}
+		if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ($1, $2, $3)`, campaignID, id, i); err != nil {
+			t.Fatalf("%s: feature product: %v", p.name, err)
+		}
+		slugs = append(slugs, slug)
 	}
-	for i, id := range productIDs {
-		if _, err := tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ($1, $2, $3)`, campaignID, id, i); err != nil {
-			t.Fatalf("feature product: %v", err)
-		}
+	view, err := home.NewStore(tx).Load(ctx)
+	if err != nil {
+		t.Fatalf("load: %v", err)
 	}
-	for _, tt := range []struct {
-		name  string
-		width any
-		lead  bool
-	}{
-		{"wide", 1600, true},
-		{"just under", 1199, false},
-		{"width never stored", nil, false},
-	} {
-		if _, err := tx.Exec(ctx, `DELETE FROM product_images WHERE product_id = $1`, productIDs[0]); err != nil {
-			t.Fatalf("clear photograph: %v", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO product_images (product_id, bundled_key, alt_text, width, height, position)
-			VALUES ($1, 'lead.webp', '主圖', $2, 1200, 0)`, productIDs[0], tt.width); err != nil {
-			t.Fatalf("%s: insert photograph: %v", tt.name, err)
-		}
-		view, err := home.NewStore(tx).Load(ctx)
-		if err != nil {
-			t.Fatalf("%s: load: %v", tt.name, err)
-		}
-		if view.Row.Href != "/s/lead-width" {
-			t.Fatalf("%s: the row is %q, want the campaign's", tt.name, view.Row.Href)
-		}
-		if got := view.Row.HasLead(); got != tt.lead {
-			t.Errorf("%s: lead tile = %t, want %t (first photograph %v wide)", tt.name, got, tt.lead, tt.width)
-		}
+	if view.Row.Href != "/s/row-order" {
+		t.Fatalf("the row is %q, want the campaign's", view.Row.Href)
+	}
+	got := make([]string, 0, len(view.Row.Tiles))
+	for i := range view.Row.Tiles {
+		got = append(got, view.Row.Tiles[i].Slug)
+	}
+	want := []string{slugs[2], slugs[3], slugs[0], slugs[1]}
+	if !slices.Equal(got, want) {
+		t.Errorf("the row is %v, want the buyable products with a photograph first: %v", got, want)
 	}
 }
 

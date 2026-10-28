@@ -16,8 +16,8 @@ func renderEnglish(t *testing.T, c templ.Component) string {
 	return renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), c)
 }
 
-func returnedReport(rows ...ReturnedProduct) *ReportView {
-	return &ReportView{
+func returnedReport(rows ...ReturnedProduct) *View {
+	return &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
 		Returned: rows,
 	}

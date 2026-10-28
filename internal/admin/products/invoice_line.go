@@ -96,5 +96,5 @@ func (h *Handler) rejectProductInvoiceLine(w http.ResponseWriter, r *http.Reques
 	}
 	view.InvoiceTerms = &facts
 	view.Errors = errs
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(frame.Page{Title: view.Name}, view))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Product(frame.Page{Title: view.Name}, view))
 }

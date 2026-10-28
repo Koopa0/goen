@@ -38,9 +38,9 @@ var notices = map[string]widget.NoticeEntry{
 }
 
 func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
-	filter := AllReviews
+	filter := FilterAll
 	if r.URL.Query().Get("rating") == "3" {
-		filter = ThreeStarsAndBelowReviews
+		filter = FilterThreeStarsAndBelow
 	}
 	view, err := h.store.Reviews(r.Context(), filter, r.URL.Query().Get(keyset.Param))
 	if err != nil {

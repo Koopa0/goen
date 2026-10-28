@@ -11,23 +11,23 @@ import (
 	"github.com/koopa0/goen/internal/money"
 )
 
-// StatLineVariant is a closed set; the zero value is the plain line.
-type StatLineVariant string
+// StatLineLayout is a closed set; the zero value is the plain line.
+type StatLineLayout string
 
 const (
-	StatLinePlain StatLineVariant = ""
-	StatLineWide  StatLineVariant = "wide"
+	StatLinePlain StatLineLayout = ""
+	StatLineWide  StatLineLayout = "wide"
 	// StatLinePairs sets the stats two across wherever two fit, so four read as two rows of two.
-	StatLinePairs StatLineVariant = "pairs"
+	StatLinePairs StatLineLayout = "pairs"
 	// StatLineSmall is a line that sits under a name, as a product's warranty does.
-	StatLineSmall StatLineVariant = "s"
+	StatLineSmall StatLineLayout = "s"
 	// StatLineGlance is a line of figures on a dashboard, each label a link to the screen that answers it. Every
 	// stat needs a LabelHref: a figure on a dashboard is a question somebody is about to ask, and a figure that
 	// does not answer it makes them find the screen in the navigation.
-	StatLineGlance StatLineVariant = "glance"
+	StatLineGlance StatLineLayout = "glance"
 )
 
-func (v StatLineVariant) class() string {
+func (v StatLineLayout) class() string {
 	if v == StatLinePlain {
 		return "ui-statline"
 	}
@@ -144,11 +144,11 @@ func checkCount(n int) {
 
 // shown panics on a glance stat with no LabelHref, whether or not it has a figure: every LabelHref is a route
 // built in code, so an empty one is a programmer error, like regexp.MustCompile.
-func shown(stats []Stat, variant StatLineVariant) []Stat {
+func shown(stats []Stat, layout StatLineLayout) []Stat {
 	checkCount(len(stats))
 	out := make([]Stat, 0, len(stats))
 	for i := range stats {
-		if variant == StatLineGlance && stats[i].LabelHref == "" {
+		if layout == StatLineGlance && stats[i].LabelHref == "" {
 			panic("widget: a glance stat needs a LabelHref")
 		}
 		if stats[i].Value.present() {

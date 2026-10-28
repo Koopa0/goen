@@ -4,8 +4,8 @@
 // show. Every feature that collects an address and every send checks it. The
 // parsing is net/mail's.
 //
-// It imports no other goen package. The letters goen mails are composed and
-// sent by internal/letter.
+// It imports no other goen package. It does not hold the letters goen mails:
+// internal/letter composes and sends them, and internal/outbox queues them.
 package email
 
 import (

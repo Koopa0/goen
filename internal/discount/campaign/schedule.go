@@ -9,24 +9,18 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// Schedule is what a campaign page says about its window: the fact line
-// and, when the span fits one, the period's track. NewSchedule
-// lays it out for the state the campaign is in.
+// Schedule is what a campaign page says about its window: for a running
+// campaign the phrase of its end, for one not started or ended the fact line,
+// and, when the span fits one, the period's track. NewSchedule lays it out for
+// the state the campaign is in.
 type Schedule struct {
+	// End is set only while the campaign runs.
+	End   *End
 	Facts []widget.Stat
-	// Ends and DaysLeft are Facts' own stats; DaysLeft has no value in the last two days and outside the window.
-	Ends, DaysLeft widget.Stat
-	Period         widget.PeriodSpec
-	HasPeriod      bool
-}
-
-// CardFacts are what is left, when it is shown, and then when it ends: the
-// facts of a card whose item count is its link.
-func (s *Schedule) CardFacts() []widget.Stat {
-	if s.DaysLeft.Label == "" {
-		return []widget.Stat{s.Ends}
-	}
-	return []widget.Stat{s.DaysLeft, s.Ends}
+	// EndFact is the one of Facts that states the last day; it is set only with Facts.
+	EndFact   widget.Stat
+	Period    widget.PeriodSpec
+	HasPeriod bool
 }
 
 // NewSchedule states a campaign of items products running from startsAt
@@ -34,8 +28,7 @@ func (s *Schedule) CardFacts() []widget.Stat {
 func NewSchedule(ctx context.Context, title string, items int64, startsAt, endsAt, now time.Time) Schedule {
 	state := StateAt(startsAt, endsAt, now)
 	count := widget.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: widget.StatCount(items, i18n.T(ctx, i18n.KeyFactUnitItems))}
-	ends := EndStat(ctx, endsAt, now)
-	schedule := Schedule{Ends: ends}
+	var schedule Schedule
 
 	switch state {
 	case NotStarted:
@@ -44,20 +37,15 @@ func NewSchedule(ctx context.Context, title string, items int64, startsAt, endsA
 			Label: i18n.T(ctx, i18n.KeyCampaignStarts),
 			Value: widget.StatDate(shoptime.DateText(ctx, first), "").WithDatetime(first.ISO()),
 		}
-		schedule.Ends.Note = ""
-		schedule.Facts = []widget.Stat{starts, schedule.Ends, count}
+		schedule.EndFact = EndStat(ctx, endsAt, now)
+		schedule.Facts = []widget.Stat{starts, schedule.EndFact, count}
 	case Ended:
-		schedule.Ends.Note = i18n.T(ctx, i18n.KeyCampaignEnded)
-		schedule.Facts = []widget.Stat{schedule.Ends, count}
+		schedule.EndFact = EndStat(ctx, endsAt, now)
+		schedule.EndFact.Note = i18n.T(ctx, i18n.KeyCampaignEnded)
+		schedule.Facts = []widget.Stat{schedule.EndFact, count}
 	default:
-		// The last two days say so in the end's note instead.
-		if left := shoptime.DaysLeft(now, endsAt); left > 1 {
-			schedule.DaysLeft = widget.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: widget.StatCount(int64(left), i18n.T(ctx, i18n.KeyFactUnitDays))}
-		}
-		schedule.Facts = []widget.Stat{count, schedule.Ends}
-		if schedule.DaysLeft.Label != "" {
-			schedule.Facts = append(schedule.Facts, schedule.DaysLeft)
-		}
+		end := NewEnd(endsAt, now)
+		schedule.End = &end
 	}
 	schedule.Period, schedule.HasPeriod = widget.DayPeriod(ctx, title, startsAt, endsAt, now)
 	return schedule

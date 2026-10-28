@@ -191,9 +191,11 @@ store before anything else.
   `internal/db/queryowners_test.go` lists the remaining exceptions, which may
   only shrink.
 - Package imports are policy, and `internal/repocheck/deps_test.go` is the whole
-  of it: vocabulary packages such as `order`, `money` and `shipping` import no
-  goen package; a back-office desk is imported only by `cmd/goen`, and reaches
-  another desk through an interface it declares; nothing outside
+  of it: a vocabulary package is a leaf with a fixed list of what it may
+  import (`money` and `email` import no goen package, `shipping` and `credit`
+  only `i18n`, `order` only `i18n` and `web/formtext`, `payment/refund` only
+  `i18n` and `money`); a back-office desk is imported only by `cmd/goen`, and
+  reaches another desk through an interface it declares; nothing outside
   `internal/admin` and `cmd/goen` imports a back-office package. Each rule's
   reason is printed when it fails.
 - A page body lives in the feature that renders it: put its `.templ` beside
@@ -255,13 +257,11 @@ about file size" and offers a rule of thumb, not a number: "it is usually not a
 good idea to have a single file with many thousands of lines in it, or having
 many tiny files" (package size).
 
-So the large feature packages (`cart`, `admin/orders`, `auth`, `payment`,
-`catalog`, `order/buyer`) are not a defect by their size. Page bodies have
-finished moving into their features (the templ/Go move, D13), so one pass now
-reads them against the name test, and each split it finds is filed as its own
-issue; #2184 tracks the pass. Which package may
-import which is a separate rule, held by `internal/repocheck/deps_test.go` as
-described above.
+So the large feature packages (`catalog`, `i18n`, `auth`, `admin/orders`,
+`checkout`) are not a defect by their size. The name-test pass over the eight
+largest found no package to split. A split is filed as its own issue when a
+package fails the name test. Which package may import which is a separate rule,
+held by `internal/repocheck/deps_test.go` as described above.
 
 #### Naming
 
@@ -328,11 +328,14 @@ them too.
    "redundant information between the two should be reduced or eliminated"
    ([Google: repetition](https://google.github.io/styleguide/go/decisions#repetitive-with-package)).
    So `contact.Form`, not `contact.ContactForm`. The one type or page a package is
-   named for may take its name (`ring.Ring`, `user.User`, `banners.Banners`), and a
-   compound package's type may repeat its last part (`cookiejar.Jar`,
+   named for may take its name (`ring.Ring`, `user.User`, `banners.Banners`); a desk
+   named for the plural of its records also repeats itself in the singular
+   (`orders.OrderRow` is `orders.Row`), and may take the singular for one record's
+   page (`orders.Order`); and a compound package's type may repeat its last part (`cookiejar.Jar`,
    `tabwriter.Writer`, `cartitem.Item`). `TestNoExportedNameRepeatsItsPackage`
    holds every exported package-level name to this, templ components included;
-   its exceptions are names a generator chooses (sqlc's `db.DBTX`), each with
+   its exceptions are names a generator chooses (sqlc's `db.DBTX`) and a desk's
+   view of one record beside its list's `View` (`orders.OrderView`), each with
    its reason. Say "repetitive", not "stutter" (Google's editors ask for this).
 
 **A domain package is singular; the back-office desk over it is the plural of
@@ -433,7 +436,7 @@ Reopen if a staff URL is ever stored or mailed.
 | `admin/warranties` | exists | the staff search over warranty registrations by serial or order number; it holds the `/admin/warranties` page, its query and its rows | recording cover (`order/warranty`) | not `admin/warranty`: the leaf's base name |
 | `cart/cartitem` | exists; renamed `internal/cart/item` | what the cart reports about its items to a feature that shows them elsewhere; it holds `Item`, a variant in a cart and how many of it, and `AddOutcome`, what adding one came to | the cart, its prices or its store (`cart`) | not `item`: the generic local, declared twice in an importer (rule 4); not `cartline`: the schema says `cart_items`. `cartitem.Item` repeats only the compound's last part, as `cookiejar.Jar` and `tabwriter.Writer` do |
 | `admin` | exists, from `internal/admin/access` (`New` became `NewControl`); the cross-desk integration tests that were the directory's only files stay beside it as `admin_test` | the back office's entrance: who reaches a back-office handler, and the back office's 404 and 500 answers; it holds `Control`, whose `RequireStaff`, `StaffOnly` and `RequireAdmin` guard every desk's routes, and `NotFound`, `Fault` and `ServerError` | any desk's pages or a feature (`admin/<desk>`) | not `admin/access`: its most-called function is the back office's 500 page; not `guard`: same. The move found 0 `admin` locals in its importers (rule 4). Reopen if anything but guarding handlers and the back office's error answers is proposed for it |
-| `admin/accesstest` | exists, moved from `internal/admin/access/accesstest` | the check every back-office feature runs on its own routes, that each one is behind the back office's guard; it holds `RefuseOutsiders` and `RefuseOutsidersOn` | the back office's integration fixtures (`admintest`) | named for its subject, route access, as `iotest` and `fstest` are; not folded into `admintest`: that package imports desks whose own route tests would then import it |
+| `admin/routetest` | exists, renamed from `admin/accesstest` (moved from `internal/admin/access/accesstest`) | the check every back-office feature runs on its own routes, that each one is behind the back office's guard; it holds `RefuseOutsiders` and `RefuseOutsidersOn` | the back office's integration fixtures (`admintest`) | named for what it checks, the back office's routes, and no package `route` exists for it to be read as the helper of; not `accesstest`: that reads as the helper of `order/access`, and `internal/admin/access` is now `admin`; not `guardtest`: `ratelimit.Guard` is also a route's guard; not folded into `admintest`: that package imports desks whose own route tests would then import it |
 | `checkout` | exists, from `internal/cart`; `Checkout`, `CheckoutView`, `CheckoutMeta`, `CheckoutAddress`, `CheckoutInvoice` and `CheckoutProfile` dropped their prefix (`Page`, `View`, `Meta`, `Address`, `InvoiceView`, `Profile`), the shipping `Quote` became `ShippingQuote`, and the hold and pay windows went to `payment` (`HoldTTL`, `PayWindow`) | turning a shopper's cart into a placed order; it holds the checkout page with its store-pickup round trip, placement, the quote, attempts, drafts, the invoice preference, and coupon and credit spending | the cart itself (`cart`), the placed order afterwards (`order`, `order/buyer`), taking the money (`payment`) | not `order/place`: a verb, and "place" is also a location; not `placement`: jargon that hides the page. The move renamed the `checkout` locals in its importers; `cart` kept the cart page and its own names lost their prefix too (`Page`, `View`, `Meta`) |
 | `checkout/checkouttest` | exists; took `NewCart`, `PlaceOrder`, `PlaceUnpaidOrderFor`, `PlaceOrderOfUnits`, `CreditedAccount` and `PlaceLapsed` from `internal/checkout`'s `main_integration_test.go` and `lapsed_integration_test.go`, and `PlaceWithCoupon` from its `coupon_integration_test.go` | an order placed through the real checkout, for the integration suites of other packages and checkout's own; it holds those builders, the quote and attempt key a direct `Store` test places with, and `CreditBalance` | an order written with SQL (`order/ordertest`) | not `ordertest`: a coupon redemption or an order line is written in the placing transaction, which SQL cannot imitate, and the package imports `checkout`, so only an external test package (`package foo_test`) may import it |
 | `discount/coupon` | exists, moved under `internal/discount`; gained the rule and the code shape from `internal/cart/coupon.go`, the code shape `internal/admin/coupons` restated, and `DiscountLabel` from `internal/ui/widget` | what a coupon takes off an order and the shape of its code; it holds the kinds, `Coupon`, `Apply` and its refusals, the name of the discount line it puts on an order (`DiscountLabel`), `Normalise` and `ValidCode` | the lookup and redemption that run inside checkout's transaction (`checkout`), a campaign's price strike (`discount/campaign`), store credit (`credit`) | not a `discount` package: the two mechanisms of a price reduction share no vocabulary, so `discount` is a plain directory over `discount/campaign` and `discount/coupon`, as `archive` is over `tar` and `zip`; not `promotion`: reads alike with the promo strip and covers campaigns. "Coupon" is the schema's noun (`coupons`) |

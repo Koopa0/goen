@@ -301,7 +301,7 @@ func TestAppCSSToneColoursConsumed(t *testing.T) {
 // periodDecl one of them: a tone token, a token of the page's own, or a
 // translucent rgb().
 var (
-	periodOverride = regexp.MustCompile(`(?s)\.(goen-hero__slide|goen-pagehead|goen-tiles__grid--lead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
+	periodOverride = regexp.MustCompile(`(?s)\.(goen-hero__slide|goen-pagehead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
 	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*(?:var\((--[a-z0-9-]+)\)|(rgb\([^)]*\)));`)
 	translucent    = regexp.MustCompile(`^rgb\((\d{1,3}) (\d{1,3}) (\d{1,3}) / (0?\.\d+)\)$`)
 )
@@ -364,8 +364,8 @@ func checkPeriod(t *testing.T, where, fill, track, groundName, ground string) {
 }
 
 // toneHeads are the heads that lay the period on a tone's ground: the home
-// hero, the department and campaign head, and the lead tile.
-var toneHeads = []string{"goen-hero__slide", "goen-pagehead", "goen-tiles__grid--lead"}
+// hero, and the department and campaign head.
+var toneHeads = []string{"goen-hero__slide", "goen-pagehead"}
 
 // toneNames is tone.Tone's closed set, as the data-tone attribute spells it.
 var toneNames = func() []string {

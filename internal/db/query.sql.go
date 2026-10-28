@@ -8970,7 +8970,12 @@ WHERE p.status = 'active'
       WHERE cp.campaign_id = $2::uuid AND cp.product_id = p.id
   ))
   AND ($3::uuid IS NULL OR p.category_id IN (SELECT d.id FROM d))
-ORDER BY (SELECT cp.position FROM sale_campaign_products cp
+ORDER BY NOT (EXISTS (
+             SELECT 1 FROM product_variants sv
+             WHERE sv.product_id = p.id AND sv.is_active
+               AND sv.stock_quantity > sv.safety_stock
+         ) AND num_nonnulls(img.media_digest, img.bundled_key) > 0),
+         (SELECT cp.position FROM sale_campaign_products cp
           WHERE cp.campaign_id = $2::uuid AND cp.product_id = p.id) NULLS LAST,
          p.published_at DESC, p.id
 LIMIT $4::integer
@@ -9007,7 +9012,8 @@ type HomeTilesRow struct {
 // One tile query for the three rows the home page draws: a campaign's products
 // in the position the back office set, a department's products, or the newest
 // of the shop. A NULL filter is no filter. status = 'active' is a literal, not
-// a parameter, so the partial index stays usable.
+// a parameter, so the partial index stays usable. A product that can be bought
+// and has a photograph comes first; within each group the order below holds.
 func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTilesRow, error) {
 	rows, err := q.db.Query(ctx, homeTiles,
 		arg.Locale,
