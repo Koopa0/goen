@@ -14,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
@@ -99,5 +100,21 @@ func TestHandler_UploadAbandoned(t *testing.T) {
 	h.respondToUploadError(res, req, &HeroForm{}, err)
 	if res.Body.Len() != 0 || diagnostics.Len() != 0 {
 		t.Errorf("abandoned upload wrote body %q and log %q, want neither", res.Body.String(), diagnostics.String())
+	}
+}
+
+// TestDoneNoticesAreDistinct: no two actions share a sentence, so a save says
+// which change it was.
+func TestDoneNoticesAreDistinct(t *testing.T) {
+	t.Parallel()
+	seen := map[i18n.Key]string{}
+	for name, e := range notices {
+		if e.Outcome != widget.OutcomeDone {
+			continue
+		}
+		if first, dup := seen[e.Key]; dup {
+			t.Errorf("?%s=1 and ?%s=1 both say %q", first, name, e.Key)
+		}
+		seen[e.Key] = name
 	}
 }

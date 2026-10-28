@@ -119,8 +119,8 @@ func TestHandler_CreateHeroNoImageStored(t *testing.T) {
 		"headline": headline, "primary_label": "去看看", "primary_href": "/deals",
 		"alt": "秋季新品主視覺",
 	})
-	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/slides?ok=1" {
-		t.Fatalf("a complete slide answered %d to %q, want 303 to ?ok=1",
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/slides?added=1" {
+		t.Fatalf("a complete slide answered %d to %q, want 303 to ?added=1",
 			res.Code, res.Header().Get("Location"))
 	}
 	if !stored() {
@@ -253,8 +253,8 @@ func TestHandler_CreateHeroBuiltInArtwork(t *testing.T) {
 	req.Header.Set("Content-Type", form.FormDataContentType())
 	res := httptest.NewRecorder()
 	mux.ServeHTTP(res, req)
-	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/slides?ok=1" {
-		t.Fatalf("optional image = %d to %q, want 303 to ?ok=1", res.Code, res.Header().Get("Location"))
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/slides?added=1" {
+		t.Fatalf("optional image = %d to %q, want 303 to ?added=1", res.Code, res.Header().Get("Location"))
 	}
 	var imageKey string
 	if err := pool.QueryRow(ctx, `SELECT coalesce(media_digest, '') FROM hero_slides WHERE headline = $1`, headline).Scan(&imageKey); err != nil {
@@ -479,7 +479,7 @@ func TestHandler_CreateHeroStorageFault(t *testing.T) {
 		diagnostics.Reset()
 		res := httptest.NewRecorder()
 		mux.ServeHTTP(res, heroUploadFailureRequest(t, ctx, fields, fields["alt"], false))
-		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/slides?ok=1" {
+		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/slides?added=1" {
 			t.Errorf("recovered hero upload = %d to %q, want 303 to the editor", res.Code, res.Header().Get("Location"))
 		}
 		if writes.Calls != 2 || writes.Code != "" || !writes.Live || ctx.Err() != nil {
