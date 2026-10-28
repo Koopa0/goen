@@ -375,7 +375,7 @@ func TestStore_RecentSalesWeek(t *testing.T) {
 	if empty.Latest != nil || empty.Current.Orders != 0 {
 		t.Fatalf("a shop with no order: Latest = %v, orders = %d, want none", empty.Latest, empty.Current.Orders)
 	}
-	if got := len(empty.Current.Days) + len(empty.Previous.Days); got != 14 {
+	if got := len(empty.Days); got != 14 {
 		t.Errorf("days drawn = %d, want 14, a day without orders included", got)
 	}
 
@@ -389,7 +389,7 @@ func TestStore_RecentSalesWeek(t *testing.T) {
 	if recent.Previous.Orders != 0 || recent.Previous.RevenueCents != 0 {
 		t.Errorf("the week before = %d orders, %d cents, want none: today's sale is not in it", recent.Previous.Orders, recent.Previous.RevenueCents)
 	}
-	today := recent.Current.Days
+	today := recent.Days
 	if got := today[len(today)-1].RevenueCents; got != 100000 {
 		t.Errorf("today's revenue = %d, want 100000", got)
 	}

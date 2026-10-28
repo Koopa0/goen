@@ -23,11 +23,9 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 	recent := sales.Recent{
 		Current: sales.Period{
 			Orders: 3, RevenueCents: 90000, RevenueSquares: 2.7e9, Partial: true,
-			Days: []sales.Day{{Day: monday, Orders: 1, RevenueCents: 30000}, {Day: tuesday, Orders: 2, RevenueCents: 60000}},
 		},
 		Previous: sales.Period{
 			Orders: 1, RevenueCents: 10000, RevenueSquares: 1e8,
-			Days: []sales.Day{{Day: monday.AddDate(0, 0, -7), Orders: 1, RevenueCents: 10000}},
 		},
 		Days: []sales.Day{
 			{Day: monday.AddDate(0, 0, -7), Orders: 1, RevenueCents: 10000},

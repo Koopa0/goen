@@ -2233,7 +2233,7 @@ input.goen-check {
 }
 
 .goen-admin__task {
-  align-items: center;
+  align-items: start;
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -2285,7 +2285,6 @@ input.goen-check {
 
 @container (width < 24rem) {
   .goen-admin__task {
-    align-items: start;
     flex-direction: column;
     gap: 4px;
   }
@@ -4133,19 +4132,15 @@ form[data-request-pending] [aria-disabled="true"] {
   font-weight: var(--fw-regular);
 }
 
-.goen-chart__value {
-  fill: var(--fg);
-  font-size: var(--fs-12);
-  font-variant-numeric: tabular-nums lining-nums;
-  font-weight: var(--fw-medium);
-}
-
 /* A value is placed on the server, fitted to a 12px label (columns.go,
    textWidth and valueSpan), so it keeps that size: a rem size outgrows the room
    it was fitted to and runs into its neighbour at large text. Page zoom still
    scales it, and the data table under the chart gives every value. */
-.goen-chart__frame--columns .goen-chart__value {
+.goen-chart__value {
+  fill: var(--fg);
   font-size: 12px;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: var(--fw-medium);
 }
 
 /* The names over the brackets and the values over the columns are placed for a
@@ -4153,15 +4148,13 @@ form[data-request-pending] [aria-disabled="true"] {
    the value axis, a figure of 18rem at any text size. A narrower figure, the
    campaign card at 320px or a small screen with large text, would push a name
    off the screen (WCAG 1.4.10) or set two values over each other, so it drops
-   them, and the line of a bracket with them; the table names the stretch and
-   gives the value on each of its days. */
+   them, and the line under the previous stretch's name with them; the table
+   names the stretch and gives the value on each of its days. */
 @container (width < 18rem) {
   .goen-chart__spanlabel {
     display: none;
   }
-}
 
-@container (width < 18rem) {
   .goen-chart__window,
   .goen-chart__value {
     display: none;
