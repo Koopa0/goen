@@ -17,8 +17,8 @@ func TestStore_RulesSchemaWindows(t *testing.T) {
 	owner := dbtest.Pool(t)
 	var want Rules
 	if err := owner.QueryRow(ctx, `
-		SELECT rescission_days(), return_goodwill_days(), checkout_hold_minutes(), checkout_pay_start_minutes()`).
-		Scan(&want.RescissionDays, &want.ReturnDays, &want.HoldMinutes, &want.PayStartMinutes); err != nil {
+		SELECT rescission_days(), return_goodwill_days(), checkout_pay_start_minutes()`).
+		Scan(&want.RescissionDays, &want.ReturnDays, &want.PayStartMinutes); err != nil {
 		t.Fatalf("read the windows: %v", err)
 	}
 	tx, err := owner.Begin(ctx)
@@ -34,9 +34,9 @@ func TestStore_RulesSchemaWindows(t *testing.T) {
 		t.Fatalf("read the shop rules as store: %v", err)
 	}
 	if got.RescissionDays != want.RescissionDays || got.ReturnDays != want.ReturnDays ||
-		got.HoldMinutes != want.HoldMinutes || got.PayStartMinutes != want.PayStartMinutes {
-		t.Errorf("Rules states %d/%d days and %d/%d minutes, the schema names %d/%d and %d/%d",
-			got.RescissionDays, got.ReturnDays, got.HoldMinutes, got.PayStartMinutes,
-			want.RescissionDays, want.ReturnDays, want.HoldMinutes, want.PayStartMinutes)
+		got.PayStartMinutes != want.PayStartMinutes {
+		t.Errorf("Rules states %d/%d days and %d minutes, the schema names %d/%d and %d",
+			got.RescissionDays, got.ReturnDays, got.PayStartMinutes,
+			want.RescissionDays, want.ReturnDays, want.PayStartMinutes)
 	}
 }

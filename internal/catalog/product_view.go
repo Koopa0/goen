@@ -591,7 +591,7 @@ func (v *ProductView) BuyFacts(ctx context.Context) []widget.Stat {
 	}
 	stats = append(stats, v.Rules.RescissionStat(ctx))
 	if v.AnySellable {
-		stats = append(stats, v.Rules.HoldStat(ctx))
+		stats = append(stats, v.Rules.PayStartStat(ctx))
 	}
 	return append(stats, v.Rules.FreeDeliveryStat(ctx))
 }
