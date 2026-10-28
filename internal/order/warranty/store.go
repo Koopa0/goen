@@ -44,6 +44,7 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (Or
 		return OrderView{}, ErrNotFound
 	}
 
+	now := time.Now()
 	view := OrderView{Number: orderNumber}
 	for i := range rows {
 		r := &rows[i]
@@ -55,7 +56,7 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (Or
 			Delivered: int(r.DeliveredUnits), Returned: int(r.ReturnedUnits),
 			Registered: int(r.RegisteredUnits),
 		})
-		view.Lines[len(view.Lines)-1].CoverEnds = warrantyCoverEnd(r.ExpiresOn, r.HasExpiry)
+		view.Lines[len(view.Lines)-1].CoverEnds = warrantyCoverEnd(r.ExpiresOn, r.HasExpiry, now)
 	}
 	registered, err := s.Mine(ctx, userID)
 	if err != nil {
@@ -79,7 +80,7 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (Or
 	return view, nil
 }
 
-func warrantyLine(r *db.RegistrableLinesRow) Line {
+func warrantyLine(r *db.RegistrableLinesRow, now time.Time) Line {
 	line := Line{
 		ID: r.OrderLineID.String(), Name: r.ProductName,
 		Label: r.VariantLabel.String, Slug: r.ProductSlug.String,
@@ -87,16 +88,16 @@ func warrantyLine(r *db.RegistrableLinesRow) Line {
 		HasTerm:   r.WarrantyMonths.Valid,
 		Delivered: int(r.DeliveredUnits), Returned: int(r.ReturnedUnits),
 		Registered: int(r.RegisteredUnits),
-		CoverEnds:  warrantyCoverEnd(r.ExpiresOn, r.HasExpiry),
+		CoverEnds:  warrantyCoverEnd(r.ExpiresOn, r.HasExpiry, now),
 	}
 	return line
 }
 
-func warrantyCoverEnd(date time.Time, hasExpiry bool) *shoptime.Date {
+func warrantyCoverEnd(date time.Time, hasExpiry bool, now time.Time) *shoptime.Date {
 	if !hasExpiry {
 		return nil
 	}
-	day := shoptime.DateOf(date, date)
+	day := shoptime.DateOf(date, now)
 	return &day
 }
 
@@ -111,10 +112,11 @@ func (s *Store) Ready(ctx context.Context, userID string) ([]Ready, error) {
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now()
 	ready := make([]Ready, 0, len(rows))
 	for i := range rows {
 		row := &rows[i]
-		line := warrantyLine(row)
+		line := warrantyLine(row, now)
 		if line.Registrable() && line.CoverEnds != nil {
 			ready = append(ready, Ready{Number: row.OrderNumber, Line: line})
 		}

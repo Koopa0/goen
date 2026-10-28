@@ -5,6 +5,7 @@ import (
 
 	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -134,7 +135,7 @@ templ Order(p frame.Page, v *OrderView) {
 												{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
 											}
 										}
-										<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderInvoiceIssued), d.IssuedOn) }</span>
+										<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderInvoiceIssued), shoptime.DateText(ctx, d.IssuedOn)) }</span>
 										if d.RandomCode != "" {
 											<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRandomCode), d.RandomCode) }</span>
 										}
