@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -32,12 +33,12 @@ func TestNoticeOtherDevices(t *testing.T) {
 					t.Parallel()
 					ctx := i18n.WithLocale(t.Context(), tt.locale)
 					r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/account?other_devices="+flag, nil)
-					want := ""
+					var want widget.Result
 					if flag == "signed_out" {
-						want = tt.notice
+						want = widget.Result{Outcome: widget.OutcomeDone, Text: tt.notice}
 					}
 					if got := Notice(r); got != want {
-						t.Errorf("Notice(other_devices=%q) = %q, want %q", flag, got, want)
+						t.Errorf("Notice(other_devices=%q) = %+v, want %+v", flag, got, want)
 					}
 				})
 			}
