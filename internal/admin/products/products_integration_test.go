@@ -670,8 +670,8 @@ func TestHandler_AddOptionValueSwatch(t *testing.T) {
 			if got := uitest.InputAttribute(t, input, "aria-invalid"); got != "true" {
 				t.Errorf("colour field aria-invalid = %q, want true", got)
 			}
-			if got := uitest.InputAttribute(t, input, "aria-describedby"); got != "optval-swatch-error" {
-				t.Errorf("colour field aria-describedby = %q, want the error's id", got)
+			if got := uitest.InputAttribute(t, input, "aria-describedby"); got != "optval-swatch-example optval-swatch-error" {
+				t.Errorf("colour field aria-describedby = %q, want the example's id and the error's", got)
 			}
 			if !regexp.MustCompile(`<p[^>]*id="optval-swatch-error"[^>]*>[^<]+</p>`).MatchString(body) {
 				t.Error("the refusal names no reason beside the colour field")

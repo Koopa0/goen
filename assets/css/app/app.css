@@ -2638,6 +2638,102 @@ body:has(.goen-hero) .goen-header {
   padding-block: 0 var(--s-8);
 }
 
+/* The buy box's facts and the shop's rules read as short sentences: the term,
+   then its value in the same line, the note on the next. base.css draws a stat
+   line as a label over a large figure; the back office loads base.css and keeps
+   that, so these rules are scoped here. */
+.goen-pdp__buy > .ui-statline,
+.goen-rules .ui-statline {
+  row-gap: 0.75rem;
+}
+
+.goen-pdp__buy > .ui-statline {
+  border-top: 1px solid var(--n-200);
+  display: grid;
+  padding-top: 1.25rem;
+}
+
+/* 1.5rem is the product grid's column gap, so from 1024px the four rules
+   stand on the four product columns above them. Four rules sit in one
+   column, two by two, or one row; never three and one. */
+.goen-rules .ui-statline {
+  display: grid;
+  gap: 1.25rem 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 40rem) {
+  .goen-rules .ui-statline:has(> :nth-child(4):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .goen-rules .ui-statline,
+  .goen-rules .ui-statline:has(> :nth-child(4):last-child) {
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+  }
+}
+
+.goen-pdp__buy > .ui-statline > div,
+.goen-rules .ui-statline > div {
+  display: block;
+  min-width: 0;
+}
+
+.goen-pdp__buy > .ui-statline :is(dt, dd),
+.goen-rules .ui-statline :is(dt, dd) {
+  display: inline;
+  font-size: var(--fs-14);
+  letter-spacing: 0;
+  line-height: 1.5;
+}
+
+.goen-pdp__buy > .ui-statline dt,
+.goen-rules .ui-statline dt {
+  color: var(--fg-muted);
+  margin-right: 0.5em;
+}
+
+.goen-pdp__buy > .ui-statline dd,
+.goen-rules .ui-statline dd {
+  color: var(--fg);
+  font-weight: var(--fw-medium);
+  margin: 0;
+}
+
+.goen-pdp__buy > .ui-statline dd small,
+.goen-rules .ui-statline dd small {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+.goen-pdp__buy > .ui-statline .ui-statline__pre,
+.goen-rules .ui-statline .ui-statline__pre {
+  margin-right: 0;
+}
+
+/* The note starts its own line inside the same inline run: a block inside the
+   inline dd would split it and push the page wider than a phone. */
+.goen-pdp__buy > .ui-statline .ui-statline__note,
+.goen-rules .ui-statline .ui-statline__note {
+  display: inline;
+  font-size: var(--fs-14);
+  font-weight: 400;
+  text-wrap: pretty;
+  word-break: normal;
+}
+
+.goen-pdp__buy > .ui-statline .ui-statline__note::before,
+.goen-rules .ui-statline .ui-statline__note::before {
+  content: "\A";
+  white-space: pre;
+}
+
 @media (min-width: 40rem) {
   .goen-hero__media {
     aspect-ratio: 16 / 9;
@@ -8991,7 +9087,6 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
 ::view-transition-old(*.photo),
 ::view-transition-new(*.photo) {
   block-size: 100%;
-  mix-blend-mode: normal;
   object-fit: cover;
 }
 
@@ -9017,8 +9112,20 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
   animation: goen-photo-out var(--dur-base) var(--ease-standard) both;
 }
 
+/* The browser's own fade also sets the new snapshot to plus-lighter, by an
+   animation that outranks any declaration; over the old photo, held opaque,
+   that adds the two and washes the photo out. These keyframes change the
+   opacity and nothing else. */
+::view-transition-new(*.photo) {
+  animation: goen-fade-in var(--dur-slow) var(--ease-standard) both;
+}
+
 @keyframes goen-photo-out {
   to { opacity: 0; }
+}
+
+@keyframes goen-fade-in {
+  from { opacity: 0; }
 }
 
 /* The global reduce block at the top of this file matches elements, and these
