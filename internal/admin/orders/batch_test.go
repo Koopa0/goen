@@ -108,7 +108,7 @@ func TestBatchReason(t *testing.T) {
 // A failure partway through leaves the orders before it committed: the answer
 // names the one that got no answer and the ones never tried, and counts those
 // that did start.
-func TestStartPacking_StopsAtAFailure(t *testing.T) {
+func TestStartPicking_StopsAtAFailure(t *testing.T) {
 	t.Parallel()
 	nums := []string{numberN(1), numberN(2), numberN(3), numberN(4), numberN(5)}
 	timedOut := &pgconn.PgError{Code: "55P03"}
@@ -124,7 +124,7 @@ func TestStartPacking_StopsAtAFailure(t *testing.T) {
 		return nil
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	batch := startPacking(ctx, slog.New(slog.DiscardHandler), nums, advance)
+	batch := startPicking(ctx, slog.New(slog.DiscardHandler), nums, advance)
 
 	if !slices.Equal(tried, nums[:3]) {
 		t.Errorf("tried %v, want the loop to stop at the third", tried)
@@ -152,16 +152,16 @@ func TestStartPacking_StopsAtAFailure(t *testing.T) {
 		}
 	}
 	enCtx := i18n.WithLocale(t.Context(), i18n.En)
-	en := startPacking(enCtx, slog.New(slog.DiscardHandler), nums, advance)
+	en := startPicking(enCtx, slog.New(slog.DiscardHandler), nums, advance)
 	if got := en.Refused[1].Reason; got != "No answer; press Start packing again." {
 		t.Errorf("en reason = %q", got)
 	}
 }
 
-func TestStartPacking_NoFailureNoStop(t *testing.T) {
+func TestStartPicking_NoFailureNoStop(t *testing.T) {
 	t.Parallel()
 	nums := []string{numberN(1), numberN(2)}
-	batch := startPacking(t.Context(), slog.New(slog.DiscardHandler), nums, func(_ context.Context, number string) error {
+	batch := startPicking(t.Context(), slog.New(slog.DiscardHandler), nums, func(_ context.Context, number string) error {
 		if number == nums[0] {
 			return fmt.Errorf("%w: %w", ErrAlreadyThere, ErrRefused)
 		}

@@ -203,7 +203,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"messages", "SELECT count(*) FROM contact_messages", func(after string) (result, error) {
-			v, e := messageStore.Messages(ctx, after)
+			v, e := messageStore.Messages(ctx, after, time.Now())
 			r := result{bound: v.Bound}
 			for _, x := range v.Rows {
 				r.keys = append(r.keys, x.ID)
@@ -331,7 +331,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `rel="next"`) {
 		t.Fatalf("inbox has no plain next link: status %d", w.Code)
 	}
-	inbox, err := messageStore.Messages(ctx, "")
+	inbox, err := messageStore.Messages(ctx, "", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

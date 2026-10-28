@@ -178,7 +178,7 @@ func TestStore_ReportAtRetiredVariant(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s report: %v", stage, err)
 		}
-		for _, seller := range view.Sellers {
+		for _, seller := range view.BestSellers {
 			if seller.Slug == slug {
 				if seller.Units != 999 || seller.RevenueCents != 999 {
 					t.Errorf("%s seller totals = %d/%d, want 999/999",
@@ -239,7 +239,7 @@ func TestStore_ReportAtBestSellersRefunded(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReportAt: %v", err)
 		}
-		return slices.ContainsFunc(view.Sellers, func(r sales.Seller) bool { return r.Slug == slug })
+		return slices.ContainsFunc(view.BestSellers, func(r sales.BestSeller) bool { return r.Slug == slug })
 	}
 	if !listed() {
 		t.Fatal("the paid order's product is not a best seller before any refund")

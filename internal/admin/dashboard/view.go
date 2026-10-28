@@ -19,7 +19,7 @@ import (
 )
 
 // View lists the newest orders in Recent whatever their state: filtering it
-// to one state would answer what the tiles above already answer, and hide the order
+// to one state would answer what the tasks above already answer, and hide the order
 // somebody walked over to ask about.
 type View struct {
 	PendingOrders int64
@@ -60,10 +60,10 @@ type View struct {
 	Latest            *LatestPaid
 	LatestUnavailable bool
 	// Daily is the revenue of every shop day of the last DailyDays, today cut
-	// at ReadAt; Sellers are the products sold most over the last WeekDays.
-	Daily   chart.Series
-	ReadAt  time.Time
-	Sellers []sales.Seller
+	// at ReadAt; BestSellers are the products sold most over the last WeekDays.
+	Daily       chart.Series
+	ReadAt      time.Time
+	BestSellers []sales.BestSeller
 }
 
 // OrderRow is one of the newest orders as the dashboard lists it. It is a copy
@@ -99,7 +99,7 @@ type Task struct {
 	HasAge bool
 	// WaitDays is the shop days the oldest item has waited, counted as the
 	// orders desk's work tabs count them; Overdue is set on the order tasks once
-	// that is more than order.PackWithinDays.
+	// that is more than order.PickWithinDays.
 	WaitDays int
 	Overdue  bool
 	// Alert marks work that is wrong rather than merely waiting.
@@ -112,11 +112,11 @@ func waiting(label i18n.Key, count int64, href string, since, now time.Time) Tas
 	return Task{Label: label, Count: count, Href: href, HasAge: true, WaitDays: shoptime.DaysAgo(since, now)}
 }
 
-// packing is a waiting order task, which is overdue once it has waited longer
-// than order.PackWithinDays.
-func packing(label i18n.Key, count int64, href string, since, now time.Time) Task {
+// picking is a waiting order task, which is overdue once it has waited longer
+// than order.PickWithinDays.
+func picking(label i18n.Key, count int64, href string, since, now time.Time) Task {
 	t := waiting(label, count, href, since, now)
-	t.Overdue = order.PackingOverdue(t.WaitDays)
+	t.Overdue = order.PickingOverdue(t.WaitDays)
 	return t
 }
 
@@ -132,8 +132,8 @@ func (t Task) AgeText(ctx context.Context) string {
 // nothing waiting, with each wait counted in shop days at now.
 func (v *View) DeskTasks(now time.Time) []Task {
 	all := []Task{
-		packing(i18n.KeyAdminStatusReadyToPick, v.ReadyOrders, "/admin/orders?status=ready", v.ReadyOldestSince, now),
-		packing(i18n.KeyAdminStatusPicking, v.PickingOrders, "/admin/orders?status=picking", v.PickingOldestSince, now),
+		picking(i18n.KeyAdminStatusReadyToPick, v.ReadyOrders, "/admin/orders?status=ready", v.ReadyOldestSince, now),
+		picking(i18n.KeyAdminStatusPicking, v.PickingOrders, "/admin/orders?status=picking", v.PickingOldestSince, now),
 		{Label: i18n.KeyAdminQueueStatPending, Count: v.PendingOrders, Href: "/admin/orders?status=pending"},
 		waiting(i18n.KeyAdminQueueStatReturns, v.PendingReturns, "/admin/returns", v.PendingReturnsOldestSince, now),
 		waiting(i18n.KeyAdminQueueTaskUninspected, v.UninspectedReturns, "/admin/returns", v.UninspectedReturnsOldestSince, now),
@@ -155,7 +155,7 @@ func (v *View) SalesChart(ctx context.Context) chart.ColumnsProps {
 		Caption:      v.salesCaption(ctx),
 		Note:         fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepPaidNote), shoptime.Clock(v.ReadAt)),
 		DayHeading:   i18n.T(ctx, i18n.KeyAdminRepDate),
-		SpanHeading:  i18n.T(ctx, i18n.KeyAdminQueueSalesPeriod),
+		SpanHeading:  i18n.T(ctx, i18n.KeyChartPeriod),
 		PartialLabel: fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUntil), shoptime.Clock(v.ReadAt)),
 	}
 }
@@ -186,14 +186,6 @@ func (v *View) SalesSentence(ctx context.Context) string {
 		return i18n.Count(ctx, i18n.KeyAdminQueueSalesNone, DailyDays, DailyDays)
 	}
 	return i18n.Count(ctx, i18n.KeyAdminQueueSalesFew, int64(filled), filled, DailyDays)
-}
-
-// TopUnits is the units of the best seller, which a seller's bar is a share of.
-func (v *View) TopUnits() int64 {
-	if len(v.Sellers) == 0 {
-		return 0
-	}
-	return v.Sellers[0].Units
 }
 
 func Meta(ctx context.Context) frame.Page {

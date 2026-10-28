@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/inventory"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
@@ -98,14 +99,14 @@ templ Dashboard(p frame.Page, v View) {
 				</h2>
 				if v.WeekUnavailable {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueWeekUnavailable) }</p>
-				} else if len(v.Sellers) == 0 {
+				} else if len(v.BestSellers) == 0 {
 					<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueSellersNone, WeekDays, WeekDays) }</p>
 				} else {
 					<ul class="goen-report__rows" role="list">
-						{{ top := v.TopUnits() }}
-						for _, item := range v.Sellers {
+						{{ top := sales.TopUnits(v.BestSellers) }}
+						for _, item := range v.BestSellers {
 							@widget.ReportRow(item.Name, item.Href(), item.Facts(ctx)) {
-								if len(v.Sellers) > 1 {
+								if len(v.BestSellers) > 1 {
 									<div class="goen-report__plot">
 										@chart.Bar(chart.BarProps{Value: item.Units, Max: top, Label: item.UnitsText()})
 									</div>
