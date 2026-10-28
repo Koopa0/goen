@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -22,7 +21,7 @@ templ Listing(p frame.Page, v ListingView, rules *policy.Rules, head *Department
 				<div class="goen-band">
 					<div class="goen-band__grid">
 						if photo.Shown() {
-							@bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false)
+							@bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw")
 						}
 						<div class="goen-band__body goen-pagehead__text">
 							@widget.Breadcrumb(widget.BreadcrumbProps{
@@ -65,7 +64,6 @@ templ Listing(p frame.Page, v ListingView, rules *policy.Rules, head *Department
 					>
 						if v.Empty() {
 							<div class="ui-empty">
-								@widget.EmptyArt(assets.EmptySearchImage)
 								<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyListingEmpty) }</p>
 								<p class="goen-empty__text">
 									{ i18n.T(ctx, i18n.KeyListingEmptyHint) }
@@ -312,13 +310,11 @@ templ Search(p frame.Page, v SearchView) {
 			</div>
 			if !v.Searched() {
 				<div class="ui-empty">
-					@widget.EmptyArt(assets.EmptySearchImage)
 					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeySearchPrompt) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchPromptHint) }</p>
 				</div>
 			} else if v.Empty() {
 				<div class="ui-empty">
-					@widget.EmptyArt(assets.EmptySearchImage)
 					<p class="goen-empty__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchNoResults), v.Query) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchNoResultsHint) }</p>
 					if len(frame.TopNavFrom(ctx)) > 0 {

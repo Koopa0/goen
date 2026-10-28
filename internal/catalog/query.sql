@@ -1345,14 +1345,3 @@ JOIN sale_campaigns fc ON fc.id = fp.campaign_id
 WHERE fp.product_id = @product_id::uuid
 ORDER BY fc.ends_at, fc.id
 LIMIT 1;
-
--- The tone is the nearest one up the category's trail, the rule of
--- CategoryBySlug.
--- name: CategoryTone :one
-WITH RECURSIVE trail AS (
-    SELECT c.id, c.parent_id, c.tone, 0 AS depth FROM categories c WHERE c.id = $1
-    UNION ALL
-    SELECT c.id, c.parent_id, c.tone, t.depth + 1
-    FROM categories c JOIN trail t ON c.id = t.parent_id
-)
-SELECT coalesce((SELECT tone FROM trail WHERE tone IS NOT NULL ORDER BY depth LIMIT 1), 'stone')::text AS tone;
