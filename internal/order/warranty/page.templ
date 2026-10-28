@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -101,7 +102,7 @@ templ Order(p frame.Page, v OrderView) {
 			}
 			if v.RegisteredUnit != nil {
 				<p role="status" id="warranty-registered">
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyRegisteredUnit), v.RegisteredUnit.Name, v.RegisteredUnit.ExpiresOn.ISO()) }
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyRegisteredUnit), v.RegisteredUnit.Name, shoptime.DateText(ctx, v.RegisteredUnit.ExpiresOn)) }
 					if v.RegisteredUnit.Serial != "" {
 						<span class="goen-warranty__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantySerialShown), v.RegisteredUnit.Serial) }</span>
 					}

@@ -14,15 +14,15 @@ import (
 // locales: with the expiry, before delivery, as months, and with no warranty.
 func TestLine_CoverText(t *testing.T) {
 	t.Parallel()
-	end := shoptime.Date{Year: 2028, Month: time.October, Day: 5}
+	end := shoptime.Date{Year: 2028, Month: time.October, Day: 5, OtherYear: true}
 	for _, tt := range []struct {
 		name   string
 		line   Line
 		zh, en string
 	}{
-		{name: "delivered", line: Line{HasTerm: true, Months: 24, CoverEnds: &end}, zh: "保固 2 年，到 2028-10-05（從送達日起算）", en: "2-year warranty, until 2028-10-05 (from delivery)"},
+		{name: "delivered", line: Line{HasTerm: true, Months: 24, CoverEnds: &end}, zh: "保固 2 年，到 2028\u00a0年 10\u00a0月 5\u00a0日（從送達日起算）", en: "2-year warranty, until Oct\u00a05, 2028 (from delivery)"},
 		{name: "before delivery", line: Line{HasTerm: true, Months: 24}, zh: "保固 2 年，從送達日起算", en: "2-year warranty, from delivery"},
-		{name: "month term", line: Line{HasTerm: true, Months: 18, CoverEnds: &end}, zh: "保固 18 個月，到 2028-10-05（從送達日起算）", en: "18-month warranty, until 2028-10-05 (from delivery)"},
+		{name: "month term", line: Line{HasTerm: true, Months: 18, CoverEnds: &end}, zh: "保固 18 個月，到 2028\u00a0年 10\u00a0月 5\u00a0日（從送達日起算）", en: "18-month warranty, until Oct\u00a05, 2028 (from delivery)"},
 		{name: "no warranty", line: Line{}},
 	} {
 		for _, locale := range []struct {
@@ -45,13 +45,13 @@ func TestLine_CoverText(t *testing.T) {
 // item.
 func TestOrderConfirmationNextSteps(t *testing.T) {
 	t.Parallel()
-	end := shoptime.Date{Year: 2028, Month: time.October, Day: 5}
+	end := shoptime.Date{Year: 2028, Month: time.October, Day: 5, OtherYear: true}
 	for _, locale := range []struct {
 		locale                                             i18n.Locale
 		confirmation, done, all, serial, heading, register string
 	}{
-		{locale: i18n.ZhHant, confirmation: "已登錄：Pixelight，保固到 2028-10-05。", done: "這筆訂單的商品都已登錄保固。", all: "查看所有保固", serial: "序號 SN-SECOND", heading: "可以登錄", register: "登錄保固"},
-		{locale: i18n.En, confirmation: "Registered: Pixelight, under warranty until 2028-10-05.", done: "Every item on this order has been registered for warranty.", all: "View all warranties", serial: "Serial SN-SECOND", heading: "Ready to register", register: "Register warranty"},
+		{locale: i18n.ZhHant, confirmation: "已登錄：Pixelight，保固到 2028\u00a0年 10\u00a0月 5\u00a0日。", done: "這筆訂單的商品都已登錄保固。", all: "查看所有保固", serial: "序號 SN-SECOND", heading: "可以登錄", register: "登錄保固"},
+		{locale: i18n.En, confirmation: "Registered: Pixelight, under warranty until Oct\u00a05, 2028.", done: "Every item on this order has been registered for warranty.", all: "View all warranties", serial: "Serial SN-SECOND", heading: "Ready to register", register: "Register warranty"},
 	} {
 		t.Run(locale.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
@@ -72,10 +72,13 @@ func TestOrderConfirmationNextSteps(t *testing.T) {
 				{Number: "GO-FIRST", Line: Line{ID: "phone", Name: "Pixelight <Pro>", HasTerm: true, Months: 24, CoverEnds: &end}},
 				{Number: "GO-SECOND", Line: Line{ID: "tablet", Name: "Tablet", HasTerm: true, Months: 24, CoverEnds: &end}},
 			}}))
-			for _, want := range []string{`id="warranty-ready-heading">` + locale.heading, `href="/account/warranty/GO-FIRST#serial-phone"`, `href="/account/warranty/GO-SECOND#serial-tablet"`, "Pixelight &lt;Pro&gt;", "2028-10-05", locale.register} {
+			for _, want := range []string{`id="warranty-ready-heading">` + locale.heading, `href="/account/warranty/GO-FIRST#serial-phone"`, `href="/account/warranty/GO-SECOND#serial-tablet"`, "Pixelight &lt;Pro&gt;", shoptime.DateText(ctx, end), locale.register} {
 				if !strings.Contains(ready, want) {
 					t.Errorf("ready warranties lack %q", want)
 				}
+			}
+			if strings.Contains(ready, "2028-10-05") {
+				t.Error("ready warranties print the end as an ISO date")
 			}
 			if strings.Count(ready, `#serial-`) != 2 {
 				t.Error("ready list does not have one registration link per item")
