@@ -6,6 +6,7 @@ import (
 	"html"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/a-h/templ"
 	nethtml "golang.org/x/net/html"
@@ -144,9 +145,10 @@ func TestMessagesWaitingBadges(t *testing.T) {
 	view := View{Bound: firstPageBound("messages"), Rows: []Message{fresh, late}}
 	page := renderComponent(t, ctx, Messages(frame.Page{}, view))
 	wantBadge(t, page, fresh.Waiting(ctx), "goen-badge goen-badge--warn")
-	wantBadge(t, page, late.OverdueText(ctx), "goen-badge goen-badge--warn")
-	if !strings.Contains(late.OverdueText(ctx), "逾時") {
-		t.Errorf("overdue text %q does not say 逾時", late.OverdueText(ctx))
+	wantBadge(t, page, "已等 4 天", "goen-badge goen-badge--warn")
+	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminOverdue), "goen-badge goen-badge--warn")
+	if got := badgeClasses(t, page, i18n.T(ctx, i18n.KeyAdminOverdue)); len(got) != 1 {
+		t.Errorf("%d badges say overdue, want one, on the late row", len(got))
 	}
 	if !strings.Contains(page, `<span aria-hidden="true">▲</span>`) {
 		t.Error("the overdue badge has no ▲")
@@ -160,5 +162,58 @@ func TestMessagesWaitingBadges(t *testing.T) {
 	}
 	if got := badgeClasses(t, page, count); len(got) != 0 {
 		t.Errorf("the count is still a badge: %v", got)
+	}
+}
+
+// TestMessageWaitsInShopDays: a message is as old as the shop days since it
+// arrived, as the dashboard task that opens this desk counts them.
+func TestMessageWaitsInShopDays(t *testing.T) {
+	t.Parallel()
+	taipei := time.FixedZone("UTC+8", 8*60*60)
+	now := time.Date(2026, 10, 12, 1, 0, 0, 0, taipei)
+	tests := []struct {
+		name    string
+		arrived time.Time
+		want    int
+	}{
+		{"two hours ago across midnight", time.Date(2026, 10, 11, 23, 0, 0, 0, taipei), 1},
+		{"earlier today", time.Date(2026, 10, 12, 0, 30, 0, 0, taipei), 0},
+		{"twenty-five hours ago, which the clock calls one day", time.Date(2026, 10, 10, 23, 59, 0, 0, taipei), 2},
+	}
+	for _, tt := range tests {
+		got := newMessage(&db.AdminMessagesRow{CreatedAt: tt.arrived}, "", now).WaitingDays
+		if got != tt.want {
+			t.Errorf("%s: WaitingDays = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
+// TestMessageWaitWords: the desk words a wait and its lateness as the orders
+// work tabs do, and the third day is the first overdue one.
+func TestMessageWaitWords(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		days    int
+		handled bool
+		zh, en  string
+		overdue bool
+	}{
+		{0, false, "今天", "Today", false},
+		{1, false, "已等 1 天", "Waiting 1 day", false},
+		{2, false, "已等 2 天", "Waiting 2 days", false},
+		{3, false, "已等 3 天", "Waiting 3 days", true},
+		{9, true, "已處理", "Handled", false},
+	}
+	for _, tt := range tests {
+		m := Message{WaitingDays: tt.days, Handled: tt.handled}
+		if got := m.Waiting(i18n.WithLocale(t.Context(), i18n.ZhHant)); got != tt.zh {
+			t.Errorf("Waiting(%d days, zh-Hant) = %q, want %q", tt.days, got, tt.zh)
+		}
+		if got := m.Waiting(i18n.WithLocale(t.Context(), i18n.En)); got != tt.en {
+			t.Errorf("Waiting(%d days, en) = %q, want %q", tt.days, got, tt.en)
+		}
+		if got := m.Overdue(); got != tt.overdue {
+			t.Errorf("Overdue(%d days, handled %v) = %v, want %v", tt.days, tt.handled, got, tt.overdue)
+		}
 	}
 }

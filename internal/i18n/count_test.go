@@ -44,7 +44,6 @@ var pluralOnlyOnPurpose = map[Key]string{
 	"shipping.hold.body":          "a configured payment window in minutes, long enough that it is never 1",
 	"checkout.submit.note":        "the fixed payment-start window is 29 minutes, never 1",
 	"order.payment.checking":      "the page's fixed refresh interval and retry cap, never 1",
-	"admin.message.days":          "the caller words one day and today separately, so it is never 1",
 	"valid.contact.name.long":     "contact.maxName is fixed at 80 characters",
 	"valid.contact.orderref":      "contact.maxOrderRef is fixed at 32 characters",
 	"valid.contact.message.short": "contact.minMessage is fixed at 5 characters",

@@ -45,14 +45,15 @@ templ Messages(p frame.Page, v View) {
 									@widget.Badge(widget.BadgeProps{}) {
 										{ m.Waiting(ctx) }
 									}
-								} else if m.Overdue() {
-									@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
-										<span aria-hidden="true">▲</span>
-										{ m.OverdueText(ctx) }
-									}
 								} else {
 									@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 										{ m.Waiting(ctx) }
+									}
+									if m.Overdue() {
+										@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
+											<span aria-hidden="true">▲</span>
+											{ i18n.T(ctx, i18n.KeyAdminOverdue) }
+										}
 									}
 								}
 							</div>

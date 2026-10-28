@@ -144,7 +144,7 @@ func AwaitingPayment(status FulfillmentStatus, committed bool, owedCents int64) 
 }
 
 // PackWithinDays is the shop days a paid order may wait to be packed; the
-// third day is overdue, as it is on the contact messages desk.
+// third day is overdue.
 const PackWithinDays = 2
 
 func PackingOverdue(days int) bool { return days > PackWithinDays }

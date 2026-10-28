@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -34,7 +35,7 @@ func TestStore_MessagesOrder(t *testing.T) {
 		t.Fatalf("handle the old one: %v", err)
 	}
 
-	view, err := s.Messages(ctx, "")
+	view, err := s.Messages(ctx, "", time.Now())
 	if err != nil {
 		t.Fatalf("read the inbox: %v", err)
 	}
@@ -245,7 +246,7 @@ func TestStore_MessagesBoundary(t *testing.T) {
 	}
 
 	write(keyset.PageSize - existing)
-	full, err := s.Messages(ctx, "")
+	full, err := s.Messages(ctx, "", time.Now())
 	if err != nil {
 		t.Fatalf("read the inbox at exactly a page: %v", err)
 	}
@@ -258,7 +259,7 @@ func TestStore_MessagesBoundary(t *testing.T) {
 	}
 
 	write(1)
-	over, err := s.Messages(ctx, "")
+	over, err := s.Messages(ctx, "", time.Now())
 	if err != nil {
 		t.Fatalf("read the inbox one past a page: %v", err)
 	}

@@ -1,10 +1,6 @@
--- waiting_days is computed HERE because created_at is written by the database's
--- clock: taking the difference in Go subtracts two clocks, and a container
--- milliseconds ahead of its host reports a four-day-old message as three.
 -- name: AdminMessages :many
 SELECT json_build_object('Rank', (handled_at IS NOT NULL), 'At', created_at, 'ID', id)::text AS page_cursor, id, name, email, subject, coalesce(order_ref, '') AS order_ref,
-       message, handled_at, created_at,
-       floor(extract(epoch FROM now() - created_at) / 86400)::integer AS waiting_days
+       message, handled_at, created_at
 FROM contact_messages
 WHERE (NOT @has_cursor::boolean OR ((handled_at IS NOT NULL) > @after_rank::boolean)
        OR ((handled_at IS NOT NULL) = @after_rank::boolean AND created_at > @after_at::timestamptz)
