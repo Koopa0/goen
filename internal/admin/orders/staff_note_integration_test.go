@@ -40,7 +40,7 @@ func staffNotePool(t *testing.T) *pgxpool.Pool {
 
 func staffNoteStore(t *testing.T) *orders.Store {
 	t.Helper()
-	return admintest.OrderStore(staffNotePool(t), admintest.Refunder{}, nil, nil)
+	return admintest.OrderStore(staffNotePool(t), admintest.HealthyGateway(t), nil, nil)
 }
 
 // TestHandler_StaffNoteAuditNoContent: the staff note POST records its
@@ -49,7 +49,7 @@ func TestHandler_StaffNoteAuditNoContent(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	number, orderID, _ := ordertest.PendingOrderHoldingStock(t, pool)
 	p := staffNotePool(t)
-	h := admintest.OrderDesk(admintest.OrderStore(p, admintest.Refunder{}, nil, nil))
+	h := admintest.OrderDesk(admintest.OrderStore(p, admintest.HealthyGateway(t), nil, nil))
 	for _, step := range []struct{ note, action string }{
 		{"private first note", "order.note.create"},
 		{"private replacement", "order.note.replace"},

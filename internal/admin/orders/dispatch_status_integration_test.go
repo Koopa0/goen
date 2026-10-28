@@ -42,7 +42,7 @@ func TestHandler_ShipOrderMovedOn(t *testing.T) {
 			order: func(t *testing.T) string {
 				t.Helper()
 				number := shippableOrder(t, "zh-Hant")
-				if err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).Ship(ctx, number,
+				if err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil).Ship(ctx, number,
 					orders.Dispatch{Carrier: "black_cat", Tracking: "FIRST-" + uuid.NewString()[:8]},
 					uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 					t.Fatalf("first parcel: %v", err)
@@ -64,7 +64,7 @@ func TestHandler_ShipOrderMovedOn(t *testing.T) {
 					VALUES ($1, 'invoice', $2, 500000)`, orderID, uuid.NewString()[:32]); err != nil {
 					t.Fatalf("issue invoice: %v", err)
 				}
-				_, err := refunds.NewStore(pool, admintest.Refunder{}, nil).RefundBeforeShipment(ctx, number, "")
+				_, err := refunds.NewStore(pool, admintest.HealthyGateway(t), nil).RefundBeforeShipment(ctx, number, "")
 				if db.ConstraintName(err) != "orders_cancel_invoice_resolved" {
 					t.Fatalf("refund with a live invoice = %v", err)
 				}
@@ -122,7 +122,7 @@ func TestHandler_ShipOrderMovedOn(t *testing.T) {
 			}
 
 			name := "dispatch_status_" + uuid.NewString()[:8]
-			h := admintest.OrderDesk(admintest.OrderStore(admintest.NamedPool(t, pool, name), admintest.Refunder{}, nil, nil))
+			h := admintest.OrderDesk(admintest.OrderStore(admintest.NamedPool(t, pool, name), admintest.HealthyGateway(t), nil, nil))
 			form := url.Values{"carrier": {"black_cat"}, "tracking": {tracking}}
 			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/ship", strings.NewReader(form.Encode()))
 			req.SetPathValue("number", number)

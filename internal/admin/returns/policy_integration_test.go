@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,7 +30,7 @@ import (
 func TestStore_DecideAdvertisedPolicy(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
-	s := storeOver(isolated, admintest.Refunder{})
+	s := storeOver(isolated, admintest.HealthyGateway(t))
 	customer := buyer.NewStore(isolated)
 
 	t.Run("statutory blank reason cannot be rejected", func(t *testing.T) {
@@ -417,9 +416,7 @@ func TestStore_DecideAdvertisedPolicy(t *testing.T) {
 			t.Fatalf("open day-15 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		stalled := storeOver(isolated, admintest.Refunder{
-			RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
-		})
+		stalled := storeOver(isolated, admintest.NewStripe(t, admintest.StripeBehaviour{Create: admintest.StripeCreateUnanswered}).Gateway())
 		if err := stalled.Decide(ctx, requestID.String(), "exception", "beyond 14 days", ""); err == nil {
 			t.Fatal("a timed-out exception payout was reported as complete")
 		}
@@ -427,7 +424,7 @@ func TestStore_DecideAdvertisedPolicy(t *testing.T) {
 		if status != "approved" || refunds != 1 {
 			t.Fatalf("stalled exception is %q/%d, want approved/1", status, refunds)
 		}
-		healthy := storeOver(isolated, admintest.Refunder{})
+		healthy := storeOver(isolated, admintest.HealthyGateway(t))
 		if err := healthy.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 			t.Fatalf("retry approved exception payout without a new reason: %v", err)
 		}
@@ -614,7 +611,7 @@ func TestStore_DecideAdvertisedPolicy(t *testing.T) {
 // survives a refused decision.
 func TestStore_AssessBasisSurvivesRefusal(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	customer := buyer.NewStore(pool)
 
 	const storedBasis = "old evidence withdrawn by staff"
@@ -773,8 +770,8 @@ func TestHandler_DecideUndelivered(t *testing.T) {
 				} else {
 					id, _, _ = mixedWindowReturnOn(t, isolated, time.Time{}, admintest.ShopNoonDaysAgo(t, tt.days), time.Now())
 				}
-				var paid atomic.Int64
-				s := storeOver(appPool, admintest.Refunder{Sent: &paid})
+				stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+				s := storeOver(appPool, stripe.Gateway())
 				mux := http.NewServeMux()
 				handlerOver(s).Routes(mux, admintest.BackOffice)
 				queue := httptest.NewRecorder()
@@ -796,7 +793,7 @@ func TestHandler_DecideUndelivered(t *testing.T) {
 					Decided         bool
 					Resolution      string
 					Audits, Refunds int
-					Paid            int64
+					Paid            int
 				}
 				state := func() decisionState {
 					t.Helper()
@@ -808,7 +805,7 @@ func TestHandler_DecideUndelivered(t *testing.T) {
 						FROM return_requests r WHERE r.id = $1`, id).Scan(&got.Status, &got.Decided, &got.Resolution, &got.Audits, &got.Refunds); err != nil {
 						t.Fatalf("read return decision: %v", err)
 					}
-					got.Paid = paid.Load()
+					got.Paid = len(stripe.Refunds())
 					return got
 				}
 				res := post("rejected")
@@ -854,7 +851,7 @@ func TestHandler_DecideUndelivered(t *testing.T) {
 func TestStore_DecideStatutoryRace(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
-	s := storeOver(isolated, admintest.Refunder{})
+	s := storeOver(isolated, admintest.HealthyGateway(t))
 	requestID := admintest.ReturnedOrderAtWithReason(t, isolated,
 		mustRFC3339(t, "2026-01-01T07:00:00+08:00"),
 		mustRFC3339(t, "2026-01-06T12:00:00+08:00"),
@@ -884,7 +881,7 @@ func TestStore_DecideStatutoryRace(t *testing.T) {
 func TestStore_DecideLateExceptionRace(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
-	s := storeOver(isolated, admintest.Refunder{})
+	s := storeOver(isolated, admintest.HealthyGateway(t))
 	requestID := admintest.ReturnedOrderAtWithReason(t, isolated,
 		mustRFC3339(t, "2026-01-01T12:00:00+08:00"),
 		mustRFC3339(t, "2026-01-16T12:00:00+08:00"),

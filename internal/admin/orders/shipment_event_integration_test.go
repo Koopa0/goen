@@ -61,7 +61,7 @@ func TestStore_ShipEventNamesParcel(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	ctx = i18n.WithLocale(ctx, i18n.En)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
-	store := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil, nil)
+	store := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.HealthyGateway(t), nil, nil)
 	number, orderID, lines, _ := admintest.TwoLineOrderWithStock(t, pool, "shipped-event")
 
 	parcel := func(tracking string) uuid.UUID {

@@ -4,10 +4,8 @@ package returns_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,21 +25,19 @@ func TestStore_DecideRecoveryAttribution(t *testing.T) {
 	ctxA, actorA, requestA := admintest.RefundRecoveryStaffContext(t, pool, "actor-a")
 	ctxB, actorB, requestB := admintest.RefundRecoveryStaffContext(t, pool, "actor-b")
 	returnID, _ := admintest.ReturnedOrder(t, pool, 2)
-	calls := &atomic.Int64{}
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{Create: admintest.StripeCreateUnanswered})
 
-	stalled := storeOver(pool, admintest.Refunder{
-		RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
-		Sent:      calls,
-	})
+	stalled := storeOver(pool, stripe.Gateway())
 	if err := stalled.Decide(ctxA, returnID.String(), "approved", "refund recovery", ""); err == nil {
 		t.Fatal("a timed-out refund was reported as complete")
 	}
 
-	healthy := storeOver(pool, admintest.Refunder{Sent: calls})
+	stripe.Behave(admintest.StripeBehaviour{})
+	healthy := storeOver(pool, stripe.Gateway())
 	if err := healthy.Decide(ctxB, returnID.String(), "approved", "refund recovery", ""); err != nil {
 		t.Fatalf("retry refund: %v", err)
 	}
-	if got := calls.Load(); got != 2 {
+	if got := len(stripe.Refunds()); got != 2 {
 		t.Fatalf("provider Refund calls = %d, want one timed-out call and one retry", got)
 	}
 
@@ -109,22 +105,21 @@ func TestStore_DecideRecoveryAttribution(t *testing.T) {
 func TestStore_DecideTerminalSuccessor(t *testing.T) {
 	tests := []struct {
 		name       string
-		refunder   admintest.Refunder
+		stripe     admintest.StripeBehaviour
 		firstState string
 		firstRef   bool
 	}{
 		{
-			name: "failed provider object", refunder: admintest.Refunder{State: refund.Failed},
+			name: "failed provider object", stripe: admintest.StripeBehaviour{RefundStatus: refund.Failed},
 			firstState: "failed", firstRef: true,
 		},
 		{
-			name: "cancelled provider object", refunder: admintest.Refunder{State: refund.Cancelled},
+			name: "cancelled provider object", stripe: admintest.StripeBehaviour{RefundStatus: refund.Cancelled},
 			firstState: "cancelled", firstRef: true,
 		},
 		{
-			name: "create API rejection",
-			refunder: admintest.Refunder{RefundErr: fmt.Errorf(
-				"%w: provider rejected create", refund.ErrCreateRejected)},
+			name:       "create API rejection",
+			stripe:     admintest.StripeBehaviour{Create: admintest.StripeCreateRejected},
 			firstState: "failed",
 		},
 	}
@@ -133,12 +128,12 @@ func TestStore_DecideTerminalSuccessor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
 			returnID, _ := admintest.ReturnedOrder(t, pool, 1)
-			if err := storeOver(pool, tt.refunder).Decide(
+			if err := storeOver(pool, admintest.NewStripe(t, tt.stripe).Gateway()).Decide(
 				ctx, returnID.String(), "approved", "terminal recovery", "",
 			); err == nil {
 				t.Fatal("terminal provider outcome was reported as a settled refund")
 			}
-			if err := storeOver(pool, admintest.Refunder{}).Decide(
+			if err := storeOver(pool, admintest.HealthyGateway(t)).Decide(
 				ctx, returnID.String(), "approved", "terminal recovery", "",
 			); err != nil {
 				t.Fatalf("retry terminal provider outcome: %v", err)
@@ -219,13 +214,13 @@ func TestStore_DecideRequiresActorRequestID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := tt.context(t)
 			returnID := admintest.PreapprovedReturn(t, pool)
-			calls := &atomic.Int64{}
-			s := storeOver(pool, admintest.Refunder{Sent: calls})
+			stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+			s := storeOver(pool, stripe.Gateway())
 
 			if err := s.Decide(ctx, returnID.String(), "approved", "retry", ""); err == nil {
 				t.Fatal("refund execution without its durable request identity succeeded")
 			}
-			if got := calls.Load(); got != 0 {
+			if got := len(stripe.Refunds()); got != 0 {
 				t.Errorf("provider Refund calls = %d, want zero", got)
 			}
 
@@ -256,13 +251,13 @@ func TestStore_DecideAttemptAuditRollback(t *testing.T) {
 	ctx, _, requestID := admintest.RefundRecoveryStaffContext(t, pool, "attempt-audit-failure")
 	returnID, _ := admintest.ReturnedOrder(t, pool, 1)
 	installRefundAuditRejector(t, "refund.provider_attempt")
-	calls := &atomic.Int64{}
-	s := storeOver(pool, admintest.Refunder{Sent: calls})
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s := storeOver(pool, stripe.Gateway())
 
 	if err := s.Decide(ctx, returnID.String(), "approved", "audit rollback", ""); err == nil {
 		t.Fatal("refund claim succeeded despite its rejected attempt audit")
 	}
-	if got := calls.Load(); got != 0 {
+	if got := len(stripe.Refunds()); got != 0 {
 		t.Errorf("provider Refund calls = %d, want zero before a durable attempt audit", got)
 	}
 
@@ -289,13 +284,13 @@ func TestStore_DecideOutcomeAuditRollback(t *testing.T) {
 	ctx, _, requestID := admintest.RefundRecoveryStaffContext(t, pool, "outcome-audit-failure")
 	returnID, _ := admintest.ReturnedOrder(t, pool, 1)
 	installRefundAuditRejector(t, "refund.provider_succeeded")
-	calls := &atomic.Int64{}
-	s := storeOver(pool, admintest.Refunder{Sent: calls})
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s := storeOver(pool, stripe.Gateway())
 
 	if err := s.Decide(ctx, returnID.String(), "approved", "audit rollback", ""); err == nil {
 		t.Fatal("refund outcome succeeded despite its rejected outcome audit")
 	}
-	if got := calls.Load(); got != 1 {
+	if got := len(stripe.Refunds()); got != 1 {
 		t.Errorf("provider Refund calls = %d, want one call after the durable claim", got)
 	}
 

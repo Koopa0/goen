@@ -49,7 +49,7 @@ func TestDeskRefusalPOSTs(t *testing.T) {
 	faq.NewHandler(faqStore, log).Routes(mux, ac)
 	taxonomy.NewHandler(taxonomy.NewStore(pool), images, log).Routes(mux, ac)
 	shipping.NewHandler(shipping.NewStore(pool), false, log).Routes(mux, ac)
-	returns.NewHandler(admintest.ReturnDesk(pool, admintest.Refunder{}), log).Routes(mux, ac)
+	returns.NewHandler(admintest.ReturnDesk(pool, admintest.HealthyGateway(t)), log).Routes(mux, ac)
 
 	slug := productstest.Draft(t, ctx, pool, productStore)
 	var sku, category string

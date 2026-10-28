@@ -46,7 +46,7 @@ func TestStore_PickingTotals(t *testing.T) {
 		wantNumbers = append(wantNumbers, number)
 	}
 	pickingFixtureOrder(t, owner, "Z-PICK", 99, 56, false)
-	writer := admintest.OrderStore(owner, admintest.Refunder{}, nil, nil)
+	writer := admintest.OrderStore(owner, admintest.HealthyGateway(t), nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	for i, status := range []string{"shipped", "delivered", "fully-shipped"} {
 		number, id, lines, _ := admintest.TwoLineOrderWithStock(t, owner, "batch-"+status)
@@ -97,7 +97,7 @@ func TestStore_PickingTotals(t *testing.T) {
 	if err = owner.QueryRow(ctx, `SELECT (SELECT count(*) FROM audit_events), (SELECT count(*) FROM inventory_movements)`).Scan(&auditsBefore, &movesBefore); err != nil {
 		t.Fatal(err)
 	}
-	s := admintest.OrderStore(reader, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(reader, admintest.HealthyGateway(t), nil, nil)
 	view, err := s.Picking(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -213,7 +213,7 @@ func TestStore_PickingExcludesRefunding(t *testing.T) {
 	if !beforeShipment {
 		t.Fatal("the real refund door did not open a before-shipment request")
 	}
-	view, err := admintest.OrderStore(adminPool, admintest.Refunder{}, nil, nil).Picking(ctx)
+	view, err := admintest.OrderStore(adminPool, admintest.HealthyGateway(t), nil, nil).Picking(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestStore_PickingCustomerNote(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	pickingFixtureOrder(t, owner, "NOTE-PICK", 1, 0, true)
-	view, err := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.Refunder{}, nil, nil).Picking(ctx)
+	view, err := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.HealthyGateway(t), nil, nil).Picking(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +263,7 @@ func TestStore_PickingOldestFirst(t *testing.T) {
 		}
 		want = append(want, number)
 	}
-	view, err := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.Refunder{}, nil, nil).Picking(ctx)
+	view, err := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.HealthyGateway(t), nil, nil).Picking(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

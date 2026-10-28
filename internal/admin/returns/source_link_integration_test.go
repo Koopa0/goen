@@ -27,7 +27,7 @@ func TestHandler_QueueCreditPosting(t *testing.T) {
 	first, number, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
 	other := returnedOrderAtOn(t, pool, time.Now().Add(-24*time.Hour), time.Now())
 	appPool := admintest.AdminRolePool(t, pool)
-	h := handlerOver(storeOver(appPool, admintest.Refunder{}))
+	h := handlerOver(storeOver(appPool, admintest.HealthyGateway(t)))
 
 	for _, locale := range i18n.Locales() {
 		req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/returns?request="+first.String(), http.NoBody)

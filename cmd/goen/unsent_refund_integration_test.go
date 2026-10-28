@@ -42,7 +42,7 @@ func TestPartRefundHandlerAtDelivery(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	o := admintest.PartlyShippedOrder(t, owner, 0)
-	desk := refunds.NewStore(admintest.AdminRolePool(t, owner), admintest.Refunder{}, nil)
+	desk := refunds.NewStore(admintest.AdminRolePool(t, owner), admintest.HealthyGateway(t), nil)
 	if err := desk.RefundUnsent(ctx, o.Number, &refunds.UnsentRequest{
 		Units: map[uuid.UUID]int32{o.LineB: 2}, Reason: string(returns.UnsentDamaged), Note: "外盒破損",
 	}); err != nil {
@@ -108,7 +108,7 @@ func TestNewRouterUnsentRefundCrossSite(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: pool, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap},
-		BackOffice: BackOfficeConfig{AdminPool: pool, Payments: gateway, Refunder: gateway, StoreMap: storeMap},
+		BackOffice: BackOfficeConfig{AdminPool: pool, Payments: gateway, StoreMap: storeMap},
 	}, slog.New(slog.DiscardHandler))
 	for site, want := range map[string]int{"cross-site": http.StatusForbidden, "same-origin": http.StatusNotFound} {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,

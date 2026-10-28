@@ -1137,7 +1137,7 @@ func TestNewRouterHSTS(t *testing.T) {
 				StorePool: idle, Payments: gateway, BaseURL: "https://goen.test", SecureCookies: tt.secure,
 			},
 			BackOffice: BackOfficeConfig{
-				AdminPool: idle, Payments: gateway, Refunder: gateway,
+				AdminPool: idle, Payments: gateway,
 			},
 		}, slog.New(slog.DiscardHandler))
 		// A probe reaches no database, so the idle pool answers for nothing.
@@ -1175,7 +1175,7 @@ func TestNewRouterSiteOrigin(t *testing.T) {
 			StorePool: idle, Payments: gateway, BaseURL: "https://goen.test",
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: idle, Payments: gateway, Refunder: gateway,
+			AdminPool: idle, Payments: gateway,
 		},
 	}, slog.New(slog.DiscardHandler))
 

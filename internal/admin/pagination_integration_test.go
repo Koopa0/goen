@@ -94,9 +94,9 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  SELECT record_audit_event((SELECT id FROM users WHERE email='paging-staff@example.invalid'), 'product.update', 'products',
  NULL, NULL, jsonb_build_object('n', n), 'paging-' || n) FROM generate_series(1,401) n;
  `)
-	s := admintest.OrderStore(p, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(p, admintest.HealthyGateway(t), nil, nil)
 	catalogueStore := products.NewStore(p)
-	returnDesk := admintest.ReturnDesk(p, admintest.Refunder{})
+	returnDesk := admintest.ReturnDesk(p, admintest.HealthyGateway(t))
 	trail := audit.NewStore(p)
 	customerLookup := customers.NewStore(p)
 	registrations := warranties.NewStore(p)

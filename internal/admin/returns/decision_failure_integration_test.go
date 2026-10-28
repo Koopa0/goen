@@ -89,8 +89,8 @@ func TestHandler_DecideAuditFailure(t *testing.T) {
 				if err := traced.QueryRow(ctx, "SELECT current_user").Scan(&role); err != nil || role != "admin" {
 					t.Fatalf("current_user = %q, want admin: %v", role, err)
 				}
-				var paid atomic.Int64
-				h := handlerOver(storeOver(traced, admintest.Refunder{Sent: &paid}))
+				stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+				h := handlerOver(storeOver(traced, stripe.Gateway()))
 				mux := http.NewServeMux()
 				h.Routes(mux, admintest.BackOffice)
 				form := url.Values{"decision": {decision}, "confirm": {decision}, "resolution": {"Recorded decision"}}
@@ -116,7 +116,7 @@ func TestHandler_DecideAuditFailure(t *testing.T) {
 					Status, Resolution string
 					Decided            bool
 					Refunds, Audits    int
-					ProviderPayments   int64
+					ProviderPayments   int
 				}
 				var got decisionState
 				if err := pool.QueryRow(ctx, `
@@ -126,7 +126,7 @@ func TestHandler_DecideAuditFailure(t *testing.T) {
 					FROM return_requests r WHERE r.id = $1`, id).Scan(&got.Status, &got.Resolution, &got.Decided, &got.Refunds, &got.Audits); err != nil {
 					t.Fatalf("read failed decision: %v", err)
 				}
-				got.ProviderPayments = paid.Load()
+				got.ProviderPayments = len(stripe.Refunds())
 				if diff := cmp.Diff(decisionState{Status: "requested"}, got); diff != "" {
 					t.Errorf("failed decision state (-want +got):\n%s", diff)
 				}
@@ -196,9 +196,9 @@ func TestHandler_DecidePayoutReadFailure(t *testing.T) {
 				if err := traced.QueryRow(ctx, "SELECT current_user").Scan(&role); err != nil || role != "admin" {
 					t.Fatalf("current_user = %q, want admin: %v", role, err)
 				}
-				var paid atomic.Int64
+				stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
 				mux := http.NewServeMux()
-				handlerOver(storeOver(traced, admintest.Refunder{Sent: &paid})).Routes(mux, admintest.BackOffice)
+				handlerOver(storeOver(traced, stripe.Gateway())).Routes(mux, admintest.BackOffice)
 				post := func() *httptest.ResponseRecorder {
 					form := url.Values{"decision": {"approved"}, "confirm": {"approved"}, "resolution": {"Recorded approval"}}
 					req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/returns/"+id.String()+"/decide", strings.NewReader(form.Encode()))
@@ -211,7 +211,7 @@ func TestHandler_DecidePayoutReadFailure(t *testing.T) {
 					Status, Resolution string
 					Decided            bool
 					Refunds, Audits    int
-					ProviderPayments   int64
+					ProviderPayments   int
 				}
 				readState := func() committedState {
 					t.Helper()
@@ -223,7 +223,7 @@ func TestHandler_DecidePayoutReadFailure(t *testing.T) {
 						FROM return_requests r WHERE r.id = $1`, id).Scan(&got.Status, &got.Resolution, &got.Decided, &got.Refunds, &got.Audits); err != nil {
 						t.Fatalf("read committed approval: %v", err)
 					}
-					got.ProviderPayments = paid.Load()
+					got.ProviderPayments = len(stripe.Refunds())
 					return got
 				}
 				wantState := committedState{Status: "approved", Resolution: "Recorded approval", Decided: true, Audits: 1}

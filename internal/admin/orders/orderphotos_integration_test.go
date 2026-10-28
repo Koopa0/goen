@@ -29,7 +29,7 @@ import (
 func TestHandler_OrderPhotosLive(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	adminPool := admintest.AdminRolePool(t, pool)
-	desk := admintest.OrderStore(adminPool, admintest.Refunder{}, nil, nil)
+	desk := admintest.OrderStore(adminPool, admintest.HealthyGateway(t), nil, nil)
 	cfg := pool.Config().Copy()
 	cfg.MaxConns = 2
 	cfg.AfterConnect = func(connectionCtx context.Context, conn *pgx.Conn) error {
