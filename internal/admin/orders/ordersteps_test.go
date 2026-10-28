@@ -78,7 +78,7 @@ func TestOrderStatusStepForms(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, locale := range i18n.Locales() {
-				page := renderOrder(t, locale, &OrderView{Number: "GO-1", Status: order.FulfillmentPending, Next: tc.next})
+				page := renderOrder(t, locale, &OrderView{Number: "GO-1", Status: order.FulfillmentPending, Unpaid: true, Next: tc.next})
 				doc := orderStepsDocument(t, page)
 				forms := formsCarrying(doc, "status")
 				if len(forms) != len(tc.next) {
@@ -178,23 +178,29 @@ func TestOrderStatusStepForms(t *testing.T) {
 	}
 }
 
-// TestOrderUnpaidWarning: the unpaid warning appears only for pending steps.
+// TestOrderUnpaidWarning: the unpaid warning appears only for an order that
+// still owes money. A paid order waiting to be packed has a start-packing
+// button, and a line under it saying the order cannot be packed would
+// contradict it.
 func TestOrderUnpaidWarning(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
+		name   string
 		status order.FulfillmentStatus
+		unpaid bool
 		next   order.FulfillmentStatus
 		warn   bool
 	}{
-		{order.FulfillmentPending, order.FulfillmentPicking, true},
-		{order.FulfillmentPicking, order.FulfillmentDelivered, false},
-		{order.FulfillmentShipped, order.FulfillmentDelivered, false},
-		{order.FulfillmentDelivered, order.FulfillmentCompleted, false},
+		{"pending unpaid", order.FulfillmentPending, true, order.FulfillmentPicking, true},
+		{"pending paid", order.FulfillmentPending, false, order.FulfillmentPicking, false},
+		{"picking", order.FulfillmentPicking, false, order.FulfillmentDelivered, false},
+		{"shipped", order.FulfillmentShipped, false, order.FulfillmentDelivered, false},
+		{"delivered", order.FulfillmentDelivered, false, order.FulfillmentCompleted, false},
 	} {
-		t.Run(string(tc.status), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, locale := range i18n.Locales() {
-				view := OrderView{Number: "GO-1", Status: tc.status, Next: []Transition{{Value: tc.next}}}
+				view := OrderView{Number: "GO-1", Status: tc.status, Unpaid: tc.unpaid, Next: []Transition{{Value: tc.next}}}
 				doc := orderStepsDocument(t, renderOrder(t, locale, &view))
 				warning := "An unpaid order cannot move into packing."
 				if locale == i18n.ZhHant {
@@ -202,7 +208,7 @@ func TestOrderUnpaidWarning(t *testing.T) {
 				}
 				shown := hasElement(doc, func(n *html.Node) bool { return n.Data == "p" && textOf(n) == warning })
 				if shown != tc.warn {
-					t.Errorf("%s %s unpaid warning = %v, want %v", locale, tc.status, shown, tc.warn)
+					t.Errorf("%s %s unpaid warning = %v, want %v", locale, tc.name, shown, tc.warn)
 				}
 			}
 		})

@@ -3,7 +3,6 @@ package policy
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
@@ -21,9 +20,7 @@ type Rules struct {
 	// RescissionDays is the statutory window and ReturnDays goen's own, in days from the day after delivery.
 	RescissionDays int64
 	ReturnDays     int64
-	// HoldMinutes is how long placing an order holds the stock, and PayStartMinutes how long the customer then
-	// has to start paying.
-	HoldMinutes     int64
+	// PayStartMinutes is how long the customer has, from placing an order, to start paying.
 	PayStartMinutes int64
 }
 
@@ -46,13 +43,13 @@ func (s *Store) Rules(ctx context.Context) (Rules, error) {
 	return Rules{
 		FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: withPickup,
 		RescissionDays: windows.RescissionDays, ReturnDays: windows.ReturnDays,
-		HoldMinutes: windows.HoldMinutes, PayStartMinutes: windows.PayStartMinutes,
+		PayStartMinutes: windows.PayStartMinutes,
 	}, nil
 }
 
 func (r Rules) Stats(ctx context.Context) []widget.Stat {
 	return []widget.Stat{
-		r.HoldStat(ctx),
+		r.PayStartStat(ctx),
 		r.RescissionStat(ctx),
 		{
 			Label: i18n.T(ctx, i18n.KeyRuleReturn),
@@ -63,11 +60,11 @@ func (r Rules) Stats(ctx context.Context) []widget.Stat {
 	}
 }
 
-func (r Rules) HoldStat(ctx context.Context) widget.Stat {
+func (r Rules) PayStartStat(ctx context.Context) widget.Stat {
 	return widget.Stat{
-		Label: i18n.T(ctx, i18n.KeyRuleHold),
-		Value: widget.StatCount(r.HoldMinutes, i18n.T(ctx, i18n.KeyRuleUnitMinutes)),
-		Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyRuleHoldNote), strconv.FormatInt(r.PayStartMinutes, 10)),
+		Label: i18n.T(ctx, i18n.KeyRulePayStart),
+		Value: widget.StatCount(r.PayStartMinutes, i18n.T(ctx, i18n.KeyRuleUnitMinutes)),
+		Note:  i18n.T(ctx, i18n.KeyRulePayStartNote),
 	}
 }
 
