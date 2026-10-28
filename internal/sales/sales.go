@@ -1,6 +1,6 @@
 // Package sales is what the shop sold over a run of shop days, as the reports
 // desk reads it for another desk to show: each period's paid orders and
-// revenue, day by day, and the newest paid order, and how a figure of one
+// revenue, day by day, the best sellers, and the newest paid order, and how a figure of one
 // period is set against the period before it. The desks reach one another
 // only through interfaces the consumer declares, so the values and the error
 // those interfaces promise, and the comparison the report and the dashboard
@@ -22,6 +22,13 @@ var ErrLatestPaid = errors.New("read latest paid order")
 // at the same time of day, and the newest paid order.
 type Recent struct {
 	Current, Previous Period
+	// Days has a row for each of the last twice as many shop days, a day
+	// without orders included. Every day is whole but today, which ends at the
+	// time the run is read: unlike the two periods, which meet at the same time
+	// of day, no hours fall between its days.
+	Days []Day
+	// Sellers are the best sellers of Current, at most [RecentSellers] of them.
+	Sellers []Seller
 	// Latest is nil when no order was ever paid.
 	Latest *PaidOrder
 }

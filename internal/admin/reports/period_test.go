@@ -95,3 +95,67 @@ func TestEndsMidDay(t *testing.T) {
 		}
 	}
 }
+
+// TestWholeDays: the days a Recent lays out are the last twice as many shop
+// days, from a midnight to today, whatever the minute now is; an order at
+// 23:59:59 belongs to its day and one at 00:00:00 to the next.
+func TestWholeDays(t *testing.T) {
+	t.Parallel()
+
+	const days = 7
+	for _, tt := range []struct {
+		name         string
+		now          time.Time
+		first, today string
+	}{
+		{"afternoon", time.Date(2026, 10, 5, 7, 20, 0, 0, time.UTC), "2026-09-22", "2026-10-05"},
+		{"the first second of the shop day", time.Date(2026, 10, 4, 16, 0, 0, 0, time.UTC), "2026-09-22", "2026-10-05"},
+		{"the last second of the shop day", time.Date(2026, 10, 5, 15, 59, 59, 0, time.UTC), "2026-09-22", "2026-10-05"},
+		{"across a year", time.Date(2027, 1, 3, 2, 0, 0, 0, time.UTC), "2026-12-21", "2027-01-03"},
+	} {
+		span, first, last := wholeDays(tt.now, days)
+		if got := shoptime.Minute(span.from); got != tt.first+" 00:00" {
+			t.Errorf("%s: the span starts at %s, want %s 00:00", tt.name, got, tt.first)
+		}
+		if !span.to.Equal(tt.now) {
+			t.Errorf("%s: the span ends at %s, want now", tt.name, span.to)
+		}
+		if got := first.Format(time.DateOnly); got != tt.first {
+			t.Errorf("%s: the first row is %s, want %s", tt.name, got, tt.first)
+		}
+		if got := last.Format(time.DateOnly); got != tt.today {
+			t.Errorf("%s: the last row is %s, want today %s", tt.name, got, tt.today)
+		}
+		if got := int(last.Sub(first).Hours()/24) + 1; got != 2*days {
+			t.Errorf("%s: %d rows, want %d", tt.name, got, 2*days)
+		}
+	}
+
+	// Taipei is UTC+8: 15:59:59 UTC on the 3rd is 23:59:59 on the 3rd there,
+	// and 16:00:00 UTC is 00:00:00 on the 4th.
+	now := time.Date(2026, 10, 5, 7, 20, 0, 0, time.UTC)
+	span, first, _ := wholeDays(now, days)
+	for _, tt := range []struct {
+		at     time.Time
+		inside bool
+		day    string
+	}{
+		{span.from.Add(-time.Second), false, "2026-09-21"}, // the shop day before the first row, 23:59:59
+		{span.from, true, "2026-09-22"},                    // the first row's first instant
+		{time.Date(2026, 10, 3, 15, 59, 59, 0, time.UTC), true, "2026-10-03"},
+		{time.Date(2026, 10, 3, 16, 0, 0, 0, time.UTC), true, "2026-10-04"},
+		{now.Add(-time.Nanosecond), true, "2026-10-05"},
+		{now, false, "2026-10-05"}, // half-open: now belongs to the next read
+	} {
+		if inside := !tt.at.Before(span.from) && tt.at.Before(span.to); inside != tt.inside {
+			t.Errorf("an order at %s is inside the span = %v, want %v", shoptime.Second(tt.at), inside, tt.inside)
+		}
+		day := shoptime.QueryDate(tt.at)
+		if got := day.Format(time.DateOnly); got != tt.day {
+			t.Errorf("an order at %s is on shop day %s, want %s", shoptime.Second(tt.at), got, tt.day)
+		}
+		if tt.inside && day.Before(first) {
+			t.Errorf("an order at %s falls on %s, before the first row %s", shoptime.Second(tt.at), tt.day, first.Format(time.DateOnly))
+		}
+	}
+}
