@@ -1237,8 +1237,7 @@ func (q *Queries) AdminMembershipTiers(ctx context.Context) ([]AdminMembershipTi
 
 const adminMessages = `-- name: AdminMessages :many
 SELECT json_build_object('Rank', (handled_at IS NOT NULL), 'At', created_at, 'ID', id)::text AS page_cursor, id, name, email, subject, coalesce(order_ref, '') AS order_ref,
-       message, handled_at, created_at,
-       floor(extract(epoch FROM now() - created_at) / 86400)::integer AS waiting_days
+       message, handled_at, created_at
 FROM contact_messages
 WHERE (NOT $1::boolean OR ((handled_at IS NOT NULL) > $2::boolean)
        OR ((handled_at IS NOT NULL) = $2::boolean AND created_at > $3::timestamptz)
@@ -1256,21 +1255,17 @@ type AdminMessagesParams struct {
 }
 
 type AdminMessagesRow struct {
-	PageCursor  string
-	ID          uuid.UUID
-	Name        string
-	Email       string
-	Subject     string
-	OrderRef    string
-	Message     string
-	HandledAt   pgtype.Timestamptz
-	CreatedAt   time.Time
-	WaitingDays int32
+	PageCursor string
+	ID         uuid.UUID
+	Name       string
+	Email      string
+	Subject    string
+	OrderRef   string
+	Message    string
+	HandledAt  pgtype.Timestamptz
+	CreatedAt  time.Time
 }
 
-// waiting_days is computed HERE because created_at is written by the database's
-// clock: taking the difference in Go subtracts two clocks, and a container
-// milliseconds ahead of its host reports a four-day-old message as three.
 func (q *Queries) AdminMessages(ctx context.Context, arg AdminMessagesParams) ([]AdminMessagesRow, error) {
 	rows, err := q.db.Query(ctx, adminMessages,
 		arg.HasCursor,
@@ -1296,7 +1291,6 @@ func (q *Queries) AdminMessages(ctx context.Context, arg AdminMessagesParams) ([
 			&i.Message,
 			&i.HandledAt,
 			&i.CreatedAt,
-			&i.WaitingDays,
 		); err != nil {
 			return nil, err
 		}

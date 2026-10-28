@@ -6,6 +6,7 @@ package messages
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -17,7 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-func (s *Store) Messages(ctx context.Context, after string) (View, error) {
+// Messages is a page of the queue, each message's wait counted in shop days at now.
+func (s *Store) Messages(ctx context.Context, after string, now time.Time) (View, error) {
 	const scope = "/admin/messages"
 	from, resumed := keyset.Resume(scope, after, func(p messagePosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminMessages(ctx, db.AdminMessagesParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
@@ -35,17 +37,19 @@ func (s *Store) Messages(ctx context.Context, after string) (View, error) {
 		if labelErr != nil {
 			return View{}, fmt.Errorf("read contact messages: %w", labelErr)
 		}
-		view.Rows = append(view.Rows, Message{
-			ID: m.ID.String(), Name: m.Name, Email: m.Email, SubjectLabel: label,
-			OrderRef: m.OrderRef, Message: m.Message,
-			Handled: m.HandledAt.Valid,
-			At:      shoptime.Minute(m.CreatedAt),
-			// Computed in the query: subtracting Go's now() from a database-written
-			// created_at would compare two clocks.
-			WaitingDays: int(m.WaitingDays),
-		})
+		view.Rows = append(view.Rows, newMessage(m, label, now))
 	}
 	return view, nil
+}
+
+func newMessage(m *db.AdminMessagesRow, subjectLabel string, now time.Time) Message {
+	return Message{
+		ID: m.ID.String(), Name: m.Name, Email: m.Email, SubjectLabel: subjectLabel,
+		OrderRef: m.OrderRef, Message: m.Message,
+		Handled:     m.HandledAt.Valid,
+		At:          shoptime.Minute(m.CreatedAt),
+		WaitingDays: shoptime.DaysAgo(m.CreatedAt, now),
+	}
 }
 
 func subjectLabel(ctx context.Context, subject contact.Subject) (string, error) {
