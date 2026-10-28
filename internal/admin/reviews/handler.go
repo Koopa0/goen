@@ -33,8 +33,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":   widget.NoticeDone(i18n.KeyAdminNoticeOK),
-	"gone": widget.NoticeRefused(i18n.KeyAdminNoticeGone),
+	"hidden": widget.NoticeDone(i18n.KeyAdminNoticeReviewHidden),
+	"shown":  widget.NoticeDone(i18n.KeyAdminNoticeReviewShown),
+	"gone":   widget.NoticeRefused(i18n.KeyAdminNoticeGone),
 }
 
 func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
@@ -67,8 +68,10 @@ func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden
 		return
 	}
 	switch err := h.store.SetReviewHidden(r.Context(), r.PostFormValue("review"), hidden); {
+	case err == nil && hidden:
+		http.Redirect(w, r, "/admin/reviews?hidden=1", http.StatusSeeOther)
 	case err == nil:
-		http.Redirect(w, r, "/admin/reviews?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/reviews?shown=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		http.Redirect(w, r, "/admin/reviews?gone=1", http.StatusSeeOther)
 	default:
