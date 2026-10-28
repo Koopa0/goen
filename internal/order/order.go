@@ -142,3 +142,9 @@ func NormalizeNumber(s string) (number string, ok bool) {
 func AwaitingPayment(status FulfillmentStatus, committed bool, owedCents int64) bool {
 	return status == FulfillmentPending && !committed && owedCents > 0
 }
+
+// PackWithinDays is the shop days a paid order may wait to be packed; the
+// third day is overdue, as it is on the contact messages desk.
+const PackWithinDays = 2
+
+func PackingOverdue(days int) bool { return days > PackWithinDays }

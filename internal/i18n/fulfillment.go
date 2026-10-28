@@ -45,12 +45,30 @@ var (
 		En:     "Order number, recipient name or email",
 	})
 
-	KeyAdminQueueClear = key("admin.queue.clear", Message{ZhHant: "清除", En: "Clear"})
+	KeyAdminQueueClear = key("admin.queue.clear", Message{ZhHant: "清除搜尋", En: "Clear search"})
 
-	KeyAdminQueueSearchNote = key("admin.queue.search.note", Message{
-		ZhHant: "搜尋「%s」：訂單編號完全比對，姓名和電子郵件比對開頭。搜尋時不套用上方的狀態篩選。",
-		En:     "Searching for %q. An order number must match exactly; a name or email address matches from the start. A search ignores the status filter above.",
+	KeyAdminQueueSearchHint = key("admin.queue.search.hint", Message{
+		ZhHant: "訂單編號要完整輸入；姓名和電子郵件比對開頭。",
+		En:     "An order number must match exactly; a name or email address matches from the start.",
 	})
+
+	KeyAdminQueueSearchLine = countKey("admin.queue.search.line",
+		"搜尋「%s」：%d 筆",
+		"Search “%s”: %d order",
+		"Search “%s”: %d orders")
+
+	KeyAdminQueuePageGone = key("admin.queue.pagegone", Message{
+		ZhHant: "這一頁已經不存在，以下從第一頁開始。",
+		En:     "That page no longer exists; this is the first page.",
+	})
+
+	KeyAdminColWaited = key("admin.col.waited", Message{ZhHant: "已等", En: "Waiting"})
+
+	KeyAdminWaitToday = key("admin.wait.today", Message{ZhHant: "今天", En: "Today"})
+
+	KeyAdminWaitDays = countKey("admin.wait.days", "已等 %d 天", "Waiting %d day", "Waiting %d days")
+
+	KeyAdminOverdue = key("admin.wait.overdue", Message{ZhHant: "逾期", En: "Overdue"})
 
 	KeyAdminQueueSearchShort = key("admin.queue.search.short", Message{
 		ZhHant: "搜尋字串太短，至少要兩個字。下面是一般的訂單列表。",

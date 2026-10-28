@@ -1181,6 +1181,13 @@ input.goen-check {
   margin: 0;
 }
 
+/* What a search found, standing where the status tabs stand. */
+.goen-admin__searchline {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  margin: 0 0 16px;
+}
+
 /* The days cover rows above the stock list keep the page's own rhythm. */
 .goen-admin__cover {
   display: flex;
@@ -1428,6 +1435,16 @@ input.goen-check {
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
+}
+
+/* How long an order has waited, and the overdue mark beside it, stay on one line;
+   the table scrolls inside its wrapper before the words break. */
+.goen-admin__cellwait {
+  white-space: nowrap;
+}
+
+.goen-admin__cellwait .goen-badge {
+  margin-inline-start: 8px;
 }
 
 /* A cell of controls stays a table cell: display:flex on a <td> takes the
@@ -2330,6 +2347,10 @@ input.goen-check {
   gap: 8px;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.goen-admin__search .goen-admin__hint {
+  flex-basis: 100%;
 }
 
 .goen-admin__search .ui-input,

@@ -418,3 +418,74 @@ func TestOrderTimelineRefusedCodes(t *testing.T) {
 		})
 	}
 }
+
+// TestOrdersWorkTab: the work tabs say how long each order has waited instead of when it was placed,
+// and mark only the overdue ones.
+func TestOrdersWorkTab(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	body := renderToString(t, Orders(Meta(ctx), View{
+		Status: QueueReady,
+		Work: []WorkRow{
+			{Row: Row{Number: "GO-261012-LATEAA"}, WaitDays: 3, Overdue: true},
+			{Row: Row{Number: "GO-261012-FRESHA"}, WaitDays: 0},
+		},
+	}))
+	if !strings.Contains(body, ">"+i18n.T(ctx, i18n.KeyAdminColWaited)+"</th>") || strings.Contains(body, i18n.T(ctx, i18n.KeyAdminColPlacedAt)) {
+		t.Error("the work tab's column is not 已等 alone")
+	}
+	for _, want := range []string{"已等 3 天", "今天"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the work tab lacks %q", want)
+		}
+	}
+	if got := strings.Count(body, i18n.T(ctx, i18n.KeyAdminOverdue)); got != 1 {
+		t.Errorf("the overdue mark appears %d times, want once, on the third-day order", got)
+	}
+	if !strings.Contains(body, "goen-admin__tabs") {
+		t.Error("a work tab lost its status tabs")
+	}
+}
+
+// TestOrdersSearchLine: a search gives the tabs way to a line saying what it found and how to leave it.
+func TestOrdersSearchLine(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale i18n.Locale
+		count  int64
+		want   string
+	}{
+		{i18n.ZhHant, 3, "搜尋「王」：3 筆"},
+		{i18n.En, 1, "Search “王”: 1 order<"},
+		{i18n.En, 0, "Search “王”: 0 orders<"},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tt.locale)
+		body := renderComponent(t, ctx, Orders(Meta(ctx), View{Term: "王", Searched: true, SearchCount: tt.count, Status: QueueReady}))
+		if !strings.Contains(body, tt.want) {
+			t.Errorf("%s, %d found: no %q", tt.locale, tt.count, tt.want)
+		}
+		if strings.Contains(body, "goen-admin__tabs") {
+			t.Errorf("%s: a search still draws the status tabs", tt.locale)
+		}
+		if !strings.Contains(body, `aria-describedby="order-search-hint"`) || !strings.Contains(body, `id="order-search-hint"`) {
+			t.Errorf("%s: the search field is not described by the rule for what it matches", tt.locale)
+		}
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	if plain := renderToString(t, Orders(Meta(ctx), View{})); strings.Contains(plain, "goen-admin__searchline") || !strings.Contains(plain, "goen-admin__tabs") {
+		t.Error("a queue nobody searched lacks its tabs or has a search line")
+	}
+}
+
+// TestOrdersPageGone: a position the list cannot read is said so, above the first page.
+func TestOrdersPageGone(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	gone := i18n.T(ctx, i18n.KeyAdminQueuePageGone)
+	if body := renderToString(t, Orders(Meta(ctx), View{PageGone: true})); !strings.Contains(body, gone) {
+		t.Errorf("a dead position is not announced: %s", body)
+	}
+	if body := renderToString(t, Orders(Meta(ctx), View{})); strings.Contains(body, gone) {
+		t.Error("an ordinary page claims it no longer exists")
+	}
+}

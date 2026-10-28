@@ -56,13 +56,22 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.List(r.Context(),
-		ParseQueueFilter(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(keyset.Param))
+	query := r.URL.Query()
+	after := query.Get(keyset.Param)
+	view, err := h.store.List(r.Context(), ParseQueueFilter(query.Get("status")), query.Get("q"), after)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read orders", "error", err)
 		admin.ServerError(w, r, h.log)
 		return
 	}
+	// A complete order number that finds that order alone goes to it, unless the
+	// reader is paging through a search.
+	if number, ok := order.NormalizeNumber(view.Term); ok && after == "" && view.Searched &&
+		len(view.Orders) == 1 && view.Orders[0].Number == number {
+		http.Redirect(w, r, "/admin/orders/"+number, http.StatusSeeOther)
+		return
+	}
+	view.PageGone = after != "" && !view.Resumed()
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Orders(Meta(r.Context()), view))
 }
