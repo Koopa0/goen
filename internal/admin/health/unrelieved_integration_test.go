@@ -74,7 +74,7 @@ func TestStore_UnrelievedRefunds(t *testing.T) {
 				t.Fatalf("a return not yet paid back lists %v, want nothing owed", listed)
 			}
 
-			if err = admintest.ReturnDesk(owner, admintest.Refunder{}).Decide(
+			if err = admintest.ReturnDesk(owner, admintest.HealthyGateway(t)).Decide(
 				ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 				t.Fatalf("approve the return: %v", err)
 			}
@@ -106,7 +106,7 @@ func TestStore_UnrelievedRefunds(t *testing.T) {
 			}
 
 			operationID := uuid.New()
-			err = admintest.OrderStore(owner, admintest.Refunder{}, invoices, invoices).FileAllowance(ctx, number, operationID)
+			err = admintest.OrderStore(owner, admintest.HealthyGateway(t), invoices, invoices).FileAllowance(ctx, number, operationID)
 			if err != nil && !errors.Is(err, issuer.ErrAwaitingBuyer) {
 				t.Fatalf("file the allowance from the order page: %v", err)
 			}

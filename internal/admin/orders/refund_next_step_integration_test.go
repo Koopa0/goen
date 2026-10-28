@@ -21,7 +21,7 @@ func TestStore_OrderOpenedRefundSummary(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, owner)
 	number, _, _ := admintest.PaidUnshippedOrder(t, owner, 100000, 0, false)
 	reader := admintest.AdminRolePool(t, owner)
-	store := admintest.OrderStore(reader, admintest.Refunder{}, nil, nil)
+	store := admintest.OrderStore(reader, admintest.HealthyGateway(t), nil, nil)
 	if _, err := db.New(reader).OpenRefundBeforeShipment(ctx, db.OpenRefundBeforeShipmentParams{OrderNumber: number, Reason: "Customer requested cancellation before shipment", ActorUserID: actor, RequestID: "order-summary-refund"}); err != nil {
 		t.Fatal(err)
 	}

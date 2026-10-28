@@ -128,7 +128,7 @@ func readiness(t *testing.T, db *pgxpool.Pool) (status int, body string) {
 	}
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: store, Payments: gateway, BaseURL: "http://127.0.0.1"},
-		BackOffice: BackOfficeConfig{AdminPool: admin, Payments: gateway, Refunder: gateway},
+		BackOffice: BackOfficeConfig{AdminPool: admin, Payments: gateway},
 	}, quietLog)
 	res := httptest.NewRecorder()
 	router.ServeHTTP(res, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))

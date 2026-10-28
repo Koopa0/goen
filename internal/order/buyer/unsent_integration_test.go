@@ -25,7 +25,7 @@ import (
 func TestStore_ReturnOrderUnsentRefund(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
-	if err := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil).RefundUnsent(ctx, o.Number,
+	if err := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.HealthyGateway(t), nil).RefundUnsent(ctx, o.Number,
 		&refunds.UnsentRequest{Units: map[uuid.UUID]int32{o.LineB: 2}, Reason: string(returns.UnsentDamaged), Note: "外盒破損"}); err != nil {
 		t.Fatalf("refund the unsent units: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestStore_OrderUnsentRefund(t *testing.T) {
 		t.Fatalf("before the refund the page waits for %+v, want B × 2", before.Unshipped)
 	}
 
-	if refundErr := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil).RefundUnsent(ctx, o.Number,
+	if refundErr := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.HealthyGateway(t), nil).RefundUnsent(ctx, o.Number,
 		&refunds.UnsentRequest{Units: map[uuid.UUID]int32{o.LineB: 2}, Reason: string(returns.UnsentLost), Note: "物流遺失"}); refundErr != nil {
 		t.Fatalf("refund the unsent units: %v", refundErr)
 	}

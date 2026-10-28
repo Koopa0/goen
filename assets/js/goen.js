@@ -19,7 +19,8 @@
    * and the named tabs are links that work without this script. This draws the
    * arrows and the count and marks the tab of the slide in view with
    * aria-current, so without it no tab is current. Nothing here moves a slide
-   * except the visitor's own input.
+   * except the visitor's own input. The tabs and arrows fade the chosen slide in
+   * where the browser can; a swipe stays a scroll.
    */
   function carousel() {
     const root = document.querySelector(".goen-hero");
@@ -31,9 +32,34 @@
     const tabs = [...root.querySelectorAll(".goen-hero__tabs a")];
     const count = root.querySelector("[data-count]");
     let current = 0;
-    const go = (index) => {
+    // A chosen slide cross-fades with the one in view, by a view transition of
+    // type "slide". A browser without transition types, or a photograph not yet
+    // loaded, scrolls to it as before.
+    const fades = "startViewTransition" in document && "types" in (window.ViewTransition?.prototype ?? {});
+    let turn = 0;
+    const go = async (index) => {
       const next = (index + slides.length) % slides.length;
-      track.scrollTo({ left: next * track.clientWidth });
+      const left = next * track.clientWidth;
+      const photo = slides[next].querySelector(".goen-hero__media img");
+      const mine = ++turn;
+      if (!fades || next === current || (photo && !photo.complete)) {
+        track.scrollTo({ left });
+        return;
+      }
+      // Captured before it is decoded, the photograph would fade in as its tone.
+      await photo?.decode().catch(() => {});
+      // A later choice made while this one waited wins.
+      if (mine !== turn) return;
+      const leaving = slides[current];
+      leaving.dataset.leaving = "";
+      document.startViewTransition({
+        update: () => {
+          delete leaving.dataset.leaving;
+          track.scrollTo({ left, behavior: "instant" });
+          select(next);
+        },
+        types: ["slide"],
+      });
     };
     // Only a chosen slide moves the pill. Any other placement (first, or after
     // the tabs changed size) is applied with data-still, flushed, and lifted,
@@ -54,6 +80,10 @@
     };
     const select = (next) => {
       current = next;
+      slides.forEach((slide, index) => {
+        if (index === current) slide.dataset.shown = "";
+        else delete slide.dataset.shown;
+      });
       tabs.forEach((tab, index) => {
         if (index === current) tab.setAttribute("aria-current", "true");
         else tab.removeAttribute("aria-current");
@@ -84,6 +114,7 @@
     slides.forEach((slide) => seen.observe(slide));
 
     tabs[current].setAttribute("aria-current", "true");
+    slides[current].dataset.shown = "";
 
     // A font swap, a larger text size or a zoom changes the tabs' widths.
     if (tabRow) {

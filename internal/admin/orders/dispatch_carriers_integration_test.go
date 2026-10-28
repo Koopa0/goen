@@ -26,7 +26,7 @@ import (
 // delivery names no carrier code.
 func TestStore_OrderDispatchCarriers(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 
 	store, err := s.Order(ctx, pickupOrderForCorrection(t))
 	if err != nil {
@@ -64,7 +64,7 @@ func shipmentCount(t *testing.T, number string) int {
 // home carrier, whatever a crafted post names.
 func TestHandler_ShipCarrierMismatch(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 
 	home := shippableOrder(t, "zh-Hant")

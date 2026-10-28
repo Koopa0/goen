@@ -14,7 +14,7 @@ import (
 // TestStore_DashboardQueueTabs: the dashboard and the queue tabs split pending the same way.
 func TestStore_DashboardQueueTabs(t *testing.T) {
 	ctx := t.Context()
-	queue := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	queue := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	desk := storeOver(pool, health.NewStore(pool))
 	tab := func(v orders.View, status orders.QueueFilter) int64 {
 		for _, tb := range v.Tabs {
@@ -84,7 +84,7 @@ func TestStore_DashboardQueueTabs(t *testing.T) {
 func TestStore_RecentOrdersMatchTheQueue(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
-	queue := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	queue := admintest.OrderStore(isolated, admintest.HealthyGateway(t), nil, nil)
 	desk := storeOver(isolated, health.NewStore(isolated))
 
 	numbers := map[string]string{} // case -> order number

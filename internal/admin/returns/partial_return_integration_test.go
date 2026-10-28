@@ -104,7 +104,7 @@ func TestStore_DecidePartsEqualWhole(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
-			s := storeOver(pool, admintest.Refunder{})
+			s := storeOver(pool, admintest.HealthyGateway(t))
 
 			inParts := shippedDiscountedOrder(t, tt.order)
 			var partsTotal int64

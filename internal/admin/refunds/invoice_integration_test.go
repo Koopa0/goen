@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -91,8 +90,8 @@ func TestStore_RefundBeforeShipmentVoid(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, staff := admintest.StaffContext(t, pool)
 			fake, invoices := fakeECPay(t, time.Now())
-			var sent atomic.Int64
-			s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, invoices)
+			stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+			s := refunds.NewStore(pool, stripe.Gateway(), invoices)
 			number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 			if !inFlight {
 				issueNow(t, ctx, invoices, orderID)
@@ -101,8 +100,8 @@ func TestStore_RefundBeforeShipmentVoid(t *testing.T) {
 			if got := pressRefund(t, ctx, s, number); got != "/admin/orders/"+number+"?refunded=1" {
 				t.Fatalf("one press redirected to %s, want the refund done", got)
 			}
-			if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" || sent.Load() != 1 {
-				t.Fatalf("order %s after %d card refunds, want cancelled after one", got, sent.Load())
+			if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" || len(stripe.Refunds()) != 1 {
+				t.Fatalf("order %s after %d card refunds, want cancelled after one", got, len(stripe.Refunds()))
 			}
 			var voids int
 			var byStaff bool
@@ -142,8 +141,8 @@ func TestStore_RefundBeforeShipmentVoid(t *testing.T) {
 func TestStore_RefundBeforeShipmentAllowance(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	fake, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
-	var sent atomic.Int64
-	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, invoices)
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s := refunds.NewStore(pool, stripe.Gateway(), invoices)
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 	issueNow(t, ctx, invoices, orderID)
 
@@ -152,9 +151,9 @@ func TestStore_RefundBeforeShipmentAllowance(t *testing.T) {
 	}
 	allowance := allowanceOf(t, ctx, orderID)
 	if fake.Calls("/B2CInvoice/AllowanceByCollegiate") != 1 || fake.Calls("/B2CInvoice/Invalid") != 0 ||
-		sent.Load() != 1 {
+		len(stripe.Refunds()) != 1 {
 		t.Fatalf("%d allowances asked for, %d Invalid calls, %d card refunds; want one allowance and the refund",
-			fake.Calls("/B2CInvoice/AllowanceByCollegiate"), fake.Calls("/B2CInvoice/Invalid"), sent.Load())
+			fake.Calls("/B2CInvoice/AllowanceByCollegiate"), fake.Calls("/B2CInvoice/Invalid"), len(stripe.Refunds()))
 	}
 	if allowance.status != "pending" || allowance.sends != 1 || allowance.amount != 500000 ||
 		allowance.actor != staff || !allowance.afterRefund {
@@ -193,7 +192,7 @@ func TestStore_RefundBeforeShipmentAllowance(t *testing.T) {
 func TestStore_RefundBeforeShipmentLapsed(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	_, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
-	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), invoices)
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 	issueNow(t, ctx, invoices, orderID)
 	if got := pressRefund(t, ctx, s, number); got != "/admin/orders/"+number+"?refunded=1" {
@@ -219,7 +218,7 @@ func TestStore_RefundBeforeShipmentLapsed(t *testing.T) {
 	if status != "attention" || category != string(invoice.ReasonAllowanceBuyerUnconfirmed) {
 		t.Errorf("lapsed allowance is %s/%s, want attention/%s", status, category, string(invoice.ReasonAllowanceBuyerUnconfirmed))
 	}
-	view, err := admintest.OrderStore(pool, admintest.Refunder{}, invoices, invoices).Order(ctx, number)
+	view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices, invoices).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("fill the order page: %v", err)
 	}
@@ -238,7 +237,7 @@ func TestOrderPageIssuedInvoiceNoProvider(t *testing.T) {
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 	issueNow(t, ctx, invoices, orderID)
 
-	view, err := admintest.OrderStore(pool, admintest.Refunder{}, invoices, nil).Order(ctx, number)
+	view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices, nil).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("fill the order page: %v", err)
 	}
@@ -288,7 +287,7 @@ func dueNow(t *testing.T, ctx context.Context, operationID uuid.UUID) {
 func TestStore_RefundBeforeShipmentWithdraws(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	invoices := issuer.NewStore(pool, &issuer.Gateway{})
-	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), invoices)
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 
 	if got := pressRefund(t, ctx, s, number); got != "/admin/orders/"+number+"?refunded=1" {
@@ -314,8 +313,8 @@ func TestStore_RefundBeforeShipmentWithdraws(t *testing.T) {
 func TestStore_RefundBeforeShipmentHangs(t *testing.T) {
 	staff, _ := admintest.StaffContext(t, pool)
 	fake, invoices := fakeECPay(t, time.Now())
-	var sent atomic.Int64
-	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, invoices)
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s := refunds.NewStore(pool, stripe.Gateway(), invoices)
 	number, orderID := capturedOrderOwingAnInvoice(t, staff, invoices)
 	issueNow(t, staff, invoices, orderID)
 	fake.HoldInvalid()
@@ -331,8 +330,8 @@ func TestStore_RefundBeforeShipmentHangs(t *testing.T) {
 		orderID).Scan(&status); err != nil {
 		t.Fatalf("read the void: %v", err)
 	}
-	if sent.Load() != 1 || status != "pending" {
-		t.Errorf("%d card refunds, void %s; want the refund sent and the void pending", sent.Load(), status)
+	if len(stripe.Refunds()) != 1 || status != "pending" {
+		t.Errorf("%d card refunds, void %s; want the refund sent and the void pending", len(stripe.Refunds()), status)
 	}
 }
 
@@ -342,8 +341,8 @@ func TestStore_RefundBeforeShipmentHangs(t *testing.T) {
 func TestStore_RefundBeforeShipmentKeepsIssue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	invoices := issuer.NewStore(pool, &issuer.Gateway{})
-	var sent atomic.Int64
-	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, invoices)
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s := refunds.NewStore(pool, stripe.Gateway(), invoices)
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 	if _, err := pool.Exec(ctx, `
 		UPDATE invoice_operations SET send_attempts = 1, last_send_at = now()
@@ -360,8 +359,8 @@ func TestStore_RefundBeforeShipmentKeepsIssue(t *testing.T) {
 		orderID).Scan(&status); err != nil {
 		t.Fatalf("read the issue: %v", err)
 	}
-	if status != "pending" || sent.Load() != 1 {
-		t.Errorf("issue %s after %d card refunds, want pending after one", status, sent.Load())
+	if status != "pending" || len(stripe.Refunds()) != 1 {
+		t.Errorf("issue %s after %d card refunds, want pending after one", status, len(stripe.Refunds()))
 	}
 }
 
@@ -372,8 +371,8 @@ func TestStore_RefundBeforeShipmentKeepsIssue(t *testing.T) {
 func TestStore_RefundBeforeShipmentPartAllowance(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	fake, invoices := fakeECPay(t, time.Now())
-	var sent atomic.Int64
-	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, invoices)
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s := refunds.NewStore(pool, stripe.Gateway(), invoices)
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 	issueNow(t, ctx, invoices, orderID)
 	relievePart(t, orderID, 100000)
@@ -388,11 +387,11 @@ func TestStore_RefundBeforeShipmentPartAllowance(t *testing.T) {
 		t.Fatalf("count voids: %v", err)
 	}
 	allowance := allowanceOf(t, ctx, orderID)
-	if voids != 0 || fake.Calls("/B2CInvoice/Invalid") != 0 || sent.Load() != 1 ||
+	if voids != 0 || fake.Calls("/B2CInvoice/Invalid") != 0 || len(stripe.Refunds()) != 1 ||
 		allowance.amount != 400000 || allowance.sends != 1 {
 		t.Errorf("%d voids claimed, %d Invalid calls, %d card refunds, allowance %+v; "+
 			"want no void, the refund, and an allowance for the 400000 left",
-			voids, fake.Calls("/B2CInvoice/Invalid"), sent.Load(), allowance)
+			voids, fake.Calls("/B2CInvoice/Invalid"), len(stripe.Refunds()), allowance)
 	}
 }
 
@@ -434,7 +433,7 @@ func relievePart(t *testing.T, orderID uuid.UUID, cents int64) {
 // the invoice, does not.
 func TestStore_RefundBeforeShipmentCountsSent(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), nil)
 	for _, tt := range []struct {
 		name   string
 		status string
@@ -497,8 +496,8 @@ func TestStore_RefundBeforeShipmentSentAllowance(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
 			fake, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
-			var sent atomic.Int64
-			s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, invoices)
+			stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+			s := refunds.NewStore(pool, stripe.Gateway(), invoices)
 			number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 			issueNow(t, ctx, invoices, orderID)
 			fake.AnswerAllowances(tt.answer)
@@ -506,8 +505,8 @@ func TestStore_RefundBeforeShipmentSentAllowance(t *testing.T) {
 			if got := pressRefund(t, ctx, s, number); got != "/admin/orders/"+number+"?refunded=1" {
 				t.Fatalf("press redirected to %s, want the order cancelled with its allowance sent", got)
 			}
-			if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" || sent.Load() != 1 {
-				t.Errorf("order %s after %d card refunds, want cancelled after one", got, sent.Load())
+			if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" || len(stripe.Refunds()) != 1 {
+				t.Errorf("order %s after %d card refunds, want cancelled after one", got, len(stripe.Refunds()))
 			}
 			allowance := allowanceOf(t, ctx, orderID)
 			var reason string
@@ -542,7 +541,7 @@ func TestStore_RefundBeforeShipmentSentAllowance(t *testing.T) {
 				t.Errorf("health lists the allowance with reason %q, want %q", listed, tt.reason)
 			}
 
-			view, err := admintest.OrderStore(pool, admintest.Refunder{}, invoices, invoices).Order(ctx, number)
+			view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices, invoices).Order(ctx, number)
 			if err != nil {
 				t.Fatalf("fill the order page: %v", err)
 			}
@@ -560,7 +559,7 @@ func TestStore_RefundBeforeShipmentSentAllowance(t *testing.T) {
 // the other desks use.
 func TestStore_RefundBeforeShipmentUnpaid(t *testing.T) {
 	staff, _ := admintest.StaffContext(t, pool)
-	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), nil)
 
 	unpaid := admintest.PlaceUnpaidOrder(t, pool)
 	if got := pressRefund(t, staff, s, unpaid); got != "/admin/orders/"+unpaid+"?refundunpaid=1" {

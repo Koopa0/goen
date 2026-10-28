@@ -92,7 +92,7 @@ func readCreditPaidEffects(t *testing.T, orderID, staff uuid.UUID, number string
 // role's own grants.
 func TestHandler_RefundBeforeShipmentCreditPaid(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil)
+	s := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.HealthyGateway(t), nil)
 	h := refunds.NewHandler(s, nil, slog.New(slog.DiscardHandler))
 	number, orderID, variantID := admintest.PaidUnshippedOrder(t, pool, 0, 500000, false)
 
@@ -188,7 +188,7 @@ func TestHandler_RefundBeforeShipmentCreditPaid(t *testing.T) {
 // order was paid again under the lock and refuses.
 func TestStore_RefundBeforeShipmentRace(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), nil)
 	for _, tc := range []struct {
 		name            string
 		moves           []string
@@ -312,7 +312,7 @@ func TestStore_RefundBeforeShipmentRace(t *testing.T) {
 // a return: the credit spend is never reversed beside it.
 func TestStore_RefundBeforeShipmentCommitted(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), nil)
 	for _, tc := range []struct {
 		name                   string
 		cardCents, creditCents int64
