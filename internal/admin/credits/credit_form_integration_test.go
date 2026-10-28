@@ -3,6 +3,8 @@
 package credits_test
 
 import (
+	"fmt"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/credits"
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 func hiddenField(t *testing.T, body, name string) string {
@@ -29,8 +32,8 @@ func hiddenField(t *testing.T, body, name string) string {
 
 // TestHandler_GrantCreditOperationID follows
 // the form as a browser does: the operation ID the blank form issues is the
-// one the review step carries back, and confirming it lands on ?ok=1 with the
-// new balance.
+// one the review step carries back, and confirming it lands on the paid customer's
+// ledger with the granted notice, which states the balance read then.
 func TestHandler_GrantCreditOperationID(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := credits.NewHandler(credits.NewStore(pool), slog.New(slog.DiscardHandler))
@@ -85,7 +88,36 @@ func TestHandler_GrantCreditOperationID(t *testing.T) {
 	if confirmed.Code != http.StatusSeeOther {
 		t.Fatalf("the confirmed grant answered %d, want 303; body=%s", confirmed.Code, confirmed.Body.String())
 	}
-	if got, want := confirmed.Header().Get("Location"), "/admin/credits?ok=1&balance=12500"; got != want {
-		t.Errorf("the confirmed grant redirects to %q, want %q", got, want)
+	customerID := hiddenField(t, review.Body.String(), "customer_id")
+	location := confirmed.Header().Get("Location")
+	if want := "/admin/credits?customer=" + customerID + "&granted=1"; location != want {
+		t.Fatalf("the confirmed grant redirects to %q, want %q", location, want)
+	}
+
+	format := i18n.T(ctx, i18n.KeyAdminNoticeCreditGranted)
+	lead := html.EscapeString(strings.SplitN(format, "%s", 2)[0])
+	sentence := html.EscapeString(fmt.Sprintf(format, "NT$125"))
+	for _, tc := range []struct {
+		name, target string
+		status       int
+		shown        bool
+	}{
+		{"the paid customer's ledger", location, http.StatusOK, true},
+		{"granted with no customer", "/admin/credits?granted=1", http.StatusOK, false},
+		{"granted for a customer that does not exist", "/admin/credits?customer=" + uuid.NewString() + "&granted=1", http.StatusNotFound, false},
+		{"the address the old redirect used", "/admin/credits?ok=1&balance=99900", http.StatusOK, false},
+		{"the customer's ledger without granted", "/admin/credits?customer=" + customerID, http.StatusOK, false},
+	} {
+		got := serve(http.MethodGet, tc.target, nil, h.Credit)
+		if got.Code != tc.status {
+			t.Errorf("%s: GET %s answered %d, want %d", tc.name, tc.target, got.Code, tc.status)
+		}
+		body := got.Body.String()
+		if shown := strings.Contains(body, sentence); shown != tc.shown {
+			t.Errorf("%s: the page states the balance %q = %t, want %t", tc.name, sentence, shown, tc.shown)
+		}
+		if !tc.shown && strings.Contains(body, lead) {
+			t.Errorf("%s: the page shows the granted notice", tc.name)
+		}
 	}
 }

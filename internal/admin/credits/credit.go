@@ -137,6 +137,16 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 	return balanceCents, nil
 }
 
+// Balance is what a customer holds now, from store_credit_balances; zero for
+// someone who never held credit, so callers check the customer exists first.
+func (s *Store) Balance(ctx context.Context, customerID uuid.UUID) (int64, error) {
+	balance, err := s.q.CreditBalance(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
+	if err != nil {
+		return 0, fmt.Errorf("read credit balance: %w", err)
+	}
+	return balance, nil
+}
+
 // position is a reader's place in the ledger. The query builds it as
 // PageCursor, so its fields are the ordering values and nothing else.
 type position struct {
