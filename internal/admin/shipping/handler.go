@@ -263,7 +263,7 @@ func (h *Handler) rejectShippingForm(
 		view.VersionDraft = *drafts.version
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueShipping)}, view))
+		frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminQueueShipping)}, view))
 }
 
 // dollars reads a non-negative whole-dollar amount. Optional blanks mean zero;
@@ -414,7 +414,7 @@ func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, messag
 	view.SurchargeDraft = SurchargeDraft{MethodID: methodID, ZoneID: zoneID, Amount: r.PostFormValue("amount")}
 	view.Errors = map[string]string{"surcharge": message}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueShipping)}, view))
+		frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminQueueShipping)}, view))
 }
 
 // activeTarget is where a write that took goes: the page says which change it was.

@@ -245,7 +245,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 		overlayDraftFacts(&view.Rows[i], r)
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Returns(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueReturns)}, view))
+		frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminQueueReturns)}, view))
 	return true
 }
 
@@ -274,7 +274,7 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 		}
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Returns(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueReturns)}, view))
+		frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminQueueReturns)}, view))
 }
 
 func overlayDraftFacts(row *Return, r *http.Request) {

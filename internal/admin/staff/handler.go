@@ -86,7 +86,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		view.AddError = i18n.T(r.Context(), i18n.KeyStaffAlreadyExists)
 		view.NoKey = !h.factorsEnabled
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Staff(
-			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueStaff)}, view))
+			frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminQueueStaff)}, view))
 		return
 	}
 	if err == nil && cleared {

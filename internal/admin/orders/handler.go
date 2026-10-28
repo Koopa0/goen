@@ -276,7 +276,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	}
 	view.AllowanceOperationID = uuid.NewString()
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
-		Order(frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		Order(frame.Page{Refused: true, Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 // parcelLines reads the `qty_<order_line_id>` fields; a nil map means everything
@@ -439,7 +439,7 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 	applyDeliveryRefusals(r.Context(), &view, d, refusals)
 	view.AllowanceOperationID = uuid.NewString()
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
-		Order(frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		Order(frame.Page{Refused: true, Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 func applyDeliveryRefusals(ctx context.Context, view *OrderView, d *DeliveryCorrection, refusals []formtext.FieldRefusal) {

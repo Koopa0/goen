@@ -17,8 +17,8 @@ const (
 
 var sections = [...]Section{SectionDetails, SectionLabel, SectionInvoice, SectionOptions, SectionVariants, SectionSpecs}
 
-// In is the query a redirect appends to say which section the notice belongs to.
-func (s Section) In() string { return "&in=" + string(s) }
+// Query is the query a redirect appends to say which section the notice belongs to.
+func (s Section) Query() string { return "&in=" + string(s) }
 
 // sectionOf reads the in parameter of a request; a name that is not a section is
 // none, and the notice stays at the head of the page.

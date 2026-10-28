@@ -152,7 +152,7 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 	default:
 		return false
 	}
-	respond.Component(w, r, h.log, status, ConfirmRefund(frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminRefundTitle)}, view))
+	respond.Component(w, r, h.log, status, ConfirmRefund(frame.Page{Refused: status == http.StatusUnprocessableEntity, Title: i18n.T(r.Context(), i18n.KeyAdminRefundTitle)}, view))
 	return true
 }
 

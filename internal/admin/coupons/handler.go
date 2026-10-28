@@ -84,7 +84,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			Days:        r.PostFormValue("days"),
 		}
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Coupons(
-			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
+			frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
 	default:
 		http.Redirect(w, r, "/admin/coupons?created=1", http.StatusSeeOther)
 	}

@@ -61,6 +61,10 @@ type BatchResult struct {
 	Interrupted   bool
 }
 
+// savedNothing is whether the refused batch answered 422 with no order started;
+// an interrupted batch answers 503 and some of the others may have started.
+func (b BatchResult) savedNothing() bool { return !b.Interrupted && b.OthersStarted == 0 }
+
 type BatchRefusal struct {
 	Number, Reason string
 }

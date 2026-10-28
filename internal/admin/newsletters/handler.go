@@ -73,7 +73,7 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 			view.Errors[field] = i18n.T(r.Context(), k)
 		}
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Newsletter(
-			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
+			frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 		return
 	}
 

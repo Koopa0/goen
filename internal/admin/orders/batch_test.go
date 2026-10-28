@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/web/pagestatus"
 )
 
 func numberN(n int) string { return fmt.Sprintf("GO-261029-%06d", n) }
@@ -440,41 +439,24 @@ func TestPickingOfSelectionHasNoPaging(t *testing.T) {
 	}
 }
 
-// A refused batch answers 422 and its title says nothing was saved, unless some
-// of the selected orders did start: then the title is the queue's own.
-func TestBatchPage_TitleAfterARefusal(t *testing.T) {
+// A refused batch is a refused page only when no order started: with some started
+// the page reports work that went through, and an interrupted batch answers 503.
+func TestBatchResult_SavedNothing(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		name    string
-		started int64
-		want    string
+		name  string
+		batch BatchResult
+		want  bool
 	}{
-		{"none started", 0, "Not saved: " + i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeyAdminQueueOrders) + " · goen"},
-		{"some started", 2, i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeyAdminQueueOrders) + " · goen"},
+		{"none started", BatchResult{}, true},
+		{"some started", BatchResult{OthersStarted: 2}, false},
+		{"interrupted before any started", BatchResult{Interrupted: true}, false},
+		{"interrupted after some started", BatchResult{Interrupted: true, OthersStarted: 1}, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := i18n.WithLocale(t.Context(), i18n.En)
-			batch := BatchResult{Refused: []BatchRefusal{{Number: numberN(1), Reason: "x"}}, OthersStarted: tt.started}
-			view := workView(QueueReady, numberN(1))
-			view.Batch = batch
-			var body strings.Builder
-			if err := Orders(batchPage(ctx, &batch), view).Render(pagestatus.With(ctx, http.StatusUnprocessableEntity), &body); err != nil {
-				t.Fatal(err)
-			}
-			doc, err := html.Parse(strings.NewReader(body.String()))
-			if err != nil {
-				t.Fatal(err)
-			}
-			var title string
-			for n := range doc.Descendants() {
-				if n.Type == html.ElementNode && n.Data == "title" && n.FirstChild != nil {
-					title = n.FirstChild.Data
-					break
-				}
-			}
-			if title != tt.want {
-				t.Errorf("<title> = %q, want %q", title, tt.want)
+			if got := tt.batch.savedNothing(); got != tt.want {
+				t.Errorf("savedNothing() = %v, want %v", got, tt.want)
 			}
 		})
 	}

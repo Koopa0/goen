@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/a-h/templ"
-
-	"github.com/koopa0/goen/internal/web/pagestatus"
 )
 
 // A component of an abandoned request is silent: a departed caller stops the
@@ -52,21 +50,5 @@ func TestComponentLiveRequestError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError || !strings.Contains(logs.String(), "level=ERROR") {
 		t.Errorf("code %d, log %q; want a 500 and an ERROR line", w.Code, logs.String())
-	}
-}
-
-// A page reads the status Component answers with from its render context.
-func TestComponentCarriesItsStatus(t *testing.T) {
-	t.Parallel()
-
-	var seen int
-	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/x", http.NoBody)
-	Component(httptest.NewRecorder(), r, slog.New(slog.DiscardHandler), http.StatusUnprocessableEntity,
-		templ.ComponentFunc(func(ctx context.Context, _ io.Writer) error {
-			seen = pagestatus.From(ctx)
-			return nil
-		}))
-	if seen != http.StatusUnprocessableEntity {
-		t.Errorf("status the page saw = %d, want %d", seen, http.StatusUnprocessableEntity)
 	}
 }

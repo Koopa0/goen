@@ -129,7 +129,7 @@ func (h *Handler) renderAdjustmentRefusal(w http.ResponseWriter, r *http.Request
 	view.DeltaError = i18n.T(r.Context(), key)
 	view.AdjustmentKey = r.PostFormValue("idempotency")
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Movements(
-		frame.Page{Title: view.SKU}, view))
+		frame.Page{Refused: true, Title: view.SKU}, view))
 }
 
 // rejectOnSKUPage reads the SKU page a refused form was posted from and hands
@@ -178,7 +178,9 @@ func (h *Handler) rejectStockForm(w http.ResponseWriter, r *http.Request, key i1
 		// The row is not on this page, so the banner has to say it.
 		view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), key)}
 	}
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Variants(VariantsMeta(r.Context()), view))
+	page := VariantsMeta(r.Context())
+	page.Refused = true
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Variants(page, view))
 }
 
 // Receive books a delivery from a row of the stock list, which names the list
@@ -245,7 +247,7 @@ func (h *Handler) renderReceiptRefusal(w http.ResponseWriter, r *http.Request, v
 	view.QuantityError = i18n.T(r.Context(), key)
 	view.ReceiptKey = r.PostFormValue("idempotency")
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Movements(
-		frame.Page{Title: view.SKU}, view))
+		frame.Page{Refused: true, Title: view.SKU}, view))
 }
 
 // SetActive is posted from the SKU page and answers there, where its notice is

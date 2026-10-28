@@ -12,8 +12,6 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
-
-	"github.com/koopa0/goen/internal/web/pagestatus"
 )
 
 // IsHTMX reports whether htmx issued this request. Its absence means a plain
@@ -22,13 +20,12 @@ func IsHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
 }
 
-// Component writes c to the response with the given status, which the page can
-// read from its context through package pagestatus, rendering into memory
+// Component writes c to the response with the given status, rendering into memory
 // first: a template that fails halfway would otherwise leave a truncated body
 // under an already-sent 200.
 func Component(w http.ResponseWriter, r *http.Request, log *slog.Logger, status int, c templ.Component) {
 	var buf bytes.Buffer
-	if err := c.Render(pagestatus.With(r.Context(), status), &buf); err != nil {
+	if err := c.Render(r.Context(), &buf); err != nil {
 		if errors.Is(r.Context().Err(), context.Canceled) {
 			// The caller left, so the render stopped and nobody reads a 500. A
 			// deadline is not this: it stays an error below.

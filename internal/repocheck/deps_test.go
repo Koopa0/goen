@@ -147,7 +147,7 @@ var (
 	// besides itself.
 	uiMayImport = []string{
 		"assets", "internal/i18n", "internal/keyset", "internal/money", "internal/order",
-		"internal/picture", "internal/product/inventory", "internal/shoptime", "internal/user", "internal/web/pagestatus",
+		"internal/picture", "internal/product/inventory", "internal/shoptime", "internal/user",
 	}
 	// storefrontPages are the packages that serve storefront pages. The rule
 	// that uses them leaves out, on purpose: internal/contact (admin/messages
@@ -184,7 +184,7 @@ var (
 		"internal/shipping/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/web/compress",
-		"internal/web/requestid", "internal/web/siteurl", "internal/web/probe", "internal/web/pagestatus",
+		"internal/web/requestid", "internal/web/siteurl", "internal/web/probe",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{

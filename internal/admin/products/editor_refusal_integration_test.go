@@ -39,6 +39,21 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
+func refusedPageTitle(t *testing.T, body string) string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "title" && n.FirstChild != nil {
+			return n.FirstChild.Data
+		}
+	}
+	t.Fatal("the page has no <title>")
+	return ""
+}
+
 // TestHandler_EditorRefusalsKeepDraft: product editor refusals keep their draft
 // and the image controls.
 func TestHandler_EditorRefusalsKeepDraft(t *testing.T) {
@@ -89,6 +104,9 @@ func TestHandler_EditorRefusalsKeepDraft(t *testing.T) {
 					t.Fatalf("refused editor status=%d, want 422", res.Code)
 				}
 				body := res.Body.String()
+				if want := strings.SplitN(i18n.T(ctx, i18n.KeyAdminRefusedTitle), "%s", 2)[0]; !strings.HasPrefix(refusedPageTitle(t, body), want) {
+					t.Errorf("refused editor <title> = %q, want it to start with %q", refusedPageTitle(t, body), want)
+				}
 				assertEditorImageControls(t, body, slug, attached, library)
 				switch tt.name {
 				case "specification":

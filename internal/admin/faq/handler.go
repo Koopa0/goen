@@ -133,7 +133,7 @@ func (h *Handler) rejectFAQ(
 		view.Draft, view.Errors = typed, errs
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, FAQ(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
+		frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
 func (h *Handler) CreateFAQCategory(w http.ResponseWriter, r *http.Request) {
@@ -205,7 +205,7 @@ func (h *Handler) rejectFAQCategory(
 	}
 	view.CategoryErrors = errs
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, FAQ(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
+		frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
 func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back, done string, err error) {

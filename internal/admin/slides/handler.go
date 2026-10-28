@@ -164,7 +164,7 @@ func (h *Handler) rejectHeroSlide(
 		ImageAltEn: r.PostFormValue("alt_en"),
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Slides(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueHomePage)}, &view))
+		frame.Page{Refused: true, Title: i18n.T(r.Context(), i18n.KeyAdminQueueHomePage)}, &view))
 }
 
 func (h *Handler) SetHeroActive(w http.ResponseWriter, r *http.Request) {

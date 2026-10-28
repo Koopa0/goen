@@ -49,7 +49,7 @@ func TestSection_NoticeSitsInItsSection(t *testing.T) {
 	for _, section := range sections {
 		t.Run(string(section), func(t *testing.T) {
 			t.Parallel()
-			location, err := url.Parse("/admin/products/test?saved=1" + section.In())
+			location, err := url.Parse("/admin/products/test?saved=1" + section.Query())
 			if err != nil {
 				t.Fatal(err)
 			}

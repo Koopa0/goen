@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -87,15 +86,9 @@ func (h *Handler) StartPicking(w http.ResponseWriter, r *http.Request) {
 	if batch.Interrupted {
 		status = http.StatusServiceUnavailable
 	}
-	respond.Component(w, r, h.log, status, Orders(batchPage(ctx, &batch), view))
-}
-
-// batchPage is the queue's page; when some of the selected orders did start, its
-// title does not say that nothing was saved.
-func batchPage(ctx context.Context, batch *BatchResult) frame.Page {
 	page := Meta(ctx)
-	page.PartlyDone = batch.OthersStarted > 0
-	return page
+	page.Refused = batch.savedNothing()
+	respond.Component(w, r, h.log, status, Orders(page, view))
 }
 
 // startPacking advances each number in turn. A refusal is that order's answer
