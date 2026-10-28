@@ -152,7 +152,7 @@ func (h *Handler) ProductLabel(w http.ResponseWriter, r *http.Request) {
 	default:
 		slug := r.PathValue("slug")
 		//nolint:gosec // G710: validated by the route's own slug
-		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1#sec-label", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?label=1#sec-label", http.StatusSeeOther)
 	}
 }
 

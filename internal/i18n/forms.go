@@ -47,8 +47,6 @@ var (
 )
 
 var (
-	KeyAdminNoticeOK = key("admin.notice.ok", Message{ZhHant: "已更新。", En: "Saved."})
-
 	KeyAdminNoticeRefused = key("admin.notice.refused", Message{
 		ZhHant: "這個變更不符合狀態、庫存或活動的規則。請重新整理，確認目前的狀態後再試。",
 		En: "That change does not fit the status, stock or campaign rules. " +

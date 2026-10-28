@@ -20,4 +20,6 @@ var (
 	KeyProductLabelRefused              = key("product.label.refused", Message{ZhHant: "這組商品標示無法儲存。請檢查內容後再試一次。", En: "These product label facts could not be saved. Check the values and try again."})
 	KeyProductLabelNetInvalid           = key("product.label.net.invalid", Message{ZhHant: "請同時填寫正數淨含量與單位，數值最多有兩位小數。", En: "Enter a positive quantity with its unit, using at most two decimal places."})
 	KeyProductLabelAgeInvalid           = key("product.label.age.invalid", Message{ZhHant: "請填寫 0 到 216 的整數月齡，或留白。", En: "Enter a whole number of months from 0 to 216, or leave it blank."})
+
+	KeyAdminNoticeProductLabel = key("admin.notice.product.label", Message{ZhHant: "已儲存商品標示。", En: "Product label saved."})
 )

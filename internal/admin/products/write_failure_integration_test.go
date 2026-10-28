@@ -65,15 +65,19 @@ func TestHandler_WritesReportCommitted(t *testing.T) {
 				want := productWriteRows(t, ctx, pool, slug)
 				path := "/images/remove"
 				form := url.Values{"digest": {digest}}
-				status, location := http.StatusSeeOther, "/admin/products/"+slug+"?ok=1"
+				status, location := http.StatusSeeOther, "/admin/products/"+slug+"?imageremoved=1"
+				notice := i18n.KeyAdminNoticeProductImageRemoved
 				requestSlug := slug
 				switch {
 				case strings.HasPrefix(scenario, "spec-"):
 					path, form = "/specs/remove", url.Values{"spec": {view.Specs[0].ID}}
+					location, notice = "/admin/products/"+slug+"?specremoved=1", i18n.KeyAdminNoticeProductSpecRemoved
 				case strings.HasPrefix(scenario, "option-"):
 					path, form = "/options", url.Values{"name": {"Size"}, "name_en": {"Typed option"}}
+					location, notice = "/admin/products/"+slug+"?option=1", i18n.KeyAdminNoticeProductOption
 				case strings.HasPrefix(scenario, "value-"):
 					path, form = "/options/values", url.Values{"option": {view.Options[0].ID}, "value": {"Blue"}, "value_en": {"Typed value"}, "swatch_hex": {"#123456"}}
+					location, notice = "/admin/products/"+slug+"?optionvalue=1", i18n.KeyAdminNoticeProductOptionValue
 				}
 				switch scenario {
 				case "image-success":
@@ -150,7 +154,7 @@ func TestHandler_WritesReportCommitted(t *testing.T) {
 				if status == http.StatusSeeOther {
 					page := httptest.NewRecorder()
 					mux.ServeHTTP(page, httptest.NewRequestWithContext(ctx, http.MethodGet, location, nil))
-					if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), i18n.T(ctx, i18n.KeyAdminNoticeOK)) {
+					if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), i18n.T(ctx, notice)) {
 						t.Error("committed write did not return the saved editor")
 					}
 				}
@@ -300,11 +304,11 @@ func TestHandler_ImageOptionSpecFaults(t *testing.T) {
 	adminPool := admintest.AdminRolePool(t, owner)
 	for _, locale := range i18n.Locales() {
 		for _, endpoint := range []struct {
-			name, path, query, lock, log string
-			action                       audit.Action
+			name, path, query, lock, log, done string
+			action                             audit.Action
 		}{
-			{name: "image option", path: "/images/option", query: "SetProductImageOptionValue", lock: `SELECT 1 FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 FOR UPDATE OF i`, log: "set image option", action: audit.ActionSetImageOption},
-			{name: "add spec", path: "/specs", query: "AddProductSpec", lock: `SELECT 1 FROM products WHERE slug=$1 FOR UPDATE`, log: "add spec", action: audit.ActionAddSpec},
+			{name: "image option", path: "/images/option", query: "SetProductImageOptionValue", lock: `SELECT 1 FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 FOR UPDATE OF i`, log: "set image option", done: "?imageopt=1", action: audit.ActionSetImageOption},
+			{name: "add spec", path: "/specs", query: "AddProductSpec", lock: `SELECT 1 FROM products WHERE slug=$1 FOR UPDATE`, log: "add spec", done: "?spec=1", action: audit.ActionAddSpec},
 		} {
 			for _, fault := range []string{"closed pool", "row lock"} {
 				t.Run(locale.Tag()+"/"+endpoint.name+"/"+fault, func(t *testing.T) {
@@ -359,7 +363,7 @@ func TestHandler_ImageOptionSpecFaults(t *testing.T) {
 						mux = productOutcomeRoutes(adminPool, logger)
 					}
 					retry := postProductOutcome(t, ctx, mux, "/admin/products/"+slug+endpoint.path, form)
-					if retry.Code != http.StatusSeeOther || retry.Header().Get("Location") != "/admin/products/"+slug+"?ok=1" {
+					if retry.Code != http.StatusSeeOther || retry.Header().Get("Location") != "/admin/products/"+slug+endpoint.done {
 						t.Fatalf("recovered %s = %d to %q, want 303 to success", endpoint.name, retry.Code, retry.Header().Get("Location"))
 					}
 					if admintest.AuditRows(t, owner, endpoint.action) != beforeAudit+1 {

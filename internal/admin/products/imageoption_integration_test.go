@@ -61,8 +61,8 @@ func TestHandler_UploadImageOptionValue(t *testing.T) {
 	req.SetPathValue("slug", slug)
 	res := httptest.NewRecorder()
 	h.UploadImage(res, req)
-	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?ok=1" {
-		t.Fatalf("upload answered %d to %q, want 303 to ?ok=1", res.Code, res.Header().Get("Location"))
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?image=1" {
+		t.Fatalf("upload answered %d to %q, want 303 to ?image=1", res.Code, res.Header().Get("Location"))
 	}
 
 	key, shows := theOnlyImageOf(t, slug)
@@ -72,8 +72,8 @@ func TestHandler_UploadImageOptionValue(t *testing.T) {
 
 	for _, want := range []string{blue, ""} {
 		res := postImageOption(t, h, ctx, slug, url.Values{"digest": {key}, "option_value": {want}})
-		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?ok=1" {
-			t.Fatalf("setting %q answered %d to %q, want 303 to ?ok=1",
+		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?imageopt=1" {
+			t.Fatalf("setting %q answered %d to %q, want 303 to ?imageopt=1",
 				want, res.Code, res.Header().Get("Location"))
 		}
 		if _, got := theOnlyImageOf(t, slug); got != want {

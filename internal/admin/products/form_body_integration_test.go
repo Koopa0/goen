@@ -66,8 +66,9 @@ func TestHandler_CreateUpdateTextLimits(t *testing.T) {
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				res := httptest.NewRecorder()
 				mux.ServeHTTP(res, req)
-				if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?ok=1" {
-					t.Fatalf("legal %s form status/location=%d/%q, want 303 saved", operation, res.Code, res.Header().Get("Location"))
+				saved := map[string]string{"create": "?created=1", "update": "?saved=1"}[operation]
+				if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+saved {
+					t.Fatalf("legal %s form status/location=%d/%q, want 303 to %s", operation, res.Code, res.Header().Get("Location"), saved)
 				}
 				var got []string
 				var name, nameEn, summary, summaryEn, description, descriptionEn, warranty string

@@ -167,7 +167,7 @@ func TestHandler_ProductLabelRoute(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	response := httptest.NewRecorder()
 	mux.ServeHTTP(response, req)
-	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/products/"+slug+"?ok=1#sec-label" {
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/products/"+slug+"?label=1#sec-label" {
 		t.Fatalf("saved redirect=%d %q", response.Code, response.Header().Get("Location"))
 	}
 	var audited int
@@ -204,7 +204,7 @@ func TestHandler_ProductLabelReadFailure(t *testing.T) {
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	response := httptest.NewRecorder()
 	mux.ServeHTTP(response, request)
-	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/products/"+slug+"?ok=1#sec-label" {
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/products/"+slug+"?label=1#sec-label" {
 		t.Fatalf("committed label redirect=%d %q, want 303 to the label section", response.Code, response.Header().Get("Location"))
 	}
 	var origin string

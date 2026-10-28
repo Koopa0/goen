@@ -89,7 +89,7 @@ func TestHandler_AddSpecOverlapping(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?ok=1" {
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?spec=1" {
 		t.Fatalf("second append = HTTP %d, Location %q; want success redirect", res.Code, res.Header().Get("Location"))
 	}
 

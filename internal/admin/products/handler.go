@@ -60,11 +60,26 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":         widget.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused":    widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"imageneeds": widget.NoticeRefused(i18n.KeyAdminNoticeImageNeeds),
-	"badoption":  widget.NoticeRefused(i18n.KeyAdminNoticeBadOption),
-	"specfailed": widget.NoticeFailed(i18n.KeyAdminNoticeSpecFailed),
+	"created":      widget.NoticeDone(i18n.KeyAdminNoticeProductCreated),
+	"saved":        widget.NoticeDone(i18n.KeyAdminNoticeProductSaved),
+	"published":    widget.NoticeDone(i18n.KeyAdminNoticeProductPublished),
+	"drafted":      widget.NoticeDone(i18n.KeyAdminNoticeProductDrafted),
+	"archived":     widget.NoticeDone(i18n.KeyAdminNoticeProductArchived),
+	"variant":      widget.NoticeDone(i18n.KeyAdminNoticeProductVariant),
+	"image":        widget.NoticeDone(i18n.KeyAdminNoticeProductImage),
+	"imageopt":     widget.NoticeDone(i18n.KeyAdminNoticeProductImageOption),
+	"imagemoved":   widget.NoticeDone(i18n.KeyAdminNoticeProductImageMoved),
+	"imageremoved": widget.NoticeDone(i18n.KeyAdminNoticeProductImageRemoved),
+	"option":       widget.NoticeDone(i18n.KeyAdminNoticeProductOption),
+	"optionvalue":  widget.NoticeDone(i18n.KeyAdminNoticeProductOptionValue),
+	"spec":         widget.NoticeDone(i18n.KeyAdminNoticeProductSpec),
+	"specremoved":  widget.NoticeDone(i18n.KeyAdminNoticeProductSpecRemoved),
+	"invoice":      widget.NoticeDone(i18n.KeyAdminNoticeProductInvoice),
+	"label":        widget.NoticeDone(i18n.KeyAdminNoticeProductLabel),
+	"refused":      widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"imageneeds":   widget.NoticeRefused(i18n.KeyAdminNoticeImageNeeds),
+	"badoption":    widget.NoticeRefused(i18n.KeyAdminNoticeBadOption),
+	"specfailed":   widget.NoticeFailed(i18n.KeyAdminNoticeSpecFailed),
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +125,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		h.rejectProduct(w, r, f, errs, true)
 	default:
 		//nolint:gosec // G710: slug came back from the database
-		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?created=1", http.StatusSeeOther)
 	}
 }
 
@@ -195,7 +210,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		h.rejectProduct(w, r, f, errs, false)
 	default:
 		//nolint:gosec // G710: validated by the route's own slug
-		http.Redirect(w, r, "/admin/products/"+f.Slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+f.Slug+"?saved=1", http.StatusSeeOther)
 	}
 }
 
@@ -205,10 +220,11 @@ func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := r.PathValue("slug")
-	switch err := h.store.SetStatus(r.Context(), slug, product.Status(r.PostFormValue("status"))); {
+	status := product.Status(r.PostFormValue("status"))
+	switch err := h.store.SetStatus(r.Context(), slug, status); {
 	case err == nil:
 		//nolint:gosec // G710: validated by the route's own slug
-		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+statusNotice(status), http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "set product status", "slug", slug, "error", err)
 		admin.NotFound(w, r, h.log)
@@ -219,6 +235,21 @@ func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(r.Context(), "set product status", "slug", slug, "error", err)
 		admin.ServerError(w, r, h.log)
+	}
+}
+
+// statusNotice is the query that makes the page say which status the product
+// moved to.
+func statusNotice(status product.Status) string {
+	switch status {
+	case product.StatusActive:
+		return "?published=1"
+	case product.StatusDraft:
+		return "?drafted=1"
+	case product.StatusArchived:
+		return "?archived=1"
+	default:
+		return ""
 	}
 }
 
@@ -245,7 +276,7 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 	default:
 		//nolint:gosec // G710: validated by the route's own slug
-		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?variant=1", http.StatusSeeOther)
 	}
 }
 
@@ -383,7 +414,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
-	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/products/"+slug+"?image=1", http.StatusSeeOther)
 }
 
 func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
@@ -416,7 +447,7 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
-	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/products/"+slug+"?image=1", http.StatusSeeOther)
 }
 
 func (h *Handler) rejectImageUpload(w http.ResponseWriter, r *http.Request, field string, key i18n.Key) {
@@ -457,7 +488,7 @@ func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
-	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/products/"+slug+"?imageopt=1", http.StatusSeeOther)
 }
 
 func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
@@ -482,7 +513,7 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
-	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/products/"+slug+"?imageremoved=1", http.StatusSeeOther)
 }
 
 func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
@@ -495,7 +526,7 @@ func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?imagemoved=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
@@ -509,7 +540,7 @@ func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AddOption(w http.ResponseWriter, r *http.Request) {
-	h.optionWrite(w, r, func(slug string) (map[string]string, error) {
+	h.optionWrite(w, r, "?option=1", func(slug string) (map[string]string, error) {
 		return h.store.AddOption(r.Context(), slug, OptionDraft{
 			Name:   r.PostFormValue("name"),
 			NameEn: r.PostFormValue("name_en"),
@@ -518,7 +549,7 @@ func (h *Handler) AddOption(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AddOptionValue(w http.ResponseWriter, r *http.Request) {
-	h.optionWrite(w, r, func(slug string) (map[string]string, error) {
+	h.optionWrite(w, r, "?optionvalue=1", func(slug string) (map[string]string, error) {
 		return h.store.AddOptionValue(r.Context(), slug, OptionDraft{
 			OptionID:  r.PostFormValue("option"),
 			Name:      r.PostFormValue("value"),
@@ -528,8 +559,10 @@ func (h *Handler) AddOptionValue(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// optionWrite answers an option write; done is the query success goes to, so the
+// page says which of the two it was.
 func (h *Handler) optionWrite(
-	w http.ResponseWriter, r *http.Request, write func(slug string) (map[string]string, error),
+	w http.ResponseWriter, r *http.Request, done string, write func(slug string) (map[string]string, error),
 ) {
 	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -567,7 +600,7 @@ func (h *Handler) optionWrite(
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+done, http.StatusSeeOther)
 	}
 }
 
@@ -598,7 +631,7 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{spec: draft})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?spec=1", http.StatusSeeOther)
 	}
 }
 
@@ -624,7 +657,7 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
-	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/products/"+slug+"?specremoved=1", http.StatusSeeOther)
 }
 
 type productDrafts struct {

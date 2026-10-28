@@ -17,7 +17,7 @@ func TestProductsRedirectedNotice(t *testing.T) {
 	for _, tc := range []struct {
 		query   string
 		failure bool
-	}{{"ok", false}, {"specfailed", true}} {
+	}{{"saved", false}, {"specfailed", true}} {
 		ctx := i18n.WithLocale(t.Context(), i18n.En)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products?"+tc.query+"=1", http.NoBody)
 		var page strings.Builder

@@ -294,4 +294,32 @@ var (
 	})
 
 	KeyAdminProdArchive = key("admin.prod.archive", Message{ZhHant: "封存", En: "Archive"})
+
+	KeyAdminNoticeProductCreated = key("admin.notice.product.created", Message{ZhHant: "已建立商品。", En: "Product created."})
+
+	KeyAdminNoticeProductSaved = key("admin.notice.product.saved", Message{ZhHant: "已儲存商品資料。", En: "Product details saved."})
+
+	KeyAdminNoticeProductPublished = key("admin.notice.product.published", Message{ZhHant: "已上架。", En: "Product published."})
+
+	KeyAdminNoticeProductDrafted = key("admin.notice.product.drafted", Message{ZhHant: "已下架為草稿。", En: "Product taken down to a draft."})
+
+	KeyAdminNoticeProductArchived = key("admin.notice.product.archived", Message{ZhHant: "已封存商品。", En: "Product archived."})
+
+	KeyAdminNoticeProductVariant = key("admin.notice.product.variant", Message{ZhHant: "已新增款式。", En: "Variant added."})
+
+	KeyAdminNoticeProductImage = key("admin.notice.product.image", Message{ZhHant: "已加入照片。", En: "Photo added."})
+
+	KeyAdminNoticeProductImageOption = key("admin.notice.product.imageoption", Message{ZhHant: "已更新照片對應的選項。", En: "Photo option updated."})
+
+	KeyAdminNoticeProductImageMoved = key("admin.notice.product.imagemoved", Message{ZhHant: "已調整照片順序。", En: "Photo order changed."})
+
+	KeyAdminNoticeProductImageRemoved = key("admin.notice.product.imageremoved", Message{ZhHant: "已移除照片。", En: "Photo removed."})
+
+	KeyAdminNoticeProductOption = key("admin.notice.product.option", Message{ZhHant: "已新增選項。", En: "Option added."})
+
+	KeyAdminNoticeProductOptionValue = key("admin.notice.product.optionvalue", Message{ZhHant: "已新增選項值。", En: "Option value added."})
+
+	KeyAdminNoticeProductSpec = key("admin.notice.product.spec", Message{ZhHant: "已新增規格表項目。", En: "Specification added."})
+
+	KeyAdminNoticeProductSpecRemoved = key("admin.notice.product.specremoved", Message{ZhHant: "已移除規格表項目。", En: "Specification removed."})
 )

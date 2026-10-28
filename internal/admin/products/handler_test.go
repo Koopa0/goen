@@ -19,6 +19,8 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
@@ -146,5 +148,42 @@ func TestHandler_RespondToUploadAborted(t *testing.T) {
 	h.respondToUploadError(res, req, err)
 	if res.Body.Len() != 0 || diagnostics.Len() != 0 {
 		t.Errorf("abandoned upload wrote body %q and log %q, want neither", res.Body.String(), diagnostics.String())
+	}
+}
+
+// TestStatusNoticeSaysTheStatus: a status change says which status the product
+// moved to, for every status there is.
+func TestStatusNoticeSaysTheStatus(t *testing.T) {
+	t.Parallel()
+	want := map[product.Status]string{
+		product.StatusActive:   "?published=1",
+		product.StatusDraft:    "?drafted=1",
+		product.StatusArchived: "?archived=1",
+	}
+	for _, status := range product.Statuses {
+		got := statusNotice(status)
+		if got != want[status] {
+			t.Errorf("statusNotice(%q) = %q, want %q", status, got, want[status])
+		}
+		code := strings.TrimSuffix(strings.TrimPrefix(got, "?"), "=1")
+		if entry, ok := notices[code]; !ok || entry.Outcome != widget.OutcomeDone {
+			t.Errorf("statusNotice(%q) names ?%s=1, which is not a done notice", status, code)
+		}
+	}
+}
+
+// TestDoneNoticesAreDistinct: no two actions share a sentence, so a save says
+// which change it was.
+func TestDoneNoticesAreDistinct(t *testing.T) {
+	t.Parallel()
+	seen := map[i18n.Key]string{}
+	for name, e := range notices {
+		if e.Outcome != widget.OutcomeDone {
+			continue
+		}
+		if first, dup := seen[e.Key]; dup {
+			t.Errorf("?%s=1 and ?%s=1 both say %q", first, name, e.Key)
+		}
+		seen[e.Key] = name
 	}
 }
