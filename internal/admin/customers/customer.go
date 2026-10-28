@@ -46,11 +46,11 @@ type position struct {
 	At time.Time
 }
 
-func resume(scope string, after []string) (position, bool) {
+func resume(scope, after string) (position, bool) {
 	return keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 }
 
-func (s *Store) Search(ctx context.Context, term string, after ...string) (View, error) {
+func (s *Store) Search(ctx context.Context, term, after string) (View, error) {
 	term = strings.TrimSpace(term)
 	scope := keyset.ScopeURL("/admin/customers", "q", term)
 	from, resumed := resume(scope, after)
@@ -70,7 +70,7 @@ func (s *Store) Search(ctx context.Context, term string, after ...string) (View,
 	view.Bound = bound
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, CustomerRow{
+		view.Rows = append(view.Rows, Row{
 			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
 			Since:    shoptime.Day(r.CreatedAt),
 			Verified: r.Verified, Orders: r.Orders,

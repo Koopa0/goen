@@ -95,7 +95,7 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) List(ctx context.Context, after ...string) (View, error) {
+func (s *Store) List(ctx context.Context, after string) (View, error) {
 	const scope = "/admin/campaigns"
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminCampaigns(ctx, db.AdminCampaignsParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
@@ -106,7 +106,7 @@ func (s *Store) List(ctx context.Context, after ...string) (View, error) {
 	view := View{Bound: bound}
 	for i := range rows {
 		c := &rows[i]
-		view.Rows = append(view.Rows, CampaignRow{
+		view.Rows = append(view.Rows, Row{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
 			Active: c.IsActive, Running: c.IsRunning, Sellable: c.IsSellable,
 			StartsAtText: shoptime.Day(c.StartsAt),
@@ -132,15 +132,15 @@ func (s *Store) Image(ctx context.Context, slug string) (widget.HeaderImage, str
 	}, row.Tone, nil
 }
 
-func (s *Store) Detail(ctx context.Context, slug string) (CampaignDetail, error) {
+func (s *Store) Detail(ctx context.Context, slug string) (Detail, error) {
 	row, err := s.q.AdminCampaign(ctx, db.AdminCampaignParams{Slug: slug, Locale: string(i18n.FromContext(ctx))})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return CampaignDetail{}, ErrNotFound
+			return Detail{}, ErrNotFound
 		}
-		return CampaignDetail{}, fmt.Errorf("read campaign: %w", err)
+		return Detail{}, fmt.Errorf("read campaign: %w", err)
 	}
-	return CampaignDetail{
+	return Detail{
 		Title: row.Title, Label: row.Label, Starts: row.StartsAt, Ends: row.EndsAt,
 		StartsAtInput: shoptime.InputMinute(row.StartsAt), EndsAtInput: shoptime.InputMinute(row.EndsAt),
 		Active: row.IsActive, Running: row.IsRunning, Sellable: row.IsSellable,
@@ -186,7 +186,7 @@ func (s *Store) SetWindow(ctx context.Context, slug, startsAt, endsAt string) (m
 
 const searchLimit = 10
 
-func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]CampaignProduct, error) {
+func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]Product, error) {
 	term = formtext.SearchTerm(term)
 	if term == "" {
 		return nil, nil
@@ -197,9 +197,9 @@ func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]Campai
 	if err != nil {
 		return nil, fmt.Errorf("search campaign products: %w", err)
 	}
-	out := make([]CampaignProduct, 0, len(rows))
+	out := make([]Product, 0, len(rows))
 	for i := range rows {
-		out = append(out, CampaignProduct{
+		out = append(out, Product{
 			Slug: rows[i].Slug, Name: rows[i].Name, Image: picture.Image{Digest: rows[i].ImageDigest, BundledKey: rows[i].ImageBundledKey},
 			PriceCents: rows[i].PriceCents, CompareCents: rows[i].CompareAtPriceCents,
 			SellableUnits: rows[i].SellableUnits, HasVariant: rows[i].HasVariant, HasDiscountedVariant: rows[i].HasDiscountedVariant, Draft: rows[i].IsDraft,
@@ -352,14 +352,14 @@ func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) 
 		})
 }
 
-func (s *Store) Products(ctx context.Context, slug string) ([]CampaignProduct, error) {
+func (s *Store) Products(ctx context.Context, slug string) ([]Product, error) {
 	rows, err := s.q.AdminCampaignProducts(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("read campaign products: %w", err)
 	}
-	out := make([]CampaignProduct, 0, len(rows))
+	out := make([]Product, 0, len(rows))
 	for i := range rows {
-		out = append(out, CampaignProduct{
+		out = append(out, Product{
 			Slug: rows[i].Slug, Name: rows[i].Name, Image: picture.Image{Digest: rows[i].ImageDigest, BundledKey: rows[i].ImageBundledKey},
 			PriceCents: rows[i].PriceCents, CompareCents: rows[i].CompareAtPriceCents,
 			SellableUnits: rows[i].SellableUnits, HasVariant: rows[i].HasVariant, HasDiscountedVariant: rows[i].HasDiscountedVariant, Draft: rows[i].IsDraft,

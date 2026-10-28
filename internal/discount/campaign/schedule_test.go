@@ -2,7 +2,6 @@ package campaign_test
 
 import (
 	"context"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -29,36 +28,8 @@ func renderComponent(t *testing.T, ctx context.Context, c templ.Component) strin
 	return b.String()
 }
 
-// TestSchedule_CardFacts: card facts put days left before the end and omit it
-// in the last two days.
-func TestSchedule_CardFacts(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	for _, tt := range []struct {
-		name   string
-		endsAt time.Time
-		want   []string
-	}{
-		{"days left", day(11), []string{"剩餘", "結束"}},
-		{"tomorrow", day(4), []string{"結束"}},
-	} {
-		schedule := campaign.NewSchedule(ctx, "秋日選物", 3, day(1), tt.endsAt, scheduleNow)
-		facts := schedule.CardFacts()
-		got := make([]string, 0, len(facts))
-		for i := range facts {
-			got = append(got, facts[i].Label)
-		}
-		if !slices.Equal(got, tt.want) {
-			t.Errorf("%s: CardFacts labels = %q, want %q", tt.name, got, tt.want)
-		}
-		if tt.name == "tomorrow" && facts[0].Note != "明天結束" {
-			t.Errorf("tomorrow: the end's note = %q, want 明天結束", facts[0].Note)
-		}
-	}
-}
-
 // TestNewScheduleFacts: a fact names what it counts once: each rendered fact
-// line names its noun once, in both locales.
+// line of a campaign not yet started names its noun once, in both locales.
 func TestNewScheduleFacts(t *testing.T) {
 	t.Parallel()
 	ends := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
@@ -69,13 +40,13 @@ func TestNewScheduleFacts(t *testing.T) {
 		want  map[i18n.Locale][]string
 	}{
 		{
-			name: "campaign",
+			name: "campaign not started",
 			facts: func(ctx context.Context) []widget.Stat {
-				return campaign.NewSchedule(ctx, "Autumn", 12, now.AddDate(0, 0, -1), ends, now).Facts
+				return campaign.NewSchedule(ctx, "Autumn", 12, now.AddDate(0, 0, 1), ends, now).Facts
 			},
 			want: map[i18n.Locale][]string{
-				i18n.En:     {"<dt>Items</dt><dd>12</dd>", "<dt>Days left</dt><dd>7</dd>"},
-				i18n.ZhHant: {"<dt>商品</dt>", "12\u00a0<small>件</small>", "<dt>剩餘</dt>", "7\u00a0<small>天</small>"},
+				i18n.En:     {"<dt>Items</dt><dd>12</dd>"},
+				i18n.ZhHant: {"<dt>商品</dt>", "12\u00a0<small>件</small>"},
 			},
 		},
 	} {
@@ -97,6 +68,30 @@ func TestNewScheduleFacts(t *testing.T) {
 					}
 				}
 			})
+		}
+	}
+}
+
+// TestNewScheduleStates holds that only a running campaign has the phrase of its
+// end: one not started and one ended keep the fact line.
+func TestNewScheduleStates(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, tt := range []struct {
+		name         string
+		startsAt     time.Time
+		endsAt       time.Time
+		wantEnd      bool
+		wantFactsLen int
+	}{
+		{"running", day(1), day(11), true, 0},
+		{"last day", day(1), day(3), true, 0},
+		{"not started", day(5), day(9), false, 3},
+		{"ended", day(-8), day(2), false, 2},
+	} {
+		got := campaign.NewSchedule(ctx, "秋日選物", 4, tt.startsAt, tt.endsAt, scheduleNow)
+		if (got.End != nil) != tt.wantEnd || len(got.Facts) != tt.wantFactsLen {
+			t.Errorf("%s: end set %v with %d facts, want %v and %d", tt.name, got.End != nil, len(got.Facts), tt.wantEnd, tt.wantFactsLen)
 		}
 	}
 }

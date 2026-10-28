@@ -19,11 +19,11 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-type QuestionQueue uint8
+type Queue uint8
 
 const (
-	VisibleQuestions QuestionQueue = iota
-	HiddenQuestions
+	QueueVisible Queue = iota
+	QueueHidden
 )
 
 type questionPosition struct {
@@ -32,11 +32,11 @@ type questionPosition struct {
 	At   time.Time
 }
 
-func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...string) (View, error) {
-	if queue != VisibleQuestions && queue != HiddenQuestions {
+func (s *Store) Questions(ctx context.Context, queue Queue, after string) (View, error) {
+	if queue != QueueVisible && queue != QueueHidden {
 		return View{}, ErrInvalid
 	}
-	showHidden := queue == HiddenQuestions
+	showHidden := queue == QueueHidden
 	scope := keyset.ScopeURL("/admin/questions", "hidden", "")
 	if showHidden {
 		scope = keyset.ScopeURL("/admin/questions", "hidden", "1")

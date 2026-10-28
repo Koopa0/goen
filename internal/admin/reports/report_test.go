@@ -21,7 +21,7 @@ func TestReportEmptyWindowStockRisk(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, Report(frame.Page{Title: "報表"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "報表"}, &View{
 		Days:    30,
 		Windows: []int32{7, 30, 90},
 		AtRisk:  []stockrisk.Row{{Risk: inventory.Risk{SKU: "RISK-SKU-1", Name: "Shrinking SKU", Slug: "shrinking-sku", Sales: inventory.Sales{Sellable: 2, Sold: 8, Orders: 3}}}},
@@ -45,10 +45,10 @@ func TestReportEmptyWindowStockRisk(t *testing.T) {
 	}
 }
 
-// TestReportView_Empty: a window is empty only when it has neither new orders
+// TestView_Empty: a window is empty only when it has neither new orders
 // nor refunds: a refund for an older order is the owner's return figure and must
 // not be hidden.
-func TestReportView_Empty(t *testing.T) {
+func TestView_Empty(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -57,16 +57,16 @@ func TestReportView_Empty(t *testing.T) {
 
 	for _, tc := range []struct {
 		name      string
-		view      ReportView
+		view      View
 		wantEmpty bool
 	}{
-		{"orders and revenue without refunds", ReportView{
+		{"orders and revenue without refunds", View{
 			Days: 7, Windows: windows, Placed: 1, Committed: 1, Orders: 1, RevenueCents: 1000,
 		}, false},
-		{"refunds without orders", ReportView{
+		{"refunds without orders", View{
 			Days: 7, Windows: windows, RefundedCents: 12500,
 		}, false},
-		{"neither orders nor refunds", ReportView{
+		{"neither orders nor refunds", View{
 			Days: 7, Windows: windows,
 		}, true},
 	} {
@@ -101,7 +101,7 @@ func TestReportBestSellerGross(t *testing.T) {
 		t.Run(string(tt.locale), func(t *testing.T) {
 			t.Parallel()
 			var b bytes.Buffer
-			view := ReportView{Placed: 1, Orders: 1, Committed: 1, RevenueCents: 90000, Sellers: []Seller{{Name: "Discounted item", Slug: "discounted", Units: 2, RevenueCents: 100000}}}
+			view := View{Placed: 1, Orders: 1, Committed: 1, RevenueCents: 90000, Sellers: []Seller{{Name: "Discounted item", Slug: "discounted", Units: 2, RevenueCents: 100000}}}
 			if err := Report(frame.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
 				t.Fatal(err)
 			}
@@ -114,10 +114,10 @@ func TestReportBestSellerGross(t *testing.T) {
 	}
 }
 
-// TestReportView_Completion: completion reads as a count below twenty orders
+// TestView_Completion: completion reads as a count below twenty orders
 // placed and as a percentage from twenty, and is never 0% or 100% unless none or
 // all of the orders committed.
-func TestReportView_Completion(t *testing.T) {
+func TestView_Completion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -139,7 +139,7 @@ func TestReportView_Completion(t *testing.T) {
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, tt := range tests {
-		view := ReportView{Placed: tt.placed, Committed: tt.committed}
+		view := View{Placed: tt.placed, Committed: tt.committed}
 		got := view.Completion(ctx)
 		if got != tt.want {
 			t.Errorf("Completion() with %d of %d placed = %q, want %q", tt.committed, tt.placed, got, tt.want)
@@ -152,7 +152,7 @@ func TestReportFewOrdersCount(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &ReportView{
+	html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 7, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 2, Orders: 2, RevenueCents: 1000,
 	}))
 
@@ -166,7 +166,7 @@ func TestReportFewOrdersCount(t *testing.T) {
 func TestReportBestSellersBars(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
 		Sellers: []Seller{
 			{Slug: "a", Name: "Alpha", Units: 40},
@@ -198,7 +198,7 @@ func TestReportBestSellersBars(t *testing.T) {
 func TestReportOneSeller(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
 		Sellers: []Seller{{Slug: "a", Name: "Alpha", Units: 40}},
 	}))
@@ -214,7 +214,7 @@ func TestReportOneSeller(t *testing.T) {
 func TestReportNoSellers(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
 	}))
 	if strings.Contains(html, "goen-chartbar") {
@@ -222,19 +222,19 @@ func TestReportNoSellers(t *testing.T) {
 	}
 }
 
-// TestReportView_AgainstEachFigure: report sets each figure against the previous
+// TestView_AgainstEachFigure: report sets each figure against the previous
 // period.
-func TestReportView_AgainstEachFigure(t *testing.T) {
+func TestView_AgainstEachFigure(t *testing.T) {
 	t.Parallel()
 
 	// Orders of 1,000 each, so the sum of squares follows from the count.
 	period := func(orders int64) (revenue int64, squares float64) {
 		return orders * 100000, float64(orders) * 100000 * 100000
 	}
-	view := func(orders, prevOrders int64) ReportView {
+	view := func(orders, prevOrders int64) View {
 		revenue, squares := period(orders)
 		prevRevenue, prevSquares := period(prevOrders)
-		return ReportView{
+		return View{
 			Days: 30, Orders: orders, RevenueCents: revenue, RevenueSquares: squares,
 			Previous: PreviousFigures{Orders: prevOrders, RevenueCents: prevRevenue, RevenueSquares: prevSquares},
 		}
@@ -244,7 +244,7 @@ func TestReportView_AgainstEachFigure(t *testing.T) {
 	week.Days = 7
 	tests := []struct {
 		name                string
-		v                   ReportView
+		v                   View
 		wantOrders, wantRev string
 	}{
 		{"no orders before", view(40, 0),
@@ -277,9 +277,9 @@ func TestReportView_AgainstEachFigure(t *testing.T) {
 	}
 }
 
-// TestReportView_CompletionAgainst: report completion against the previous
+// TestView_CompletionAgainst: report completion against the previous
 // period.
-func TestReportView_CompletionAgainst(t *testing.T) {
+func TestView_CompletionAgainst(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -293,7 +293,7 @@ func TestReportView_CompletionAgainst(t *testing.T) {
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, tt := range tests {
-		v := ReportView{Days: 30, Previous: tt.previous}
+		v := View{Days: 30, Previous: tt.previous}
 		if got := v.CompletionAgainst(ctx); got != tt.want {
 			t.Errorf("%s: CompletionAgainst() = %q, want %q", tt.name, got, tt.want)
 		}
@@ -307,22 +307,22 @@ func TestReportView_CompletionAgainst(t *testing.T) {
 		{PreviousFigures{}, "前 30 天沒有訂單"},
 		{PreviousFigures{Placed: 6}, "前 30 天：0 / 6 筆"},
 	} {
-		v := ReportView{Days: 30, Previous: tt.previous}
+		v := View{Days: 30, Previous: tt.previous}
 		if got := v.CompletionAgainst(zh); got != tt.want {
 			t.Errorf("CompletionAgainst(%+v) = %q, want %q", tt.previous, got, tt.want)
 		}
 	}
 }
 
-// TestReportView_RevenueAgainstNoise: the revenue comparison needs more than the
+// TestView_RevenueAgainstNoise: the revenue comparison needs more than the
 // order count to call a change.
-func TestReportView_RevenueAgainstNoise(t *testing.T) {
+func TestView_RevenueAgainstNoise(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	// Thirty orders each side, 20% apart in revenue, but one huge order now
 	// makes the sum of squares large enough that the gap is noise.
-	v := ReportView{
+	v := View{
 		Days: 30, Orders: 30, RevenueCents: 1_200_000, RevenueSquares: 1e12,
 		Previous: PreviousFigures{Orders: 30, RevenueCents: 1_000_000, RevenueSquares: 1e11},
 	}
@@ -336,14 +336,14 @@ func TestReportView_RevenueAgainstNoise(t *testing.T) {
 	}
 }
 
-// TestReportView_Heading: report heading names both periods by shop day.
-func TestReportView_Heading(t *testing.T) {
+// TestView_Heading: report heading names both periods by shop day.
+func TestView_Heading(t *testing.T) {
 	t.Parallel()
 
 	at := func(m time.Month, d int) shoptime.Date {
 		return shoptime.DateOf(time.Date(2026, m, d, 4, 0, 0, 0, time.UTC), time.Date(2026, time.October, 5, 4, 0, 0, 0, time.UTC))
 	}
-	v := ReportView{
+	v := View{
 		From: at(time.September, 6), To: at(time.October, 5),
 		Previous: PreviousFigures{From: at(time.August, 7), To: at(time.September, 5)},
 	}
@@ -359,7 +359,7 @@ func TestReportView_Heading(t *testing.T) {
 
 // dailyView is a period of thirty days, with orders on the first orderDays of
 // them, each of NT$1,000, and a previous period of the same shape.
-func dailyView(orderDays int) ReportView {
+func dailyView(orderDays int) View {
 	series := func(each int64) chart.Series {
 		s := chart.Series{Partial: true}
 		for i := range 30 {
@@ -372,7 +372,7 @@ func dailyView(orderDays int) ReportView {
 		return s
 	}
 	orders := int64(orderDays) * 30
-	return ReportView{
+	return View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: orders, Committed: orders,
 		Orders: orders, RevenueCents: orders * 100000, RevenueSquares: float64(orders) * 1e10,
 		Previous: PreviousFigures{Orders: orders, RevenueCents: orders * 100000, RevenueSquares: float64(orders) * 1e10},
@@ -428,9 +428,9 @@ func TestReportRunningTotalUnread(t *testing.T) {
 	}
 }
 
-// TestReportView_RunningTotal: the running total's caption and source line use
+// TestView_RunningTotal: the running total's caption and source line use
 // the tile's wording and the cut time.
-func TestReportView_RunningTotal(t *testing.T) {
+func TestView_RunningTotal(t *testing.T) {
 	t.Parallel()
 
 	en := i18n.WithLocale(t.Context(), i18n.En)
@@ -464,13 +464,13 @@ func TestReportView_RunningTotal(t *testing.T) {
 
 // paidView is a period of n shop days up to Monday 2026-10-05, with the paid
 // orders of the days at the given indexes, and the clock it is counted up to.
-func paidView(n int, at map[int]int64) ReportView {
+func paidView(n int, at map[int]int64) View {
 	days := make([]chart.Bucket, n)
 	for i := range days {
 		days[i].Day = time.Date(2026, 10, 5-(n-1)+i, 0, 0, 0, 0, time.UTC)
 		days[i].Value = at[i]
 	}
-	return ReportView{
+	return View{
 		Days: n, Windows: []int32{7, 30, 90}, Placed: 10, Committed: 10, Orders: 10,
 		From: shoptime.Date{Year: 2026, Month: time.September, Day: 29}, To: shoptime.Date{Year: 2026, Month: time.October, Day: 5},
 		Daily: DailyRevenue{Cut: "15:20"},
@@ -478,15 +478,15 @@ func paidView(n int, at map[int]int64) ReportView {
 	}
 }
 
-// TestReportView_PaidBelowThreeDays: paid orders are told in a sentence below
+// TestView_PaidBelowThreeDays: paid orders are told in a sentence below
 // three days.
-func TestReportView_PaidBelowThreeDays(t *testing.T) {
+func TestView_PaidBelowThreeDays(t *testing.T) {
 	t.Parallel()
 
 	latest := shoptime.Date{Year: 2026, Month: time.September, Day: 21}
 	for _, tc := range []struct {
 		name         string
-		view         ReportView
+		view         View
 		locale       i18n.Locale
 		wantSentence string
 	}{
@@ -519,15 +519,15 @@ func TestReportView_PaidBelowThreeDays(t *testing.T) {
 // spaced reads the no-break spaces of a short date as the plain spaces they look like.
 func spaced(s string) string { return strings.ReplaceAll(s, "\u00a0", " ") }
 
-func paidViewWithLatest(n int, at map[int]int64, latest *shoptime.Date) ReportView {
+func paidViewWithLatest(n int, at map[int]int64, latest *shoptime.Date) View {
 	v := paidView(n, at)
 	v.Paid.Latest = latest
 	return v
 }
 
-// TestReportView_PaidColumnsCaption: paid orders from three days are columns
+// TestView_PaidColumnsCaption: paid orders from three days are columns
 // captioned by their count.
-func TestReportView_PaidColumnsCaption(t *testing.T) {
+func TestView_PaidColumnsCaption(t *testing.T) {
 	t.Parallel()
 
 	v := paidView(30, map[int]int64{3: 2, 10: 1, 29: 4})
@@ -551,15 +551,15 @@ func TestReportView_PaidColumnsCaption(t *testing.T) {
 	}
 }
 
-// TestReportView_BusiestDayTies: the paid-orders sentence names the busiest day,
+// TestView_BusiestDayTies: the paid-orders sentence names the busiest day,
 // lists days that tie up to three and counts them beyond that.
-func TestReportView_BusiestDayTies(t *testing.T) {
+func TestView_BusiestDayTies(t *testing.T) {
 	t.Parallel()
 
 	zh, en := i18n.ZhHant, i18n.En
 	// 30 days up to 10/5: index 22 is 9/28. Seven of them have orders.
 	base := map[int]int64{20: 3, 21: 4, 22: 2, 23: 1, 24: 3, 25: 2, 29: 4}
-	with := func(extra map[int]int64) ReportView {
+	with := func(extra map[int]int64) View {
 		at := map[int]int64{}
 		for k, val := range base {
 			at[k] = val
@@ -575,7 +575,7 @@ func TestReportView_BusiestDayTies(t *testing.T) {
 	many := with(map[int]int64{22: 9, 24: 9, 25: 9, 20: 9})
 	for _, tc := range []struct {
 		name         string
-		v            ReportView
+		v            View
 		locale       i18n.Locale
 		wantSentence string
 	}{
@@ -592,9 +592,9 @@ func TestReportView_BusiestDayTies(t *testing.T) {
 	}
 }
 
-// TestReportView_PaidNinetyDays: paid orders of ninety days are told by the
+// TestView_PaidNinetyDays: paid orders of ninety days are told by the
 // seven days they are drawn in.
-func TestReportView_PaidNinetyDays(t *testing.T) {
+func TestView_PaidNinetyDays(t *testing.T) {
 	t.Parallel()
 
 	// 90 days up to 10/5 start on 7/8. The busiest 7 days start on 9/29.
@@ -637,7 +637,7 @@ func TestReportPaidOrdersUnread(t *testing.T) {
 func TestReportDepartmentsBars(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
 		Departments: []Department{
 			{Name: "Audio", SalesCents: 400000},
@@ -673,7 +673,7 @@ func TestReportOneDepartment(t *testing.T) {
 				name = "音響"
 			}
 			var b bytes.Buffer
-			view := ReportView{
+			view := View{
 				Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
 				Departments: []Department{{Name: name, SalesCents: 400000}},
 			}
@@ -694,7 +694,7 @@ func TestReportOneDepartment(t *testing.T) {
 func TestReportNoDepartments(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
 	}))
 	if strings.Contains(html, "各館商品銷售額") {

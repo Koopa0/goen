@@ -8,7 +8,7 @@ import (
 
 // A product with no returned units is not listed, so an empty list draws
 // nothing; only a failed read says anything in its place.
-templ returnedProducts(v *ReportView) {
+templ returnedProducts(v *View) {
 	if v.ReturnedErr != nil {
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepReturned) }</h2>
 		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepReturnedUnavailable) }</p>

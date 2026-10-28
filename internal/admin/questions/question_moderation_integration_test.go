@@ -35,11 +35,11 @@ func TestStore_ShowQuestionAdminRole(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := questions.NewStore(admintest.AdminRolePool(t, p))
-	visible, err := s.Questions(ctx, questions.VisibleQuestions)
+	visible, err := s.Questions(ctx, questions.QueueVisible, "")
 	if err != nil || len(visible.Rows) != 0 {
 		t.Fatalf("hidden question appears in visible queue: %+v, %v", visible.Rows, err)
 	}
-	hidden, err := s.Questions(ctx, questions.HiddenQuestions)
+	hidden, err := s.Questions(ctx, questions.QueueHidden, "")
 	if err != nil || len(hidden.Rows) != 1 || !hidden.Rows[0].Hidden || len(hidden.Rows[0].Answers) != 1 {
 		t.Fatalf("hidden queue = %+v, %v", hidden.Rows, err)
 	}
@@ -58,7 +58,7 @@ func TestStore_ShowQuestionAdminRole(t *testing.T) {
 	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/questions?ok=1" {
 		t.Fatalf("restore = %d, %s", res.Code, res.Body.String())
 	}
-	visible, err = s.Questions(ctx, questions.VisibleQuestions)
+	visible, err = s.Questions(ctx, questions.QueueVisible, "")
 	if err != nil || len(visible.Rows) != 1 || visible.Rows[0].Hidden || len(visible.Rows[0].Answers) != 1 {
 		t.Fatalf("restored queue = %+v, %v", visible.Rows, err)
 	}
@@ -138,7 +138,7 @@ func TestStore_HideAnswer(t *testing.T) {
 	if recordedActor != actor || recordedQuestion != question.String() {
 		t.Errorf("withdrawal audit = %s/%q, want %s/%q", recordedActor, recordedQuestion, actor, question.String())
 	}
-	view, err := s.Questions(ctx, questions.VisibleQuestions)
+	view, err := s.Questions(ctx, questions.QueueVisible, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestStore_QuestionsHiddenQueue(t *testing.T) {
 	seen := map[string]bool{}
 	after := ""
 	for page := range 2 {
-		view, err := s.Questions(ctx, questions.HiddenQuestions, after)
+		view, err := s.Questions(ctx, questions.QueueHidden, after)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -208,7 +208,7 @@ func TestStore_QuestionsHiddenQueue(t *testing.T) {
 			t.Fatalf("hidden next URL = %q, %v", view.Next, err)
 		}
 		after = next.Query().Get(keyset.Param)
-		visible, err := s.Questions(ctx, questions.VisibleQuestions, after)
+		visible, err := s.Questions(ctx, questions.QueueVisible, after)
 		if err != nil || len(visible.Rows) != 0 || visible.PastEnd {
 			t.Fatalf("hidden cursor escaped its queue: %+v, %v", visible, err)
 		}

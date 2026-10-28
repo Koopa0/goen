@@ -199,7 +199,7 @@ templ Campaigns(p frame.Page, v View) {
 	}
 }
 
-templ CampaignForm(p frame.Page, v CampaignView) {
+templ Campaign(p frame.Page, v CampaignView) {
 	@frame.Admin(p, "campaigns") {
 		<div class="ui-page-head">
 			<div>
@@ -488,7 +488,7 @@ templ CampaignForm(p frame.Page, v CampaignView) {
 	}
 }
 
-templ campaignProductDetails(p CampaignProduct) {
+templ campaignProductDetails(p Product) {
 	<div class="goen-admin__campaign-product">
 		if image := p.imageURL(); image != "" {
 			<img class="goen-admin__campaign-photo" src={ image } alt="" loading="lazy" width="40" height="40"/>

@@ -601,7 +601,7 @@ func TestStore_ReportAtStockLedger(t *testing.T) {
 	}
 }
 
-func indexOf(view *reports.ReportView, sku string) (int, bool) {
+func indexOf(view *reports.View, sku string) (int, bool) {
 	for i := range view.AtRisk {
 		if view.AtRisk[i].SKU == sku {
 			return i, true
@@ -610,7 +610,7 @@ func indexOf(view *reports.ReportView, sku string) (int, bool) {
 	return 0, false
 }
 
-func stockRow(view *reports.ReportView, sku string) (stockrisk.Row, bool) {
+func stockRow(view *reports.View, sku string) (stockrisk.Row, bool) {
 	i, ok := indexOf(view, sku)
 	if !ok {
 		return stockrisk.Row{}, false
@@ -1264,7 +1264,7 @@ func TestStore_ReportAtDepartments(t *testing.T) {
 		t.Fatalf("report: %v", err)
 	}
 
-	byName := func(v reports.ReportView) (map[string]int64, int64) {
+	byName := func(v reports.View) (map[string]int64, int64) {
 		got := map[string]int64{}
 		var sum int64
 		for _, d := range v.Departments {

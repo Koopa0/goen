@@ -75,9 +75,10 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /deals", func(w http.ResponseWriter, r *http.Request) {
+		now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
 		view := campaign.DealsView{Campaigns: campaign.Listed{Page: 1, Total: 2, PageSize: 12, Rows: []campaign.Summary{
-			{Slug: "autumn", Title: "Autumn audio", Products: 4, EndsOn: "31 Oct"},
-			{Slug: "desk", Title: "Desk week", Products: 6},
+			{Slug: "autumn", Title: "Autumn audio", Products: 4, End: campaign.NewEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now)},
+			{Slug: "desk", Title: "Desk week", Products: 6, End: campaign.NewEnd(time.Date(2026, 11, 20, 16, 0, 0, 0, time.UTC), now)},
 		}}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if renderErr := campaign.Deals(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {

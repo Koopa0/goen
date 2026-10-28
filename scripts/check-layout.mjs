@@ -20,6 +20,7 @@ import { checkColumnLabelReflow } from './column-label-reflow.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 import { checkAdminActionReflow } from './admin-action-reflow.mjs';
 import { checkSearchReflow } from './search-reflow.mjs';
+import { checkFooterReflow } from './footer-reflow.mjs';
 import { checkMenuFallback } from './menu-fallback.mjs';
 import { checkWarrantyReflow } from './warranty-reflow.mjs';
 import { checkWishlistFocus } from './wishlist-focus-check.mjs';
@@ -86,17 +87,18 @@ try {
 const reflowBaseline = reflowBaselineFile.routes || {};
 
 // What the two artboards fold into. The seeded six departments are 4:3
-// photographs, three to a line on a phone and six from 768; the
-// seeded campaign has four products and a wide first photograph, so its row is
-// the lead tile (a full row under 1024, then 2 + 1 beside it) and the campaign
-// card. Column counts are read off the rendered
+// photographs, three to a line on a phone and six from 768; the seeded campaign
+// has four products, and its row is the shared tile grid at any count: two to a
+// line on a phone, three at 768 with the fourth not drawn (the link carries
+// it), four from 1024. Column counts are read off the rendered
 // boxes — how many children share the top row — not off the CSS, so a rule that
-// stops applying is caught rather than a rule that stops existing.
+// stops applying is caught rather than a rule that stops existing. tileRows is
+// how many lines the drawn tiles stand on: at 768 the row is one.
 const EXPECTED = [
-  { label: '375 (artboard)', width: 375, height: 812, cats: 3, tiles: 1, hero: 'stacked' },
-  { label: '768 (md)', width: 768, height: 1024, cats: 6, tiles: 1, hero: 'stacked' },
-  { label: '1024 (lg)', width: 1024, height: 900, cats: 6, tiles: 3, hero: 'side-by-side' },
-  { label: '1440 (artboard)', width: 1440, height: 900, cats: 6, tiles: 3, hero: 'side-by-side' },
+  { label: '375 (artboard)', width: 375, height: 812, cats: 3, tiles: 2, tileRows: 2, hero: 'stacked' },
+  { label: '768 (md)', width: 768, height: 1024, cats: 6, tiles: 3, tileRows: 1, hero: 'stacked' },
+  { label: '1024 (lg)', width: 1024, height: 900, cats: 6, tiles: 4, tileRows: 1, hero: 'side-by-side' },
+  { label: '1440 (artboard)', width: 1440, height: 900, cats: 6, tiles: 4, tileRows: 1, hero: 'side-by-side' },
 ];
 
 // Every page that renders a document, at a phone width and at the artboard.
@@ -617,11 +619,15 @@ const ACCESSIBILITY = `
 const PROBE = `(() => {
   const de = document.documentElement;
   const cols = (sel) => {
-    const items = [...document.querySelectorAll(sel)];
+    const items = [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0);
     if (!items.length) return 0;
     const top = Math.min(...items.map((e) => e.getBoundingClientRect().top));
     return items.filter((e) => Math.abs(e.getBoundingClientRect().top - top) < 1).length;
   };
+  // How many lines the drawn items stand on; one that is not drawn stands on none.
+  const rows = (sel) => new Set([...document.querySelectorAll(sel)]
+    .filter((e) => e.getClientRects().length > 0)
+    .map((e) => Math.round(e.getBoundingClientRect().top))).size;
   // Only the right edge: the skip link is parked off-canvas at left:-9999px by
   // design and creates no scrollable area in LTR, so flagging it would bury the
   // real cause.
@@ -678,6 +684,7 @@ const PROBE = `(() => {
     heroSplit: Math.abs(body.y - media.y) < 2 ? 'side-by-side' : 'stacked',
     cats: cols('.goen-cats__grid > li'),
     tiles: cols('.goen-tiles__grid > li'),
+    tileRows: rows('.goen-tiles__grid > li'),
     header: edges('.goen-header__bar'),
     main: edges('.goen-home'),
     footer: edges('.goen-footer__grid'),
@@ -997,6 +1004,7 @@ for (const want of EXPECTED) {
   }
   if (got.cats !== want.cats) fail(at, `category grid has ${got.cats} columns, want ${want.cats}`);
   if (got.tiles !== want.tiles) fail(at, `product grid has ${got.tiles} columns, want ${want.tiles}`);
+  if (got.tileRows !== want.tileRows) fail(at, `product row stands on ${got.tileRows} lines, want ${want.tileRows}`);
   if (got.heroSplit !== want.hero) fail(at, `hero is ${got.heroSplit}, want ${want.hero}`);
   if (got.minTap < MIN_TAP) fail(at, `smallest tap target is ${got.minTap}px, want >= ${MIN_TAP}`);
 
@@ -1012,7 +1020,7 @@ for (const want of EXPECTED) {
 
   const mark = failures.length ? '' : ' ok';
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
-    `cats=${got.cats} tiles=${got.tiles} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
+    `cats=${got.cats} tiles=${got.tiles} rows=${got.tileRows} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
 }
 
 // The period track (WCAG 1.4.4, 1.4.10, 1.4.11). At 320px, at 200% text and in
@@ -1284,7 +1292,7 @@ const LISTING_PROBE = `(() => {
     || document.querySelector('.goen-filters')).getBoundingClientRect();
   const results = document.querySelector('.goen-listing__results').getBoundingClientRect();
   const cols = (sel) => {
-    const items = [...document.querySelectorAll(sel)];
+    const items = [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0);
     if (!items.length) return 0;
     const top = Math.min(...items.map((e) => e.getBoundingClientRect().top));
     return items.filter((e) => Math.abs(e.getBoundingClientRect().top - top) < 1).length;
@@ -2427,7 +2435,8 @@ const TRANSITION_RECORDER = `(() => {
         let clip = el && el.parentElement;
         while (clip && (getComputedStyle(clip).overflowX === 'visible' || parseFloat(getComputedStyle(clip).borderTopLeftRadius) === 0)) clip = clip.parentElement;
         const s = getComputedStyle(document.documentElement, '::view-transition-image-pair(' + n + ')');
-        return { name: n, overflowX: s.overflowX, overflowY: s.overflowY, radius: corners(s), landing: clip ? corners(getComputedStyle(clip)) : null };
+        const blend = getComputedStyle(document.documentElement, '::view-transition-new(' + n + ')').mixBlendMode;
+        return { name: n, overflowX: s.overflowX, overflowY: s.overflowY, radius: corners(s), landing: clip ? corners(getComputedStyle(clip)) : null, blend };
       });
       rec({
         ready: 'resolved',
@@ -2501,6 +2510,7 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
     else if (pair.overflowX !== 'clip' || pair.overflowY !== 'clip') fail(label, `::view-transition-image-pair(${name}) overflows ${pair.overflowX}/${pair.overflowY}, want clip`);
     else if (!pair.landing) fail(label, `${name} lands in no clipping, rounded ancestor to compare with`);
     else if (pair.radius.some((r) => parseFloat(r) === 0) || JSON.stringify(pair.radius) !== JSON.stringify(pair.landing)) fail(label, `::view-transition-image-pair(${name}) has corners ${pair.radius}, the photo lands on ${pair.landing}`);
+    if (pair && pair.blend !== 'normal') fail(label, `::view-transition-new(${name}) blends ${pair.blend}, want normal: the opaque old photo would be added to it`);
   }
   let persisted;
   await new Promise((r) => setTimeout(r, 400));
@@ -4780,6 +4790,20 @@ try {
   console.log('search reflow: both locales, 320px, 100%/200% text, scripting on/off passed');
 } catch (err) {
   fail('search reflow', err.message);
+}
+
+try {
+  await checkFooterReflow({
+    origin: ORIGIN,
+    send: (method, params) => send(ws, method, params),
+    evaluate: evalPage,
+    navigate: async (path) => {
+      if (!await settledFor('footer reflow', path, ORIGIN + path)) throw new Error('home did not load');
+    },
+  });
+  console.log('footer reflow: both locales, 1024px, 200% text passed');
+} catch (err) {
+  fail('footer reflow', err.message);
 }
 
 try {

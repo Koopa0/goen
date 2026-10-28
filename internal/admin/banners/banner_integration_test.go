@@ -16,7 +16,7 @@ func TestStore_BannerPromotion(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := banners.NewStore(pool)
 
-	if errs, err := s.CreateBanner(ctx, &banners.BannerForm{
+	if errs, err := s.CreateBanner(ctx, &banners.Form{
 		Message: "全站滿 NT$3,000 免運", Short: "滿 3,000 免運",
 		MessageEn: "Free delivery over NT$3,000", ShortEn: "Free over 3,000",
 		CTALabel: "看看", CTAHref: "/deals", CTALabelEn: "Shop", Days: 7,
@@ -24,7 +24,7 @@ func TestStore_BannerPromotion(t *testing.T) {
 		t.Fatalf("CreateBanner: %v %v", err, errs)
 	}
 
-	list, err := s.Banners(ctx)
+	list, err := s.Banners(ctx, "")
 	if err != nil {
 		t.Fatalf("Banners: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestStore_CreateBannerLocalLink(t *testing.T) {
 		"//evil.example/deals",
 		"javascript:alert(1)",
 	} {
-		errs, err := s.CreateBanner(ctx, &banners.BannerForm{
+		errs, err := s.CreateBanner(ctx, &banners.Form{
 			Message: "測試", CTALabel: "看看", CTAHref: href,
 		})
 		if err != nil {
@@ -99,7 +99,7 @@ func TestStore_CreateBannerLocalLink(t *testing.T) {
 		}
 	}
 
-	errs, err := s.CreateBanner(ctx, &banners.BannerForm{Message: "測試", CTALabel: "看看"})
+	errs, err := s.CreateBanner(ctx, &banners.Form{Message: "測試", CTALabel: "看看"})
 	if err != nil {
 		t.Fatalf("CreateBanner: %v", err)
 	}

@@ -12,7 +12,7 @@ import (
 // The figures are divisions rather than links because no screen lists the people
 // they count. Sending is the one decision here, so the only primary control;
 // saving a draft is reversible and takes an outline.
-templ Newsletter(p frame.Page, v NewsletterView) {
+templ Newsletter(p frame.Page, v View) {
 	@frame.Admin(p, "newsletters") {
 		<div class="ui-page-head">
 			<div>

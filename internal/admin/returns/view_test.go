@@ -68,7 +68,7 @@ func TestReturn_StatusIntentNotNeutral(t *testing.T) {
 	for _, status := range returns.Statuses {
 		row := &Return{Status: status}
 		if status == returns.StatusApproved {
-			row.Lines = []ReturnLine{{}}
+			row.Lines = []Line{{}}
 		}
 		if status == returns.StatusRejected {
 			continue
@@ -84,8 +84,8 @@ func TestReturn_StatusIntentNotNeutral(t *testing.T) {
 // From statusbadge_test.go, moved whole.
 func TestReturn_StatusIntentGroups(t *testing.T) {
 	t.Parallel()
-	inspected := []ReturnLine{{Inspected: true}}
-	waiting := []ReturnLine{{Inspected: false}}
+	inspected := []Line{{Inspected: true}}
+	waiting := []Line{{Inspected: false}}
 	for _, tt := range []struct {
 		name string
 		row  Return
@@ -114,8 +114,8 @@ func TestReturn_StatusIntentGroups(t *testing.T) {
 // From statusbadge_test.go, moved whole.
 func TestReturnsBadgesFollowGroup(t *testing.T) {
 	t.Parallel()
-	inspected := []ReturnLine{{Inspected: true}}
-	waiting := []ReturnLine{{}}
+	inspected := []Line{{Inspected: true}}
+	waiting := []Line{{}}
 	for _, locale := range []struct {
 		locale i18n.Locale
 		words  [8]string
@@ -170,7 +170,7 @@ func TestReturnsBeforeShipmentRow(t *testing.T) {
 	r := &Return{
 		ID: "return", OrderNumber: "GO-260929-000001", Status: "approved", Decided: true,
 		BeforeShipment: true, PayoutOutstanding: true, Window: "undelivered",
-		Lines: []ReturnLine{{OrderLineID: "line", Quantity: 1}},
+		Lines: []Line{{OrderLineID: "line", Quantity: 1}},
 	}
 	if r.AwaitingGoods() || r.CanComplete() {
 		t.Fatal("the returns queue offers to inspect or close goods that never shipped")
@@ -194,7 +194,7 @@ func TestReturnsBeforeShipmentRow(t *testing.T) {
 func TestReturnsRefusedInspectionCounts(t *testing.T) {
 	t.Parallel()
 	for _, raw := range []string{"", " +oops "} {
-		view := View{Rows: []Return{{ID: "r1", Status: "approved", Decided: true, Window: "within", Lines: []ReturnLine{{OrderLineID: "l1", Quantity: 2, Restockable: true, DraftReceived: raw, DraftRestocked: raw}}}}, Errors: map[string]string{"r1.inspect": "bad count"}}
+		view := View{Rows: []Return{{ID: "r1", Status: "approved", Decided: true, Window: "within", Lines: []Line{{OrderLineID: "l1", Quantity: 2, Restockable: true, DraftReceived: raw, DraftRestocked: raw}}}}, Errors: map[string]string{"r1.inspect": "bad count"}}
 		body := renderToString(t, Returns(frame.Page{}, view))
 		doc, err := nethtml.Parse(strings.NewReader(body))
 		if err != nil {
@@ -225,7 +225,7 @@ func TestReturnsRefusedInspectionCounts(t *testing.T) {
 func TestView_InspectionRefusalsOnce(t *testing.T) {
 	t.Parallel()
 	view := View{
-		Rows: []Return{{ID: "r1", Lines: []ReturnLine{
+		Rows: []Return{{ID: "r1", Lines: []Line{
 			{OrderLineID: "l1", Restockable: true}, {OrderLineID: "l2", Restockable: true},
 		}}},
 		Errors: map[string]string{"r1.inspect": "bad count"},
@@ -356,7 +356,7 @@ func TestReturnsExamplesOutsideInputs(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"return inspection", Returns(p, View{Rows: []Return{{ID: "request", Status: returns.StatusApproved, Window: returns.WindowStatutory, Decided: true, Lines: []ReturnLine{{OrderLineID: "line", Quantity: 1, DraftNote: typed}}}}, Errors: errors("request.inspect")}), map[string]string{"note-request-line": inspection}},
+					{"return inspection", Returns(p, View{Rows: []Return{{ID: "request", Status: returns.StatusApproved, Window: returns.WindowStatutory, Decided: true, Lines: []Line{{OrderLineID: "line", Quantity: 1, DraftNote: typed}}}}, Errors: errors("request.inspect")}), map[string]string{"note-request-line": inspection}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)

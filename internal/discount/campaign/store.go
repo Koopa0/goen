@@ -19,8 +19,9 @@ import (
 // ErrNotFound is a campaign that does not exist or is switched off.
 var ErrNotFound = errors.New("campaign: not found")
 
-// ListedPageSize is how many campaigns /deals lists on one page of its strip.
-const ListedPageSize = 6
+// ListedPageSize is how many campaigns /deals lists on one page of its strip:
+// twelve fills whole rows at two, three and four columns.
+const ListedPageSize = 12
 
 // Store reads the campaign page, /deals and whether /deals has anything to buy.
 type Store struct {
@@ -96,7 +97,7 @@ func (s *Store) Listed(ctx context.Context, page int) (Listed, error) {
 		c := &rows[i]
 		view.Rows = append(view.Rows, Summary{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
-			EndsOn: EndsOn(ctx, c.EndsAt, s.now()),
+			End: NewEnd(c.EndsAt, s.now()),
 		})
 	}
 	return view, nil

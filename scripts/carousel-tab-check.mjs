@@ -111,6 +111,8 @@ try {
     await waitFor(`document.querySelector('.goen-hero__nav')?.hidden === false`, `${label} enhancement`);
     await new Promise(resolve => setTimeout(resolve, 500));
     assert.deepEqual(await evaluate('pillRuns'), [], `${label}: the pill moves on load, before any input`);
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('.goen-hero__tabs a')].flatMap((tab, index) => tab.hasAttribute('aria-current') ? [index] : [])`), [0],
+      `${label}: the script marks the first tab, and only the first, as current on start`);
     await evaluate("document.body.style.minHeight = '3000px'; window.scrollTo({top: 64, behavior: 'instant'})");
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     const before = await evaluate(`(() => {

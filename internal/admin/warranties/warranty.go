@@ -40,11 +40,11 @@ type position struct {
 	At time.Time
 }
 
-func resume(scope string, after []string) (position, bool) {
+func resume(scope, after string) (position, bool) {
 	return keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 }
 
-func (s *Store) Warranties(ctx context.Context, term string, after ...string) (View, error) {
+func (s *Store) Warranties(ctx context.Context, term, after string) (View, error) {
 	// Uppercased: a serial is typed off a label and a shift key is not a failed lookup.
 	term = strings.ToUpper(strings.TrimSpace(term))
 	scope := keyset.ScopeURL("/admin/warranties", "q", term)
@@ -78,7 +78,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (V
 		if gone {
 			status = i18n.T(ctx, i18n.KeyStatusRefunded)
 		}
-		view.Rows = append(view.Rows, WarrantyRow{
+		view.Rows = append(view.Rows, Row{
 			Serial: r.SerialNumber, Product: r.ProductName, Label: r.VariantLabel,
 			Unit: int(r.UnitNo), Order: r.OrderNumber,
 			OrderStatus:   status,

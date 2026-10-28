@@ -13,16 +13,16 @@ import (
 )
 
 type View struct {
-	Lines         []Line
-	SubtotalCents int64
-	ItemCount     int64
-	MixedTaxTypes bool
-
-	ReorderAdded    int
-	ReorderSkipped  int
+	Lines           []Line
+	SubtotalCents   int64
+	ItemCount       int64
+	MixedTaxTypes   bool
 	ReorderAdjusted bool
-	Notice          string
-	ContinueURL     string
+
+	ReorderAdded   int
+	ReorderSkipped int
+	Notice         widget.Result
+	ContinueURL    string
 
 	FreeDelivery FreeDelivery
 	NoDelivery   bool
@@ -105,7 +105,7 @@ func (v View) HasSoldOut() bool {
 	return slices.ContainsFunc(v.Lines, func(l Line) bool { return l.Unavailable })
 }
 
-func (v View) HasNotice() bool { return v.Notice != "" }
+func (v View) HasNotice() bool { return v.Notice.Text != "" }
 
 // HoldNote is the line under the checkout button that says how long placing the order holds the stock.
 func (v View) HoldNote(ctx context.Context) string {
@@ -113,6 +113,15 @@ func (v View) HoldNote(ctx context.Context) string {
 }
 
 func (v View) FromReorder() bool { return v.ReorderAdded > 0 || v.ReorderSkipped > 0 }
+
+// ReorderOutcome is Refused when a reorder put nothing back, and Done otherwise: a partial
+// reorder did put something back, and its sentence says what was left out.
+func (v View) ReorderOutcome() widget.Outcome {
+	if v.ReorderAdded == 0 && v.ReorderSkipped > 0 && !v.ReorderAdjusted {
+		return widget.OutcomeRefused
+	}
+	return widget.OutcomeDone
+}
 
 func (v View) ReorderText(ctx context.Context) string {
 	switch {

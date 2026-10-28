@@ -423,7 +423,7 @@ func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) 
 		}
 		return true
 	}
-	view := ReturnConfirmation{ID: row.ID.String(), OrderNumber: row.OrderNumber, Decision: string(kind), Reason: row.Reason, AmountCents: row.RefundableCents, Resolution: resolution, AssessmentVersion: r.PostFormValue("assessment_version"), Required: required, Retry: retry}
+	view := Confirmation{ID: row.ID.String(), OrderNumber: row.OrderNumber, Decision: string(kind), Reason: row.Reason, AmountCents: row.RefundableCents, Resolution: resolution, AssessmentVersion: r.PostFormValue("assessment_version"), Required: required, Retry: retry}
 	respond.Component(w, r, h.log, http.StatusOK, ConfirmReturn(frame.Page{Title: view.Title(r.Context())}, view))
 	return true
 }

@@ -55,7 +55,7 @@ func TestStore_WarrantiesRefundedState(t *testing.T) {
 					wantText = i18n.T(ctx, i18n.KeyStatusRefunded)
 				}
 				for _, term := range []string{serial, number} {
-					found, err := store.Warranties(ctx, term)
+					found, err := store.Warranties(ctx, term, "")
 					if err != nil {
 						t.Fatal(err)
 					}

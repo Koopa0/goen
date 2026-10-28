@@ -568,8 +568,13 @@ func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompa
 // maxHighlights is how many specification values stand under the name.
 const maxHighlights = 3
 
-// Highlights are the first specification values, written one after another under the name.
+// Highlights are the first specification values, written one after another under the name, on a
+// product whose department compares, as its tile carries them. Elsewhere a specification is as often a
+// direction or a plain yes, which says nothing without its label.
 func (v *ProductView) Highlights() []string {
+	if !v.Comparable {
+		return nil
+	}
 	var out []string
 	for _, s := range v.Specs {
 		if s.Value != "" && len(out) < maxHighlights {

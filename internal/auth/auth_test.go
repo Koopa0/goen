@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/uitest"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
@@ -543,8 +544,8 @@ func TestNoticeEraseOpenReturn(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		r := httptest.NewRequestWithContext(ctx, http.MethodGet,
 			"/account?erase=return", http.NoBody)
-		if got, want := Notice(r), i18n.T(ctx, i18n.KeyEraseOpenReturn); got != want {
-			t.Errorf("%s open-return erasure notice = %q, want %q", locale, got, want)
+		if got, want := Notice(r), (widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(ctx, i18n.KeyEraseOpenReturn)}); got != want {
+			t.Errorf("%s open-return erasure notice = %+v, want %+v", locale, got, want)
 		}
 	}
 }
@@ -558,8 +559,8 @@ func TestNoticeEraseLastAdmin(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		r := httptest.NewRequestWithContext(ctx, http.MethodGet,
 			"/account?erase=admin", http.NoBody)
-		if got, want := Notice(r), i18n.T(ctx, i18n.KeyEraseLastAdmin); got != want {
-			t.Errorf("%s last-admin erasure notice = %q, want %q", locale, got, want)
+		if got, want := Notice(r), (widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(ctx, i18n.KeyEraseLastAdmin)}); got != want {
+			t.Errorf("%s last-admin erasure notice = %+v, want %+v", locale, got, want)
 		}
 	}
 }

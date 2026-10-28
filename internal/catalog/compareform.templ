@@ -15,7 +15,7 @@ templ compareForm(offered bool) {
 			{ children... }
 			<div class="goen-compare-pick__go">
 				@widget.Button(widget.ButtonProps{
-					ButtonStyle: widget.ButtonStyleOutline,
+					ButtonStyle: widget.ButtonStyleSecondary,
 					Size:        widget.SizeSmall,
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyCompareSelected) }

@@ -52,10 +52,8 @@ templ strip(campaigns []Summary) {
 					<a class="goen-campaigns__item" href={ templ.SafeURL(c.Href()) }>
 						<span class="goen-campaigns__title">{ c.Title }</span>
 						<span class="goen-campaigns__meta">
-							{ i18n.Count(ctx, i18n.KeyCampaignProducts, c.Products, c.ProductsText()) }
-							if c.EndsOn != "" {
-								· { fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignUntil), c.EndsOn) }
-							}
+							{ i18n.Count(ctx, i18n.KeyCampaignProducts, c.Products, c.ProductsText()) }&nbsp;<span aria-hidden="true">·</span>{ " " }
+							@Ends(c.End)
 						</span>
 					</a>
 				</li>

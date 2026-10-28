@@ -138,6 +138,13 @@ func (v ListingView) TotalText() string { return strconv.FormatInt(v.Total, 10) 
 // its notice and editorial are read.
 func (v ListingView) IsFront() bool { return !v.Filtered && v.Page <= 1 }
 
+// editorialMinProducts is the fewest products a department front needs for the comparison or the
+// colour story: with three or fewer, either repeats the grid below it.
+const editorialMinProducts = 4
+
+// HasEditorial is whether the department front has the products to carry an editorial slot.
+func (v ListingView) HasEditorial() bool { return v.IsFront() && v.Total >= editorialMinProducts }
+
 func (v ListingView) Empty() bool { return v.Total == 0 }
 
 func (v ListingView) Grid() []tile.Tile { return tile.FirstRowEager(v.Products) }

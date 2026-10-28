@@ -117,10 +117,10 @@ type View struct {
 	Rows   []Coupon
 	Notice widget.Result
 	Errors map[string]string
-	Draft  CouponDraft
+	Draft  Draft
 }
 
-type CouponDraft struct {
+type Draft struct {
 	Code        string
 	Description string
 	Kind        coupon.Kind
@@ -132,7 +132,7 @@ type CouponDraft struct {
 	Days        string
 }
 
-func (d CouponDraft) IsKind(k coupon.Kind) bool {
+func (d Draft) IsKind(k coupon.Kind) bool {
 	if d.Kind == "" {
 		return k == coupon.Amount
 	}

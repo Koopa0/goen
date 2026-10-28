@@ -98,7 +98,7 @@ type listPosition struct {
 	ID uuid.UUID
 }
 
-func (s *Store) List(ctx context.Context, after ...string) (View, error) {
+func (s *Store) List(ctx context.Context, after string) (View, error) {
 	scope := "/admin/products"
 	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminProducts(ctx, db.AdminProductsParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
@@ -112,7 +112,7 @@ func (s *Store) List(ctx context.Context, after ...string) (View, error) {
 	}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, Product{
+		view.Rows = append(view.Rows, Row{
 			Slug: r.Slug, Name: r.Name, Status: product.Status(r.Status),
 			StatusText: statusLabel(ctx, product.Status(r.Status)),
 			Brand:      r.Brand, Category: r.Category,
@@ -144,7 +144,7 @@ func (s *Store) Product(ctx context.Context, slug string) (ProductView, error) {
 	}
 	for i := range variants {
 		v := &variants[i]
-		view.Variants = append(view.Variants, ProductVariant{
+		view.Variants = append(view.Variants, Variant{
 			SKU: v.SKU, PriceCents: v.PriceCents,
 			CompareCents: v.CompareAtPriceCents.Int64,
 			Stock:        v.StockQuantity, SafetyStock: v.SafetyStock,

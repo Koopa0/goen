@@ -111,17 +111,17 @@ type queuePosition struct {
 	ID       uuid.UUID
 }
 
-func (s *Store) Queue(ctx context.Context, after ...string) (Queue, error) {
+func (s *Store) Queue(ctx context.Context, after string) (Queue, error) {
 	return s.queue(ctx, uuid.NullUUID{}, after)
 }
 
 // RequestQueue is the queue narrowed to one request: where a credit posting
 // that settled it leads.
-func (s *Store) RequestQueue(ctx context.Context, request uuid.UUID, after ...string) (Queue, error) {
+func (s *Store) RequestQueue(ctx context.Context, request uuid.UUID, after string) (Queue, error) {
 	return s.queue(ctx, uuid.NullUUID{UUID: request, Valid: true}, after)
 }
 
-func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after []string) (Queue, error) {
+func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after string) (Queue, error) {
 	scope := keyset.ScopeURL("/admin/returns", "request", request.UUID.String())
 	if !request.Valid {
 		scope = "/admin/returns"
@@ -143,10 +143,10 @@ func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after []string
 	if err != nil {
 		return Queue{}, fmt.Errorf("read return lines: %w", err)
 	}
-	byRequest := make(map[uuid.UUID][]ReturnLine, len(rows))
+	byRequest := make(map[uuid.UUID][]Line, len(rows))
 	for i := range lines {
 		l := &lines[i]
-		byRequest[l.ReturnRequestID] = append(byRequest[l.ReturnRequestID], ReturnLine{
+		byRequest[l.ReturnRequestID] = append(byRequest[l.ReturnRequestID], Line{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
 			OrderLineID: l.OrderLineID.String(),
@@ -206,7 +206,7 @@ func showPayout(row *Return, p *refund.Payout) {
 func overlayReturnAssessmentFacts(
 	ctx context.Context,
 	q *db.Queries,
-	byRequest map[uuid.UUID][]ReturnLine,
+	byRequest map[uuid.UUID][]Line,
 	assessmentIDs []uuid.UUID,
 ) error {
 	if len(assessmentIDs) == 0 {
@@ -236,7 +236,7 @@ func overlayReturnAssessmentFacts(
 func buildReturnQueue(
 	ctx context.Context,
 	rows []db.ReturnQueueRow,
-	byRequest map[uuid.UUID][]ReturnLine,
+	byRequest map[uuid.UUID][]Line,
 	assessmentByRequest map[uuid.UUID]db.ReturnEligibilityAssessment,
 ) Queue {
 	view := Queue{}

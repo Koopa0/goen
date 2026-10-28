@@ -32,7 +32,7 @@ func (s *Store) standing(ctx context.Context, id uuid.UUID, now time.Time, view 
 	// pages cannot disagree about which reviews are visible.
 	rating, ratingErr := s.q.ProductRating(ctx, id)
 	if ratingErr == nil {
-		view.Ratings = ProductRatings{
+		view.Ratings = Ratings{
 			Count: rating.RatingCount, Average: rating.Rating,
 			Stars: [5]int64{rating.Five, rating.Four, rating.Three, rating.Two, rating.One},
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"unicode/utf8"
 
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -45,35 +46,13 @@ type ProductRow struct {
 
 // RowCampaign is what a campaign's row says about the campaign.
 type RowCampaign struct {
-	Tone  tone.Tone
 	Items int64
-	// Facts stand under the heading when the row has no campaign card.
-	Facts []widget.Stat
-	// CardFacts are what is left and when it ends, for the campaign card.
-	CardFacts []widget.Stat
-	Period    *widget.PeriodSpec
+	End   campaign.End
 }
 
-// leadPhotoWidth is the narrowest first photograph that holds up at the lead
-// tile's size; a photograph of unknown width counts as narrower.
-const (
-	leadPhotoWidth = 1200
-	leadTiles      = 4
-)
-
-// Shelf is the tiles as drawn: under the hero, and with the lead marked.
+// Shelf is the tiles as drawn, under the hero.
 func (r ProductRow) Shelf() []tile.Tile {
-	tiles := tile.UnderLeadEager(r.Tiles)
-	if r.HasLead() {
-		tiles[0].Lead = true
-	}
-	return tiles
-}
-
-// HasLead reports whether the row puts its first product in a 2×2 tile on the
-// campaign's tone, with the campaign card as the eighth cell.
-func (r ProductRow) HasLead() bool {
-	return r.Campaign != nil && len(r.Tiles) >= leadTiles && r.Tiles[0].ImageWidth >= leadPhotoWidth
+	return tile.UnderLeadEager(r.Tiles)
 }
 
 type DepartmentBand struct {

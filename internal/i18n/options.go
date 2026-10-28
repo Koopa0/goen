@@ -86,7 +86,7 @@ var (
 	})
 
 	// PROPOSED WORDING, awaiting the shop's own: the field is optional and the
-	// value is a hex colour, which the placeholder shows.
+	// value is a hex colour, which the example under it shows.
 	KeyAdminProdValueSwatch = key("admin.prod.valueswatch", Message{
 		ZhHant: "色碼（選填）",
 		En:     "Colour (optional)",

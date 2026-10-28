@@ -124,7 +124,7 @@ func TestStore_CreditReversedCommits(t *testing.T) {
 	credits.NewHandler(store, slog.New(slog.DiscardHandler)).Routes(desk, admintest.BackOffice)
 	for _, locale := range i18n.Locales() {
 		readCtx := i18n.WithLocale(ctx, locale)
-		view, err := store.Credit(readCtx, uuid.NullUUID{UUID: customer, Valid: true})
+		view, err := store.Credit(readCtx, uuid.NullUUID{UUID: customer, Valid: true}, "")
 		if err != nil {
 			t.Fatal(err)
 		}

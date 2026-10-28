@@ -108,7 +108,7 @@ func TestListingCampaignNotice(t *testing.T) {
 	ends := time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC)
 	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: campaign.NewEnd(ends, now)}
 	with := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))
-	for _, want := range []string{`class="goen-deptnotice"`, `aria-label="活動"`, `href="/s/autumn"`, `<time datetime="2026-10-30">`} {
+	for _, want := range []string{`class="goen-deptnotice"`, `href="/s/autumn"`, `<time datetime="2026-10-30">`} {
 		if !strings.Contains(with, want) {
 			t.Errorf("notice omits %s", want)
 		}
@@ -169,7 +169,7 @@ func TestDepartmentNoticeEnd(t *testing.T) {
 			if day == nil || attrValue(day, "datetime") != tt.time {
 				t.Errorf("the notice's time element reads datetime %q, want %q", attrValue(day, "datetime"), tt.time)
 			}
-			left := findDescendant(link, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice__left") })
+			left := findDescendant(link, func(n *html.Node) bool { return hasClass(n, "goen-ends__left") })
 			if left == nil || nodeText(left) != tt.left+"\u00a0\u2192" {
 				t.Error("the notice does not set apart what is left, with the arrow kept to it")
 			}
@@ -185,11 +185,9 @@ func TestDepartmentNoticeEnd(t *testing.T) {
 	}
 }
 
-// TestListingNoticeLastRow holds that the campaign notice is the band's last
-// row.
-//
-// The notice is the band's last row, on the department's tone, not a strip under it.
-func TestListingNoticeLastRow(t *testing.T) {
+// TestListingNoticeUnderName holds that the campaign notice is a line of the
+// head's copy, under the department's name, not a third panel under the band.
+func TestListingNoticeUnderName(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Sage, Photo: widget.Photo{URL: "/d.webp"}}}
@@ -203,16 +201,30 @@ func TestListingNoticeLastRow(t *testing.T) {
 	if band == nil {
 		t.Fatal("the department head draws no band")
 	}
-	var last *html.Node
 	for c := band.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type == html.ElementNode {
-			last = c
+		if c.Type == html.ElementNode && hasClass(c, "goen-deptnotice") {
+			t.Error("the campaign notice is a row of the band, not a line of its copy")
 		}
 	}
-	if last == nil || !hasClass(last, "goen-deptnotice") {
-		t.Error("the campaign notice is not the band's last row")
+	body := findDescendant(band, func(n *html.Node) bool { return hasClass(n, "goen-band__body") })
+	if body == nil {
+		t.Fatal("the department head draws no copy")
 	}
-	if got := nodeText(last); !strings.Contains(got, notice.Title) {
+	line := findDescendant(body, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice") })
+	if line == nil {
+		t.Fatal("the campaign notice is not inside the head's copy")
+	}
+	var title *html.Node
+	for p := line.PrevSibling; p != nil; p = p.PrevSibling {
+		if p.Type == html.ElementNode {
+			title = p
+			break
+		}
+	}
+	if title == nil || title.Data != "h1" || !hasClass(title, "goen-pagehead__title") {
+		t.Error("the campaign notice does not follow the department's name")
+	}
+	if got := nodeText(line); !strings.Contains(got, notice.Title) {
 		t.Errorf("the notice does not name the campaign %q: %q", notice.Title, got)
 	}
 }
@@ -280,6 +292,30 @@ func TestListingView_IsFront(t *testing.T) {
 	} {
 		if got := tt.view.IsFront(); got != tt.want {
 			t.Errorf("%s: IsFront = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+// TestListingView_HasEditorial holds that a department front carries the
+// comparison or the colour story only with the products to fill a grid of its
+// own.
+func TestListingView_HasEditorial(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		view ListingView
+		want bool
+	}{
+		{"empty", ListingView{Page: 1}, false},
+		{"one product", ListingView{Page: 1, Total: 1}, false},
+		{"three products", ListingView{Page: 1, Total: 3}, false},
+		{"four products", ListingView{Page: 1, Total: 4}, true},
+		{"twenty products", ListingView{Page: 1, Total: 20}, true},
+		{"filtered", ListingView{Page: 1, Total: 20, Filtered: true}, false},
+		{"second page", ListingView{Page: 2, Total: 20}, false},
+	} {
+		if got := tt.view.HasEditorial(); got != tt.want {
+			t.Errorf("%s: HasEditorial = %v, want %v", tt.name, got, tt.want)
 		}
 	}
 }

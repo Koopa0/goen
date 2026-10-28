@@ -108,16 +108,10 @@ var (
 
 	KeySlideEnds = key("home.slide.ends", Message{ZhHant: "結束", En: "Ends"})
 
-	KeySlideDaysLeft = key("home.slide.days_left", Message{ZhHant: "剩餘", En: "Days left"})
-
 	// A fact's label already names what is counted, so English writes the bare figure and only zh-Hant adds a counter.
 	KeyFactUnitItems      = zhOnly("fact.unit.items", "件")
 	KeyFactUnitCategories = zhOnly("fact.unit.categories", "類")
 	KeyFactUnitDays       = zhOnly("fact.unit.days", "天")
-
-	KeyEndsTomorrow = key("home.slide.ends_tomorrow", Message{ZhHant: "明天結束", En: "Ends tomorrow"})
-
-	KeyEndsToday = key("home.slide.ends_today", Message{ZhHant: "今天結束", En: "Ends today"})
 
 	KeySlides = key("home.hero.slides", Message{ZhHant: "選擇焦點", En: "Choose a slide"})
 

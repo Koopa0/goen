@@ -56,7 +56,7 @@ func TestStore_OverviewOwnerScope(t *testing.T) {
 		t.Errorf("a nonexistent order gave status %d, want 404", missingRes.Code)
 	}
 
-	view, err := s.Overview(ctx, mine)
+	view, err := s.Overview(ctx, mine, "")
 	if err != nil {
 		t.Fatalf("overview: %v", err)
 	}

@@ -389,18 +389,40 @@ th {
   border-color: var(--accent-deep);
 }
 
-/* The secondary button, under either name: a blue tint and no outline. The
+/* Tonal: a step forward that is not the surface's own action, alone or once a row. The
    transparent border is what forced colours draws as its edge. */
-.goen-btn--secondary,
-.goen-btn--outline {
+.goen-btn--secondary {
   background: var(--accent-faint);
   border-color: transparent;
   color: var(--accent-deep);
 }
 
-.goen-btn--secondary:hover,
-.goen-btn--outline:hover {
+.goen-btn--secondary:hover {
   background: var(--accent-muted);
+}
+
+/* Outlined: the other way, the way back, or the submit of a single field. No hue: the
+   edge is the boundary every field draws, and the white ground keeps it on a tinted panel. */
+.goen-btn--outline {
+  background: var(--n-0);
+  border-color: var(--edge);
+  color: var(--fg);
+}
+
+.goen-btn--outline:hover {
+  background: var(--overlay);
+}
+
+/* Danger: removes what cannot be brought back. White with red words and a red edge that
+   holds 3:1 like the outlined edge; not a red slab. */
+.goen-btn--danger {
+  background: var(--n-0);
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.goen-btn--danger:hover {
+  background: var(--error-bg);
 }
 
 .goen-btn--ghost {
@@ -469,14 +491,14 @@ th {
    the section around it, which is what decides the level announced. */
 .goen-card {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   padding: 1.5rem;
 }
 
 .goen-notice {
   background: var(--elevated);
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: 12px;
   color: var(--fg-muted);
   font-size: var(--fs-14);
   margin: 0;
@@ -490,11 +512,11 @@ th {
 }
 
 /* A soft button on a blue notice would vanish into it: it takes the white ground. */
-.goen-notice--accent :is(.goen-btn--outline, .goen-btn--secondary):not(:disabled) {
+.goen-notice--accent .goen-btn--secondary:not(:disabled) {
   background: var(--n-0);
 }
 
-.goen-notice--accent :is(.goen-btn--outline, .goen-btn--secondary):not(:disabled):hover {
+.goen-notice--accent .goen-btn--secondary:not(:disabled):hover {
   background: var(--accent-muted);
 }
 
@@ -1056,7 +1078,7 @@ body:has(.goen-hero) .goen-header {
 .goen-dept__well {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   display: block;
   margin-bottom: 0.5rem;
   overflow: hidden;
@@ -1138,7 +1160,7 @@ body:has(.goen-hero) .goen-header {
   .goen-dept__photo {
     aspect-ratio: 4 / 3;
     background: var(--photo);
-    border-radius: var(--r-lg);
+    border-radius: 12px;
     display: block;
     object-fit: cover;
     width: 15rem;
@@ -1393,7 +1415,7 @@ body:has(.goen-hero) .goen-header {
 .goen-langmenu__panel {
   background: var(--n-0);
   border: 1px solid var(--n-200);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   box-shadow: var(--sh-lg);
   min-width: 11rem;
   padding: 4px;
@@ -1407,7 +1429,7 @@ body:has(.goen-hero) .goen-header {
   align-items: center;
   background: none;
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: 12px;
   color: var(--n-700);
   cursor: pointer;
   display: flex;
@@ -1691,11 +1713,14 @@ body:has(.goen-hero) .goen-header {
   font-weight: var(--fw-semibold);
 }
 
+/* The address is one unbreakable word; at 200% text in the five-column footer it
+   otherwise runs into the next column (WCAG 1.4.4). */
 .goen-footer__contact {
   color: var(--n-500);
   font-size: var(--fs-14);
   line-height: var(--lh-read);
   margin: 1rem 0 0;
+  overflow-wrap: anywhere;
 }
 
 .goen-footer__links {
@@ -1958,6 +1983,57 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
+/* A campaign's name takes its own line; the last day and the link share the
+   next, and wrap under each other when a long name or large text leaves no
+   room. */
+.goen-home__head:has(> .goen-home__ends) > .goen-home__heading {
+  flex: 1 0 100%;
+}
+
+.goen-home__ends {
+  color: var(--fg-muted);
+  flex: 1 1 auto;
+  font-size: var(--fs-15);
+  line-height: 1.5;
+  margin: 0.25rem 0 0;
+}
+
+/* The phrase a campaign's end is said in (campaign.Ends): the last day and its
+   dot are one unit that does not break, and the days left do not break inside
+   the number. Where the box is narrower than that, at large text on a phone, the
+   unit may wrap instead of widening the page. */
+.goen-ends__until {
+  position: relative; /* its screen-reader text is absolute; a scroller clips it only when it is positioned inside */
+  white-space: nowrap;
+}
+
+@container (width < 20rem) {
+  .goen-ends__until {
+    white-space: normal;
+  }
+}
+
+.goen-ends__dot {
+  margin-inline: 0.25em;
+}
+
+.goen-ends__left {
+  font-weight: var(--fw-medium);
+  word-break: keep-all;
+}
+
+.goen-home__ends .goen-ends__left {
+  color: var(--fg);
+}
+
+/* Standing alone the English phrase begins a sentence; inside the notice and the
+   offers row it follows words. */
+.goen-home__ends::first-letter,
+.goen-hero__ends::first-letter,
+.goen-pagehead__ends::first-letter {
+  text-transform: uppercase;
+}
+
 .goen-home__more {
   align-items: center;
   color: var(--accent-text);
@@ -2091,6 +2167,18 @@ body:has(.goen-hero) .goen-header {
 /* The slide's ink comes from its tone, so a statline and a period read on every
    ground, the dark one included. */
 .goen-hero__slide {
+  color: var(--tone-text);
+}
+
+.goen-hero__ends {
+  color: var(--tone-muted);
+  container-type: inline-size;
+  font-size: var(--fs-16);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.goen-hero__ends .goen-ends__left {
   color: var(--tone-text);
 }
 
@@ -2550,6 +2638,102 @@ body:has(.goen-hero) .goen-header {
   padding-block: 0 var(--s-8);
 }
 
+/* The buy box's facts and the shop's rules read as short sentences: the term,
+   then its value in the same line, the note on the next. base.css draws a stat
+   line as a label over a large figure; the back office loads base.css and keeps
+   that, so these rules are scoped here. */
+.goen-pdp__buy > .ui-statline,
+.goen-rules .ui-statline {
+  row-gap: 0.75rem;
+}
+
+.goen-pdp__buy > .ui-statline {
+  border-top: 1px solid var(--n-200);
+  display: grid;
+  padding-top: 1.25rem;
+}
+
+/* 1.5rem is the product grid's column gap, so from 1024px the four rules
+   stand on the four product columns above them. Four rules sit in one
+   column, two by two, or one row; never three and one. */
+.goen-rules .ui-statline {
+  display: grid;
+  gap: 1.25rem 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 40rem) {
+  .goen-rules .ui-statline:has(> :nth-child(4):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .goen-rules .ui-statline,
+  .goen-rules .ui-statline:has(> :nth-child(4):last-child) {
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+  }
+}
+
+.goen-pdp__buy > .ui-statline > div,
+.goen-rules .ui-statline > div {
+  display: block;
+  min-width: 0;
+}
+
+.goen-pdp__buy > .ui-statline :is(dt, dd),
+.goen-rules .ui-statline :is(dt, dd) {
+  display: inline;
+  font-size: var(--fs-14);
+  letter-spacing: 0;
+  line-height: 1.5;
+}
+
+.goen-pdp__buy > .ui-statline dt,
+.goen-rules .ui-statline dt {
+  color: var(--fg-muted);
+  margin-right: 0.5em;
+}
+
+.goen-pdp__buy > .ui-statline dd,
+.goen-rules .ui-statline dd {
+  color: var(--fg);
+  font-weight: var(--fw-medium);
+  margin: 0;
+}
+
+.goen-pdp__buy > .ui-statline dd small,
+.goen-rules .ui-statline dd small {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+.goen-pdp__buy > .ui-statline .ui-statline__pre,
+.goen-rules .ui-statline .ui-statline__pre {
+  margin-right: 0;
+}
+
+/* The note starts its own line inside the same inline run: a block inside the
+   inline dd would split it and push the page wider than a phone. */
+.goen-pdp__buy > .ui-statline .ui-statline__note,
+.goen-rules .ui-statline .ui-statline__note {
+  display: inline;
+  font-size: var(--fs-14);
+  font-weight: 400;
+  text-wrap: pretty;
+  word-break: normal;
+}
+
+.goen-pdp__buy > .ui-statline .ui-statline__note::before,
+.goen-rules .ui-statline .ui-statline__note::before {
+  content: "\A";
+  white-space: pre;
+}
+
 @media (min-width: 40rem) {
   .goen-hero__media {
     aspect-ratio: 16 / 9;
@@ -2896,9 +3080,15 @@ body:has(.goen-hero) .goen-header {
 .goen-tile__media {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   overflow: hidden;
   position: relative;
+}
+
+@media (min-width: 48rem) {
+  .goen-tile__media {
+    border-radius: 16px;
+  }
 }
 
 .goen-tile__img {
@@ -3018,44 +3208,29 @@ body:has(.goen-hero) .goen-header {
   text-decoration: line-through;
 }
 
-/* Outside the card, never inside: the whole card is one link, and a control
-   nested in an anchor is neither clickable nor valid. It is a bare checkbox on
-   the photograph's corner, shown while the card is hovered or focused and
-   whenever it is ticked; the label is only the 44px hit area around it. */
+/* Under the card, outside its link: a control nested in an anchor is neither
+   clickable nor valid. The word is the label, so the box is never unexplained. */
 .goen-tile__compare {
   align-items: center;
+  align-self: flex-start;
+  color: var(--fg-muted);
   cursor: pointer;
-  display: flex;
-  height: 44px;
-  justify-content: center;
-  opacity: 0;
-  position: absolute;
-  right: 0;
-  top: 0;
-  transition: opacity var(--dur-base) var(--ease-standard);
-  width: 44px;
-  z-index: 1;
+  display: inline-flex;
+  font-size: var(--fs-13);
+  gap: 8px;
+  min-height: 44px;
 }
 
-.goen-tile__cell:hover .goen-tile__compare,
-.goen-tile__cell:focus-within .goen-tile__compare,
 .goen-tile__compare:has(:checked) {
-  opacity: 1;
+  color: var(--fg);
 }
 
-@media (hover: none) {
-  .goen-tile__compare {
-    opacity: 0.7;
-  }
-
-  .goen-tile__compare:has(:checked) {
-    opacity: 1;
-  }
-}
-
-.goen-tile__compare .goen-check {
-  background: var(--n-0);
-  border-radius: var(--r-sm);
+/* .goen-check is also the 44px row of a labelled checkbox; here it is only the box,
+   in rem so it grows with the reader's text. */
+.goen-tile__compare input.goen-check {
+  height: 1rem;
+  min-height: 0;
+  width: 1rem;
 }
 
 /* The bare checkbox; a label that carries the same name (the back office's)
@@ -3091,6 +3266,28 @@ input.goen-check {
   font-size: var(--fs-14);
 }
 
+/* Ticked boxes can sit a screen above the grid's end, so the action follows the
+   reader while the grid is in view. Not where the window is too short for it
+   (large text, zoom), and not without :has(), where the bar would never leave. */
+@media (min-height: 32rem) {
+  @supports selector(:has(*)) {
+    .goen-compare-pick__go {
+      background: var(--bg);
+      border-top: 1px solid var(--line);
+      bottom: 0;
+      margin-inline: calc(-1 * var(--page-gutter));
+      padding: 12px var(--page-gutter) calc(12px + env(safe-area-inset-bottom));
+      position: sticky;
+      z-index: 5;
+    }
+
+    /* A box focused under the bar is scrolled clear of it (WCAG 2.4.11). */
+    html:has(.goen-compare-pick :checked) {
+      scroll-padding-block-end: 6rem;
+    }
+  }
+}
+
 @media (min-width: 768px) {
   .goen-tiles__grid {
     --tiles-gap-x: 1.5rem;
@@ -3104,95 +3301,11 @@ input.goen-check {
   }
 }
 
-/* ---------- Home product row ----------
-   A campaign with at least four products whose first photograph is wide enough:
-   the first product is a 2×2 tile on the campaign's tone, three more cards, and
-   the campaign card as the eighth cell. Under 1024px the lead takes a full row
-   and the card a full row after the cards. */
-
-.goen-home__facts {
-  margin: calc(var(--s-3) * -1) 0 var(--s-6);
-}
-
-.goen-tiles__grid--lead > .goen-tile__cell--lead,
-.goen-tiles__grid--lead > .goen-rowcard {
-  grid-column: 1 / -1;
-}
-
-.goen-tile__cell--lead .goen-tile__media {
-  aspect-ratio: 4 / 3;
-  background: var(--tone-ground);
-}
-
-.goen-tile__cell--lead .goen-tile__img {
-  background: var(--photo);
-  border-radius: var(--r-md);
-  height: calc(100% - 2 * var(--s-5));
-  inset: var(--s-5) auto auto var(--s-5);
-  padding: 0;
-  position: absolute;
-  width: calc(100% - 2 * var(--s-5));
-}
-
-.goen-tile__cell--lead .goen-tile__name,
-.goen-tile__cell--lead .goen-tile__price {
-  font-size: var(--fs-18);
-}
-
-.goen-rowcard {
-  background: var(--tone-ground);
-  border-radius: var(--r-lg);
-  color: var(--tone-text);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  min-width: 0;
-  padding: var(--s-4) var(--s-5);
-}
-
-.goen-rowcard .ui-statline dt,
-.goen-rowcard .ui-statline dd small,
-.goen-rowcard .ui-statline__note {
-  color: var(--tone-muted);
-}
-
-.goen-tiles__grid--lead[data-tone] .ui-period {
-  --period-fill: var(--tone-mark);
-}
-
-.goen-tiles__grid--lead[data-tone="ink"] .ui-period {
-  --period-track: var(--period-track-on-ink);
-}
-
-.goen-rowcard > .ui-period {
-  margin-top: var(--s-2);
-}
-
-.goen-rowcard .goen-home__more {
-  align-self: flex-start;
-  color: var(--tone-mark);
-  margin-top: auto;
-  white-space: normal;
-}
-
-@media (min-width: 64rem) {
-  .goen-tiles__grid--lead > .goen-tile__cell--lead {
-    grid-column: 1 / 3;
-    grid-row: 1 / 3;
-  }
-
-  .goen-tiles__grid--lead > .goen-rowcard {
-    grid-column: auto;
-  }
-
-  .goen-tile__cell--lead .goen-tile__media {
-    aspect-ratio: auto;
-    flex: 1;
-    min-height: 16rem;
-  }
-
-  .goen-tile__cell--lead .goen-tile__body {
-    flex: none;
+/* The home row is a sample of a longer list, drawn in whole rows: at three
+   columns the fourth product would stand alone, so the link carries it. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .goen-home__row > li:nth-child(n + 4) {
+    display: none;
   }
 }
 
@@ -3884,7 +3997,16 @@ input.goen-check {
 
 .goen-campaigns__meta {
   color: var(--fg-muted);
+  container-type: inline-size;
   font-size: var(--fs-12);
+}
+
+.goen-campaigns__meta > [aria-hidden] {
+  margin-inline: 0.25em;
+}
+
+.goen-campaigns__meta .goen-ends__left {
+  color: var(--fg);
 }
 
 /* The comparison table. It scrolls inside its own box so the PAGE never moves
@@ -3901,7 +4023,7 @@ input.goen-check {
 
 .goen-compare__scroll {
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   overflow-x: auto;
   position: relative;
 }
@@ -3940,7 +4062,7 @@ input.goen-check {
 }
 
 .goen-compare__image {
-  border-radius: var(--r-md);
+  border-radius: 8px;
   height: 96px;
   margin: 0;
   object-fit: cover;
@@ -3960,6 +4082,16 @@ input.goen-check {
   text-decoration: underline;
 }
 
+.goen-compare__head .goen-compare__name {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.goen-compare__head .goen-compare__name:hover {
+  text-decoration-thickness: 2px;
+}
+
 .goen-compare__brand {
   color: var(--fg-muted);
   font-size: var(--fs-12);
@@ -3976,20 +4108,24 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-/* A row only some products state is a footnote, not a comparison. It reads
-   quieter so the eye lands on the rows that can actually be compared. */
-.goen-compare__table .is-partial td,
-.goen-compare__table .is-partial th {
-  color: var(--fg-muted);
-}
-
-/* A row the products disagree on: a ground and the ink colour, and the row
-   label says so aloud. Shown by more than colour for a reader who cannot see
-   the ground. */
+/* A row the products disagree on: the words under its label are the cue, the
+   ground is only a band for the eye to follow along the row. */
 .goen-compare__table .is-differs td,
 .goen-compare__table .is-differs th {
   background: var(--n-50);
   color: var(--n-900);
+}
+
+.goen-compare__differs {
+  color: var(--fg-muted);
+  display: block;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-regular);
+  margin-top: 2px;
+}
+
+.goen-compare__none {
+  color: var(--fg-muted);
 }
 
 /* A fact line on a head laid on a tone's ground takes the tone's text colours. */
@@ -4008,13 +4144,8 @@ input.goen-check {
   color: var(--tone-muted);
 }
 
-/* The band's last row: one more panel on the tone, under the head's two and
-   the same seam apart. */
-.goen-band > .goen-deptnotice {
-  background: var(--tone-ground);
-  border-radius: var(--r-hero);
-  margin-top: var(--s-2);
-  padding: var(--s-5) var(--head-inset);
+.goen-deptnotice {
+  margin: 0;
 }
 
 /* The whole line is the link, read as words: the campaign's name and the arrow
@@ -4041,23 +4172,16 @@ input.goen-check {
   margin-inline-end: var(--s-2);
 }
 
-.goen-deptnotice__until {
+.goen-deptnotice .goen-ends__until {
   color: var(--tone-muted);
-  white-space: nowrap;
 }
 
-.goen-deptnotice__name > [aria-hidden="true"],
-.goen-deptnotice__until > [aria-hidden="true"] {
+.goen-deptnotice__name > [aria-hidden="true"] {
   color: var(--tone-muted);
   margin-inline: 0.25em;
 }
 
-.goen-deptnotice__left {
-  font-weight: var(--fw-medium);
-  word-break: keep-all;
-}
-
-.goen-deptnotice__left > [aria-hidden] {
+.goen-deptnotice .goen-ends__left > [aria-hidden] {
   color: var(--tone-mark);
 }
 
@@ -4147,7 +4271,7 @@ input.goen-check {
 .goen-story__well {
   aspect-ratio: 4 / 3;
   background: var(--well);
-  border-radius: var(--r-md);
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -4261,11 +4385,17 @@ input.goen-check {
 .goen-compare__suggestmedia {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   display: block;
   margin-bottom: 0.75rem;
   overflow: hidden;
   width: 100%;
+}
+
+@media (min-width: 48rem) {
+  .goen-compare__suggestmedia {
+    border-radius: 16px;
+  }
 }
 
 .goen-compare__suggestmedia img {
@@ -4435,7 +4565,7 @@ input.goen-check {
   .goen-filters__prices {
     background: var(--n-0);
     border: 1px solid var(--n-200);
-    border-radius: var(--r-lg);
+    border-radius: 16px;
     box-shadow: 0 16px 32px -16px rgb(0 0 0 / 0.2);
     left: 0;
     margin: 0;
@@ -4444,6 +4574,10 @@ input.goen-check {
     position: absolute;
     top: calc(100% + 0.75rem);
     z-index: 4;
+  }
+
+  .goen-filters__options .goen-filters__option {
+    border-radius: 4px;
   }
 
   .goen-filters__end .goen-filters__apply {
@@ -4569,7 +4703,7 @@ input.goen-check {
 .goen-pdp__thumbimg {
   aspect-ratio: 4 / 3;
   background: var(--photo);
-  border-radius: 2px;
+  border-radius: 8px;
   display: block;
   height: auto;
   object-fit: contain;
@@ -5477,6 +5611,18 @@ input.goen-check {
   gap: 0.5rem;
 }
 
+.goen-pdp__reviewstars {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.375rem;
+}
+
+.goen-pdp__reviewscore {
+  color: var(--n-500);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+
 .goen-pdp__reviewstars .goen-pdp__rate svg {
   height: 0.875rem;
   width: 0.875rem;
@@ -5517,7 +5663,7 @@ input.goen-check {
 /* The review form is the one panel on the page: --n-50 ground, no border. */
 .goen-pdp__reviewform {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   max-width: 40rem; /* content-box: the form inside is as wide as .goen-qa__form */
   padding: 1.5rem;
 }
@@ -5763,6 +5909,16 @@ input.goen-check {
   font-size: var(--fs-14);
 }
 
+/* A campaign's end in one phrase; the box is the container its day unit wraps
+   against. */
+.goen-pagehead__ends {
+  color: var(--fg-muted);
+  container-type: inline-size;
+  font-size: var(--fs-16);
+  line-height: 1.5;
+  margin: 0;
+}
+
 .goen-pagehead__sub,
 .goen-order__meta {
   color: var(--fg-muted);
@@ -5778,7 +5934,7 @@ input.goen-check {
    the background. */
 .goen-pay__window {
   background: var(--accent-faint);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   margin-top: var(--s-6);
   outline: 1px solid transparent;
   padding: 1.25rem 1.5rem;
@@ -5870,10 +6026,8 @@ input.goen-check {
 }
 
 .goen-promo,
-.goen-tiles__grid--lead[data-tone="ink"] > .goen-rowcard,
 .goen-campaign__band .goen-pagehead[data-tone="ink"],
 .goen-listing__head .goen-pagehead[data-tone="ink"] .goen-band__body,
-.goen-listing__head .goen-pagehead[data-tone="ink"] .goen-deptnotice,
 .goen-hero__slide[data-tone="ink"],
 .goen-band[data-tone="ink"] {
   --ring: var(--n-0);
@@ -5894,7 +6048,7 @@ input.goen-check {
 
 .goen-pagehead[data-tone] {
   background: var(--tone-ground);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   padding: 1.25rem 1rem;
 }
 
@@ -5957,8 +6111,13 @@ input.goen-check {
 }
 
 .goen-pagehead[data-tone] .goen-pagehead__sub,
-.goen-pagehead[data-tone] .goen-pagehead__eyebrow {
+.goen-pagehead[data-tone] .goen-pagehead__eyebrow,
+.goen-pagehead[data-tone] .goen-pagehead__ends {
   color: var(--tone-muted);
+}
+
+.goen-pagehead[data-tone] .goen-ends__left {
+  color: var(--tone-text);
 }
 
 .goen-cart__layout,
@@ -6009,7 +6168,7 @@ input.goen-check {
   align-self: start;
   aspect-ratio: 1 / 1;
   background: var(--photo);
-  border-radius: var(--r-md);
+  border-radius: 8px;
   display: block;
   overflow: hidden;
   width: 100%;
@@ -6039,7 +6198,7 @@ input.goen-check {
 
 .goen-cart__alert {
   background: var(--warn-bg);
-  border-radius: var(--r-md);
+  border-radius: 12px;
   color: var(--warn);
   font-size: var(--fs-14);
   margin: 0;
@@ -6427,7 +6586,7 @@ input.goen-check {
   align-items: flex-start;
   background: var(--n-0);
   border: 1px solid var(--n-300);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   box-sizing: border-box;
   color: inherit;
   container: ship / inline-size;
@@ -6556,7 +6715,7 @@ input.goen-check {
 .goen-pickup {
   background: var(--elevated);
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -7209,7 +7368,7 @@ input.goen-check {
 .goen-auth__demo {
   background: var(--accent-faint);
   border: 1px solid transparent;
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   color: var(--muted);
   display: flex;
   flex-direction: column;
@@ -7263,14 +7422,6 @@ input.goen-check {
 .goen-auth__demonote {
   line-height: 1.5;
   margin: 0;
-}
-
-.goen-auth__demo .goen-btn--outline {
-  background: var(--n-0);
-}
-
-.goen-auth__demo .goen-btn--outline:hover {
-  background: var(--accent-muted);
 }
 
 .goen-auth__media {
@@ -7470,7 +7621,7 @@ input.goen-check {
    of its own. */
 .goen-account__credit {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
@@ -7676,20 +7827,6 @@ input.goen-check {
   margin-bottom: 0.5rem;
 }
 
-/* The storefront's one destructive control: white, error text, the error
-   outline. It is not the action its section is about, and it is not pressed by
-   accident. */
-.goen-account__erase {
-  background: var(--n-0);
-  border-color: var(--error-outline);
-  color: var(--error);
-}
-
-.goen-account__erase:hover {
-  background: var(--error-bg);
-  color: var(--error);
-}
-
 /* A native checkbox, sized up to the row it sits in rather than replaced by a
    box drawn in CSS: the native control is the one a screen reader and a
    keyboard already know. */
@@ -7723,7 +7860,7 @@ input.goen-check {
 
 .goen-points__figure {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -8186,7 +8323,7 @@ input.goen-check {
 .about__art {
   aspect-ratio: 16 / 9;
   background: var(--tone-ground);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   display: block;
   height: auto;
   width: 100%;
@@ -8544,7 +8681,7 @@ input.goen-check {
    would show as a second beige beside the head wherever the photograph is
    missing. */
 .goen-campaign__band {
-  border-radius: var(--r-lg);
+  border-radius: var(--r-hero);
   display: grid;
   gap: 0;
   overflow: hidden;
@@ -8574,7 +8711,8 @@ input.goen-check {
   text-wrap: balance;
 }
 
-.goen-campaign__band .ui-statline {
+.goen-campaign__band .ui-statline,
+.goen-campaign__band .goen-pagehead__ends {
   margin-top: 1rem;
 }
 
@@ -8955,7 +9093,6 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
 ::view-transition-old(*.photo),
 ::view-transition-new(*.photo) {
   block-size: 100%;
-  mix-blend-mode: normal;
   object-fit: cover;
 }
 
@@ -8981,8 +9118,20 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
   animation: goen-photo-out var(--dur-base) var(--ease-standard) both;
 }
 
+/* The browser's own fade also sets the new snapshot to plus-lighter, by an
+   animation that outranks any declaration; over the old photo, held opaque,
+   that adds the two and washes the photo out. These keyframes change the
+   opacity and nothing else. */
+::view-transition-new(*.photo) {
+  animation: goen-fade-in var(--dur-slow) var(--ease-standard) both;
+}
+
 @keyframes goen-photo-out {
   to { opacity: 0; }
+}
+
+@keyframes goen-fade-in {
+  from { opacity: 0; }
 }
 
 /* The global reduce block at the top of this file matches elements, and these
@@ -9169,13 +9318,24 @@ form[data-request-pending] [aria-disabled="true"] {
 .goen-compare__picker {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
+  max-width: 36rem;
 }
 
-.goen-compare__picker .ui-input {
+.goen-compare__pickerlabel {
+  color: var(--fg);
+  flex-basis: 100%;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+}
+
+.goen-compare__picker .goen-input {
+  appearance: none;
   flex: 1;
   min-width: 0;
+  width: auto;
 }
 
 .goen-compare__chosen {
@@ -9253,11 +9413,10 @@ form[data-request-pending] [aria-disabled="true"] {
     outline: 1px solid CanvasText;
   }
 
-  /* The tone is dropped, so each of the head's panels keeps an edge of its own;
-     the photograph's panel clips the outline of its picture. */
+  /* The tone is dropped, so each of the head's two panels keeps an edge of its
+     own; the photograph's panel clips the outline of its picture. */
   .goen-pagehead .goen-band__media,
-  .goen-pagehead .goen-band__body,
-  .goen-pagehead .goen-band > .goen-deptnotice {
+  .goen-pagehead .goen-band__body {
     outline: 1px solid CanvasText;
     outline-offset: -1px;
   }

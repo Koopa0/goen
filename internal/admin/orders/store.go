@@ -63,7 +63,7 @@ func NewStore(pool *pgxpool.Pool, refunds Refunds, invoiceReader InvoiceReader, 
 }
 
 // orderRows reads which of the orders are returned in one query, so a page of the queue costs no more than one.
-func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]OrderRow, error) {
+func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]Row, error) {
 	ids := make([]uuid.UUID, len(rows))
 	for i := range rows {
 		ids[i] = rows[i].ID
@@ -72,7 +72,7 @@ func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]Orde
 	if err != nil {
 		return nil, fmt.Errorf("read returned orders: %w", err)
 	}
-	out := make([]OrderRow, len(rows))
+	out := make([]Row, len(rows))
 	for i := range rows {
 		out[i] = orderRow(ctx, &rows[i], slices.Contains(returned, rows[i].ID))
 	}
@@ -82,10 +82,10 @@ func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]Orde
 // orderRow is one order as the queue renders it; admin/dashboard's landing page
 // reads the same word, colour and total for its newest orders. The total is
 // read from order_totals, as on every page that states one.
-func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) OrderRow {
+func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) Row {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	text, intent := orderstatus.Badge(ctx, fulfillment, o.Committed, o.OwedCents, returned)
-	return OrderRow{
+	return Row{
 		Number:       o.OrderNumber,
 		Status:       fulfillment,
 		StatusText:   text,
@@ -103,7 +103,7 @@ type listPosition struct {
 	ID uuid.UUID
 }
 
-func (s *Store) List(ctx context.Context, status QueueFilter, term string, after ...string) (View, error) {
+func (s *Store) List(ctx context.Context, status QueueFilter, term, after string) (View, error) {
 	term = strings.TrimSpace(term)
 	scope := keyset.ScopeURL("/admin/orders", "q", term, "status", string(status))
 	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })

@@ -10,16 +10,16 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestProductFormRefusedNoBrand: a refused product form keeps the no-brand
+// TestProductRefusedNoBrand: a refused product form keeps the no-brand
 // choice.
-func TestProductFormRefusedNoBrand(t *testing.T) {
+func TestProductRefusedNoBrand(t *testing.T) {
 	for _, tc := range []struct {
 		locale i18n.Locale
 		label  string
 	}{{locale: i18n.ZhHant, label: "無品牌"}, {locale: i18n.En, label: "No brand"}} {
 		ctx := i18n.WithLocale(t.Context(), tc.locale)
 		view := ProductView{Slug: "generic", Name: "Generic", Brands: []Choice{{Value: "maker-id", Label: "Maker"}}, Errors: map[string]string{"name": "refused"}}
-		body := renderComponent(t, ctx, ProductForm(frame.Page{Title: "Product"}, view))
+		body := renderComponent(t, ctx, Product(frame.Page{Title: "Product"}, view))
 		doc, err := html.Parse(strings.NewReader(body))
 		if err != nil {
 			t.Fatal(err)

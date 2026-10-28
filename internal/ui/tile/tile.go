@@ -7,12 +7,9 @@
 package tile
 
 import (
-	"context"
-	"fmt"
 	"slices"
 	"strconv"
 
-	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 )
 
@@ -46,26 +43,17 @@ type Tile struct {
 	// Set only where somebody is choosing between candidates (listing, search); not a
 	// shop window, a promotional list or a wishlist.
 	Comparable bool
-	// Lead marks the 2×2 tile of the home row, whose photograph is larger than a card's.
-	Lead bool
 	// Highlights are the first specifications a comparable product lists, for the line under its name.
 	Highlights []string
 }
 
 // Sizes is the width the photograph is laid out at, for the browser's choice of file.
 func (t *Tile) Sizes() string {
-	if t.Lead {
-		return "(min-width: 1344px) 596px, (min-width: 1024px) calc(50vw - 44px), calc(100vw - 48px)"
-	}
 	return "(min-width: 1344px) 286px, (min-width: 1024px) calc((100vw - 136px) / 4), (min-width: 768px) calc((100vw - 96px) / 3), calc((100vw - 48px) / 2)"
 }
 
 func AnyComparable(tiles []Tile) bool {
 	return slices.ContainsFunc(tiles, func(t Tile) bool { return t.Comparable })
-}
-
-func (t *Tile) CompareLabel(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), t.Name)
 }
 
 func (t *Tile) SoldOut() bool { return !t.InStock }
