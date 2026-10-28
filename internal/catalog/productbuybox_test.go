@@ -12,7 +12,7 @@ import (
 // testRules' windows are not the shop's: a page that printed a number of its own instead of the field's would show.
 var testRules = policy.Rules{
 	FreeDeliveryCents: 300000, LowestFeeCents: 6000, PickupOffered: true,
-	RescissionDays: 8, ReturnDays: 15, HoldMinutes: 61, PayStartMinutes: 28,
+	RescissionDays: 8, ReturnDays: 15, PayStartMinutes: 28,
 }
 
 func capacityOption(sold bool, selected string) ProductOption {
@@ -49,7 +49,7 @@ func TestProductBuyBoxNoStockHold(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		hold := "<dt>" + i18n.T(ctx, i18n.KeyRuleHold) + "</dt>"
+		hold := "<dt>" + i18n.T(ctx, i18n.KeyRulePayStart) + "</dt>"
 		selling := ProductView{Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, VariantID: "v"}
 		if !strings.Contains(buyBox(t, locale, &selling), hold) {
 			t.Errorf("%s: a product in stock states no stock hold", locale)
@@ -145,11 +145,11 @@ func TestProductView_BuyFacts(t *testing.T) {
 		labels []string
 	}{
 		{"all four", ProductView{WarrantyMonths: 24, Rules: testRules, Sellable: true, AnySellable: true, SelectionOK: true},
-			[]string{"保固", "猶豫期", "庫存保留", "免運門檻"}},
+			[]string{"保固", "猶豫期", "付款時限", "免運門檻"}},
 		{"no warranty", ProductView{Rules: testRules, Sellable: true, AnySellable: true, SelectionOK: true},
-			[]string{"猶豫期", "庫存保留", "免運門檻"}},
+			[]string{"猶豫期", "付款時限", "免運門檻"}},
 		{"no free delivery", ProductView{WarrantyMonths: 12, Sellable: true, AnySellable: true, SelectionOK: true},
-			[]string{"保固", "猶豫期", "庫存保留"}},
+			[]string{"保固", "猶豫期", "付款時限"}},
 	} {
 		parts := strings.Split(renderIn(t, i18n.ZhHant, widget.StatLine(tc.view.BuyFacts(ctx), widget.StatLinePairs)), "<dt>")[1:]
 		got := make([]string, 0, len(parts))

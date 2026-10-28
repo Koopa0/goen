@@ -268,8 +268,8 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (View, error) {
 	}
 
 	view := View{
-		Lines:       make([]Line, 0, len(rows)),
-		HoldMinutes: int64(payment.HoldTTL / time.Minute), PayStartMinutes: int64(payment.PayWindow / time.Minute),
+		Lines:           make([]Line, 0, len(rows)),
+		PayStartMinutes: int64(payment.PayWindow / time.Minute),
 	}
 	for i := range rows {
 		r := &rows[i]
