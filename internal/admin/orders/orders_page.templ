@@ -119,7 +119,7 @@ templ queueTable(v View) {
 // of the others started. Nothing is drawn for a batch that was not refused.
 templ batchRefusal(b BatchResult) {
 	if len(b.Refused) > 0 {
-		@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
+		@widget.NoticeBlock(widget.NoticeProps{Intent: widget.IntentWarn}) {
 			<strong class="goen-notice__lead">{ i18n.T(ctx, i18n.KeyAdminBatchRefused) }</strong>
 			<ul class="goen-admin__refusals">
 				for _, r := range b.Refused {
