@@ -5281,15 +5281,29 @@ input.goen-check {
   margin: -0.75rem 0 0 0px;
 }
 
+/* The buttons keep side padding so a forced-colours border clears the text;
+   the first one's padding hangs outside the column so its text still lines up. */
+.goen-pdp__links {
+  margin-left: -0.75rem;
+}
+
 /* With the specs, not pulled up into the buy column's rhythm. */
 .goen-pdp__similar {
   margin: 0.5rem 0 0 0px;
 }
 
-.goen-pdp__links .goen-btn,
-.goen-pdp__similar .goen-btn {
+.goen-pdp__links .goen-btn {
   color: var(--n-700);
-  padding: 0 0px;
+  padding: 0 0.75rem;
+}
+
+.goen-pdp__compare {
+  align-items: center;
+  display: inline-flex;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  gap: 0.25rem;
+  min-height: 2.75rem;
 }
 
 .goen-pdp__wish {

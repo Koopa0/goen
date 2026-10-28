@@ -550,17 +550,9 @@ templ productCompare(v *ProductView) {
 	if v.Comparable {
 		<div class="goen-pdp__similar">
 			if !v.AlreadyComparing() && !v.ComparingFull() {
-				@widget.ButtonLink(widget.ButtonProps{
-					ButtonStyle: widget.ButtonStyleGhost, Class: "goen-pdp__compare",
-				}, templ.SafeURL(v.CompareHref())) {
-					{ i18n.T(ctx, i18n.KeyCompareSimilar) }
-				}
+				@productCompareLink(v.CompareHref(), i18n.T(ctx, i18n.KeyCompareSimilar))
 			} else if v.AlreadyComparing() {
-				@widget.ButtonLink(widget.ButtonProps{
-					ButtonStyle: widget.ButtonStyleGhost, Class: "goen-pdp__compare",
-				}, templ.SafeURL(v.CompareHref())) {
-					{ i18n.T(ctx, i18n.KeyViewCompare) }
-				}
+				@productCompareLink(v.CompareHref(), i18n.T(ctx, i18n.KeyViewCompare))
 			} else {
 				<p class="goen-pdp__hint">
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }
@@ -569,6 +561,11 @@ templ productCompare(v *ProductView) {
 			}
 		</div>
 	}
+}
+
+// The same blue link and arrow the department page uses for its comparison.
+templ productCompareLink(href, label string) {
+	<a class="goen-pdp__compare" href={ templ.SafeURL(href) }>{ label } <span aria-hidden="true">&rarr;</span></a>
 }
 
 templ productNotifyForm(v *ProductView) {
