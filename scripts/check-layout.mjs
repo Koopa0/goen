@@ -19,6 +19,7 @@ import { checkRunningTotalReflow } from './running-total-reflow.mjs';
 import { checkColumnLabelReflow } from './column-label-reflow.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 import { checkAdminActionReflow } from './admin-action-reflow.mjs';
+import { checkAdminNavReflow } from './admin-nav-reflow.mjs';
 import { checkSearchReflow } from './search-reflow.mjs';
 import { checkFooterReflow } from './footer-reflow.mjs';
 import { checkMenuFallback } from './menu-fallback.mjs';
@@ -4799,6 +4800,17 @@ await checkAdminActionReflow({
   },
   navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'admin action reflow', url); },
   fail, origin: ORIGIN, adminToken: process.env.ADMIN_TOKEN, placedOrder: process.env.PLACED_ORDER,
+});
+
+await checkAdminNavReflow({
+  send: (method, params) => send(ws, method, params),
+  evaluate: async (expression, awaitPromise = false) => {
+    const { result, exceptionDetails } = await send(ws, 'Runtime.evaluate', { expression, awaitPromise, returnByValue: true });
+    if (exceptionDetails) throw new Error(JSON.stringify(exceptionDetails));
+    return result.value;
+  },
+  navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'admin nav reflow', url); },
+  fail, origin: ORIGIN, adminToken: process.env.ADMIN_TOKEN,
 });
 
 try {
