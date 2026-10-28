@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 // At 1024px the footer has five columns. At 200% text the contact address, one
-// unbreakable word, used to run out of its column into the department links
+// unbreakable word, can run out of its column into the department links
 // beside it. The shared reflow probe misses that: nothing is clipped and the
 // page does not scroll, so the text rectangles themselves are compared.
 export async function checkFooterReflow({ origin, send, evaluate, navigate }) {

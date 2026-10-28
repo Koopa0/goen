@@ -27,18 +27,18 @@ import (
 )
 
 type Handler struct {
-	// sessions closes a cancelled order's checkout at the payment provider. Nil
+	// payments closes a cancelled order's checkout at the payment provider. Nil
 	// or disabled on a deployment with no Stripe key, where no session was ever opened.
-	sessions *payment.Gateway
+	payments *payment.Gateway
 	store    *Store
 	log      *slog.Logger
 }
 
-func NewHandler(store *Store, sessions *payment.Gateway, log *slog.Logger) *Handler {
+func NewHandler(store *Store, payments *payment.Gateway, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("orders: NewHandler requires a store and a logger")
 	}
-	return &Handler{store: store, sessions: sessions, log: log}
+	return &Handler{store: store, payments: payments, log: log}
 }
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
@@ -100,7 +100,7 @@ func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 	sessions, err := h.store.Advance(r.Context(), number, order.FulfillmentStatus(r.PostFormValue("status")), audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
-		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
+		payment.CloseSessions(r.Context(), h.payments, h.log, number, sessions)
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case errors.Is(err, ErrPaidCancel), db.IsConstraint(err, "orders_paid_cancel_needs_refund"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber

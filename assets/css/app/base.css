@@ -17,7 +17,6 @@
      repeating it, so the accent moves in one place. */
   --brand: var(--accent);
   --brand-muted: var(--accent-muted);
-  --brand-faint: var(--accent-faint);
 
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -31,7 +30,6 @@
   --fs-18: 1.125rem;
   --fs-ed-20: 1.250rem;
 
-  --lh-snug: 1.35;
   --lh-normal: 1.5;
   --lh-read: 1.75;
 
@@ -47,14 +45,10 @@
   --z-dropdown: 60;
   --z-toast: 200;
 
-  /* A radius that is always a circle, whatever --radius is. */
+  /* A radius that is always a circle, whatever the corners are. */
   --r-full: 999px;
 
-  --container: 1280px;
-
   --icon-s: 1rem;
-  --icon-m: 1.25rem;
-  --icon-l: 1.5rem;
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --dur-base: 120ms;
@@ -337,13 +331,10 @@ body {
      that is not this exact value draws a visible edge around the picture. */
   --well: #f9f9f9;
   --photo: var(--well);
-  --photo-ground: var(--photo);
   --wash: #f5f5f4;
   --n-100: #f4f4f5;
   --n-200: #e7e7e9;
   --n-300: #d4d4d8;
-  /* Icons and placeholders. Below 3:1 on white as text, so never body copy. */
-  --n-400: #a1a1aa;
   /* The lightest a text colour may be: 5.4:1 on white, 5.1:1 on --n-50. */
   --n-500: #66666d;
   --n-700: #3f3f46;
@@ -381,7 +372,6 @@ body {
   --accent-text-hover: var(--accent-deep);
   --accent-faint: #eef1f7;
   --accent-muted: #e2e8f2;
-  --accent-strong: var(--accent-text);
   --on-accent: #ffffff;
   /* The blue on the ink tone, where --accent is 2.5:1. */
   --on-ink-accent: #a9c0ea;
@@ -409,7 +399,6 @@ body {
   --error-bg: #fef2f2;
   --error-bg-hover: #f7dddd;
   --success: #15803d;
-  --success-bg: #f0fdf4;
   --warn: #92400e;
   --warn-bg: #fffbeb;
   --error-tint: #fee2e2;
@@ -437,10 +426,8 @@ body {
   --t-14: 0.875rem;
   --t-15: 0.9375rem;
   --t-16: 1rem;
-  --t-18: 1.125rem;
   --t-20: 1.25rem;
   --t-24: 1.5rem;
-  --t-28: clamp(1.5rem, 1.2rem + 0.9vw, 1.75rem);
   --t-32: clamp(1.625rem, 1.2rem + 1.2vw, 2rem);
   --t-44: clamp(2rem, 1.3rem + 2.2vw, 2.75rem);
 
@@ -452,8 +439,6 @@ body {
   --s-6: 32px;
   --s-7: 48px;
   --s-8: 64px;
-  --s-9: 96px;
-  --s-10: 128px;
 
   --fs-15: 0.9375rem;
   --fs-ed-24: 1.5rem;
@@ -463,8 +448,6 @@ body {
   --r-sm: 0.25rem;
   --r-md: 0.375rem;
   --r-lg: 0.5rem;
-  --r-xl: 0.5rem;
-  --radius: var(--r-lg);
 
   /* A button carries the first; menus and popovers the second; drawers and
      dialogs the third. Nothing else casts a shadow. */
@@ -472,7 +455,6 @@ body {
   --sh-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --sh-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   --shadow-1: var(--sh-xs);
-  --shadow-2: var(--sh-lg);
 
   /* The hairline a swatch needs so a near-white colour is still a disc on a
      white ground. */
