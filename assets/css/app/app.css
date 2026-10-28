@@ -5498,6 +5498,18 @@ input.goen-check {
   gap: 0.5rem;
 }
 
+.goen-pdp__reviewstars {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.375rem;
+}
+
+.goen-pdp__reviewscore {
+  color: var(--n-500);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+
 .goen-pdp__reviewstars .goen-pdp__rate svg {
   height: 0.875rem;
   width: 0.875rem;
