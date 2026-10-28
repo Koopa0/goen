@@ -71,6 +71,7 @@ func NewGateway(merchantID, hashKey, hashIV, baseURL string) (*Gateway, error) {
 	}, nil
 }
 
+// Enabled reports whether the gateway has credentials. A nil Gateway is disabled.
 func (g *Gateway) Enabled() bool { return g != nil && g.merchantID != "" }
 
 // envelope is ECPay's outer request: everything meaningful is inside the

@@ -154,7 +154,7 @@ func TestHandler_PlaceOrderGrantFailure(t *testing.T) {
 				}
 			})
 
-			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 			orders := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 			assertFirstOrderReachable := func(cookie *http.Cookie, when string) {
 				t.Helper()

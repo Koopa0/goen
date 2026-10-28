@@ -76,7 +76,7 @@ func checkoutPost(
 }
 
 func couponTestHandler(s *checkout.Store) *checkout.Handler {
-	return newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	return newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 }
 
 // TestHandler_PlaceOrderFreeShippingNotNeeded: A free-shipping code on an order

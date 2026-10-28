@@ -73,10 +73,6 @@ const (
 	// its own. PNG because link-preview crawlers read it more reliably than
 	// WebP.
 	OGDefaultImage = "brand/og-default.png"
-	// The empty-state illustrations, each shown at 128x96.
-	EmptyCartImage     = "media/empty/cart.webp"
-	EmptySearchImage   = "media/empty/search.webp"
-	EmptyCampaignImage = "media/empty/campaign.webp"
 )
 
 // OG image geometry, stated in the tags so a crawler need not fetch it first.
@@ -130,9 +126,6 @@ var required = []string{
 	HomeHeroImage720,
 	EmailHeader,
 	OGDefaultImage,
-	EmptyCartImage,
-	EmptySearchImage,
-	EmptyCampaignImage,
 }
 
 type assetIndex struct {
