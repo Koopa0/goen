@@ -5280,9 +5280,12 @@ input.goen-check {
 }
 
 /* The buttons keep side padding so a forced-colours border clears the text;
-   the first one's padding hangs outside the column so its text still lines up. */
+   the first one's padding hangs outside the column so its text still lines up.
+   Pixels, not rem: at 200% text a rem overhang outgrows the 16px gutter. The
+   overhang is that gutter less the 4px focus ring, and the 1px border plus the
+   padding equals it. */
 .goen-pdp__links {
-  margin-left: -0.75rem;
+  margin-left: -12px;
 }
 
 /* With the specs, not pulled up into the buy column's rhythm. */
@@ -5292,7 +5295,7 @@ input.goen-check {
 
 .goen-pdp__links .goen-btn {
   color: var(--n-700);
-  padding: 0 0.75rem;
+  padding: 0 11px;
 }
 
 .goen-pdp__compare {
