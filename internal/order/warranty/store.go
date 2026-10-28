@@ -118,7 +118,7 @@ func (s *Store) Ready(ctx context.Context, userID string) ([]Ready, error) {
 		row := &rows[i]
 		line := warrantyLine(row, now)
 		if line.Registrable() && line.CoverEnds != nil {
-			ready = append(ready, Ready{Number: row.OrderNumber, Line: line})
+			ready = append(ready, Ready{Number: row.OrderNumber, Line: line, DeliveredOn: shoptime.DateOf(row.DeliveredOn, now)})
 		}
 	}
 	return ready, nil
