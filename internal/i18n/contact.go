@@ -131,14 +131,6 @@ var (
 
 	KeyAdminMsgHandled = key("admin.message.handled", Message{ZhHant: "已處理", En: "Handled"})
 
-	KeyAdminMsgToday = key("admin.message.today", Message{ZhHant: "今天", En: "Today"})
-
-	KeyAdminMsgOneDay = key("admin.message.oneday", Message{ZhHant: "等了 1 天", En: "Waiting 1 day"})
-
-	KeyAdminMsgDays = key("admin.message.days", Message{ZhHant: "等了 %d 天", En: "Waiting %d days"})
-
-	KeyAdminMsgOverdue = key("admin.message.overdue", Message{ZhHant: "逾時 · %s", En: "Overdue · %s"})
-
 	KeyAdminMsgReopen = key("admin.message.reopen", Message{ZhHant: "重新開啟", En: "Reopen"})
 
 	KeyAdminMsgHandle = key("admin.message.handle", Message{ZhHant: "標記已處理", En: "Mark handled"})
