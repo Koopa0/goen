@@ -9093,7 +9093,6 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
 ::view-transition-old(*.photo),
 ::view-transition-new(*.photo) {
   block-size: 100%;
-  mix-blend-mode: normal;
   object-fit: cover;
 }
 
@@ -9119,8 +9118,20 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
   animation: goen-photo-out var(--dur-base) var(--ease-standard) both;
 }
 
+/* The browser's own fade also sets the new snapshot to plus-lighter, by an
+   animation that outranks any declaration; over the old photo, held opaque,
+   that adds the two and washes the photo out. These keyframes change the
+   opacity and nothing else. */
+::view-transition-new(*.photo) {
+  animation: goen-fade-in var(--dur-slow) var(--ease-standard) both;
+}
+
 @keyframes goen-photo-out {
   to { opacity: 0; }
+}
+
+@keyframes goen-fade-in {
+  from { opacity: 0; }
 }
 
 /* The global reduce block at the top of this file matches elements, and these
