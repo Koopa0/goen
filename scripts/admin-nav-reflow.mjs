@@ -29,7 +29,8 @@ export async function checkAdminNavReflow({ send, evaluate, navigate, fail, orig
               return [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
             };
             const faults = [];
-            const items = [...document.querySelectorAll('.goen-admin__nav .ui-navitem')];
+            // Links only: the group summaries are not touched by the wrap rule, and a summary's text range spans its open group.
+            const items = [...document.querySelectorAll('.goen-admin__nav a.ui-navitem')];
             const withMeta = items.filter((item) => item.querySelector('.goen-admin__meta'));
             for (const item of items) {
               const box = item.getBoundingClientRect();
@@ -44,7 +45,7 @@ export async function checkAdminNavReflow({ send, evaluate, navigate, fail, orig
                 range.setEndBefore(meta);
                 const head = range.getBoundingClientRect();
                 if (!head.height || m.top < head.bottom - 1) faults.push(name + ': the count is not on its own line');
-              } else if (item.matches('a.ui-navitem') && rects(item).length > 1) {
+              } else if (rects(item).length > 1) {
                 faults.push(name + ': an item without a count wrapped');
               }
             }
