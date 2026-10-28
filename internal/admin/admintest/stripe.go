@@ -65,7 +65,11 @@ type Stripe struct {
 func NewStripe(t *testing.T, how StripeBehaviour) *Stripe {
 	t.Helper()
 	s := &Stripe{t: t, how: how}
-	srv := httptest.NewServer(s)
+	srv := httptest.NewUnstartedServer(s)
+	// net/http replays an Idempotency-Key POST that a kept-alive connection
+	// drops, which would record one unanswered create twice.
+	srv.Config.SetKeepAlivesEnabled(false)
+	srv.Start()
 	t.Cleanup(srv.Close)
 	s.url = srv.URL
 	return s
@@ -96,7 +100,7 @@ func (s *Stripe) Behave(how StripeBehaviour) {
 
 // Refunds is every refund create s has received, in order, answered or not.
 // Local rows prove durable outcomes; only this proves a retry did not ask
-// Stripe to pay twice.
+// Stripe to pay twice, since each create attempt is received once.
 func (s *Stripe) Refunds() []StripeRefund {
 	s.mu.Lock()
 	defer s.mu.Unlock()

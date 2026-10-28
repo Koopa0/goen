@@ -325,9 +325,10 @@ func TestStore_CorrectDeliveryTerminalLock(t *testing.T) {
 			}
 			workerCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
+			gateway := admintest.HealthyGateway(t)
 			done := make(chan error, 1)
 			go func() {
-				done <- admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal))
+				done <- admintest.OrderStore(pool, gateway, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal))
 			}()
 			waitForDeliveryLock(t, blocker.Conn().PgConn().PID())
 			if _, err = blocker.Exec(ctx, `UPDATE orders SET fulfillment_status=$2 WHERE id=$1`, f.id, state); err != nil {
@@ -362,9 +363,10 @@ func TestStore_CorrectDeliveryPostalAfterWait(t *testing.T) {
 	}
 	workerCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	gateway := admintest.HealthyGateway(t)
 	done := make(chan error, 1)
 	go func() {
-		done <- admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal+"123"))
+		done <- admintest.OrderStore(pool, gateway, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal+"123"))
 	}()
 	waitForDeliveryLock(t, blocker.Conn().PgConn().PID())
 	if _, err = blocker.Exec(ctx, `UPDATE order_private_data SET postal_code=$2 WHERE order_id=$1`, f.id, f.newPostal); err != nil {
