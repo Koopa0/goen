@@ -1,16 +1,100 @@
 package catalog
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
+
+// readCountDB fails every statement and counts them, so a test sees how many
+// reads a handler issued.
+type readCountDB struct{ reads atomic.Int32 }
+
+var errReadCountDB = errors.New("read refused")
+
+func (d *readCountDB) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	d.reads.Add(1)
+	return pgconn.CommandTag{}, errReadCountDB
+}
+
+func (d *readCountDB) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	d.reads.Add(1)
+	return nil, errReadCountDB
+}
+
+func (d *readCountDB) QueryRow(context.Context, string, ...any) pgx.Row {
+	d.reads.Add(1)
+	return errRow{errReadCountDB}
+}
+
+type errRow struct{ err error }
+
+func (r errRow) Scan(...any) error { return r.err }
+
+// TestHandler_SearchWithoutQueryReadsNewest holds that a search with nothing
+// typed offers the departments and one read of the newest products.
+//
+// The page used to end after a single sentence. It reads the newest products
+// once, as the page for a search that matched nothing does, and still answers
+// when that read fails.
+func TestHandler_SearchWithoutQueryReadsNewest(t *testing.T) {
+	t.Parallel()
+	for _, q := range []string{"", "   ", "\u3000"} {
+		t.Run(fmt.Sprintf("%q", q), func(t *testing.T) {
+			t.Parallel()
+			conn := &readCountDB{}
+			log := slog.New(slog.DiscardHandler)
+			h := NewHandler(NewStore(conn, log), log, "https://goen.example")
+			ctx := frame.WithTopNav(i18n.WithLocale(t.Context(), i18n.En), []frame.NavItem{{Slug: "tech", Name: "3C", Href: "/c/tech"}})
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/search?q="+url.QueryEscape(q), http.NoBody)
+			res := httptest.NewRecorder()
+
+			h.Search(res, req)
+
+			if res.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", res.Code)
+			}
+			if got := conn.reads.Load(); got != 1 {
+				t.Errorf("reads = %d, want 1: the newest products", got)
+			}
+			if !strings.Contains(res.Body.String(), `<a class="goen-pagehead__chip" href="/c/tech">3C</a>`) {
+				t.Error("the search page with nothing typed offers no department")
+			}
+		})
+	}
+}
+
+// TestSearchPromptNext holds that the page asking what to look for also shows
+// what to look at.
+func TestSearchPromptNext(t *testing.T) {
+	t.Parallel()
+	ctx := frame.WithTopNav(i18n.WithLocale(t.Context(), i18n.En), []frame.NavItem{{Slug: "tech", Name: "3C", Href: "/c/tech"}})
+	newest := shelf(2)
+	html := renderComponent(t, ctx, Search(frame.Page{}, SearchView{Newest: newest}))
+	for _, want := range []string{
+		`<a class="goen-pagehead__chip" href="/c/tech">3C</a>`,
+		`<h2 class="goen-listing__subhead">Newest products</h2>`,
+		newest[0].Name,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the prompt page lacks %q:\n%s", want, html)
+		}
+	}
+}
 
 // TestHandler_SearchHeaderBlank holds that the search page leaves the header
 // input blank without a query.
@@ -52,7 +136,7 @@ func searchPage(t *testing.T, q string) string {
 
 func searchPageInLocale(t *testing.T, locale i18n.Locale, q string) string {
 	t.Helper()
-	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
+	h := &Handler{store: &Store{q: db.New(&readCountDB{})}, log: slog.New(slog.DiscardHandler)}
 	target := "/search?q=" + url.QueryEscape(q)
 	req := httptest.NewRequestWithContext(
 		i18n.WithLocale(t.Context(), locale),
