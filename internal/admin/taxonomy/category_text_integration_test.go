@@ -96,7 +96,7 @@ func TestHandler_SetCategoryImageAltOnly(t *testing.T) {
 				t.Fatal(countErr)
 			}
 			res := post(ctx, " 更正後說明 ", " Revised description ", false)
-			if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/categories/"+slug+"?ok=1" {
+			if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/categories/"+slug+"?imagetext=1" {
 				t.Fatalf("alt-only save = %d %q, want303 category", res.Code, res.Header().Get("Location"))
 			}
 			after, afterErr := store.CategoryHeader(ctx, slug)

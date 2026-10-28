@@ -342,8 +342,8 @@ func TestStore_CreateCategoryInheritsTheme(t *testing.T) {
 
 	ok := httptest.NewRecorder()
 	h.SetCategoryImage(ok, categoryImageRequest(t, root, "館別照片").WithContext(ctx))
-	if ok.Code != http.StatusSeeOther || ok.Header().Get("Location") != "/admin/categories/"+root+"?ok=1" {
-		t.Fatalf("upload answered %d to %q, want 303 to ?ok=1", ok.Code, ok.Header().Get("Location"))
+	if ok.Code != http.StatusSeeOther || ok.Header().Get("Location") != "/admin/categories/"+root+"?image=1" {
+		t.Fatalf("upload answered %d to %q, want 303 to ?image=1", ok.Code, ok.Header().Get("Location"))
 	}
 	view, err = store.Listing(ctx, child, catalog.Filters{})
 	if err != nil || !view.Theme.Image().Shown() || !strings.HasPrefix(view.Theme.Image().URL, "/media/") || view.Theme.Image().Alt != "館別照片" {
@@ -591,7 +591,7 @@ func TestHandler_SetCategoryImageStorage(t *testing.T) {
 		diagnostics.Reset()
 		res := httptest.NewRecorder()
 		mux.ServeHTTP(res, uploadFailureRequest(t, ctx, path, " Recovered description ", false))
-		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/categories/"+slug+"?ok=1" {
+		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/categories/"+slug+"?image=1" {
 			t.Errorf("recovered image upload = %d to %q, want 303 to the editor", res.Code, res.Header().Get("Location"))
 		}
 		if writes.Calls != 2 || writes.Code != "" || !writes.Live || ctx.Err() != nil {
