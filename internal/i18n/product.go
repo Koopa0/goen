@@ -3,11 +3,8 @@ package i18n
 var (
 	KeySectionDescription = key("pdp.description", Message{ZhHant: "商品說明", En: "Description"})
 
-	// The source of a campaign price takes the campaign, what is left of it and the date of its last day, and
-	// names the campaign first: the page links the one and sets the other apart.
-	KeyCampaignPriceDaysLeft = key("pdp.campaignprice.daysleft", Message{ZhHant: "「%[1]s」活動價，%[2]s，至 %[3]s", En: "%[1]s price, %[2]s, until %[3]s"})
-
-	KeyCampaignPriceToday = key("pdp.campaignprice.today", Message{ZhHant: "「%[1]s」活動價，%[2]s", En: "%[1]s price, %[2]s"})
+	// The source of a campaign price names the campaign, which the page links; %s is its title.
+	KeyCampaignPrice = key("pdp.campaignprice", Message{ZhHant: "「%s」活動價", En: "%s price"})
 
 	KeySectionSpecs = key("pdp.specs", Message{ZhHant: "規格", En: "Specifications"})
 
