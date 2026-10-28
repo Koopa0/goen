@@ -58,8 +58,8 @@ var (
 	KeyAdminNoticeLeadFailed = key("admin.notice.lead.failed", Message{ZhHant: "未完成", En: "Did not finish"})
 
 	KeyAdminNoticeGone = key("admin.notice.gone", Message{
-		ZhHant: "這筆資料已不存在，或狀態已變更。請重新載入列表。",
-		En:     "That record is gone or its state has already changed. Reload the list.",
+		ZhHant: "這筆資料已不存在，或狀態已變更；下方是目前的資料。",
+		En:     "That record is gone or its state has already changed; what you see below is current.",
 	})
 )
 
