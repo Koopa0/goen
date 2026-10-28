@@ -389,18 +389,40 @@ th {
   border-color: var(--accent-deep);
 }
 
-/* The secondary button, under either name: a blue tint and no outline. The
+/* Tonal: a step forward that is not the surface's own action, alone or once a row. The
    transparent border is what forced colours draws as its edge. */
-.goen-btn--secondary,
-.goen-btn--outline {
+.goen-btn--secondary {
   background: var(--accent-faint);
   border-color: transparent;
   color: var(--accent-deep);
 }
 
-.goen-btn--secondary:hover,
-.goen-btn--outline:hover {
+.goen-btn--secondary:hover {
   background: var(--accent-muted);
+}
+
+/* Outlined: the other way, the way back, or the submit of a single field. No hue: the
+   edge is the boundary every field draws, and the white ground keeps it on a tinted panel. */
+.goen-btn--outline {
+  background: var(--n-0);
+  border-color: var(--edge);
+  color: var(--fg);
+}
+
+.goen-btn--outline:hover {
+  background: var(--overlay);
+}
+
+/* Danger: removes what cannot be brought back. White with red words and a red edge that
+   holds 3:1 like the outlined edge; not a red slab. */
+.goen-btn--danger {
+  background: var(--n-0);
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.goen-btn--danger:hover {
+  background: var(--error-bg);
 }
 
 .goen-btn--ghost {
@@ -490,11 +512,11 @@ th {
 }
 
 /* A soft button on a blue notice would vanish into it: it takes the white ground. */
-.goen-notice--accent :is(.goen-btn--outline, .goen-btn--secondary):not(:disabled) {
+.goen-notice--accent .goen-btn--secondary:not(:disabled) {
   background: var(--n-0);
 }
 
-.goen-notice--accent :is(.goen-btn--outline, .goen-btn--secondary):not(:disabled):hover {
+.goen-notice--accent .goen-btn--secondary:not(:disabled):hover {
   background: var(--accent-muted);
 }
 
@@ -7276,14 +7298,6 @@ input.goen-check {
   margin: 0;
 }
 
-.goen-auth__demo .goen-btn--outline {
-  background: var(--n-0);
-}
-
-.goen-auth__demo .goen-btn--outline:hover {
-  background: var(--accent-muted);
-}
-
 .goen-auth__media {
   display: none;
 }
@@ -7685,20 +7699,6 @@ input.goen-check {
 
 .goen-account__disclosure[open] > .goen-account__summary {
   margin-bottom: 0.5rem;
-}
-
-/* The storefront's one destructive control: white, error text, the error
-   outline. It is not the action its section is about, and it is not pressed by
-   accident. */
-.goen-account__erase {
-  background: var(--n-0);
-  border-color: var(--error-outline);
-  color: var(--error);
-}
-
-.goen-account__erase:hover {
-  background: var(--error-bg);
-  color: var(--error);
 }
 
 /* A native checkbox, sized up to the row it sits in rather than replaced by a

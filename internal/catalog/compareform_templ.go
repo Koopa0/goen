@@ -74,7 +74,7 @@ func compareForm(offered bool) templ.Component {
 				return nil
 			})
 			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
-				ButtonStyle: widget.ButtonStyleOutline,
+				ButtonStyle: widget.ButtonStyleSecondary,
 				Size:        widget.SizeSmall,
 			}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {

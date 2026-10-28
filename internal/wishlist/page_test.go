@@ -294,3 +294,24 @@ func TestPageNoPrimaryButton(t *testing.T) {
 		}
 	}
 }
+
+// TestPageRemoveIsText: removing a saved product is a text button; the outlined level
+// would draw a box round a word that app.css strips of its ground and padding.
+func TestPageRemoveIsText(t *testing.T) {
+	t.Parallel()
+
+	items := wishlistGrid(t, parseWishlistHTML(t, View{Products: []Item{{Tile: tile.Tile{Slug: "a", Name: "A", InStock: true}}}}))
+	form := findDescendant(items[0], func(n *html.Node) bool { return n.Data == "form" && hasClass(n, "goen-wish__remove") })
+	if form == nil {
+		t.Fatal("no remove form")
+	}
+	submit := findDescendant(form, func(n *html.Node) bool {
+		return n.Type == html.ElementNode && n.Data == "button" && attrValue(n, "type") == "submit"
+	})
+	if submit == nil {
+		t.Fatal("the remove form has no submit")
+	}
+	if !hasClass(submit, "goen-btn--ghost") || hasClass(submit, "goen-btn--outline") {
+		t.Errorf("remove is drawn as %q, want the text level", className(submit))
+	}
+}
