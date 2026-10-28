@@ -81,18 +81,18 @@ func TestStore_RecentDaysAreWhole(t *testing.T) {
 	}
 }
 
-// TestStore_RecentSellersAreTheCurrentWeek: Sellers are the current period's
-// best sellers, at most sales.RecentSellers of them, and a product sold only in
+// TestStore_RecentBestSellersAreTheCurrentWeek: BestSellers are the current period's
+// best sellers, at most sales.RecentBestSellers of them, and a product sold only in
 // the period before is not among them.
-func TestStore_RecentSellersAreTheCurrentWeek(t *testing.T) {
+func TestStore_RecentBestSellersAreTheCurrentWeek(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 	now := shopMoment(t, "2018-06-20 15:00:00")
 	thisWeek := shopMoment(t, "2018-06-17 10:00:00")
 	lastWeek := shopMoment(t, "2018-06-09 10:00:00")
 
-	slugs := make([]string, 0, sales.RecentSellers+1)
-	for units := 1; units <= sales.RecentSellers+1; units++ {
+	slugs := make([]string, 0, sales.RecentBestSellers+1)
+	for units := 1; units <= sales.RecentBestSellers+1; units++ {
 		variantID, sku := newVariant(t, 20, 0)
 		orderOnVariant(t, variantID, sku, units, &thisWeek)
 		slugs = append(slugs, productSlug(t, sku))
@@ -105,10 +105,10 @@ func TestStore_RecentSellersAreTheCurrentWeek(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Recent: %v", err)
 	}
-	if got := len(recent.Sellers); got != sales.RecentSellers {
-		t.Fatalf("%d sellers, want %d", got, sales.RecentSellers)
+	if got := len(recent.BestSellers); got != sales.RecentBestSellers {
+		t.Fatalf("%d sellers, want %d", got, sales.RecentBestSellers)
 	}
-	for i, seller := range recent.Sellers {
+	for i, seller := range recent.BestSellers {
 		if want := slugs[len(slugs)-1-i]; seller.Slug != want {
 			t.Errorf("seller %d is %s, want %s: most units first", i, seller.Slug, want)
 		}
@@ -116,7 +116,7 @@ func TestStore_RecentSellersAreTheCurrentWeek(t *testing.T) {
 			t.Errorf("%s was sold only the week before and is listed", previous)
 		}
 	}
-	if got, want := recent.Sellers[0].Units, int64(sales.RecentSellers+1); got != want {
+	if got, want := recent.BestSellers[0].Units, int64(sales.RecentBestSellers+1); got != want {
 		t.Errorf("the best seller sold %d units, want %d", got, want)
 	}
 }

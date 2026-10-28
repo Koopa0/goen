@@ -46,10 +46,23 @@ export async function checkAdminActionReflow({ send, evaluate, navigate, fail, o
                 if (button.form.method !== 'post') faults.push('action is not a plain POST form');
                 return { text: button.textContent.trim(), width: box.width, height: box.height, right: box.right, formWidth: form.width };
               });
+              // A line's amount does not wrap, so on a narrow page the name used
+              // to be squeezed to a character per line instead of the amount
+              // dropping below it.
+              const lines = [...document.querySelectorAll('.goen-order__line')];
+              for (const line of lines) {
+                const body = line.querySelector('.goen-order__linebody');
+                const name = line.querySelector('.goen-order__name');
+                if (!body || !name) { faults.push('an order line has no name'); continue; }
+                const minimum = 5 * parseFloat(getComputedStyle(name).fontSize);
+                if (body.getBoundingClientRect().width < minimum)
+                  faults.push('an order line name is squeezed to ' + Math.round(body.getBoundingClientRect().width) + 'px');
+                if (line.getBoundingClientRect().right > viewport + 1) faults.push('an order line exceeds the viewport');
+              }
               return { path: location.pathname, lang: document.documentElement.lang, root: getComputedStyle(document.documentElement).fontSize,
-                count: buttons.length, viewport, bodyWidth: document.body.scrollWidth, measured, faults };
+                count: buttons.length, lines: lines.length, viewport, bodyWidth: document.body.scrollWidth, measured, faults };
             })()`);
-            if (got.path !== path || !got.count || got.lang !== (lang === 'zh' ? 'zh-Hant' : 'en')) {
+            if (got.path !== path || !got.count || (path.startsWith('/admin/orders/') && !got.lines) || got.lang !== (lang === 'zh' ? 'zh-Hant' : 'en')) {
               fail(label, `requested action/locale was not rendered: ${JSON.stringify(got)}`);
             } else if (got.faults.length) {
               fail(label, `${got.faults.join('; ')}: ${JSON.stringify(got.measured)}`);

@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -61,4 +62,32 @@ func TestDashboardRecentOrderBadge(t *testing.T) {
 
 	dashboard := renderComponent(t, ctx, Dashboard(Meta(ctx), View{Recent: []OrderRow{row}}))
 	wantBadge(t, dashboard, "待備貨", "goen-badge goen-badge--staff-turn")
+}
+
+// TestMetaTitleIsTheHeading: the page is named once, in the tab and in the
+// heading.
+func TestMetaTitleIsTheHeading(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := frame.WithStaff(i18n.WithLocale(t.Context(), locale), true)
+		title := Meta(ctx).Title
+		root, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Dashboard(Meta(ctx), View{}))))
+		if err != nil {
+			t.Fatalf("%s: parse: %v", locale, err)
+		}
+		var heading string
+		var walk func(n *html.Node)
+		walk = func(n *html.Node) {
+			if n.Type == html.ElementNode && n.Data == "h1" && heading == "" {
+				heading = strings.TrimSpace(textOf(n))
+			}
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				walk(c)
+			}
+		}
+		walk(root)
+		if heading == "" || title != heading {
+			t.Errorf("%s: title %q, heading %q; want the same non-empty name", locale, title, heading)
+		}
+	}
 }

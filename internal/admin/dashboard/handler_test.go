@@ -32,7 +32,7 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 			{Day: monday, Orders: 1, RevenueCents: 30000},
 			{Day: tuesday, Orders: 2, RevenueCents: 60000},
 		},
-		Sellers: []sales.Seller{{Slug: "mug", Name: "馬克杯", Units: 3, RevenueCents: 90000}},
+		BestSellers: []sales.BestSeller{{Slug: "mug", Name: "馬克杯", Units: 3, RevenueCents: 90000}},
 	}
 	week := Week{
 		Orders: 3, RevenueCents: 90000, RevenueSquares: 2.7e9,
@@ -52,12 +52,12 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 		want   View
 	}{
 		{"read", paid, nil, View{
-			Week: week, Daily: daily, ReadAt: readAt, Sellers: recent.Sellers,
+			Week: week, Daily: daily, ReadAt: readAt, BestSellers: recent.BestSellers,
 			Latest: &LatestPaid{Number: "GO-261013-ABCDEF", TotalCents: 30000, Elapsed: 90 * time.Minute},
 		}},
-		{"never paid", recent, nil, View{Week: week, Daily: daily, ReadAt: readAt, Sellers: recent.Sellers}},
+		{"never paid", recent, nil, View{Week: week, Daily: daily, ReadAt: readAt, BestSellers: recent.BestSellers}},
 		{"latest unreadable", recent, fmt.Errorf("%w: %w", sales.ErrLatestPaid, down), View{
-			Week: week, Daily: daily, ReadAt: readAt, Sellers: recent.Sellers, LatestUnavailable: true,
+			Week: week, Daily: daily, ReadAt: readAt, BestSellers: recent.BestSellers, LatestUnavailable: true,
 		}},
 		{"unreadable", sales.Recent{}, fmt.Errorf("read the week's revenue: %w", down), View{WeekUnavailable: true}},
 	}

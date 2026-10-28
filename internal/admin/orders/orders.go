@@ -1,7 +1,8 @@
-// Package orders is the back office's order desk: the orders queue, one
-// order's page, and what staff do to an order from there: move its status,
-// ship its parcels, note it, correct its delivery, and file, void or correct
-// its uniform invoice.
+// Package orders is the back office's order desk: the orders queue with its
+// two work tabs, one order's page, and what staff do to an order from there:
+// move its status, ship its parcels, note it, correct its delivery, and file,
+// void or correct its uniform invoice; and, from a work tab, starting the
+// ticked orders' picking or printing their picking slips.
 package orders
 
 import (

@@ -96,16 +96,16 @@ templ Report(p frame.Page, v *View) {
 			}
 			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepSellers) }</h2>
 			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepGrossNote) }</p>
-			if len(v.Sellers) == 0 {
+			if len(v.BestSellers) == 0 {
 				<div class="goen-admin__empty">
 					<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminRepSellersEmpty) }</p>
 				</div>
 			} else {
 				<ul class="goen-report__rows" role="list">
-					{{ top := sales.TopUnits(v.Sellers) }}
-					for _, item := range v.Sellers {
+					{{ top := sales.TopUnits(v.BestSellers) }}
+					for _, item := range v.BestSellers {
 						@widget.ReportRow(item.Name, item.Href(), item.Facts(ctx)) {
-							if len(v.Sellers) > 1 {
+							if len(v.BestSellers) > 1 {
 								<div class="goen-report__plot">
 									@chart.Bar(chart.BarProps{Value: item.Units, Max: top, Label: item.UnitsText()})
 								</div>
