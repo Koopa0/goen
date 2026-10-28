@@ -455,3 +455,24 @@ func TestOrderReorderIsTonal(t *testing.T) {
 		t.Errorf("reorder is drawn as %q, want the tonal level", class)
 	}
 }
+
+// TestOrderEmailNotice holds that the order page says the confirmation was
+// sent, not that it will be: the page has no way to know the visit is the one
+// right after placing, and it is read just as often days later.
+func TestOrderEmailNotice(t *testing.T) {
+	t.Parallel()
+	for locale, want := range map[i18n.Locale]string{
+		i18n.ZhHant: "確認信已寄到 buyer@example.com",
+		i18n.En:     "A confirmation was sent to buyer@example.com",
+	} {
+		v := &OrderView{Number: "GO-260101-000001", Status: "delivered", Email: "buyer@example.com", PlacedAt: time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)}
+		html := renderIn(t, locale, Order(frame.Page{Title: "訂單"}, v))
+		if !strings.Contains(html, `<p class="goen-pagehead__sub">`+want+`</p>`) {
+			t.Errorf("%s: the order page lacks %q", locale, want)
+		}
+		v.Email = ""
+		if html := renderIn(t, locale, Order(frame.Page{Title: "訂單"}, v)); strings.Contains(html, "buyer@example.com") {
+			t.Errorf("%s: an order with no email names an address", locale)
+		}
+	}
+}
