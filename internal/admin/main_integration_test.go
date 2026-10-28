@@ -148,7 +148,7 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 			return s.SetStatus(ctx, slug, "draft")
 		}},
 		{"grant credit", audit.ActionGrantCredit, func() error {
-			_, grantErr := credits.NewStore(pool).GrantCredit(ctx, actor, 500,
+			grantErr := credits.NewStore(pool).GrantCredit(ctx, actor, 500,
 				"測試", uuid.New())
 			return grantErr
 		}},

@@ -80,13 +80,13 @@ const MaxCreditReasonRunes = 200
 // GrantCredit puts store credit on a customer's account. The amount is in cents
 // and must be positive: a correction is its own posting with its own reason, so
 // the ledger reads as a history rather than a figure somebody edited.
-func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCents int64, reason string, operationID uuid.UUID) (balanceCents int64, err error) {
+func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCents int64, reason string, operationID uuid.UUID) error {
 	reason = strings.TrimSpace(reason)
 	if customerID == uuid.Nil || reason == "" || utf8.RuneCountInString(reason) > MaxCreditReasonRunes || amountCents <= 0 || operationID == uuid.Nil {
-		return 0, ErrInvalid
+		return ErrInvalid
 	}
 	if amountCents > MaxCreditGrant {
-		return 0, ErrInvalid
+		return ErrInvalid
 	}
 	// The authenticated request context, not a parallel caller argument, owns
 	// ledger attribution. The database role is shared by all staff requests, so
@@ -94,7 +94,7 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 	// posting function verifies that the durable user is still staff/admin.
 	actorID, ok := audit.Actor(ctx)
 	if !ok {
-		return 0, audit.ErrNoActor
+		return audit.ErrNoActor
 	}
 
 	event := audit.Event{
@@ -107,7 +107,7 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("begin %s: %w", event.Action, err)
+		return fmt.Errorf("begin %s: %w", event.Action, err)
 	}
 	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
@@ -116,25 +116,19 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 		ActorUserID: actorID, OperationID: operationID,
 	})
 	if err != nil {
-		return 0, db.WrapRefusal(err, ErrRefused)
+		return db.WrapRefusal(err, ErrRefused)
 	}
 	// A retry of the same durable request observes the original posting and must
 	// not manufacture a second audit row claiming money moved again.
 	if entryID != uuid.Nil {
 		if auditErr := audit.In(ctx, q, event); auditErr != nil {
-			return 0, auditErr
+			return auditErr
 		}
 	}
-	// Read INSIDE the same transaction, so the number shown is the one this grant
-	// produced and not one a concurrent spend moved.
-	balanceCents, err = q.CreditBalance(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
-	if err != nil {
-		return 0, fmt.Errorf("read credit balance: %w", err)
-	}
 	if commitErr := tx.Commit(ctx); commitErr != nil {
-		return 0, fmt.Errorf("commit %s: %w", event.Action, commitErr)
+		return fmt.Errorf("commit %s: %w", event.Action, commitErr)
 	}
-	return balanceCents, nil
+	return nil
 }
 
 // Balance is what a customer holds now, from store_credit_balances; zero for

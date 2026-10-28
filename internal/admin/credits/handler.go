@@ -176,7 +176,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		admin.ServerError(w, r, h.log)
 		return
 	}
-	_, err := h.store.GrantCredit(r.Context(), customerID, view.GrantCents, view.Reason, operationID)
+	err := h.store.GrantCredit(r.Context(), customerID, view.GrantCents, view.Reason, operationID)
 	switch {
 	case err == nil:
 		// Back to the ledger of whoever was paid, whose page names them and

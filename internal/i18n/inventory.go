@@ -184,7 +184,7 @@ var (
 
 	KeyAdminNoticeStockAdjusted = key("admin.notice.stockadjusted", Message{ZhHant: "已修正庫存。", En: "Stock corrected."})
 
-	KeyAdminNoticeVariantOn = key("admin.notice.variantson", Message{ZhHant: "已重新啟用規格。", En: "Variant switched back on."})
+	KeyAdminNoticeVariantOn = key("admin.notice.varianton", Message{ZhHant: "已重新啟用規格。", En: "Variant switched back on."})
 
 	KeyAdminNoticeVariantOff = key("admin.notice.variantoff", Message{ZhHant: "已停用規格。", En: "Variant switched off."})
 )

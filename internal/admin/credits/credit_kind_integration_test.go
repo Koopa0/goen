@@ -48,7 +48,7 @@ func TestHandler_CreditKindLabels(t *testing.T) {
 	// Staff grants worded like every system posting.
 	grants := []string{"points", "訂單折抵", "order cancelled", "退貨退回購物金", "客訴補償"}
 	for _, reason := range grants {
-		if _, err := s.GrantCredit(ctx, customerID, 1000, reason, uuid.New()); err != nil {
+		if err := s.GrantCredit(ctx, customerID, 1000, reason, uuid.New()); err != nil {
 			t.Fatalf("grant %q: %v", reason, err)
 		}
 	}
