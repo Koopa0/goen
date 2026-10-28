@@ -64,18 +64,20 @@ func (s Size) class() string {
 }
 
 // Intent is what a badge or notice says. Neutral states the fact, accent marks the shop's own offer, warn is a limit the
-// visitor can still act inside or a state waiting on the staff, and danger is a refusal or an absence. Progress and Done
-// are back-office badge states only, for something under way and something finished; the storefront stylesheet has no
-// class for them.
+// visitor can still act inside or a state waiting on the staff, and danger is a refusal or an absence. Progress, Done and
+// StaffTurn are back-office badge states only, for something under way, something finished and an order waiting for the
+// shop's next step; the storefront stylesheet has no class for them. A return, a question or a message waiting on the
+// staff is warn, not StaffTurn.
 type Intent string
 
 const (
-	IntentNeutral  Intent = "neutral"
-	IntentAccent   Intent = "accent"
-	IntentProgress Intent = "progress"
-	IntentDone     Intent = "done"
-	IntentWarn     Intent = "warn"
-	IntentDanger   Intent = "danger"
+	IntentNeutral   Intent = "neutral"
+	IntentAccent    Intent = "accent"
+	IntentProgress  Intent = "progress"
+	IntentDone      Intent = "done"
+	IntentStaffTurn Intent = "staff-turn"
+	IntentWarn      Intent = "warn"
+	IntentDanger    Intent = "danger"
 )
 
 func (t Intent) badgeClass() string {
@@ -86,6 +88,8 @@ func (t Intent) badgeClass() string {
 		return "goen-badge--progress"
 	case IntentDone:
 		return "goen-badge--done"
+	case IntentStaffTurn:
+		return "goen-badge--staff-turn"
 	case IntentWarn:
 		return "goen-badge--warn"
 	case IntentDanger:

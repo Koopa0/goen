@@ -9,12 +9,12 @@ var (
 
 	KeyAdminStatusPending = key("admin.status.pending", Message{ZhHant: "待付款", En: "Awaiting payment"})
 
-	KeyAdminStatusPicking = key("admin.status.picking", Message{ZhHant: "備貨中", En: "Picking"})
+	KeyAdminStatusPicking = key("admin.status.picking", Message{ZhHant: "備貨中", En: "Packing"})
 
-	// The other half of 'pending': paid, and waiting for somebody to pick it.
+	// The other half of 'pending': paid, and waiting for somebody to pack it.
 	// Not a schema state — the queue has to tell a paid order from an unpaid
 	// one, and no status does.
-	KeyAdminStatusReadyToPick = key("admin.status.readytopick", Message{ZhHant: "待出貨", En: "Ready to pick"})
+	KeyAdminStatusReadyToPick = key("admin.status.readytopick", Message{ZhHant: "待備貨", En: "Awaiting packing"})
 
 	KeyAdminStatusShipped = key("admin.status.shipped", Message{ZhHant: "已出貨", En: "Shipped"})
 
@@ -73,7 +73,7 @@ var (
 		En:     "No orders in this state",
 	})
 
-	KeyAdminQueueCommitted = key("admin.queue.committed", Message{ZhHant: "已成交", En: "Committed"})
+	KeyAdminQueueCommitted = key("admin.queue.committed", Message{ZhHant: "已成立", En: "Confirmed"})
 
 	KeyAdminQueueItems = key("admin.queue.items", Message{ZhHant: "商品", En: "Items"})
 
@@ -216,7 +216,7 @@ var (
 
 	KeyAdminQueueStartPicking = key("admin.queue.startpicking", Message{
 		ZhHant: "開始備貨",
-		En:     "Start picking",
+		En:     "Start packing",
 	})
 
 	// For a store pickup nobody else witnesses the handover that starts the seven-day period.
@@ -233,7 +233,7 @@ var (
 
 	KeyAdminOrderUnpaidStepHint = key("admin.order.unpaidstep.hint", Message{
 		ZhHant: "未付款的訂單無法進入備貨。",
-		En:     "An unpaid order cannot move into picking.",
+		En:     "An unpaid order cannot move into packing.",
 	})
 
 	KeyAdminOrderOtherSteps = key("admin.order.othersteps", Message{
@@ -273,17 +273,17 @@ var (
 
 	KeyAdminOrderNextUnpaid = key("admin.order.next.unpaid", Message{
 		ZhHant: "等待顧客付款，付款前無法備貨。",
-		En:     "Waiting for the customer to pay; picking cannot begin before payment.",
+		En:     "Waiting for the customer to pay; packing cannot begin before payment.",
 	})
 
 	KeyAdminOrderNextPending = key("admin.order.next.pending", Message{
 		ZhHant: "已付款，可以開始備貨。",
-		En:     "Paid; picking can begin.",
+		En:     "Paid; packing can begin.",
 	})
 
 	KeyAdminOrderNextPicking = key("admin.order.next.picking", Message{
 		ZhHant: "備貨中，出貨時填寫物流與單號。",
-		En:     "Picking is in progress; enter the carrier and tracking number when dispatching.",
+		En:     "Packing is in progress; enter the carrier and tracking number when dispatching.",
 	})
 
 	KeyAdminOrderNextShipped = key("admin.order.next.shipped", Message{
@@ -359,7 +359,7 @@ var (
 
 	KeyAdminNoticeUnfunded = key("admin.notice.unfunded", Message{
 		ZhHant: "這筆訂單還沒收到款項，不能進入備貨。",
-		En:     "This order has not been paid, so it cannot move into picking.",
+		En:     "This order has not been paid, so it cannot move into packing.",
 	})
 
 	KeyAdminNoticeOwesParcel = key("admin.notice.owesparcel", Message{
