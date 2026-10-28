@@ -8,8 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestSeller_FactsBrand: seller facts name the brand then what sold.
-func TestSeller_FactsBrand(t *testing.T) {
+// TestBestSeller_FactsBrand: best seller facts name the brand then what sold.
+func TestBestSeller_FactsBrand(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -22,8 +22,8 @@ func TestSeller_FactsBrand(t *testing.T) {
 	}
 }
 
-// TestSeller_FactsUnits: seller facts count units in both languages.
-func TestSeller_FactsUnits(t *testing.T) {
+// TestBestSeller_FactsUnits: best seller facts count units in both languages.
+func TestBestSeller_FactsUnits(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, count := range []int64{0, 1, 2, 1000} {
@@ -42,8 +42,8 @@ func TestSeller_FactsUnits(t *testing.T) {
 	}
 }
 
-// TestSeller_Href: a seller links to its product in the back office.
-func TestSeller_Href(t *testing.T) {
+// TestBestSeller_Href: a best seller links to its product in the back office.
+func TestBestSeller_Href(t *testing.T) {
 	t.Parallel()
 
 	if got, want := (BestSeller{Slug: "aurora-lamp"}).Href(), "/admin/products/aurora-lamp"; got != want {
