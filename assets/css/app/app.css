@@ -3838,6 +3838,14 @@ input.goen-check {
   justify-content: flex-start;
 }
 
+/* The pills wrap their words here: a department name at 200% text is wider than the
+   column, and left-aligned it runs off the right edge instead of both. */
+.goen-empty__links .goen-pagehead__chip {
+  overflow-wrap: anywhere;
+  padding-block: 0.5rem;
+  white-space: normal;
+}
+
 .goen-listing__count {
   color: var(--n-500);
   font-size: var(--fs-14);
