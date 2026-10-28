@@ -173,7 +173,7 @@ templ Orders(p frame.Page, v View) {
 				{ i18n.T(ctx, i18n.KeyAdminQueuePageGone) }
 			}
 		}
-		if v.Status == QueuePicking && !v.Searching() {
+		if v.Status == QueuePicking && !v.Searching() && (!v.Empty() || v.PastEnd) {
 			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "/admin/orders/picking/slips") {
 				{ i18n.T(ctx, i18n.KeyAdminPickingSlips) }
 			}
