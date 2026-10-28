@@ -45,9 +45,17 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":         widget.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused":    widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"nodiscount": widget.NoticeRefused(i18n.KeyAdminNoticeNoDiscount),
+	"created":      widget.NoticeDone(i18n.KeyAdminNoticeCampaignCreated),
+	"window":       widget.NoticeDone(i18n.KeyAdminNoticeCampaignWindow),
+	"tone":         widget.NoticeDone(i18n.KeyAdminNoticeCampaignTone),
+	"image":        widget.NoticeDone(i18n.KeyAdminNoticeCampaignImage),
+	"imageremoved": widget.NoticeDone(i18n.KeyAdminNoticeCampaignImageRemoved),
+	"featured":     widget.NoticeDone(i18n.KeyAdminNoticeCampaignFeatured),
+	"unfeatured":   widget.NoticeDone(i18n.KeyAdminNoticeCampaignUnfeatured),
+	"on":           widget.NoticeDone(i18n.KeyAdminNoticeCampaignOn),
+	"off":          widget.NoticeDone(i18n.KeyAdminNoticeCampaignOff),
+	"refused":      widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"nodiscount":   widget.NoticeRefused(i18n.KeyAdminNoticeNoDiscount),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +101,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueCampaigns)}, view))
 	default:
 		//nolint:gosec // G710: slug matched slugFormat in Validate
-		http.Redirect(w, r, "/admin/campaigns/"+f.Slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/campaigns/"+f.Slug+"?created=1", http.StatusSeeOther)
 	}
 }
 
@@ -169,7 +177,7 @@ func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {
 		h.render(w, r, http.StatusUnprocessableEntity, widget.Result{}, errs)
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/campaigns/"+slug+"?window=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		admin.NotFound(w, r, h.log)
 	default:
@@ -187,7 +195,7 @@ func (h *Handler) SetTone(w http.ResponseWriter, r *http.Request) {
 	switch err := h.store.SetTone(r.Context(), slug, r.PostFormValue("tone")); {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/campaigns/"+slug+"?tone=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
@@ -209,7 +217,7 @@ func (h *Handler) SetImage(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/campaigns/"+slug+"?image=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
@@ -233,7 +241,7 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 	switch err := h.store.ClearImage(r.Context(), slug); {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/campaigns/"+slug+"?imageremoved=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		admin.NotFound(w, r, h.log)
 	default:
@@ -249,8 +257,10 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := r.PathValue("slug")
 	var err error
+	done := "?featured=1"
 	if r.PostFormValue("action") == "remove" {
 		err = h.store.UnfeatureProduct(r.Context(), slug, r.PostFormValue("product"))
+		done = "?unfeatured=1"
 	} else {
 		err = h.store.FeatureProduct(r.Context(), slug, r.PostFormValue("product"))
 	}
@@ -258,7 +268,7 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, back+done, http.StatusSeeOther)
 	case db.IsConstraint(err, "sale_campaign_needs_discount"):
 		h.log.WarnContext(r.Context(), "feature product", "campaign", slug, "error", err)
 		//nolint:gosec // G710: slug is the route's own path value
@@ -283,9 +293,12 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 	if r.PostFormValue("back") == "detail" {
 		back += "/" + slug
 	}
-	switch err := h.store.SetActive(r.Context(), slug, r.PostFormValue("active") == "true"); {
+	active := r.PostFormValue("active") == "true"
+	switch err := h.store.SetActive(r.Context(), slug, active); {
+	case err == nil && active:
+		http.Redirect(w, r, back+"?on=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 	case err == nil:
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
+		http.Redirect(w, r, back+"?off=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "set campaign active", "campaign", slug, "error", err)
 		admin.NotFound(w, r, h.log)
