@@ -33,7 +33,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":      widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"added":   widget.NoticeDone(i18n.KeyAdminNoticeBannerAdded),
+	"on":      widget.NoticeDone(i18n.KeyAdminNoticeBannerOn),
+	"off":     widget.NoticeDone(i18n.KeyAdminNoticeBannerOff),
 	"refused": widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
 }
 
@@ -73,7 +75,7 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 	case len(errs) > 0:
 		h.rejectBanner(w, r, errs)
 	default:
-		http.Redirect(w, r, "/admin/banners?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/banners?added=1", http.StatusSeeOther)
 	}
 }
 
@@ -82,14 +84,21 @@ func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.answerRowWrite(w, r, "toggle promo banner", "/admin/banners",
-		h.store.SetBannerActive(r.Context(), r.PathValue("id"), r.PostFormValue("active") == "1"))
+	active := r.PostFormValue("active") == "1"
+	done := "/admin/banners?off=1"
+	if active {
+		done = "/admin/banners?on=1"
+	}
+	h.answerRowWrite(w, r, "toggle promo banner", "/admin/banners", done,
+		h.store.SetBannerActive(r.Context(), r.PathValue("id"), active))
 }
 
-func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back string, err error) {
+// answerRowWrite answers a row write; done is where success goes, so the page
+// says which change it was.
+func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back, done string, err error) {
 	switch {
 	case err == nil:
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, done, http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), what, "error", err)
 		admin.NotFound(w, r, h.log)

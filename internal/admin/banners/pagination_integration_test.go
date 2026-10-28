@@ -115,6 +115,9 @@ func TestStore_BannersExpiredHistory(t *testing.T) {
 	if res.Code != http.StatusSeeOther {
 		t.Fatalf("POST %s status=%d: %s", action, res.Code, res.Body.String())
 	}
+	if got := res.Header().Get("Location"); got != "/admin/banners?off=1" {
+		t.Errorf("switching a strip off redirected to %q, want /admin/banners?off=1", got)
+	}
 	strip, err = chrome.Banner(ctx, "")
 	if err != nil || strip.Message != "" {
 		t.Fatalf("later-page banner control did not clear the storefront: %+v/%v", strip, err)
