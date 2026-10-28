@@ -20,6 +20,7 @@ import { checkColumnLabelReflow } from './column-label-reflow.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 import { checkAdminActionReflow } from './admin-action-reflow.mjs';
 import { checkSearchReflow } from './search-reflow.mjs';
+import { checkFooterReflow } from './footer-reflow.mjs';
 import { checkMenuFallback } from './menu-fallback.mjs';
 import { checkWarrantyReflow } from './warranty-reflow.mjs';
 import { checkWishlistFocus } from './wishlist-focus-check.mjs';
@@ -4787,6 +4788,20 @@ try {
   console.log('search reflow: both locales, 320px, 100%/200% text, scripting on/off passed');
 } catch (err) {
   fail('search reflow', err.message);
+}
+
+try {
+  await checkFooterReflow({
+    origin: ORIGIN,
+    send: (method, params) => send(ws, method, params),
+    evaluate: evalPage,
+    navigate: async (path) => {
+      if (!await settledFor('footer reflow', path, ORIGIN + path)) throw new Error('home did not load');
+    },
+  });
+  console.log('footer reflow: both locales, 1024px, 200% text passed');
+} catch (err) {
+  fail('footer reflow', err.message);
 }
 
 try {
