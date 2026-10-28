@@ -95,8 +95,15 @@ templ Product(p frame.Page, v *ProductView) {
 					@productCompare(v)
 				}
 			</div>
-			@productReviews(v)
-			@productQuestions(v)
+			if v.HasOpinions() {
+				@productReviews(v)
+				@productQuestions(v)
+			} else {
+				<div class="goen-pdp__opinions">
+					@productReviews(v)
+					@productQuestions(v)
+				</div>
+			}
 			if v.HasRelated() {
 				<section class="goen-pdp__related" aria-labelledby="related-heading">
 					<h2 id="related-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionRelated) }</h2>
@@ -625,17 +632,19 @@ templ productReviews(v *ProductView) {
 					<p class="goen-pdp__score">{ v.RatingText() }</p>
 					@ratingStars(v.StarHalves())
 					<p class="goen-pdp__scorecount">{ i18n.Count(ctx, i18n.KeyReviewCount, v.RatingCount, v.ReviewCountText()) }</p>
-					<div class="goen-pdp__bars">
-						for _, b := range v.RatingBars {
-							<div class="goen-pdp__bar">
-								<span class="goen-pdp__barlabel">{ i18n.Count(ctx, i18n.KeyStarsLabel, int64(b.Stars), b.StarsText()) }</span>
-								<span class="goen-pdp__bartrack">
-									<span class={ "goen-pdp__barfill", b.WidthClass() }></span>
-								</span>
-								<span class="goen-pdp__barcount">{ b.CountText() }</span>
-							</div>
-						}
-					</div>
+					if v.RatingsBeyondList() {
+						<div class="goen-pdp__bars">
+							for _, b := range v.RatingBars {
+								<div class="goen-pdp__bar">
+									<span class="goen-pdp__barlabel">{ i18n.Count(ctx, i18n.KeyStarsLabel, int64(b.Stars), b.StarsText()) }</span>
+									<span class="goen-pdp__bartrack">
+										<span class={ "goen-pdp__barfill", b.WidthClass() }></span>
+									</span>
+									<span class="goen-pdp__barcount">{ b.CountText() }</span>
+								</div>
+							}
+						</div>
+					}
 				</div>
 				<div class="goen-pdp__reviewlist">
 					for _, r := range v.Reviews {
@@ -760,7 +769,9 @@ templ askForm(v *ProductView) {
 
 templ reviewForm(v *ProductView) {
 	if v.ReviewStanding == ReviewNotDelivered && len(v.ReviewErrors) == 0 {
-		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewAfterDelivery) }</p>
+		if v.HasRating() {
+			<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewAfterDelivery) }</p>
+		}
 	} else if v.ReviewStanding == ReviewAlreadyWritten {
 		if !v.ReviewPosted {
 			<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>

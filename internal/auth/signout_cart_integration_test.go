@@ -33,7 +33,7 @@ func TestHandler_SignOutCart(t *testing.T) {
 	carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
 		nil)
 	placement := checkout.NewHandler(checkout.NewStore(appPool), carts, access.NewStore(appPool, false),
-		slog.New(slog.DiscardHandler), false, nil, nil)
+		slog.New(slog.DiscardHandler), false, nil, nil, nil)
 	h := auth.NewHandler(auth.NewStore(appPool), carts, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, nil)
 	// The storefront's order: the session, then the cart badge, then the route.
 	serve := func(route http.HandlerFunc, req *http.Request) *httptest.ResponseRecorder {

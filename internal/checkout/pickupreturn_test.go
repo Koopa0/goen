@@ -23,7 +23,7 @@ import (
 // holds.
 func TestHandler_PickupReturn(t *testing.T) {
 	t.Parallel()
-	h := NewHandler(&Store{}, &cart.Handler{}, &access.Store{}, slog.New(slog.DiscardHandler), true, nil, testMap(t))
+	h := NewHandler(&Store{}, &cart.Handler{}, &access.Store{}, slog.New(slog.DiscardHandler), true, nil, testMap(t), nil)
 
 	callback := url.Values{
 		"MerchantID": {aMerchantID}, "MerchantTradeNo": {"ABCDEFGHIJ1234567890"},

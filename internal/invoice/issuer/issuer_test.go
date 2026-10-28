@@ -204,6 +204,10 @@ func TestGateway_Disabled(t *testing.T) {
 	if g.Enabled() {
 		t.Error("a gateway with no credentials reports itself enabled")
 	}
+	var absent *Gateway
+	if absent.Enabled() {
+		t.Error("a nil gateway reports itself enabled")
+	}
 	if _, err := g.Issue(t.Context(), IssueRequest{}); !errors.Is(err, ErrDisabled) {
 		t.Errorf("Issue on an unconfigured gateway = %v, want ErrDisabled", err)
 	}

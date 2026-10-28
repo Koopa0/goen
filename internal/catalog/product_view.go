@@ -372,6 +372,10 @@ func (v *ProductView) HasRelated() bool { return len(v.Related) >= 2 }
 
 func (v *ProductView) HasRating() bool { return v.RatingCount > 0 }
 
+// RatingsBeyondList is true when there are more ratings than the page lists;
+// only then does the distribution say anything the list does not.
+func (v *ProductView) RatingsBeyondList() bool { return v.RatingCount > int64(len(v.Reviews)) }
+
 func (v *ProductView) RatingText() string { return strconv.FormatFloat(v.Rating, 'f', 1, 64) }
 
 func (v *ProductView) ReviewCountText() string { return strconv.FormatInt(v.RatingCount, 10) }
@@ -512,6 +516,9 @@ func (v *ProductView) NotifyAction() string {
 func (v *ProductView) HasRecommendations() bool { return len(v.AlsoBought) > 0 }
 
 func (v *ProductView) HasQuestions() bool { return len(v.Questions) > 0 }
+
+// HasOpinions is false while nobody has reviewed or asked.
+func (v *ProductView) HasOpinions() bool { return v.HasRating() || v.HasQuestions() }
 
 func (v *ProductView) AskTaken() bool { return v.AskOutcome == "1" }
 

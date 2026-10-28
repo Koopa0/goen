@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	nethtml "golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/warranty"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -457,6 +459,40 @@ func TestCompareProduct_Warranty(t *testing.T) {
 		}
 		if got := (warranty.Line{HasTerm: true, Months: tc.months}).TermText(ctx); got != tc.registration {
 			t.Errorf("%v: warranty page, %d months = %q, want %q", tc.locale, tc.months, got, tc.registration)
+		}
+	}
+}
+
+// TestCompareButtonLevels holds that removing a product is the lightest button
+// on the comparison page and adding one is a step forward.
+//
+// The chosen list's remove links are ghost; the picker's and the suggestions'
+// add links are tonal. A row of equal outlines would offer to undo and to add
+// at the same weight.
+func TestCompareButtonLevels(t *testing.T) {
+	t.Parallel()
+	v := compareOf("a")
+	v.Query = "phone"
+	v.Candidates = []CompareCandidate{{Slug: "c", Name: "Cee", Brand: "B"}}
+	v.Suggestions = []tile.Tile{{Slug: "b", Name: "Bee", Brand: "B", PriceCents: 1000}}
+	doc, err := nethtml.Parse(strings.NewReader(renderToString(t, Compare(frame.Page{Title: "比較"}, v))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct{ name, href, want string }{
+		{"remove", v.RemoveHref("a"), "goen-btn--ghost"},
+		{"add from the picker", v.AddHref("c"), "goen-btn--secondary"},
+		{"add from the suggestions", v.AddHref("b"), "goen-btn--secondary"},
+	} {
+		link := findDescendant(doc, func(n *nethtml.Node) bool {
+			return n.Type == nethtml.ElementNode && n.Data == "a" && attrValue(n, "href") == tt.href
+		})
+		if link == nil {
+			t.Errorf("%s: no link to %s", tt.name, tt.href)
+			continue
+		}
+		if !hasClass(link, tt.want) || hasClass(link, "goen-btn--outline") {
+			t.Errorf("%s: drawn as %q, want %s", tt.name, className(link), tt.want)
 		}
 	}
 }
