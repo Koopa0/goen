@@ -2,10 +2,24 @@ package frame
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"slices"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web/pagestatus"
 )
+
+// refusedTitle puts "Not saved" in front of the title of a back-office page that
+// answers 422: the title of a refused page and of a saved one were the same, which
+// 2.4.2 says a title must not be. A page that reports a refusal beside work that
+// did go through says so in [Page.PartlyDone] and keeps its title.
+func (p Page) refusedTitle(ctx context.Context) Page {
+	if pagestatus.From(ctx) == http.StatusUnprocessableEntity && !p.PartlyDone && p.Title != "" {
+		p.Title = fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefusedTitle), p.Title)
+	}
+	return p
+}
 
 // adminNavHolds decides on the server which group arrives OPEN, so the right group
 // is disclosed in the first byte and, with scripting off, <details> still works.

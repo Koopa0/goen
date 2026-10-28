@@ -21,7 +21,7 @@ import (
 templ Admin(p Page, current string) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
-		@documentHead(p, assets.AdminCSS)
+		@documentHead(p.refusedTitle(ctx), assets.AdminCSS)
 		<body class="goen-shell">
 			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
 			@adminBar()

@@ -37,6 +37,9 @@ type Page struct {
 	// Await is the element the first paint waits for, so the script that names
 	// a photo for the page transition finds it at the reveal.
 	Await Await
+	// PartlyDone is set by a back-office page that answers 422 although part of
+	// what was asked went through, so its title does not say nothing was saved.
+	PartlyDone bool
 }
 
 // Await names an element a page holds its first paint for.

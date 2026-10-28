@@ -55,6 +55,8 @@ var (
 
 	KeyAdminNoticeLeadRefused = key("admin.notice.lead.refused", Message{ZhHant: "未儲存", En: "Not saved"})
 
+	KeyAdminRefusedTitle = key("admin.refused.title", Message{ZhHant: "未儲存：%s", En: "Not saved: %s"})
+
 	KeyAdminNoticeLeadFailed = key("admin.notice.lead.failed", Message{ZhHant: "未完成", En: "Did not finish"})
 
 	KeyAdminNoticeGone = key("admin.notice.gone", Message{
