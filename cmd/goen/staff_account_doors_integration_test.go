@@ -62,7 +62,7 @@ func newDoorWorld(t *testing.T, owner *pgxpool.Pool, totpKey []byte) *doorWorld 
 		admin: twofactor.NewStore(adminPool, doorTOTPKey, nil),
 		router: newRouter(&RouterConfig{
 			Storefront: StorefrontConfig{StorePool: storePool, Payments: gateway, BaseURL: "http://127.0.0.1"},
-			BackOffice: BackOfficeConfig{AdminPool: adminPool, Payments: gateway, Refunder: gateway, TOTPKey: totpKey},
+			BackOffice: BackOfficeConfig{AdminPool: adminPool, Payments: gateway, TOTPKey: totpKey},
 		}, quietLog),
 	}
 }

@@ -160,7 +160,7 @@ func TestStore_CorrectDeliveryCrossZone(t *testing.T) {
 				t.Fatal(err)
 			}
 			before := deliveryMoneySnapshot(t, f.id)
-			err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
+			err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
 			zoneRefusal(t, err, i18n.KeyDeliveryZoneChanged)
 			if got := streetOf(t, f.number); got != "Saved street" {
 				t.Fatalf("refusal saved %q", got)
@@ -188,7 +188,7 @@ func TestStore_CorrectDeliverySurchargeEdit(t *testing.T) {
 		if _, err := pool.Exec(ctx, `DELETE FROM shipping_version_zones WHERE version_id=$1`, f.version); err != nil {
 			t.Fatal(err)
 		}
-		err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
+		err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
 		zoneRefusal(t, err, i18n.KeyDeliveryZoneChanged)
 		if got := streetOf(t, f.number); got != "Saved street" {
 			t.Fatalf("refusal saved %q", got)
@@ -200,7 +200,7 @@ func TestStore_CorrectDeliverySurchargeEdit(t *testing.T) {
 		if _, err := pool.Exec(ctx, `INSERT INTO shipping_version_zones(version_id,zone_id,surcharge_cents) VALUES($1,$2,15000)`, f.version, f.oldZone); err != nil {
 			t.Fatal(err)
 		}
-		if err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.siblingP)); err != nil {
+		if err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.siblingP)); err != nil {
 			t.Fatalf("same-zone correction refused after a rate edit: %v", err)
 		}
 	})
@@ -215,7 +215,7 @@ func TestStore_CorrectDeliveryFrozenPrice(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := deliveryMoneySnapshot(t, f.id)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	for _, postal := range []string{f.oldPostal, f.siblingP, f.siblingP + "123"} {
 		if err := s.CorrectDelivery(ctx, f.number, proposedDelivery(postal)); err != nil {
 			t.Fatal(err)
@@ -239,7 +239,7 @@ func TestStore_CorrectDeliveryAbsentPostcode(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_chain='family_mart' WHERE order_id=$1`, f.id); err != nil {
 		t.Fatal(err)
 	}
-	err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
+	err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
 	zoneRefusal(t, err, i18n.KeyDeliveryZoneUnknown)
 }
 
@@ -251,7 +251,7 @@ func postDeliveryCorrection(ctx context.Context, t *testing.T, number, postal st
 
 func postDeliveryValues(ctx context.Context, t *testing.T, number string, values url.Values) *httptest.ResponseRecorder {
 	t.Helper()
-	s := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.HealthyGateway(t), nil, nil)
 	return postDeliveryWithStore(ctx, t, s, number, values)
 }
 
@@ -325,9 +325,10 @@ func TestStore_CorrectDeliveryTerminalLock(t *testing.T) {
 			}
 			workerCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
+			gateway := admintest.HealthyGateway(t)
 			done := make(chan error, 1)
 			go func() {
-				done <- admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal))
+				done <- admintest.OrderStore(pool, gateway, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal))
 			}()
 			waitForDeliveryLock(t, blocker.Conn().PgConn().PID())
 			if _, err = blocker.Exec(ctx, `UPDATE orders SET fulfillment_status=$2 WHERE id=$1`, f.id, state); err != nil {
@@ -362,9 +363,10 @@ func TestStore_CorrectDeliveryPostalAfterWait(t *testing.T) {
 	}
 	workerCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	gateway := admintest.HealthyGateway(t)
 	done := make(chan error, 1)
 	go func() {
-		done <- admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal+"123"))
+		done <- admintest.OrderStore(pool, gateway, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal+"123"))
 	}()
 	waitForDeliveryLock(t, blocker.Conn().PgConn().PID())
 	if _, err = blocker.Exec(ctx, `UPDATE order_private_data SET postal_code=$2 WHERE order_id=$1`, f.id, f.newPostal); err != nil {
@@ -441,7 +443,7 @@ func TestHandler_CorrectDeliveryNonPostal(t *testing.T) {
 					}
 				}
 				controls["d-phone"] = values.Get("phone")
-				store := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil, nil)
+				store := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.HealthyGateway(t), nil, nil)
 				saved, err := store.Order(ctx, f.number)
 				if err != nil {
 					t.Fatal(err)
@@ -552,7 +554,7 @@ func TestHandler_CorrectDeliveryStoreFailure(t *testing.T) {
 			if err = lockedPool.QueryRow(ctx, `SELECT current_user, current_setting('lock_timeout')`).Scan(&role, &timeout); err != nil || role != "admin" || timeout != "100ms" {
 				t.Fatalf("lock-fault pool role=%q timeout=%q, want admin/100ms: %v", role, timeout, err)
 			}
-			store := admintest.OrderStore(lockedPool, admintest.Refunder{}, nil, nil)
+			store := admintest.OrderStore(lockedPool, admintest.HealthyGateway(t), nil, nil)
 			before := deliveryPrivateSnapshot(t, f.id)
 			countAudits := func() int {
 				t.Helper()

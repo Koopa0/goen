@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/payment"
 )
 
 var pool *pgxpool.Pool
@@ -36,9 +37,9 @@ func TestMain(m *testing.M) {
 }
 
 // storeOver builds the returns desk and the refunds it pays through over one
-// pool and one refunder, as cmd/goen does.
-func storeOver(p *pgxpool.Pool, refunder refunds.Refunder) *returns.Store {
-	return returns.NewStore(p, refunds.NewStore(p, refunder, nil))
+// pool and one payment gateway, as cmd/goen does.
+func storeOver(p *pgxpool.Pool, gateway *payment.Gateway) *returns.Store {
+	return returns.NewStore(p, refunds.NewStore(p, gateway, nil))
 }
 
 func handlerOver(s *returns.Store) *returns.Handler {

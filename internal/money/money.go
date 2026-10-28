@@ -86,6 +86,19 @@ func Short(cents, divisor int64) string {
 	return out + "." + string(decimals)
 }
 
+// ShortRounded is Short, for a non-negative amount that need not be exact:
+// cents are rounded half up to digits significant digits, but never past a whole
+// unit of divisor dollars, so 11_253_700 cents over a divisor of 10_000 is
+// "11.3", 123_456_700 is "123", and 893_400 over a divisor of 1 stays "8,934".
+func ShortRounded(cents, divisor int64, digits int) string {
+	step := int64(1)
+	for range max(len(strconv.FormatInt(cents, 10))-digits, 0) {
+		step *= 10
+	}
+	step = min(step, 100*divisor)
+	return Short((cents+step/2)/step*step, divisor)
+}
+
 // ParseDollars reads a whole-dollar price typed in a form and returns cents. A
 // blank field is zero, which a compare-at price reads as "not on sale"; anything
 // unreadable, negative or past the schema's ceiling is not ok.

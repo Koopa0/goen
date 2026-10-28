@@ -781,3 +781,165 @@ func TestColumnsHitsNameTableRows(t *testing.T) {
 		t.Error("columns: a hit carries a crosshair position or the markup has a tab stop")
 	}
 }
+
+// overColumns are the values written over the columns, as text-anchor, x and text.
+func overColumns(html string) [][]string {
+	return regexp.MustCompile(`<text class="goen-chart__value" x="([^"]*)" y="[^"]*" text-anchor="([^"]*)">([^<]*)<`).FindAllStringSubmatch(html, -1)
+}
+
+func valueTexts(html string) []string {
+	found := overColumns(html)
+	texts := make([]string, 0, len(found))
+	for _, m := range found {
+		texts = append(texts, m[3])
+	}
+	return texts
+}
+
+// revenue is fourteen days of paid revenue in cents, NT$112,537 the highest on
+// the eighth day and NT$18,400 the last.
+func revenue() ColumnsProps {
+	p := columnsProps(days(14,
+		4_120_000, 5_230_000, 3_890_000, 6_100_000, 4_550_000, 7_010_000, 6_680_000,
+		11_253_700, 5_800_000, 4_990_000, 5_340_000, 4_720_000, 6_030_000, 1_840_000))
+	p.Measure = MeasureMoney
+	return p
+}
+
+// TestColumnsMoney: columns of money give the table whole amounts and the axis
+// and the values over the bars one unit, rounded.
+func TestColumnsMoney(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		locale   i18n.Locale
+		top, bar string
+	}{
+		{i18n.ZhHant, ">12.5萬<", "11.3萬"},
+		{i18n.En, ">125K<", "113K"},
+	} {
+		got := renderColumns(t, tc.locale, revenue())
+		if !strings.Contains(got, "<td>NT$41,200</td>") {
+			t.Errorf("%s: the table does not give the first day as NT$41,200", tc.locale)
+		}
+		if !strings.Contains(got, tc.top) {
+			t.Errorf("%s: the axis has no %s at its top", tc.locale, tc.top)
+		}
+		if texts := valueTexts(got); !slices.Equal(texts, []string{tc.bar}) {
+			t.Errorf("%s: values over the bars = %q, want just the highest, %s: NT$112,537 to three digits", tc.locale, texts, tc.bar)
+		}
+	}
+}
+
+// TestColumnsCountIsNotMoney: the zero measure is a count, written as it is.
+func TestColumnsCountIsNotMoney(t *testing.T) {
+	t.Parallel()
+
+	got := renderColumns(t, i18n.En, columnsProps(valued(14, map[int]int64{1: 2, 5: 7000, 9: 4, 13: 1})))
+	if texts := valueTexts(got); !slices.Equal(texts, []string{"2", "7000", "4", "1"}) {
+		t.Errorf("values over the bars = %q, want the counts as they are", texts)
+	}
+	if !strings.Contains(got, "<td>7000</td>") || strings.Contains(got, "NT$") {
+		t.Error("the table writes a count as money")
+	}
+}
+
+// TestColumnsMoneyOneUnit: every value on a chart of money counts in the unit of its axis.
+func TestColumnsMoneyOneUnit(t *testing.T) {
+	t.Parallel()
+
+	p := columnsProps(valued(14, map[int]int64{1: 1_290_00, 5: 4_580_00, 9: 3_000_000, 13: 99_000}))
+	p.Measure = MeasureMoney
+	if texts := valueTexts(renderColumns(t, i18n.ZhHant, p)); !slices.Equal(texts, []string{"0.129萬", "0.458萬", "3萬", "0.099萬"}) {
+		t.Errorf("values over the bars = %q, want each in 萬, the unit the largest is in", texts)
+	}
+	p.Series.Buckets = valued(14, map[int]int64{1: 1_290_00, 5: 4_580_00, 9: 8_900_00, 13: 99_000})
+	if texts := valueTexts(renderColumns(t, i18n.ZhHant, p)); !slices.Equal(texts, []string{"1,290", "4,580", "8,900", "990"}) {
+		t.Errorf("values over the bars of a chart under NT$10,000 = %q, want whole dollars", texts)
+	}
+}
+
+// TestColumnsValueUnderTallerBar: a value is not drawn where it would be written over a higher bar.
+func TestColumnsValueUnderTallerBar(t *testing.T) {
+	t.Parallel()
+
+	// Today, 18,400, is written to the left of its column, across the bars of
+	// the days before it, which are higher; the highest is written over nothing.
+	if texts := valueTexts(renderColumns(t, i18n.ZhHant, revenue())); slices.Contains(texts, "1.84萬") {
+		t.Errorf("values over the bars = %q, want today's left out: it runs over the bars before it", texts)
+	}
+
+	p := revenue()
+	for i := range 13 {
+		p.Series.Buckets[i].Value = 0
+		if i < 6 {
+			p.Series.Buckets[i].Value = 10_000
+		}
+	}
+	p.Series.Buckets[7].Value = 11_253_700
+	if texts := valueTexts(renderColumns(t, i18n.ZhHant, p)); !slices.Equal(texts, []string{"11.3萬", "1.84萬"}) {
+		t.Errorf("values over the bars = %q, want the highest and today, which has nothing higher beside it", texts)
+	}
+}
+
+// TestColumnsValuesDoNotOverlap: of two values that would be written over each other, the higher stays.
+func TestColumnsValuesDoNotOverlap(t *testing.T) {
+	t.Parallel()
+
+	// Days 5 and 6 are tied for the highest, 17px apart on the narrowest plot,
+	// and "1290" is wider than that.
+	got := renderColumns(t, i18n.En, columnsProps(valued(14, map[int]int64{0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1290, 6: 1290, 13: 700})))
+	if texts := valueTexts(got); !slices.Equal(texts, []string{"1290", "700"}) {
+		t.Errorf("values over the bars = %q, want one of the two highest, and today", texts)
+	}
+
+	// The lower of two that meet gives way, whichever is the later day.
+	got = renderColumns(t, i18n.En, columnsProps(valued(14, map[int]int64{0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1000, 12: 1290, 13: 1289})))
+	if texts := valueTexts(got); !slices.Equal(texts, []string{"1290"}) {
+		t.Errorf("values over the bars = %q, want only the highest of the two that meet", texts)
+	}
+}
+
+// TestColumnsValueInsideThePlot: a value wider than the room it has is not drawn.
+func TestColumnsValueInsideThePlot(t *testing.T) {
+	t.Parallel()
+
+	// Thirty columns are 8px each: the highest, on the second, would run past the left edge.
+	got := renderColumns(t, i18n.En, columnsProps(valued(30, map[int]int64{1: 1_234_567_890, 5: 5, 9: 4, 13: 3, 17: 2, 21: 1, 25: 1, 29: 1})))
+	if texts := valueTexts(got); slices.Contains(texts, "1234567890") {
+		t.Errorf("values over the bars = %q, want the one that runs past the plot's edge left out", texts)
+	}
+}
+
+// TestColumnsEdgeValuesStayInside: a value is centred over its column, and the
+// first or last that would run past the plot is anchored at its own bar's edge,
+// not at the corner of the plot.
+func TestColumnsEdgeValuesStayInside(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a value that fits stays centred", func(t *testing.T) {
+		t.Parallel()
+		got := overColumns(renderColumns(t, i18n.En, columnsProps(valued(3, map[int]int64{0: 12, 1: 7, 2: 4}))))
+		want := [][]string{{"", "16.67%", "middle", "12"}, {"", "50.00%", "middle", "7"}, {"", "83.33%", "middle", "4"}}
+		if len(got) != len(want) {
+			t.Fatalf("%d values drawn, want %d: %q", len(got), len(want), got)
+		}
+		for i, m := range got {
+			if m[1] != want[i][1] || m[2] != want[i][2] || m[3] != want[i][3] {
+				t.Errorf("value %d is %q at x=%s anchored %s, want %q at x=%s anchored %s", i, m[3], m[1], m[2], want[i][3], want[i][1], want[i][2])
+			}
+		}
+	})
+
+	t.Run("the last value too wide to centre ends at its bar", func(t *testing.T) {
+		t.Parallel()
+		const lastBarRight = "97.78%"
+		p := revenue()
+		p.Series.Buckets[13].Value = 12_000_000
+		got := overColumns(renderColumns(t, i18n.En, p))
+		last := got[len(got)-1]
+		if last[3] != "120K" || last[2] != "end" || last[1] != lastBarRight {
+			t.Errorf("last value is %q at x=%s anchored %s, want %q at x=%s anchored end", last[3], last[1], last[2], "120K", lastBarRight)
+		}
+	})
+}

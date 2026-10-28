@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 )
 
 const (
@@ -26,6 +27,9 @@ const (
 	narrowPlot      = 244 // the narrowest plot that draws the strips' names, in pixels at 12px text, which they are fitted to
 	desktopPlot     = 888 // the width of a plot at its widest, in pixels
 	widestMinorPlot = 476 // the widest plot that still hides minor ticks: a 519px frame less its 2.75rem value axis, in pixels
+	valueDigits     = 3   // the significant digits of an amount over a column
+	valueLift       = 6   // between the top of a column and the baseline of its value, in pixels
+	valueMargin     = 2   // kept clear on each side of a value, in pixels
 )
 
 // Span is a stretch of days drawn behind the columns and bracketed above them,
@@ -94,6 +98,10 @@ func Peaks(cols []Column) []Column {
 // compared with, which is not a stored period: they are drawn in the previous
 // colour under a line named PreviousLabel, and the table names them too.
 // It has no effect on a series drawn in runs of days.
+//
+// Measure is what the values count; the zero value is a count. Money is in
+// cents: the table gives each amount in full, and the axis and the values over
+// the columns count in one unit.
 type ColumnsProps struct {
 	Series                                Series
 	Spans                                 []Span
@@ -101,6 +109,7 @@ type ColumnsProps struct {
 	PreviousLabel                         string
 	Caption, Note                         string
 	DayHeading, SpanHeading, PartialLabel string
+	Measure                               Measure
 }
 
 type bar struct {
@@ -111,8 +120,8 @@ type bar struct {
 }
 
 type valueLabel struct {
-	X, Text string
-	Y       float64
+	X, Text, Anchor string
+	Y               float64
 }
 
 // strip is a campaign over the columns: the ground behind them and, in a lane,
@@ -266,7 +275,7 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 	lanes, used := assignLanes(pl, n)
 
 	r := columns{Plain: !full, HasSpans: len(pl) > 0}
-	scale := columnsScale(cols, full)
+	scale := columnsScale(cols, full, p.Measure)
 	top := float64(valueRoom)
 	if used > 0 {
 		top = valueGap(cols, scale) + float64(laneTop+laneHeight*used)
@@ -275,12 +284,13 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 	r.Height = int(r.Baseline) + axisBand
 	r.LabelY = r.Baseline + axisBand - 8
 
-	r.Grid = columnsAxis(ctx, scale, full, r.Baseline)
+	unit := newValueUnit(ctx, scale, p.Measure)
+	r.Grid = columnsAxis(scale, full, r.Baseline, unit)
 	previous := p.Previous
 	if grouped {
 		previous = 0
 	}
-	r.Bars, r.Values = barsOf(cols, scale, r.Baseline, full, p.Series.Partial, previous)
+	r.Bars, r.Values = barsOf(cols, scale, r.Baseline, full, p.Series.Partial, previous, unit)
 	if p.Series.Partial {
 		lastDays := float64(cols[n-1].Days)
 		r.TodayX = percent((float64(n-1) + (lastDays-0.5)/lastDays) * band)
@@ -352,7 +362,7 @@ func assignLanes(pl []plan, n int) (lanes []int, used int) {
 
 // columnsScale is the value the top of the value axis stands for. Fewer than
 // seven days with values have the highest bar fill the area.
-func columnsScale(cols []Column, full bool) int64 {
+func columnsScale(cols []Column, full bool, m Measure) int64 {
 	var scale int64
 	for _, c := range cols {
 		scale = max(scale, c.Value)
@@ -360,7 +370,7 @@ func columnsScale(cols []Column, full bool) int64 {
 	if !full {
 		return scale
 	}
-	step := axisStep(scale, MeasureCount)
+	step := axisStep(scale, m)
 	return step * gridLines(scale, step)
 }
 
@@ -378,21 +388,47 @@ func valueGap(cols []Column, scale int64) float64 {
 	return max(minValueRoom, valueRoom-columnsPlot*(1-float64(highest)/float64(scale)))
 }
 
+// valueUnit is how the values of a chart are written: the axis counts in one
+// unit, divisor dollars of money and named by suffix, and the values of money
+// over the columns follow it, so that no two of them are in different units.
+type valueUnit struct {
+	measure Measure
+	divisor int64
+	suffix  string
+}
+
+func newValueUnit(ctx context.Context, scale int64, m Measure) valueUnit {
+	whole := scale
+	if m == MeasureMoney {
+		whole /= 100
+	}
+	divisor, suffix := i18n.AxisUnit(ctx, whole)
+	return valueUnit{measure: m, divisor: divisor, suffix: suffix}
+}
+
+// over is a value written over a column. Money is rounded: a full amount over
+// each of fourteen columns would run into its neighbour, and the table gives it.
+func (u valueUnit) over(v int64) string {
+	if u.measure == MeasureMoney {
+		return money.ShortRounded(v, u.divisor, valueDigits) + u.suffix
+	}
+	return u.measure.text(v)
+}
+
 // columnsAxis is the lines of the value axis, which tops out at scale. Fewer
 // than seven days with values have the baseline alone.
-func columnsAxis(ctx context.Context, scale int64, full bool, baseline float64) []gridLine {
+func columnsAxis(scale int64, full bool, baseline float64, u valueUnit) []gridLine {
 	if !full {
 		return []gridLine{{Y: baseline, Baseline: true}}
 	}
-	step := axisStep(scale, MeasureCount)
+	step := axisStep(scale, u.measure)
 	lines := gridLines(scale, step)
-	divisor, suffix := i18n.AxisUnit(ctx, scale)
 	grid := make([]gridLine, 0, lines+1)
 	for k := range lines + 1 {
 		v := k * step
 		grid = append(grid, gridLine{
 			Y:     baseline - float64(v)/float64(scale)*columnsPlot,
-			Label: MeasureCount.axisText(v, divisor, suffix), Baseline: k == 0,
+			Label: u.measure.axisText(v, u.divisor, u.suffix), Baseline: k == 0,
 		})
 	}
 	return grid
@@ -400,8 +436,8 @@ func columnsAxis(ctx context.Context, scale int64, full bool, baseline float64) 
 
 // barsOf is a bar for each column with a value, and the value over it: over
 // every bar when few are drawn, else over the highest, the ones tied with it,
-// and today.
-func barsOf(cols []Column, scale int64, baseline float64, full, partial bool, previous int) ([]bar, []valueLabel) {
+// and today; those of them that fit.
+func barsOf(cols []Column, scale int64, baseline float64, full, partial bool, previous int, u valueUnit) ([]bar, []valueLabel) {
 	n := len(cols)
 	band := 100 / float64(n)
 	share := barShare(n)
@@ -410,24 +446,106 @@ func barsOf(cols []Column, scale int64, baseline float64, full, partial bool, pr
 		peak = max(peak, c.Value)
 	}
 	var bars []bar
-	var values []valueLabel
+	heights := make([]float64, n)
+	var candidates []int
 	for i, c := range cols {
 		if c.Value <= 0 {
 			continue
 		}
-		h := math.Max(2, float64(c.Value)/float64(scale)*columnsPlot)
+		heights[i] = math.Max(2, float64(c.Value)/float64(scale)*columnsPlot)
 		bars = append(bars, bar{
 			X: percent(float64(i)*band + (1-share)/2*band), Width: percent(share * band),
-			Y: baseline - h, Height: h, Open: partial && i == n-1,
+			Y: baseline - heights[i], Height: heights[i], Open: partial && i == n-1,
 			Previous: i < previous,
 		})
 		if !full || c.Value == peak || i == n-1 {
-			values = append(values, valueLabel{
-				X: percent((float64(i) + 0.5) * band), Y: baseline - h - 6, Text: MeasureCount.text(c.Value),
-			})
+			candidates = append(candidates, i)
 		}
 	}
-	return bars, values
+	return bars, fitValues(cols, heights, candidates, baseline, u)
+}
+
+// fitValues is the values over the columns at candidates that fit, in the order
+// of the columns. The higher a value, the more it matters: it keeps its place
+// against a lower one.
+func fitValues(cols []Column, heights []float64, candidates []int, baseline float64, u valueUnit) []valueLabel {
+	n := len(cols)
+	band := 100 / float64(n)
+	share := barShare(n)
+	slices.SortStableFunc(candidates, func(a, b int) int { return cmp.Compare(cols[b].Value, cols[a].Value) })
+
+	var kept []int
+	var boxes [][2]float64
+	anchors := make(map[int]string, len(candidates))
+	for _, i := range candidates {
+		left, right, anchor := valueSpan(i, n, u.over(cols[i].Value), share)
+		if left < 0 || right > narrowPlot ||
+			slices.ContainsFunc(boxes, func(b [2]float64) bool { return left < b[1] && right > b[0] }) ||
+			coveredByBar(i, left, right, heights, share) {
+			continue
+		}
+		kept = append(kept, i)
+		anchors[i] = anchor
+		boxes = append(boxes, [2]float64{left, right})
+	}
+	slices.Sort(kept)
+
+	values := make([]valueLabel, 0, len(kept))
+	for _, i := range kept {
+		barLeft := float64(i)*band + (1-share)/2*band
+		x := percent((float64(i) + 0.5) * band)
+		switch anchors[i] {
+		case "start":
+			x = percent(barLeft)
+		case "end":
+			x = percent(barLeft + share*band)
+		}
+		values = append(values, valueLabel{X: x, Anchor: anchors[i], Y: baseline - heights[i] - valueLift, Text: u.over(cols[i].Value)})
+	}
+	return values
+}
+
+// valueSpan is where the value over column i of n is written on a plot of
+// narrowPlot, the narrowest plot that draws the span names, and so the plot
+// where it is most likely not to fit: the left and right it takes in pixels,
+// with its margin, and its anchor. A value is centred over its column. Only the
+// first or last, when centred it would run past the plot, is anchored at the
+// edge of its own bar that faces the plot's edge, so it stays over its bar.
+func valueSpan(i, n int, text string, share float64) (left, right float64, anchor string) {
+	w := textWidth(text) + 2*valueMargin
+	col := float64(narrowPlot) / float64(n)
+	centre := (float64(i) + 0.5) * col
+	left, right, anchor = centre-w/2, centre+w/2, "middle"
+	if left >= 0 && right <= narrowPlot {
+		return left, right, anchor
+	}
+	switch i {
+	case 0:
+		left = (1 - share) / 2 * col
+		return left, left + w, "start"
+	case n - 1:
+		right = narrowPlot - (1-share)/2*col
+		return right - w, right, "end"
+	}
+	return left, right, anchor
+}
+
+// coveredByBar is whether a value of column i, taking left to right in pixels
+// on a plot of narrowPlot, would be written over a column that rises past the
+// baseline of the text.
+func coveredByBar(i int, left, right float64, heights []float64, share float64) bool {
+	n := len(heights)
+	col := float64(narrowPlot) / float64(n)
+	for j, h := range heights {
+		if j == i || h <= heights[i]+valueLift {
+			continue
+		}
+		start := (float64(j) + (1-share)/2) * col
+		if left < start+share*col && right > start {
+			return true
+		}
+	}
+	return false
 }
 
 func stripsOf(pl []plan, lanes []int, n int) []strip {
@@ -476,7 +594,7 @@ func tableRows(ctx context.Context, p ColumnsProps, cols []Column, pl []plan) []
 		if i == n-1 && p.Series.Partial && p.PartialLabel != "" {
 			heading = fmt.Sprintf(i18n.T(ctx, i18n.KeyChartQualified), heading, p.PartialLabel)
 		}
-		rows = append(rows, columnRow{Heading: heading, Value: MeasureCount.text(c.Value), Spans: strings.Join(names[i], separator)})
+		rows = append(rows, columnRow{Heading: heading, Value: p.Measure.text(c.Value), Spans: strings.Join(names[i], separator)})
 	}
 	return rows
 }

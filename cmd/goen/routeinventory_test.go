@@ -454,7 +454,7 @@ func idleInventoryMux(t *testing.T) *http.ServeMux {
 	}
 	_, mux := routing(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: idle, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap},
-		BackOffice: BackOfficeConfig{AdminPool: idle, Payments: gateway, Refunder: gateway, StoreMap: storeMap},
+		BackOffice: BackOfficeConfig{AdminPool: idle, Payments: gateway, StoreMap: storeMap},
 	}, slog.New(slog.DiscardHandler))
 	return mux
 }

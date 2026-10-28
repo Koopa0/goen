@@ -29,7 +29,7 @@ func terminalNotice(t *testing.T, id uuid.UUID, want outbox.TerminalKind) {
 func TestStore_AdvanceCancellationNotices(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, id, _ := ordertest.PendingOrderHoldingStock(t, pool)
-	if _, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err != nil {
+	if _, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
 	terminalNotice(t, id, outbox.TerminalCancelledByStaff)
@@ -48,7 +48,7 @@ func TestStore_AdvanceCancellationNotices(t *testing.T) {
 func TestStore_AdvanceArrivalNotRequeued(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, id := pickingOrderHoldingStock(t)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	if err := s.Ship(ctx, number, orders.Dispatch{Carrier: "black_cat", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestStore_AdvanceArrivalNotRequeued(t *testing.T) {
 func TestStore_AdvanceRollbackNotice(t *testing.T) {
 	number, id, _ := ordertest.PendingOrderHoldingStock(t, pool)
 	ctx := requestid.With(user.NewContext(t.Context(), user.User{ID: uuid.NewString(), Role: user.RoleAdmin}), "missing-audit-actor")
-	if _, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err == nil {
+	if _, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err == nil {
 		t.Fatal("advance accepted missing audit actor")
 	}
 	var status string
@@ -120,7 +120,7 @@ func TestStore_AdvancePickupCollection(t *testing.T) {
 	if err := tx.Commit(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	if err := s.Ship(ctx, number, orders.Dispatch{Carrier: "seven_eleven", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}

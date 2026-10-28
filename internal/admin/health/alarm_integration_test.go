@@ -41,9 +41,7 @@ func healthHandler(p *pgxpool.Pool) *health.Handler {
 // unhealthy.
 func TestStore_WorkerHealthOpenRefund(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.ReturnDesk(pool, admintest.Refunder{
-		RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
-	})
+	s := admintest.ReturnDesk(pool, admintest.NewStripe(t, admintest.StripeBehaviour{Create: admintest.StripeCreateUnanswered}).Gateway())
 
 	requestID, orderNumber := admintest.ReturnedOrder(t, pool, 1)
 

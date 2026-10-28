@@ -89,8 +89,10 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (View, 
 
 // Recent reads paid orders and revenue over a window of days shop days up to
 // now and over the window before it, cut at the same time of day, in one
-// snapshot so the days add up to the totals. The latest paid order is read
-// last: failing to read it leaves the windows standing, returned with
+// snapshot so the days add up to the totals. The same snapshot reads every
+// shop day the two windows span, each whole but today, which ends at now, and
+// the current window's best sellers. The latest paid order is read last:
+// failing to read it leaves the rest standing, returned with
 // sales.ErrLatestPaid.
 func (s *Store) Recent(ctx context.Context, days int, now time.Time) (sales.Recent, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
@@ -106,6 +108,12 @@ func (s *Store) Recent(ctx context.Context, days int, now time.Time) (sales.Rece
 		return sales.Recent{}, err
 	}
 	if recent.Previous, err = readPeriod(ctx, q, before); err != nil {
+		return sales.Recent{}, err
+	}
+	if recent.Days, err = readWholeDays(ctx, q, now, days); err != nil {
+		return sales.Recent{}, err
+	}
+	if recent.Sellers, err = readSellers(ctx, q, current, sales.RecentSellers); err != nil {
 		return sales.Recent{}, err
 	}
 
@@ -155,6 +163,49 @@ func readPeriod(ctx context.Context, q *db.Queries, p period) (sales.Period, err
 	}, nil
 }
 
+// wholeDays is the shop days a [sales.Recent] lays out: the last 2*days of
+// them, today included. The orders are bounded by span, which runs from the
+// first day's midnight to now; first and last are the days the rows cover, and
+// the last is today even when now is its first instant.
+func wholeDays(now time.Time, days int) (span period, first, last time.Time) {
+	span = period{from: shoptime.FirstDay(now, 2*days), to: now}
+	return span, shoptime.QueryDate(span.from), shoptime.QueryDate(now)
+}
+
+// readWholeDays is each of the last 2*days shop days' paid orders and revenue,
+// a day without orders included. Reading the two periods apart and joining
+// them would lose the hours between the earlier one's cut and the day after.
+func readWholeDays(ctx context.Context, q *db.Queries, now time.Time, days int) ([]sales.Day, error) {
+	span, first, last := wholeDays(now, days)
+	rows, err := q.PaidByShopDay(ctx, db.PaidByShopDayParams{
+		FirstDay: first, LastDay: last, FromAt: span.from, ToAt: span.to,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read the paid orders of whole days: %w", err)
+	}
+	whole := make([]sales.Day, 0, len(rows))
+	for _, r := range rows {
+		whole = append(whole, sales.Day{Day: r.Day, Orders: r.Orders, RevenueCents: r.RevenueCents})
+	}
+	return whole, nil
+}
+
+// readSellers is the period's best sellers, at most limit of them.
+func readSellers(ctx context.Context, q *db.Queries, p period, limit int32) ([]sales.Seller, error) {
+	rows, err := q.BestSellersBetween(ctx, db.BestSellersBetweenParams{FromAt: p.from, ToAt: p.to, LimitTo: limit})
+	if err != nil {
+		return nil, fmt.Errorf("read best sellers: %w", err)
+	}
+	sellers := make([]sales.Seller, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		sellers = append(sellers, sales.Seller{
+			Slug: r.Slug, Name: r.Name, Brand: r.Brand, Units: r.Units, RevenueCents: r.RevenueCents,
+		})
+	}
+	return sellers, nil
+}
+
 func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (View, error) {
 	days = window(days)
 	current, before := periods(now, int(days))
@@ -179,11 +230,9 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (Vi
 	if err != nil {
 		return View{}, fmt.Errorf("read previous completion: %w", err)
 	}
-	sellers, err := q.BestSellersBetween(ctx, db.BestSellersBetweenParams{
-		FromAt: current.from, ToAt: current.to, LimitTo: maxRows,
-	})
+	sellers, err := readSellers(ctx, q, current, maxRows)
 	if err != nil {
-		return View{}, fmt.Errorf("read best sellers: %w", err)
+		return View{}, err
 	}
 	departments, err := q.DepartmentSalesBetween(ctx, db.DepartmentSalesBetweenParams{
 		Locale: string(i18n.FromContext(ctx)), FromAt: current.from, ToAt: current.to,
@@ -212,13 +261,7 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (Vi
 			Placed:       prevCompletion.Placed, Committed: prevCompletion.Committed,
 		},
 	}
-	for i := range sellers {
-		r := &sellers[i]
-		view.Sellers = append(view.Sellers, Seller{
-			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
-			Units: r.Units, RevenueCents: r.RevenueCents,
-		})
-	}
+	view.Sellers = sellers
 	for _, d := range departments {
 		view.Departments = append(view.Departments, Department{Name: d.Name, SalesCents: d.SalesCents})
 	}

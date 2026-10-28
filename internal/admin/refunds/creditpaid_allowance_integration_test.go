@@ -27,7 +27,7 @@ import (
 func TestStore_RefundBeforeShipmentCreditPaid(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	fake, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
-	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), invoices)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 0, 500000, false)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email)
@@ -58,7 +58,7 @@ func TestStore_RefundBeforeShipmentCreditPaid(t *testing.T) {
 		t.Fatalf("order_refunds reads card %d, credit %d; want the 500000 reversed spend as credit", card, credit)
 	}
 
-	store := admintest.OrderStore(pool, admintest.Refunder{}, invoices, invoices)
+	store := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices, invoices)
 	view, err := store.Order(ctx, number)
 	if err != nil {
 		t.Fatalf("fill the order page: %v", err)

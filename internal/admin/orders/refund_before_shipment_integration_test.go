@@ -31,9 +31,9 @@ import (
 // TestStore_AdvancePaidNotCancelled: a paid order cannot be cancelled directly.
 func TestStore_AdvancePaidNotCancelled(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	refunder := admintest.Refunder{}
-	s := admintest.OrderStore(pool, refunder, nil, nil)
-	desk := refunds.NewStore(pool, refunder, nil)
+	gateway := admintest.HealthyGateway(t)
+	s := admintest.OrderStore(pool, gateway, nil, nil)
+	desk := refunds.NewStore(pool, gateway, nil)
 	h := admintest.OrderDesk(s)
 
 	for _, picking := range []bool{false, true} {
@@ -135,7 +135,7 @@ func TestStore_AdvancePaidNotCancelled(t *testing.T) {
 // return the credit with no confirmation.
 func TestStore_AdvanceCreditPaidNotCancelled(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 0, 500000, false)
 
 	view, err := s.Order(ctx, number)
@@ -179,16 +179,17 @@ func TestStore_OrderRefundStaysOpen(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		picking bool
-		first   admintest.Refunder
+		first   admintest.StripeBehaviour
 		want    error
 	}{
-		{name: "pending at Stripe", first: admintest.Refunder{State: refund.Pending}, want: refunds.ErrUnsettled},
-		{name: "refused by Stripe", picking: true, first: admintest.Refunder{State: refund.Failed}, want: refund.ErrIncomplete},
+		{name: "pending at Stripe", first: admintest.StripeBehaviour{RefundStatus: refund.Pending}, want: refunds.ErrUnsettled},
+		{name: "refused by Stripe", picking: true, first: admintest.StripeBehaviour{RefundStatus: refund.Failed}, want: refund.ErrIncomplete},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, tc.picking)
-			s := admintest.OrderStore(pool, tc.first, nil, nil)
-			desk := refunds.NewStore(pool, tc.first, nil)
+			first := admintest.NewStripe(t, tc.first).Gateway()
+			s := admintest.OrderStore(pool, first, nil, nil)
+			desk := refunds.NewStore(pool, first, nil)
 			if _, err := desk.RefundBeforeShipment(ctx, number, "顧客取消"); !errors.Is(err, tc.want) {
 				t.Fatalf("first press = %v, want %v", err, tc.want)
 			}
@@ -215,7 +216,7 @@ func TestStore_OrderRefundStaysOpen(t *testing.T) {
 				t.Errorf("open/ship/next = %t/%t/%v, want only Resume", view.RefundOpen, view.CanShip, view.Next)
 			}
 
-			if _, err := refunds.NewStore(pool, admintest.Refunder{}, nil).RefundBeforeShipment(ctx, number, ""); err != nil {
+			if _, err := refunds.NewStore(pool, admintest.HealthyGateway(t), nil).RefundBeforeShipment(ctx, number, ""); err != nil {
 				t.Fatalf("resume: %v", err)
 			}
 			if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" {
@@ -253,9 +254,9 @@ func waitBlockedBehind(t *testing.T, holder int, pattern string, done <-chan str
 func TestStore_ShipRefundLock(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
-	refunder := admintest.Refunder{}
-	s := admintest.OrderStore(pool, refunder, nil, nil)
-	desk := refunds.NewStore(pool, refunder, nil)
+	gateway := admintest.HealthyGateway(t)
+	s := admintest.OrderStore(pool, gateway, nil, nil)
+	desk := refunds.NewStore(pool, gateway, nil)
 
 	for _, doorFirst := range []bool{true, false} {
 		t.Run(fmt.Sprintf("door-first=%t", doorFirst), func(t *testing.T) {
@@ -329,9 +330,9 @@ func TestStore_ShipRefundLock(t *testing.T) {
 // next step. It follows each redirect to the order page in both languages.
 func TestHandler_OrderRefundNotices(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	refunder := admintest.Refunder{}
-	h := admintest.OrderDesk(admintest.OrderStore(pool, refunder, nil, nil))
-	door := refunds.NewHandler(refunds.NewStore(pool, refunder, nil), nil, slog.New(slog.DiscardHandler))
+	gateway := admintest.HealthyGateway(t)
+	h := admintest.OrderDesk(admintest.OrderStore(pool, gateway, nil, nil))
+	door := refunds.NewHandler(refunds.NewStore(pool, gateway, nil), nil, slog.New(slog.DiscardHandler))
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 300000, 0, true)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO invoice_documents (order_id, kind, number, amount_cents)

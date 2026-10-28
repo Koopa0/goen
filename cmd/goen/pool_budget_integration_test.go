@@ -52,7 +52,7 @@ func TestNewServerPoolWaitBudget(t *testing.T) {
 				StorePool: p, Payments: gateway, BaseURL: "http://127.0.0.1",
 			},
 			BackOffice: BackOfficeConfig{
-				AdminPool: ap, Payments: gateway, Refunder: gateway,
+				AdminPool: ap, Payments: gateway,
 			},
 		},
 		proxies, slog.New(slog.DiscardHandler),
