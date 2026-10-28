@@ -1,6 +1,7 @@
 // Package order is the vocabulary of an order: its fulfillment states and the
-// back office's words for them, its event kinds and its number; it does not
-// hold the buyer's side of a placed order (order/buyer).
+// back office's words for them, when one still needs paying, how long a paid
+// one may wait to be picked, its event kinds and its number; it does not hold
+// the buyer's side of a placed order (order/buyer).
 package order
 
 import (
