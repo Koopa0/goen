@@ -1,6 +1,7 @@
 export async function checkWishlistFocus({ send, evaluate, navigate, fail, origin }) {
   const { cookies: priorCookies } = await send('Network.getCookies', { urls: [origin] });
-  const selector = '.goen-pdp__links .goen-btn, .goen-pdp__similar .goen-btn';
+  // The wishlist control is a button in the buy column; the comparison entry is a text link in the details.
+  const selector = '.goen-pdp__links .goen-btn, a.goen-pdp__compare';
   try {
     await send('Network.clearBrowserCookies');
     for (const lang of ['zh-Hant', 'en']) for (const width of [320, 375, 1440])
@@ -25,9 +26,11 @@ export async function checkWishlistFocus({ send, evaluate, navigate, fail, origi
         await navigate(origin + '/p/aurora-charger-65');
         await evaluate(`document.documentElement.style.fontSize = '${scale}%'`);
         await evaluate('document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))', true);
-        const initial = await evaluate(`({ count: document.querySelectorAll(${JSON.stringify(selector)}).length,
+        const initial = await evaluate(`({
+          wishlist: document.querySelectorAll('.goen-pdp__links .goen-btn').length,
+          compare: document.querySelectorAll('a.goen-pdp__compare').length,
           lang: document.documentElement.lang, root: getComputedStyle(document.documentElement).fontSize })`);
-        if (initial.count !== 2 || initial.lang !== lang || initial.root !== `${16 * scale / 100}px`) {
+        if (initial.wishlist !== 1 || initial.compare !== 1 || initial.lang !== lang || initial.root !== `${16 * scale / 100}px`) {
           fail(label, `wrong product controls, locale or text size: ${JSON.stringify(initial)}`);
           continue;
         }
@@ -39,24 +42,40 @@ export async function checkWishlistFocus({ send, evaluate, navigate, fail, origi
             const control = document.activeElement;
             if (!control.matches(${JSON.stringify(selector)})) return null;
             const box = control.getBoundingClientRect(), style = getComputedStyle(control);
-            const row = control.closest('.goen-pdp__links, .goen-pdp__similar');
-            const offset = -parseFloat(getComputedStyle(row).marginLeft);
-            const padding = parseFloat(style.paddingLeft);
-            const ring = Math.max(0, parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset));
+            const kind = control.matches('.goen-pdp__compare') ? 'compare' : 'wishlist';
+            const column = control.closest('.goen-pdp__buy, .goen-pdp__more');
+            if (!column) return { control: kind, faults: ['control is outside the buy and details columns'] };
+            const columnBox = column.getBoundingClientRect(), columnStyle = getComputedStyle(column);
+            // Where the label starts, and where the column's own text starts.
+            const labelLeft = box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+            const columnLeft = columnBox.left + parseFloat(columnStyle.borderLeftWidth) + parseFloat(columnStyle.paddingLeft);
+            const outline = parseFloat(style.outlineWidth), ring = Math.max(0, outline + parseFloat(style.outlineOffset));
             const viewport = document.documentElement.clientWidth, faults = [];
             if (box.height < 44) faults.push('control height is below 44px');
-            if (!control.matches(':focus-visible') || style.outlineStyle === 'none' || !ring)
-              faults.push('native Tab focus has no visible outline');
+            if (!control.matches(':focus-visible') || style.outlineStyle === 'none' || outline < 2)
+              faults.push('native Tab focus has no outline of at least 2px');
             if (box.left - ring < -0.5 || box.right + ring > viewport + 0.5)
               faults.push('focused control or outline exceeds the viewport');
             if (document.documentElement.scrollWidth > viewport || Math.abs(scrollX) > 0.5)
               faults.push('focusing the control causes horizontal scroll');
-            if (offset !== 0 || padding !== offset || parseFloat(style.paddingRight) !== offset)
-              faults.push('label alignment does not retain equal fixed-pixel offset and padding');
-            const column = control.closest('.goen-pdp__buy, .goen-pdp__more');
-            if (!column || offset + ring > column.getBoundingClientRect().left + 0.5)
-              faults.push('negative margin exceeds the column gutter minus its focus outline');
-            return { control: row.className, left: box.left, right: box.right, height: box.height, ring, viewport, offset, padding, faults };
+            for (let node = control.parentElement; node && node !== document.body; node = node.parentElement) {
+              const clip = getComputedStyle(node);
+              if (clip.overflowX === 'visible' && clip.overflowY === 'visible') continue;
+              const edge = node.getBoundingClientRect();
+              if (box.left - ring < edge.left - 0.5 || box.right + ring > edge.right + 0.5
+                || box.top - ring < edge.top - 0.5 || box.bottom + ring > edge.bottom + 0.5) {
+                faults.push('focus outline is clipped by ' + (node.className || node.tagName));
+                break;
+              }
+            }
+            if (Math.abs(labelLeft - columnLeft) > 0.5)
+              faults.push('label is not aligned with the column text: ' + (labelLeft - columnLeft).toFixed(1) + 'px off');
+            if (kind === 'wishlist' && Math.abs(parseFloat(style.paddingRight) - parseFloat(style.paddingLeft)) > 0.5)
+              faults.push('wishlist button side padding is not equal');
+            const overhang = Math.max(0, columnBox.left - box.left);
+            if (overhang + ring > columnBox.left + 0.5)
+              faults.push('overhang exceeds the column gutter minus its focus outline');
+            return { control: kind, left: box.left, right: box.right, height: box.height, outline, ring, viewport, overhang, labelLeft, columnLeft, faults };
           })()`);
           if (!got) continue;
           reached.add(got.control);
