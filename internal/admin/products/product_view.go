@@ -269,14 +269,21 @@ func (v *ProductView) ReuseAction() string {
 
 func (v *ProductView) HasLibrary() bool { return len(v.Library) > 0 }
 
-// Examples for the Chinese half of each paired field. They do not follow the reader's
-// locale: which language each field takes is fixed by the schema.
+// Examples shown under the paired fields. They do not follow the reader's locale: which
+// language each field takes is fixed by the schema, so the Chinese field shows a Chinese
+// example and its English twin an English one.
 const (
-	altExample       = "白色陶瓷馬克杯，側面，把手朝右" // i18n-exempt: a Chinese example for a field that takes Chinese
-	optionExample    = "顏色"              // i18n-exempt: as above — 顏色, not Colour, is what goes in this box
-	optionValExample = "星霧藍"             // i18n-exempt: as above
-	specLabelExample = "容量"              // i18n-exempt: as above
-	specValueExample = "350 ml"          // i18n-exempt: as above
+	altExample         = "白色陶瓷馬克杯，側面，把手朝右"                                   // i18n-exempt: a Chinese example for a field that takes Chinese
+	altExampleEn       = "White ceramic mug, side view, handle on the right" // i18n-exempt: an English example for the field that takes English
+	optionExample      = "顏色"                                                // i18n-exempt: as above — 顏色, not Colour, is what goes in this box
+	optionExampleEn    = "Colour"                                            // i18n-exempt: as above
+	optionValExample   = "星霧藍"                                               // i18n-exempt: as above
+	optionValExampleEn = "Mist Blue"                                         // i18n-exempt: as above
+	swatchExample      = "#1c1c1e"                                           // i18n-exempt: a hex colour, the same in both languages
+	specLabelExample   = "容量"                                                // i18n-exempt: as above
+	specLabelExampleEn = "Capacity"                                          // i18n-exempt: as above
+	specValueExample   = "350 ml"                                            // i18n-exempt: as above
+	specValueExampleEn = "350 ml"                                            // i18n-exempt: as above
 )
 
 func (v *ProductView) LabelAction() string { return "/admin/products/" + v.Slug + "/label" }
