@@ -8,8 +8,15 @@
    the element defaults), in app.css's order. A storefront restyle changes
    app.css's copy and leaves this one alone.
 
-   The tokens are in base.css; none is declared here.
+   Colours, type, spacing and motion are base.css's; the back office's own
+   geometry is declared below, and the storefront's --r-press and --r-hero
+   are not read here, because this page does not load app.css.
    ============================================================ */
+
+:root {
+  --r-admin-control: 8px;
+  --r-admin-panel: 12px;
+}
 
 a {
   color: var(--accent-text);
@@ -48,7 +55,7 @@ a:hover {
 .goen-skip {
   background: var(--panel);
   border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-control);
   font-size: var(--fs-14);
   left: -9999px;
   padding: 8px 16px;
@@ -107,7 +114,7 @@ h3 {
 .goen-btn {
   align-items: center;
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-control);
   box-sizing: border-box;
   cursor: pointer;
   display: inline-flex;
@@ -281,14 +288,14 @@ h3 {
    the section around it, which is what decides the level announced. */
 .goen-card {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-admin-panel);
   padding: 1.5rem;
 }
 
 .goen-notice {
   background: var(--elevated);
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
   color: var(--fg-muted);
   font-size: var(--fs-14);
   margin: 0;
@@ -334,7 +341,7 @@ h3 {
 .goen-stepper {
   align-items: stretch;
   border: 1px solid var(--n-300);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-control);
   display: inline-flex;
   height: 2.75rem;
   overflow: hidden;
@@ -406,7 +413,7 @@ h3 {
 .goen-input {
   background: var(--n-0);
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-control);
   box-sizing: border-box;
   color: var(--fg);
   font-family: inherit;
@@ -503,7 +510,7 @@ h3 {
 
 .goen-langmenu > summary {
   align-items: center;
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-control);
   color: var(--n-700);
   cursor: pointer;
   display: inline-flex;
@@ -539,7 +546,7 @@ h3 {
 .goen-langmenu__panel {
   background: var(--n-0);
   border: 1px solid var(--n-200);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-admin-panel);
   box-shadow: var(--sh-lg);
   min-width: 11rem;
   padding: 4px;
@@ -553,7 +560,7 @@ h3 {
   align-items: center;
   background: none;
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-control);
   color: var(--n-700);
   cursor: pointer;
   display: flex;
@@ -719,7 +726,7 @@ input.goen-check {
    room for the disclosure that opens the rail. */
 .goen-adminbar__link {
   align-items: center;
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-control);
   color: var(--fg-muted);
   display: none;
   font-size: var(--fs-14);
@@ -862,7 +869,7 @@ input.goen-check {
 
 .goen-disclosure__summary {
   align-items: center;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-admin-control);
   color: var(--fg);
   cursor: pointer;
   display: flex;
@@ -887,7 +894,7 @@ input.goen-check {
 .goen-admin__nav {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
   min-width: 0;
   padding: 4px;
   view-transition-name: rail;
@@ -902,7 +909,7 @@ input.goen-check {
 
 .goen-admin__nav .ui-navitem {
   align-items: center;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-admin-control);
   color: var(--fg-muted);
   display: flex;
   font-size: var(--fs-13);
@@ -946,7 +953,7 @@ input.goen-check {
 .goen-admin__navgroup[open] {
   align-items: center;
   background: var(--elevated);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-control);
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -1020,6 +1027,7 @@ input.goen-check {
 
 .goen-admin .ui-page-head__title {
   font-size: var(--fs-ed-24);
+  font-weight: var(--fw-display);
 }
 
 /* A head holding three buttons has to let them wrap on a phone; the base rule
@@ -1080,7 +1088,7 @@ input.goen-check {
    forced colours draws as its edge. */
 .goen-stat {
   background: var(--wash);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-admin-panel);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1127,7 +1135,7 @@ input.goen-check {
   align-items: center;
   background: var(--panel);
   border: 1px dashed var(--border-strong);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1152,7 +1160,7 @@ input.goen-check {
 .goen-admin__heading {
   color: var(--fg);
   font-size: var(--fs-ed-20);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -1244,7 +1252,7 @@ input.goen-check {
     radial-gradient(farthest-side at 100% 50%, var(--border-strong), transparent) right center / 0.75rem 100% no-repeat scroll;
   background-color: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -1494,6 +1502,22 @@ input.goen-check {
   min-height: 44px;
 }
 
+/* The corners of the back office's controls. base.css gives the shared
+   components the storefront's 4-6px; here they take the back office's own. */
+.goen-admin .ui-btn,
+.goen-admin .ui-input,
+.goen-admin .ui-textarea,
+.goen-admin .ui-select,
+.goen-admin .ui-filter {
+  border-radius: var(--r-admin-control);
+}
+
+/* Inside the navgroup's 2px padding, so the item's corner is concentric with
+   the group's. */
+.goen-admin__navgroup .ui-navitem {
+  border-radius: calc(var(--r-admin-control) - 2px);
+}
+
 /* .ui-filter is inline-flex, so min-height alone leaves the text at the top.
    The nav item is not here: the rail gives it a box of its own, and two rules
    of equal weight setting display on one element is a source-order puzzle. */
@@ -1531,7 +1555,7 @@ input.goen-check {
   align-self: flex-start;
   background: var(--n-100);
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-control);
   display: inline-flex;
   gap: 2px;
   margin: 0;
@@ -1540,7 +1564,7 @@ input.goen-check {
 
 .goen-admin__langopt {
   align-items: center;
-  border-radius: var(--r-sm);
+  border-radius: calc(var(--r-admin-control) - 2px);
   color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
@@ -1881,7 +1905,7 @@ input.goen-check {
   padding: 16px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
 }
 
 .goen-admin__returninfo {
@@ -1973,7 +1997,7 @@ input.goen-check {
   padding: 16px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
 }
 
 .goen-admin__side section {
@@ -2042,7 +2066,7 @@ input.goen-check {
   background: var(--panel);
   border: 1px solid var(--border);
   border-left: 3px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -2127,7 +2151,7 @@ input.goen-check {
   align-items: baseline;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
   display: flex;
   gap: 12px;
   justify-content: space-between;
@@ -2174,7 +2198,7 @@ input.goen-check {
 .goen-health__item {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
   box-shadow: var(--shadow-1);
   display: flex;
   flex-direction: column;
@@ -2400,7 +2424,7 @@ input.goen-check {
 /* One operation: a card holding one form and the sentence that explains it.
    Tighter than the storefront's card, which is sized for reading. */
 .goen-admin__op {
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
   box-shadow: none;
   display: flex;
   flex-direction: column;
@@ -2412,7 +2436,7 @@ input.goen-check {
 .goen-admin__optitle {
   color: var(--fg);
   font-size: var(--fs-ed-20);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -2522,7 +2546,7 @@ input.goen-check {
 .goen-report__figure {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
   container-type: inline-size;
   display: flex;
   flex-direction: column;
@@ -2560,7 +2584,7 @@ input.goen-check {
 .goen-report__rows {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-admin-panel);
   container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(min(14rem, 100%), 22rem);
@@ -2821,7 +2845,7 @@ input.goen-check {
 .goen-twofa__title {
   color: var(--fg);
   font-size: var(--fs-ed-24);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   letter-spacing: -0.02em;
   margin: 0;
 }
