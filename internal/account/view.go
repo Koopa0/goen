@@ -39,7 +39,7 @@ func (o Order) Facts(ctx context.Context) []widget.Stat {
 		{Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: widget.StatMoney(o.TotalCents)},
 	}
 	if o.OneLastDay {
-		facts = append(facts, widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), o.LastDay, ""))
+		facts = append(facts, widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderRowRescissionEnds), o.LastDay, ""))
 	}
 	return facts
 }

@@ -48,13 +48,13 @@ func TestOrderNextUnit(t *testing.T) {
 			if attrs["value"] != line.DraftSerial || !readonly || strings.Contains(body, `name="unit"`) {
 				t.Errorf("unavailable serial draft = %v, want raw readonly input without a registration unit", attrs)
 			}
-			end := shoptime.Date{Year: 2027, Month: 8, Day: 20}
+			end := shoptime.Date{Year: 2027, Month: 8, Day: 20, OtherYear: true}
 			line.CoverEnds = &end
 			if !line.Registrable() {
 				t.Fatal("a delivered next unit with an expiry is not registrable")
 			}
 			body = renderWarrantyInLocale(t, ctx, Order(frame.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
-			if !strings.Contains(body, `name="unit" value="1"`) || !strings.Contains(body, "2027-08-20") || strings.Contains(body, tc.neutral) {
+			if !strings.Contains(body, `name="unit" value="1"`) || !strings.Contains(body, shoptime.DateText(ctx, end)) || strings.Contains(body, "2027-08-20") || strings.Contains(body, tc.neutral) {
 				t.Error("eligible next unit lost its unit1 form or own-parcel expiry")
 			}
 			attrs = warrantyAttributes(warrantyNodesByID(t, body)["serial-next"])

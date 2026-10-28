@@ -92,7 +92,7 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 		})
 	}
 
-	if view.Invoice, err = s.orderInvoice(ctx, o.ID); err != nil {
+	if view.Invoice, err = s.orderInvoice(ctx, o.ID, now); err != nil {
 		return OrderView{}, err
 	}
 	if view.Shipments, view.Unshipped, err = s.orderParcels(ctx, o.ID, ids, byID); err != nil {
@@ -205,7 +205,7 @@ func (s *Store) orderReturned(ctx context.Context, orderID uuid.UUID) (*OrderRet
 	return out, nil
 }
 
-func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*OrderInvoice, error) {
+func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID, now time.Time) (*OrderInvoice, error) {
 	docs, err := s.q.OrderInvoiceDocuments(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("read order invoice: %w", err)
@@ -226,7 +226,7 @@ func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*OrderInvo
 		out.Documents = append(out.Documents, OrderInvoiceDocument{
 			Allowance: invoice.DocumentKind(d.Kind) == invoice.DocumentAllowance, Number: d.Number, RandomCode: d.ProviderRef,
 			AmountCents: d.AmountCents, Voided: invoice.DocumentStatus(d.Status) == invoice.DocumentVoided,
-			IssuedOn: shoptime.Day(d.IssuedAt),
+			IssuedOn: shoptime.DateOf(d.IssuedAt, now),
 		})
 	}
 	return out, nil

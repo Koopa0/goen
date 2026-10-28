@@ -41,8 +41,11 @@ func TestOrderLastDay(t *testing.T) {
 			if got := strings.Contains(html, `datetime="2026-10-13"`); got != tc.want {
 				t.Errorf("Account(order oneLastDay=%v) shows the last day = %v, want %v", tc.delivered, got, tc.want)
 			}
-			if got := strings.Contains(html, i18n.T(ctx, i18n.KeyOrderLastDay)); got != tc.want {
-				t.Errorf("Account(order oneLastDay=%v) shows the last-day label = %v, want %v", tc.delivered, got, tc.want)
+			if got := strings.Contains(html, "猶豫期到"); got != tc.want {
+				t.Errorf("Account(order oneLastDay=%v) shows the rescission label = %v, want %v", tc.delivered, got, tc.want)
+			}
+			if strings.Contains(html, "最後一天") {
+				t.Errorf("Account(order oneLastDay=%v) labels a day 最後一天, which is the last day of nothing", tc.delivered)
 			}
 		})
 	}
