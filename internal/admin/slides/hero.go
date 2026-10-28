@@ -107,7 +107,7 @@ type heroPosition struct {
 	ID       uuid.UUID
 }
 
-func (s *Store) HeroSlides(ctx context.Context, after ...string) (HeroView, error) {
+func (s *Store) HeroSlides(ctx context.Context, after string) (HeroView, error) {
 	from, resumed := keyset.Resume(heroScope, after, func(p heroPosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminHeroSlides(ctx, db.AdminHeroSlidesParams{
 		HasCursor: resumed, AfterPosition: from.Position, AfterID: from.ID, RowLimit: MaxSlides + 1,

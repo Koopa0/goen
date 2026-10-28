@@ -351,7 +351,7 @@ func TestHandler_UploadImageLosslessWebP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	beforeHeroes, err := heroes.HeroSlides(staffCtx)
+	beforeHeroes, err := heroes.HeroSlides(staffCtx, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,7 +448,7 @@ func TestHandler_UploadImageLosslessWebP(t *testing.T) {
 				if diff := cmp.Diff(beforeImages, afterImages); diff != "" {
 					t.Errorf("lossless refusal changed product images (-want +got):\n%s", diff)
 				}
-				afterHeroes, err := heroes.HeroSlides(ctx)
+				afterHeroes, err := heroes.HeroSlides(ctx, "")
 				if err != nil {
 					t.Fatal(err)
 				}

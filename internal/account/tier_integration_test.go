@@ -18,7 +18,7 @@ func TestStore_OverviewTierDerived(t *testing.T) {
 	s := account.NewStore(pool)
 	u := register(t, "tiered-account@example.com")
 
-	before, err := s.Overview(ctx, u)
+	before, err := s.Overview(ctx, u, "")
 	if err != nil {
 		t.Fatalf("read the account: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestStore_OverviewTierDerived(t *testing.T) {
 
 	orderID := committedOrderFor(t, u.ID, 2000000) // NT$20,000
 
-	after, err := s.Overview(ctx, u)
+	after, err := s.Overview(ctx, u, "")
 	if err != nil {
 		t.Fatalf("re-read the account: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestStore_OverviewTierDerived(t *testing.T) {
 	}
 
 	refundAndCancel(t, orderID)
-	gone, err := s.Overview(ctx, u)
+	gone, err := s.Overview(ctx, u, "")
 	if err != nil {
 		t.Fatalf("read the account after cancelling: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestStore_OverviewBandLocale(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			view, err := s.Overview(i18n.WithLocale(ctx, tt.locale),
-				user.User{ID: id, Role: user.RoleCustomer})
+				user.User{ID: id, Role: user.RoleCustomer}, "")
 			if err != nil {
 				t.Fatalf("Overview: %v", err)
 			}

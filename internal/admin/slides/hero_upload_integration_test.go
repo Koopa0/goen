@@ -136,7 +136,7 @@ func TestHandler_CreateHeroImageRefusal(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
 	slides.NewHandler(s, media.NewHandler(media.NewStore(p), log), log).Routes(mux, admintest.BackOffice)
-	baseline, err := s.HeroSlides(staffCtx)
+	baseline, err := s.HeroSlides(staffCtx, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestHandler_CreateHeroImageRefusal(t *testing.T) {
 					t.Errorf("hero upload draft (-want +got):\n%s", diff)
 				}
 				uitest.AssertRefusedInput(t, res.Body.String(), tt.errorID, "")
-				after, err := s.HeroSlides(ctx)
+				after, err := s.HeroSlides(ctx, "")
 				if err != nil {
 					t.Fatal(err)
 				}

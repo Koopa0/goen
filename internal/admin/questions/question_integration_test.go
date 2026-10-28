@@ -34,7 +34,7 @@ func TestStore_QuestionsOrder(t *testing.T) {
 	}
 	newest := ask(t, ps, slug, asker, "最新的,沒人回", -1)
 
-	view, err := s.Questions(ctx, questions.QueueVisible)
+	view, err := s.Questions(ctx, questions.QueueVisible, "")
 	if err != nil {
 		t.Fatalf("questions: %v", err)
 	}

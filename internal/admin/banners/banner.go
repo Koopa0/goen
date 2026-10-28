@@ -84,7 +84,7 @@ type bannerPosition struct {
 	ID     uuid.UUID
 }
 
-func (s *Store) Banners(ctx context.Context, after ...string) (View, error) {
+func (s *Store) Banners(ctx context.Context, after string) (View, error) {
 	from, resumed := keyset.Resume(bannerScope, after, func(p bannerPosition) bool { return p.ID != uuid.Nil && !p.At.IsZero() })
 	rows, err := s.q.ManagedBanners(ctx, db.ManagedBannersParams{
 		HasCursor: resumed, AfterActive: from.Active, AfterAt: from.At, AfterID: from.ID, RowLimit: MaxBanners + 1,

@@ -29,7 +29,7 @@ import (
 // renderedTrail reads the trail and renders the page the way /admin/audit does.
 func renderedTrail(t *testing.T, ctx context.Context) (view audit.View, html string) {
 	t.Helper()
-	view, err := audit.NewStore(pool).Events(ctx)
+	view, err := audit.NewStore(pool).Events(ctx, "")
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}

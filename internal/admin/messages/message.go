@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-func (s *Store) Messages(ctx context.Context, after ...string) (View, error) {
+func (s *Store) Messages(ctx context.Context, after string) (View, error) {
 	const scope = "/admin/messages"
 	from, resumed := keyset.Resume(scope, after, func(p messagePosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminMessages(ctx, db.AdminMessagesParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})

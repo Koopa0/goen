@@ -90,15 +90,13 @@ func Read[T any](scope, token string) (position T, ok bool) {
 	return position, true
 }
 
-// Resume is Read for the optional position argument of a list read.
-// ok is false for the first page, for a token this list did not mint, and for a
-// position the list's own check refuses: a zero identifier is no row.
-func Resume[T any](scope string, after []string, acceptable func(T) bool) (from T, ok bool) {
+// Resume is Read for the position argument of a list read; after is empty for
+// the first page. ok is false for the first page, for a token this list did not
+// mint, and for a position the list's own check refuses: a zero identifier is no
+// row.
+func Resume[T any](scope, after string, acceptable func(T) bool) (from T, ok bool) {
 	var zero T
-	if len(after) == 0 {
-		return zero, false
-	}
-	p, valid := Read[T](scope, after[0])
+	p, valid := Read[T](scope, after)
 	if !valid || !acceptable(p) {
 		return zero, false
 	}
