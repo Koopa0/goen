@@ -67,7 +67,7 @@ func TestStore_ListWorkTabsOldestFirst(t *testing.T) {
 	if _, err := pool.Exec(t.Context(), `UPDATE orders SET placed_at = now() - interval '2 days' WHERE id = $1`, lateID); err != nil {
 		t.Fatalf("backdate placing: %v", err)
 	}
-	packing, _, _ := admintest.PaidUnshippedOrder(t, pool, 20000, 0, true)
+	picking, _, _ := admintest.PaidUnshippedOrder(t, pool, 20000, 0, true)
 	unpaid := admintest.PlaceUnpaidOrder(t, pool)
 
 	ready := workTab(t, s, orders.QueueReady)
@@ -78,7 +78,7 @@ func TestStore_ListWorkTabsOldestFirst(t *testing.T) {
 	if got := positionOf(ready, unpaid); got != -1 {
 		t.Errorf("the order that is still unpaid is listed as awaiting packing at %d", got)
 	}
-	if got := positionOf(ready, packing); got != -1 {
+	if got := positionOf(ready, picking); got != -1 {
 		t.Errorf("an order being packed is listed as awaiting packing at %d", got)
 	}
 	for i := 1; i < len(ready); i++ {
@@ -93,7 +93,7 @@ func TestStore_ListWorkTabsOldestFirst(t *testing.T) {
 		t.Errorf("the order paid just now waited %d days, overdue %t; want 0, not overdue", w.WaitDays, w.Overdue)
 	}
 
-	if got := positionOf(workTab(t, s, orders.QueuePicking), packing); got == -1 {
+	if got := positionOf(workTab(t, s, orders.QueuePicking), picking); got == -1 {
 		t.Error("the order being packed is missing from the packing tab")
 	}
 }

@@ -129,7 +129,7 @@ func (s *Store) Product(ctx context.Context, slug string) (ProductView, error) {
 		return ProductView{}, productReadError(slug, err)
 	}
 	view := ProductView{
-		Slug: p.Slug, Name: p.Name, Summary: p.Summary,
+		Slug: p.Slug, Name: p.Name, SavedName: p.Name, Summary: p.Summary,
 		InvoiceTerms: &invoice.LineTerms{TaxType: invoice.TaxType(p.TaxType), Unit: invoice.ItemUnit(p.InvoiceUnit)},
 		LabelInput:   productLabelInput(&p),
 		Description:  p.Description, WarrantyNote: p.WarrantyNote,

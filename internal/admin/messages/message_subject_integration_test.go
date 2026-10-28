@@ -172,7 +172,7 @@ func contactSubjectRow(t *testing.T, ctx context.Context, desk *messages.Store, 
 	t.Helper()
 	after := ""
 	for {
-		view, err := desk.Messages(ctx, after)
+		view, err := desk.Messages(ctx, after, time.Now())
 		if err != nil {
 			t.Fatalf("read real contact inbox: %v", err)
 		}

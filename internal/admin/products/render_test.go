@@ -41,7 +41,7 @@ func render(t *testing.T, c templ.Component) string {
 // Meta is the page the tests here wrap their views in: the title is not what
 // they assert, so a fixed one is enough.
 func Meta(ctx context.Context) frame.Page {
-	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminQueueDashboardTitle)}
 }
 
 // firstPageBound is the bound the stores build for the first page of a

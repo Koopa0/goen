@@ -2,7 +2,6 @@ package messages
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -51,21 +50,18 @@ func (m Message) Waiting(ctx context.Context) string {
 	switch {
 	case m.Handled:
 		return i18n.T(ctx, i18n.KeyAdminMsgHandled)
-	case m.WaitingDays == 0:
-		return i18n.T(ctx, i18n.KeyAdminMsgToday)
-	case m.WaitingDays == 1:
-		return i18n.T(ctx, i18n.KeyAdminMsgOneDay)
+	case m.WaitingDays <= 0:
+		return i18n.T(ctx, i18n.KeyAdminWaitToday)
 	default:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMsgDays), m.WaitingDays)
+		return i18n.Count(ctx, i18n.KeyAdminWaitDays, int64(m.WaitingDays), m.WaitingDays)
 	}
 }
 
-// OverdueText says "overdue" in words, so the badge does not rest on its colour alone.
-func (m Message) OverdueText(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMsgOverdue), m.Waiting(ctx))
-}
+// replyWithinDays is the shop days a message may wait for an answer; the third
+// day is overdue.
+const replyWithinDays = 2
 
-func (m Message) Overdue() bool { return !m.Handled && m.WaitingDays >= 3 }
+func (m Message) Overdue() bool { return !m.Handled && m.WaitingDays > replyWithinDays }
 
 func (m Message) Action() string {
 	if m.Handled {

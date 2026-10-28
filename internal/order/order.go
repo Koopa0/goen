@@ -1,6 +1,7 @@
 // Package order is the vocabulary of an order: its fulfillment states and the
-// back office's words for them, its event kinds and its number; it does not
-// hold the buyer's side of a placed order (order/buyer).
+// back office's words for them, when one still needs paying, how long a paid
+// one may wait to be picked, its event kinds and its number; it does not hold
+// the buyer's side of a placed order (order/buyer).
 package order
 
 import (
@@ -143,8 +144,8 @@ func AwaitingPayment(status FulfillmentStatus, committed bool, owedCents int64) 
 	return status == FulfillmentPending && !committed && owedCents > 0
 }
 
-// PackWithinDays is the shop days a paid order may wait to be packed; the
-// third day is overdue, as it is on the contact messages desk.
-const PackWithinDays = 2
+// PickWithinDays is the shop days a paid order may wait to be picked; the
+// third day is overdue.
+const PickWithinDays = 2
 
-func PackingOverdue(days int) bool { return days > PackWithinDays }
+func PickingOverdue(days int) bool { return days > PickWithinDays }

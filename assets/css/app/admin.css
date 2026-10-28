@@ -795,6 +795,7 @@ input.goen-check {
   align-items: flex-start;
   border-bottom: 1px solid var(--border-faint);
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   justify-content: space-between;
   padding: 14px 0;
@@ -818,7 +819,7 @@ input.goen-check {
 }
 
 .goen-order__linebody {
-  flex: 1;
+  flex: 1 1 10rem;
   min-width: 0;
 }
 

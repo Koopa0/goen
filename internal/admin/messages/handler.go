@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
@@ -39,7 +40,7 @@ var notices = map[string]widget.NoticeEntry{
 }
 
 func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Messages(r.Context(), r.URL.Query().Get(keyset.Param))
+	view, err := h.store.Messages(r.Context(), r.URL.Query().Get(keyset.Param), time.Now())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read contact messages", "error", err)
 		admin.ServerError(w, r, h.log)
