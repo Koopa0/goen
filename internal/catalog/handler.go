@@ -113,6 +113,15 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	if redirectPastLastPage(w, r, view.Page, view.Pages()) {
 		return
 	}
+	if !view.Searched() || view.Empty() {
+		// Best effort: the page says what to do next without them, and the
+		// department chips below it still lead somewhere.
+		newest, err := h.store.NewestProducts(r.Context(), newestOnEmpty)
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "newest products for a search with nothing to show", "error", err)
+		}
+		view.Newest = newest
+	}
 	if respond.IsHTMX(r) {
 		r = r.WithContext(AsPartial(r.Context()))
 	}
@@ -125,15 +134,6 @@ func (h *Handler) searched(ctx context.Context, pattern, query string, sort Sort
 		return SearchView{}, err
 	}
 	view.Query = query
-	if view.Empty() {
-		// Best effort: the page already says nothing matched, and the
-		// department chips below it still lead somewhere.
-		newest, newestErr := h.store.NewestProducts(ctx, newestOnEmpty)
-		if newestErr != nil {
-			h.log.ErrorContext(ctx, "newest products for an empty search", "error", newestErr)
-		}
-		view.Newest = newest
-	}
 	return view, nil
 }
 
