@@ -35,7 +35,7 @@ func TestNewRouterUnstorableTextDatabase(t *testing.T) {
 			StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: pool, Payments: gateway, Refunder: gateway,
+			AdminPool: pool, Payments: gateway,
 		},
 	}, slog.New(slog.DiscardHandler))
 

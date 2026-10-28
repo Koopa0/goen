@@ -18,8 +18,8 @@ import (
 // The tests in this file are the coupon halves of tests that render several
 // desks' pages: each half lives with the page it renders.
 
-// TestCouponsPerMemberLimit: the coupon form says the limit is per member account.
-func TestCouponsPerMemberLimit(t *testing.T) {
+// TestCouponsPerCustomerLimit: the coupon form says the limit is per customer account.
+func TestCouponsPerCustomerLimit(t *testing.T) {
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)

@@ -343,7 +343,7 @@ func TestRoutingStorefrontInventory(t *testing.T) {
 				SecureCookies: false, StoreMap: storeMap,
 			},
 			BackOffice: BackOfficeConfig{
-				AdminPool: adminPool, Payments: gateway, Refunder: gateway, StoreMap: storeMap,
+				AdminPool: adminPool, Payments: gateway, StoreMap: storeMap,
 			},
 		}, log)
 	}

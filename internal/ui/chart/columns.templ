@@ -53,7 +53,7 @@ templ Columns(p ColumnsProps) {
 						<rect class="goen-chart__hit" data-row={ strconv.Itoa(i) } x={ h.X } y="0" width={ h.Width } height={ px(c.Baseline) }></rect>
 					}
 					for _, v := range c.Values {
-						<text class="goen-chart__value" x={ v.X } y={ px(v.Y) } text-anchor="middle">{ v.Text }</text>
+						<text class="goen-chart__value" x={ v.X } y={ px(v.Y) } text-anchor={ v.Anchor }>{ v.Text }</text>
 					}
 					for _, t := range c.Ticks {
 						<text

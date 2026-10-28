@@ -44,7 +44,7 @@ func TestStore_InspectNoDeadlock(t *testing.T) {
 	var done [2]chan error
 	for i := range orders {
 		name := "inspection_lock_" + uuid.NewString()[:8]
-		s := storeOver(admintest.NamedPool(t, pool, name), admintest.Refunder{})
+		s := storeOver(admintest.NamedPool(t, pool, name), admintest.HealthyGateway(t))
 		done[i] = make(chan error, 1)
 		go func() { done[i] <- s.Inspect(ctx, requestID.String(), orders[i], staff) }()
 		waitForLock(t, name, done[i])

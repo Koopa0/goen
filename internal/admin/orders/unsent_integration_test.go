@@ -24,7 +24,7 @@ func TestStore_OrderUnsentRefundedUnits(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
-	pending := admintest.Refunder{State: refund.Pending}
+	pending := admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Pending}).Gateway()
 	desk := admintest.OrderStore(adminPool, pending, nil, admintest.DisabledInvoiceWriter{})
 	o := admintest.PartlyShippedOrder(t, owner, admintest.TwoLineOrderTotal)
 
@@ -74,7 +74,7 @@ func TestStore_OrderUnsentRefundedUnits(t *testing.T) {
 func TestStore_FillParcelSchemaRefusal(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	adminPool := admintest.AdminRolePool(t, pool)
-	pending := admintest.Refunder{State: refund.Pending}
+	pending := admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Pending}).Gateway()
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 	if err := refunds.NewStore(adminPool, pending, nil).RefundUnsent(ctx, o.Number, &refunds.UnsentRequest{
 		Units: map[uuid.UUID]int32{o.LineB: 2}, Reason: string(returns.UnsentDamaged), Note: "外盒破損",

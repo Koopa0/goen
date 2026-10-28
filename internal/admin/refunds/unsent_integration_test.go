@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/payment/refund"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -59,10 +59,10 @@ func unsentRequest(reason returns.UnsentReason, units map[uuid.UUID]int32) *refu
 
 // unsentDesk is the refunds desk over the back office's own role, as cmd/goen
 // builds it.
-func unsentDesk(t *testing.T, refunder refunds.Refunder) (*refunds.Store, *pgxpool.Pool) {
+func unsentDesk(t *testing.T, gateway *payment.Gateway) (*refunds.Store, *pgxpool.Pool) {
 	t.Helper()
 	adminPool := admintest.AdminRolePool(t, pool)
-	return refunds.NewStore(adminPool, refunder, nil), adminPool
+	return refunds.NewStore(adminPool, gateway, nil), adminPool
 }
 
 // unsentFacts is everything one unsent refund moved, read as the owner.
@@ -138,9 +138,9 @@ func stockOf(t *testing.T, variant uuid.UUID) int32 {
 	return stock
 }
 
-// orderDesk is the order desk over the same role and refunder.
-func orderDesk(adminPool *pgxpool.Pool, refunder refunds.Refunder) *orders.Store {
-	return admintest.OrderStore(adminPool, refunder, nil, admintest.DisabledInvoiceWriter{})
+// orderDesk is the order desk over the same role and gateway.
+func orderDesk(adminPool *pgxpool.Pool, gateway *payment.Gateway) *orders.Store {
+	return admintest.OrderStore(adminPool, gateway, nil, admintest.DisabledInvoiceWriter{})
 }
 
 // TestStore_RefundUnsentPaysBack: an unsent refund pays back what did not ship.
@@ -152,9 +152,9 @@ func orderDesk(adminPool *pgxpool.Pool, refunder refunds.Refunder) *orders.Store
 // nothing.
 func TestStore_RefundUnsentPaysBack(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	var sent atomic.Int64
-	refunder := admintest.Refunder{Sent: &sent}
-	s, adminPool := unsentDesk(t, refunder)
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	gateway := stripe.Gateway()
+	s, adminPool := unsentDesk(t, gateway)
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 	spendBefore := memberSpend(t, o.User)
 	stockBefore := stockOf(t, o.VariantB)
@@ -170,9 +170,9 @@ func TestStore_RefundUnsentPaysBack(t *testing.T) {
 		t.Errorf("froze goods/delivery/card/credit %d/%d/%d/%d, want %d/0/%d/0",
 			f.goods, f.delivery, f.card, f.credit, unsentBRefund, unsentBRefund)
 	}
-	if f.cardPaid != unsentBRefund || f.providerRows != 1 || sent.Load() != 1 {
+	if f.cardPaid != unsentBRefund || f.providerRows != 1 || len(stripe.Refunds()) != 1 {
 		t.Errorf("card refunded %d in %d rows after %d provider calls, want %d once",
-			f.cardPaid, f.providerRows, sent.Load(), unsentBRefund)
+			f.cardPaid, f.providerRows, len(stripe.Refunds()), unsentBRefund)
 	}
 	if f.heldB != 0 || f.releasedB != 2 || f.releaseMoves != 1 || stockOf(t, o.VariantB) != stockBefore+2 {
 		t.Errorf("B held/released/moves = %d/%d/%d, stock %d -> %d; want the two units released once",
@@ -221,7 +221,7 @@ func TestStore_RefundUnsentPaysBack(t *testing.T) {
 	}
 
 	// The order owes no parcel now, and completes through the order desk.
-	if _, err := orderDesk(adminPool, refunder).Advance(ctx, o.Number, order.FulfillmentCompleted,
+	if _, err := orderDesk(adminPool, gateway).Advance(ctx, o.Number, order.FulfillmentCompleted,
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("complete the order: %v", err)
 	}
@@ -236,26 +236,27 @@ func TestStore_RefundUnsentPaysBack(t *testing.T) {
 // the rest as credit; a credit-paid order makes no provider call.
 func TestStore_RefundUnsentCardFirst(t *testing.T) {
 	for _, tc := range []struct {
-		name               string
-		cardPaid           int64
-		card, credit, sent int64
+		name         string
+		cardPaid     int64
+		card, credit int64
+		sent         int
 	}{
 		{name: "card and credit", cardPaid: 50000, card: 50000, credit: unsentBRefund - 50000, sent: 1},
 		{name: "credit only", cardPaid: 0, card: 0, credit: unsentBRefund, sent: 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
-			var sent atomic.Int64
-			s, _ := unsentDesk(t, admintest.Refunder{Sent: &sent})
+			stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+			s, _ := unsentDesk(t, stripe.Gateway())
 			o := admintest.PartlyShippedOrder(t, pool, tc.cardPaid)
 			if err := s.RefundUnsent(ctx, o.Number, unsentRequest(returns.UnsentDamaged, unsentB(&o))); err != nil {
 				t.Fatalf("refund: %v", err)
 			}
 			f := readUnsent(t, &o)
 			if f.status != "completed" || f.card != tc.card || f.credit != tc.credit ||
-				f.cardPaid != tc.card || f.creditPaid != tc.credit || sent.Load() != tc.sent {
+				f.cardPaid != tc.card || f.creditPaid != tc.credit || len(stripe.Refunds()) != tc.sent {
 				t.Errorf("%s card/credit froze %d/%d, paid %d/%d after %d provider calls; want %d/%d after %d",
-					f.status, f.card, f.credit, f.cardPaid, f.creditPaid, sent.Load(), tc.card, tc.credit, tc.sent)
+					f.status, f.card, f.credit, f.cardPaid, f.creditPaid, len(stripe.Refunds()), tc.card, tc.credit, tc.sent)
 			}
 		})
 	}
@@ -268,7 +269,7 @@ func TestStore_RefundUnsentCardFirst(t *testing.T) {
 // refunds can no longer ship; the unit that shipped can still come back.
 func TestStore_RefundUnsentBounds(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s, _ := unsentDesk(t, admintest.Refunder{})
+	s, _ := unsentDesk(t, admintest.HealthyGateway(t))
 
 	refused := func(t *testing.T, o *admintest.TwoLineOrder, units map[uuid.UUID]int32, rule string) {
 		t.Helper()
@@ -302,7 +303,7 @@ func TestStore_RefundUnsentBounds(t *testing.T) {
 		}
 	})
 	t.Run("ship after approval", func(t *testing.T) {
-		pending := admintest.Refunder{State: refund.Pending}
+		pending := admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Pending}).Gateway()
 		unpaid, adminPool := unsentDesk(t, pending)
 		o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 		if err := unpaid.RefundUnsent(ctx, o.Number, unsentRequest(returns.UnsentLost, map[uuid.UUID]int32{o.LineB: 1})); !errors.Is(err, refunds.ErrUnsettled) {
@@ -345,8 +346,8 @@ func TestStore_RefundUnsentBounds(t *testing.T) {
 // refused; the press that finds the money landed finishes it.
 func TestStore_RefundUnsentUnsettled(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	var sent atomic.Int64
-	pending := admintest.Refunder{State: refund.Pending, Sent: &sent}
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Pending})
+	pending := stripe.Gateway()
 	s, adminPool := unsentDesk(t, pending)
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 
@@ -380,7 +381,8 @@ func TestStore_RefundUnsentUnsettled(t *testing.T) {
 	}
 
 	// Stripe settles: the same request key now answers succeeded.
-	settled, _ := unsentDesk(t, admintest.Refunder{Sent: &sent})
+	stripe.Behave(admintest.StripeBehaviour{})
+	settled, _ := unsentDesk(t, stripe.Gateway())
 	if err := settled.RefundUnsent(ctx, o.Number, &refunds.UnsentRequest{Units: unsentB(&o)}); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
@@ -397,8 +399,8 @@ func TestStore_RefundUnsentUnsettled(t *testing.T) {
 // back everything that arrived does.
 func TestStore_RefundUnsentDeliveryFee(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	refunder := admintest.Refunder{}
-	s, adminPool := unsentDesk(t, refunder)
+	gateway := admintest.HealthyGateway(t)
+	s, adminPool := unsentDesk(t, gateway)
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 	if err := s.RefundUnsent(ctx, o.Number, unsentRequest(returns.UnsentLost, unsentB(&o))); err != nil {
 		t.Fatalf("refund: %v", err)
@@ -415,7 +417,7 @@ func TestStore_RefundUnsentDeliveryFee(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT id FROM return_requests WHERE order_id = $1 AND NOT unsent`, o.ID).Scan(&returnID); err != nil {
 		t.Fatalf("read the return: %v", err)
 	}
-	if err := admintest.ReturnDesk(adminPool, refunder).Decide(ctx, returnID.String(), string(returns.DecisionApprove), "", ""); err != nil {
+	if err := admintest.ReturnDesk(adminPool, gateway).Decide(ctx, returnID.String(), string(returns.DecisionApprove), "", ""); err != nil {
 		t.Fatalf("approve the return: %v", err)
 	}
 	var goods, delivery int64
@@ -438,7 +440,7 @@ func TestStore_RefundUnsentWriteOff(t *testing.T) {
 	for _, reason := range returns.UnsentReasons {
 		t.Run(string(reason), func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
-			s, _ := unsentDesk(t, admintest.Refunder{})
+			s, _ := unsentDesk(t, admintest.HealthyGateway(t))
 			o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 			before := stockOf(t, o.VariantB)
 			waiting := admintest.SubscribeAtSafetyStock(t, pool, o.VariantB)
@@ -474,14 +476,13 @@ func TestStore_RefundUnsentWriteOff(t *testing.T) {
 // one.
 func TestStore_RefundUnsentRepeatPress(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	var sent atomic.Int64
-	pending := admintest.Refunder{State: refund.Pending, Sent: &sent}
-	s, _ := unsentDesk(t, pending)
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Pending})
+	s, _ := unsentDesk(t, stripe.Gateway())
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 	if err := s.RefundUnsent(ctx, o.Number, unsentRequest(returns.UnsentLost, map[uuid.UUID]int32{o.LineB: 1})); !errors.Is(err, refunds.ErrUnsettled) {
 		t.Fatalf("first press: %v", err)
 	}
-	calls := sent.Load()
+	calls := len(stripe.Refunds())
 	for name, units := range map[string]map[uuid.UUID]int32{
 		"more units":  unsentB(&o),
 		"other lines": {o.LineA: 1},
@@ -494,8 +495,8 @@ func TestStore_RefundUnsentRepeatPress(t *testing.T) {
 			t.Errorf("%s preview: %v, want ErrUnsentDiffers", name, err)
 		}
 	}
-	if sent.Load() != calls {
-		t.Errorf("a refused press made %d provider calls", sent.Load()-calls)
+	if len(stripe.Refunds()) != calls {
+		t.Errorf("a refused press made %d provider calls", len(stripe.Refunds())-calls)
 	}
 	preview, err := s.UnsentRefundPreview(ctx, o.Number, &refunds.UnsentRequest{Units: map[uuid.UUID]int32{o.LineB: 1}})
 	if err != nil || !preview.Open || preview.RefundCents != 46300 {
@@ -508,7 +509,7 @@ func TestStore_RefundUnsentRepeatPress(t *testing.T) {
 func TestStore_OfferUnsent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	adminPool := admintest.AdminRolePool(t, pool)
-	desk := orderDesk(adminPool, admintest.Refunder{})
+	desk := orderDesk(adminPool, admintest.HealthyGateway(t))
 	read := func(t *testing.T, number string) orders.OrderView {
 		t.Helper()
 		view, err := desk.Order(ctx, number)
@@ -527,7 +528,7 @@ func TestStore_OfferUnsent(t *testing.T) {
 		t.Errorf("nothing shipped: unsent offered %t, before-shipment offered %t; want only the refund before shipment",
 			v.UnsentOffered, v.RefundOffered)
 	}
-	s := refunds.NewStore(adminPool, admintest.Refunder{}, nil)
+	s := refunds.NewStore(adminPool, admintest.HealthyGateway(t), nil)
 	if err := s.RefundUnsent(ctx, shipped.Number, unsentRequest(returns.UnsentLost, unsentB(&shipped))); err != nil {
 		t.Fatalf("refund: %v", err)
 	}
@@ -543,7 +544,7 @@ func TestStore_OfferUnsent(t *testing.T) {
 // as a shortfall once it closed.
 func TestStore_RefundUnsentReturnsQueue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s, adminPool := unsentDesk(t, admintest.Refunder{State: refund.Pending})
+	s, adminPool := unsentDesk(t, admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Pending}).Gateway())
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 	// The parcel that carried B's other unit arrived today, which would put a
 	// return of it inside the seven days.
@@ -554,7 +555,7 @@ func TestStore_RefundUnsentReturnsQueue(t *testing.T) {
 		t.Fatalf("refund with the card refund pending: %v", err)
 	}
 	f := readUnsent(t, &o)
-	desk := admintest.ReturnDesk(adminPool, admintest.Refunder{})
+	desk := admintest.ReturnDesk(adminPool, admintest.HealthyGateway(t))
 	queueRow := func(t *testing.T) returndesk.Return {
 		t.Helper()
 		queue, err := desk.RequestQueue(ctx, f.id, "")
@@ -581,7 +582,7 @@ func TestStore_RefundUnsentReturnsQueue(t *testing.T) {
 		}
 	}
 
-	settled, _ := unsentDesk(t, admintest.Refunder{})
+	settled, _ := unsentDesk(t, admintest.HealthyGateway(t))
 	if err := settled.RefundUnsent(ctx, o.Number, &refunds.UnsentRequest{Units: unsentB(&o)}); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
@@ -609,8 +610,8 @@ func TestStore_RefundUnsentReturnsQueue(t *testing.T) {
 // moves; the confirmed POST refunds.
 func TestHandler_RefundUnsentConfirm(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	var sent atomic.Int64
-	s, _ := unsentDesk(t, admintest.Refunder{Sent: &sent})
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s, _ := unsentDesk(t, stripe.Gateway())
 	h := refunds.NewHandler(s, nil, slog.New(slog.DiscardHandler))
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 	qty := "qty_" + o.LineB.String()
@@ -634,9 +635,9 @@ func TestHandler_RefundUnsentConfirm(t *testing.T) {
 			          AND after->>'order_number' = $2)`, o.ID, o.Number).Scan(&requests, &audits); err != nil {
 			t.Fatalf("count: %v", err)
 		}
-		if requests != 0 || audits != 0 || sent.Load() != 0 || stockOf(t, o.VariantB) != 0 {
+		if requests != 0 || audits != 0 || len(stripe.Refunds()) != 0 || stockOf(t, o.VariantB) != 0 {
 			t.Fatalf("%s wrote %d refunds and %d audit rows, made %d provider calls, and left B at %d on sale",
-				step, requests, audits, sent.Load(), stockOf(t, o.VariantB))
+				step, requests, audits, len(stripe.Refunds()), stockOf(t, o.VariantB))
 		}
 	}
 	redirects := func(t *testing.T, rec *httptest.ResponseRecorder, query string) {
@@ -679,8 +680,8 @@ func TestHandler_RefundUnsentConfirm(t *testing.T) {
 
 	redirects(t, post(url.Values{qty: {"2"}, "reason": {"customer_withdrew"}, "confirm": {"refund-unsent"}, "total": {"92600"}, "note": {unsentNote}}),
 		"?unsentrefunded=1")
-	if f := readUnsent(t, &o); f.status != "completed" || sent.Load() != 1 || f.stockB != 2 {
-		t.Fatalf("after confirming: %s, %d provider calls, B at %d; want completed, one, 2 back on sale", f.status, sent.Load(), f.stockB)
+	if f := readUnsent(t, &o); f.status != "completed" || len(stripe.Refunds()) != 1 || f.stockB != 2 {
+		t.Fatalf("after confirming: %s, %d provider calls, B at %d; want completed, one, 2 back on sale", f.status, len(stripe.Refunds()), f.stockB)
 	}
 }
 
@@ -692,7 +693,7 @@ func TestHandler_RefundUnsentConfirm(t *testing.T) {
 func TestStore_RefundUnsentAllowance(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	fake, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
-	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), invoices)
 	o := admintest.PartlyShippedOrder(t, pool, 100000)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email)
@@ -732,7 +733,7 @@ func TestStore_RefundUnsentAllowance(t *testing.T) {
 func TestStore_RefundUnsentNoInvoice(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	_, invoices := fakeECPay(t, time.Now())
-	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), invoices)
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 	if err := s.RefundUnsent(ctx, o.Number, unsentRequest(returns.UnsentLost, unsentB(&o))); err != nil {
 		t.Fatalf("refund with no invoice: %v", err)

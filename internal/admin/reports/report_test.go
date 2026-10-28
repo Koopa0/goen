@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/inventory"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -101,7 +102,7 @@ func TestReportBestSellerGross(t *testing.T) {
 		t.Run(string(tt.locale), func(t *testing.T) {
 			t.Parallel()
 			var b bytes.Buffer
-			view := View{Placed: 1, Orders: 1, Committed: 1, RevenueCents: 90000, Sellers: []Seller{{Name: "Discounted item", Slug: "discounted", Units: 2, RevenueCents: 100000}}}
+			view := View{Placed: 1, Orders: 1, Committed: 1, RevenueCents: 90000, Sellers: []sales.Seller{{Name: "Discounted item", Slug: "discounted", Units: 2, RevenueCents: 100000}}}
 			if err := Report(frame.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
 				t.Fatal(err)
 			}
@@ -168,7 +169,7 @@ func TestReportBestSellersBars(t *testing.T) {
 
 	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
-		Sellers: []Seller{
+		Sellers: []sales.Seller{
 			{Slug: "a", Name: "Alpha", Units: 40},
 			{Slug: "b", Name: "Beta", Units: 40},
 			{Slug: "c", Name: "Gamma", Units: 10},
@@ -200,7 +201,7 @@ func TestReportOneSeller(t *testing.T) {
 
 	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &View{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
-		Sellers: []Seller{{Slug: "a", Name: "Alpha", Units: 40}},
+		Sellers: []sales.Seller{{Slug: "a", Name: "Alpha", Units: 40}},
 	}))
 	if strings.Contains(html, "goen-chartbar") {
 		t.Error("report draws a bar for a single best seller, which compares it with nothing")
@@ -699,25 +700,5 @@ func TestReportNoDepartments(t *testing.T) {
 	}))
 	if strings.Contains(html, "各館商品銷售額") {
 		t.Error("report shows a department heading with no departments")
-	}
-}
-
-// TestSeller_FactsUnits: seller facts count units in both languages.
-func TestSeller_FactsUnits(t *testing.T) {
-	t.Parallel()
-	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
-		for _, count := range []int64{0, 1, 2, 1000} {
-			want := fmt.Sprintf("%d units sold", count)
-			if count == 1 {
-				want = "1 unit sold"
-			}
-			if locale == i18n.ZhHant {
-				want = fmt.Sprintf("售出 %d 件", count)
-			}
-			got := (Seller{Units: count}).Facts(i18n.WithLocale(t.Context(), locale))
-			if !strings.Contains(got, want) {
-				t.Errorf("Facts(%s, %d) = %q, want %q", locale, count, got, want)
-			}
-		}
 	}
 }

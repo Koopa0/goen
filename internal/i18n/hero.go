@@ -157,6 +157,4 @@ var (
 	KeyAdminHomeEndsAt = key("admin.home.endsat", Message{ZhHant: "至 %s", En: "until %s"})
 
 	KeyAdminHomePromote = key("admin.home.promote", Message{ZhHant: "設為顯示", En: "Show this one"})
-
-	KeyAdminPageHero = key("admin.page.hero", Message{ZhHant: "首頁主視覺", En: "Home hero"})
 )

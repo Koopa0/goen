@@ -67,7 +67,7 @@ func (v VariantsView) SoldOutHref() string {
 func (v VariantsView) Empty() bool { return len(v.Variants) == 0 }
 
 func VariantsMeta(ctx context.Context) frame.Page {
-	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminPageStockList)}
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminQueueStock)}
 }
 
 func (v *Variant) PriceText() string { return strconv.FormatInt(v.PriceCents/100, 10) }

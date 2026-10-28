@@ -280,7 +280,7 @@ func TestRoutingMailedLinks(t *testing.T) {
 	}
 	router, mux := routing(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: idle, Payments: gateway, BaseURL: base},
-		BackOffice: BackOfficeConfig{AdminPool: idle, Payments: gateway, Refunder: gateway},
+		BackOffice: BackOfficeConfig{AdminPool: idle, Payments: gateway},
 	}, slog.New(slog.DiscardHandler))
 
 	occurrences := 0

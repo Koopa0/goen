@@ -13,7 +13,7 @@ import (
 // TestStore_ReportAtRefundFigure: the refund figure counts credit too.
 func TestStore_ReportAtRefundFigure(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.ReturnDesk(pool, admintest.Refunder{})
+	s := admintest.ReturnDesk(pool, admintest.HealthyGateway(t))
 	figures := reports.NewStore(pool, stock.NewStore(pool))
 
 	before, err := figures.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))

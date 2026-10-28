@@ -13,9 +13,9 @@ var (
 
 	KeyAdminRoleAdmin = key("admin.role.admin", Message{ZhHant: "管理員", En: "Administrator"})
 
-	KeyAdminPageStaff = key("admin.page.staff", Message{
-		ZhHant: "人員與兩階段驗證",
-		En:     "Staff and two-factor",
+	KeyAdminRoleHint = key("admin.role.hint", Message{
+		ZhHant: "管理員還可以新增與移除人員；其他後台工作，兩種角色都能做。",
+		En:     "An administrator can also add and remove staff; everything else in the back office is open to both.",
 	})
 
 	// A success the admin has to relay, not a refusal. The address already had

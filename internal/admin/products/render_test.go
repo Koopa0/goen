@@ -72,3 +72,18 @@ func attrPresent(n *html.Node, key string) (string, bool) {
 	}
 	return "", false
 }
+
+// TestProductPageTrail: a product's own page names its parent by a link back
+// to the list, in the trail every back-office sub-page uses, and carries no
+// grey eyebrow above the heading.
+func TestProductPageTrail(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	body := renderComponent(t, ctx, Product(Meta(ctx), ProductView{IsNew: true}))
+	if !strings.Contains(body, `<a class="ui-crumbs__link" href="/admin/products">Products</a>`) {
+		t.Error("the product page has no link back to the product list in its trail")
+	}
+	if strings.Contains(body, "ui-page-head__eyebrow") {
+		t.Error("the product page still carries a page-head eyebrow")
+	}
+}

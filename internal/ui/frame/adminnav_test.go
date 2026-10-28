@@ -46,3 +46,17 @@ func TestWithHealthTaskCount(t *testing.T) {
 		}
 	}
 }
+
+// TestAdminLeavesToShopOnce: the way back to the shop is the bar's link; the
+// side navigation does not repeat it.
+func TestAdminLeavesToShopOnce(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	var body bytes.Buffer
+	if err := Admin(Page{}, "products").Render(ctx, &body); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(body.String(), i18n.T(ctx, i18n.KeyBackToShop)); got != 1 {
+		t.Errorf("%q appears %d times on a back-office page, want 1", i18n.T(ctx, i18n.KeyBackToShop), got)
+	}
+}

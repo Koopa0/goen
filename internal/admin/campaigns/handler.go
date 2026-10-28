@@ -59,7 +59,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Campaigns(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueCampaigns)}, view))
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +90,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"), Tone: f.Tone,
 		}
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Campaigns(
-			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueCampaigns)}, view))
 	default:
 		//nolint:gosec // G710: slug matched slugFormat in Validate
 		http.Redirect(w, r, "/admin/campaigns/"+f.Slug+"?ok=1", http.StatusSeeOther)

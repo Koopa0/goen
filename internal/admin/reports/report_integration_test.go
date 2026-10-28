@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/inventory"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
@@ -238,7 +239,7 @@ func TestStore_ReportAtBestSellersRefunded(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReportAt: %v", err)
 		}
-		return slices.ContainsFunc(view.Sellers, func(r reports.Seller) bool { return r.Slug == slug })
+		return slices.ContainsFunc(view.Sellers, func(r sales.Seller) bool { return r.Slug == slug })
 	}
 	if !listed() {
 		t.Fatal("the paid order's product is not a best seller before any refund")

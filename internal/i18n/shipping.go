@@ -120,8 +120,6 @@ var (
 		En:     "A prefix is three digits — 880, for example. This one reads %q.",
 	})
 
-	KeyAdminPageShipping = key("admin.page.shipping", Message{ZhHant: "配送與運費", En: "Delivery and fees"})
-
 	KeyAdminShipLead = key("admin.ship.lead", Message{
 		ZhHant: "修改運費會發布新版本，過去的訂單仍依下單時的版本計價。",
 		En:     "Changing a fee publishes a new version; past orders keep the version they were priced from.",

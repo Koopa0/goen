@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/payment/refund"
 )
 
@@ -50,7 +51,7 @@ func TestHandler_RefundBeforeShipmentLockFailure(t *testing.T) {
 		t.Fatalf("begin finishing barrier: %v", err)
 	}
 	defer db.Rollback(ctx, blocker)
-	var sent atomic.Int64
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
 	wantSettled := refundCompletionFacts{
 		OrderStatus: "picking", ReturnStatus: "approved", CardCents: 900000, CardRows: 1,
 		CreditCents: 300000, CreditRows: 1, ClawedPoints: -awarded, Clawbacks: 1,
@@ -62,7 +63,7 @@ func TestHandler_RefundBeforeShipmentLockFailure(t *testing.T) {
 		if diff := cmp.Diff(wantSettled, got); diff != "" {
 			t.Fatalf("finisher entered before settlement (-want +got):\n%s", diff)
 		}
-		if got := sent.Load(); got != 1 {
+		if got := len(stripe.Refunds()); got != 1 {
 			t.Fatalf("provider calls before finishing = %d, want 1", got)
 		}
 		if _, lockErr := blocker.Exec(ctx, `SELECT id FROM orders WHERE id = $1 FOR UPDATE`, orderID); lockErr != nil {
@@ -70,7 +71,7 @@ func TestHandler_RefundBeforeShipmentLockFailure(t *testing.T) {
 		}
 	}}
 	adminPool := refundCompletionPool(t, barrier)
-	store := refunds.NewStore(adminPool, admintest.Refunder{Sent: &sent}, nil)
+	store := refunds.NewStore(adminPool, stripe.Gateway(), nil)
 	diagnostic := &refundCompletionLog{}
 	handler := refunds.NewHandler(store, nil, slog.New(diagnostic))
 
@@ -92,7 +93,7 @@ func TestHandler_RefundBeforeShipmentLockFailure(t *testing.T) {
 	if diff := cmp.Diff(wantSettled, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {
 		t.Fatalf("failed finishing changed settled facts (-want +got):\n%s", diff)
 	}
-	assertRefundRecoveryPage(t, ctx, adminPool, admintest.Refunder{}, number, first.Header().Get("Location"), true)
+	assertRefundRecoveryPage(t, ctx, adminPool, admintest.HealthyGateway(t), number, first.Header().Get("Location"), true)
 	if releaseErr := blocker.Commit(ctx); releaseErr != nil {
 		t.Fatalf("release finishing barrier: %v", releaseErr)
 	}
@@ -127,7 +128,7 @@ func TestHandler_RefundBeforeShipmentLockFailure(t *testing.T) {
 	if diff := cmp.Diff(wantFinished, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {
 		t.Errorf("terminal press repeated effects (-want +got):\n%s", diff)
 	}
-	if got := sent.Load(); got != 1 {
+	if got := len(stripe.Refunds()); got != 1 {
 		t.Errorf("provider calls after Resume and terminal press = %d, want 1", got)
 	}
 }
@@ -142,10 +143,10 @@ func TestHandler_RefundBeforeShipmentRecovery(t *testing.T) {
 		Scan(&stockHeld); err != nil {
 		t.Fatalf("read held stock: %v", err)
 	}
-	var sent atomic.Int64
-	refunder := admintest.Refunder{State: refund.Failed, Sent: &sent}
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Failed})
+	gateway := stripe.Gateway()
 	adminPool := admintest.AdminRolePool(t, pool)
-	store := refunds.NewStore(adminPool, refunder, nil)
+	store := refunds.NewStore(adminPool, gateway, nil)
 	diagnostic := &refundCompletionLog{}
 	handler := refunds.NewHandler(store, nil, slog.New(diagnostic))
 	response := postRefundCompletion(ctx, handler, number, true)
@@ -164,15 +165,15 @@ func TestHandler_RefundBeforeShipmentRecovery(t *testing.T) {
 	if diff := cmp.Diff(want, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {
 		t.Fatalf("unpaid refund changed cancellation or settled facts (-want +got):\n%s", diff)
 	}
-	if got := sent.Load(); got != 1 {
+	if got := len(stripe.Refunds()); got != 1 {
 		t.Errorf("provider calls = %d, want 1", got)
 	}
-	assertRefundRecoveryPage(t, ctx, adminPool, refunder, number, response.Header().Get("Location"), false)
+	assertRefundRecoveryPage(t, ctx, adminPool, gateway, number, response.Header().Get("Location"), false)
 }
 
-func assertRefundRecoveryPage(t *testing.T, ctx context.Context, adminPool *pgxpool.Pool, refunder admintest.Refunder, number, location string, settled bool) {
+func assertRefundRecoveryPage(t *testing.T, ctx context.Context, adminPool *pgxpool.Pool, gateway *payment.Gateway, number, location string, settled bool) {
 	t.Helper()
-	handler := admintest.OrderDesk(admintest.OrderStore(adminPool, refunder, nil, nil))
+	handler := admintest.OrderDesk(admintest.OrderStore(adminPool, gateway, nil, nil))
 	mux := http.NewServeMux()
 	handler.Routes(mux, admintest.BackOffice)
 	want, wrong := i18n.KeyAdminNoticeRefundRetry, i18n.KeyAdminNoticeCancelRetry
@@ -203,7 +204,7 @@ func TestHandler_RefundBeforeShipmentInvoiceCause(t *testing.T) {
 		t.Fatalf("issue invoice: %v", err)
 	}
 	diagnostic := &refundCompletionLog{}
-	store := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil)
+	store := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.HealthyGateway(t), nil)
 	handler := refunds.NewHandler(store, nil, slog.New(diagnostic))
 	response := postRefundCompletion(ctx, handler, number, true)
 	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/orders/"+number+"?cancelinvoice=1" {

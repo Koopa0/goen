@@ -148,8 +148,6 @@ var (
 		En:     "Account erased",
 	})
 
-	KeyAdminPageWarranty = key("admin.page.warranty", Message{ZhHant: "保固查詢", En: "Warranty lookup"})
-
 	KeyAdminWarrantyLead = key("admin.warranty.lead", Message{
 		ZhHant: "用序號或訂單編號查詢單件商品的保固，兩者都要完全相符。",
 		En:     "Look up one unit's warranty by serial number or order number. Both must match exactly.",
