@@ -39,6 +39,12 @@ templ Notice(p NoticeProps) {
 	}
 }
 
+templ NoticeBlock(p NoticeProps) {
+	<div class={ p.class() } role={ p.Intent.role() }>
+		{ children... }
+	</div>
+}
+
 templ Label(p LabelProps) {
 	<label class={ p.class() } for={ p.For }>
 		{ children... }
