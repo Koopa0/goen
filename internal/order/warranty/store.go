@@ -111,12 +111,13 @@ func (s *Store) Ready(ctx context.Context, userID string) ([]Ready, error) {
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now()
 	ready := make([]Ready, 0, len(rows))
 	for i := range rows {
 		row := &rows[i]
 		line := warrantyLine(row)
 		if line.Registrable() && line.CoverEnds != nil {
-			ready = append(ready, Ready{Number: row.OrderNumber, Line: line})
+			ready = append(ready, Ready{Number: row.OrderNumber, Line: line, DeliveredOn: shoptime.DateOf(row.DeliveredOn, now)})
 		}
 	}
 	return ready, nil

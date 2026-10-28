@@ -15,6 +15,7 @@ SELECT
     -- sqlc types the lateral date as non-null, so retain its presence separately.
     (parcel.expires_on IS NOT NULL)::boolean AS has_expiry,
     coalesce(parcel.expires_on, shop_today())::date AS expires_on,
+    coalesce(parcel.delivered_on, shop_today())::date AS delivered_on,
     greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)::integer AS delivered_units,
     coalesce(returned.units, 0)::integer AS returned_units,
     coalesce(registered.units, 0)::integer AS registered_units
@@ -40,7 +41,8 @@ LEFT JOIN LATERAL (
     FROM warranty_registrations w WHERE w.order_line_id = ol.id
 ) registered ON true
 LEFT JOIN LATERAL (
-    SELECT (shop_day(p.delivered_at) + make_interval(months => ol.warranty_months))::date AS expires_on
+    SELECT shop_day(p.delivered_at)::date AS delivered_on,
+           (shop_day(p.delivered_at) + make_interval(months => ol.warranty_months))::date AS expires_on
     FROM (
         SELECT s.delivered_at, sl.quantity,
                sum(sl.quantity) OVER (ORDER BY s.shipped_at, s.id) - sl.quantity AS units_before

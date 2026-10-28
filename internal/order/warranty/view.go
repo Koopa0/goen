@@ -208,10 +208,29 @@ type ListView struct {
 type Ready struct {
 	Number string
 	Line   Line
+	// DeliveredOn is the day the parcel that carries the unit arrived.
+	DeliveredOn shoptime.Date
 }
 
-func (w Ready) Href() string {
+// Meta names the order the unit is on and when it arrived, which tells apart the same product bought twice.
+func (w *Ready) Meta(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyReadyMeta), w.Number, shoptime.DateText(ctx, w.DeliveredOn))
+}
+
+func (w *Ready) Href() string {
 	return "/account/warranty/" + w.Number + "#serial-" + w.Line.ID
 }
 
 func (v ListView) Empty() bool { return len(v.Rows) == 0 }
+
+// Sub is the line under the title; with units ready it does not send the customer off to an order to register.
+func (v ListView) Sub(ctx context.Context) string {
+	if len(v.Ready) > 0 {
+		return i18n.T(ctx, i18n.KeyWarrantySubReady)
+	}
+	return i18n.T(ctx, i18n.KeyWarrantySub)
+}
+
+// ExplainsWhereToRegister reports whether the empty state says how registering starts: not while the page itself
+// lists units to register.
+func (v ListView) ExplainsWhereToRegister() bool { return len(v.Ready) == 0 }
