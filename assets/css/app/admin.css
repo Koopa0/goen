@@ -1502,8 +1502,8 @@ input.goen-check {
   min-height: 44px;
 }
 
-/* The corners of the back office's controls. base.css gives the shared
-   components the storefront's 4-6px; here they take the back office's own. */
+/* base.css gives the shared components the storefront's 4-6px; here they take
+   the back office's own. */
 .goen-admin .ui-btn,
 .goen-admin .ui-input,
 .goen-admin .ui-textarea,
@@ -1512,9 +1512,9 @@ input.goen-check {
   border-radius: var(--r-admin-control);
 }
 
-/* Inside the navgroup's 2px padding, so the item's corner is concentric with
+/* Inside the open group's 2px padding, so the item's corner is concentric with
    the group's. */
-.goen-admin__navgroup .ui-navitem {
+.goen-admin__navgroup[open] .ui-navitem {
   border-radius: calc(var(--r-admin-control) - 2px);
 }
 
@@ -1855,6 +1855,10 @@ input.goen-check {
     background: none;
     display: block;
     padding: 0;
+  }
+
+  .goen-admin:has(.goen-admin__main) .goen-admin__navgroup .ui-navitem {
+    border-radius: var(--r-admin-control);
   }
 
   .goen-admin:has(.goen-admin__main) .goen-admin__navitems {
