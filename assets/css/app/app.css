@@ -5435,6 +5435,21 @@ input.goen-check {
   min-width: 0;
 }
 
+/* Nothing has been said yet, so the two sections share one row, on the
+   columns of the gallery and the buy box above them. */
+.goen-pdp__opinions {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+@media (min-width: 1024px) {
+  .goen-pdp__opinions {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
+}
+
 .goen-band--product {
   margin-block: 0 4rem;
   overflow-anchor: none;
