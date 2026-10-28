@@ -82,7 +82,7 @@ func (l Line) CoverText(ctx context.Context) string {
 		}
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTermBeforeDelivery), l.TermText(ctx))
 	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTerm), l.TermText(ctx), l.CoverEnds.ISO())
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTerm), l.TermText(ctx), shoptime.DateText(ctx, *l.CoverEnds))
 }
 
 func (l Line) Why(ctx context.Context) string {

@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shipping"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
@@ -223,7 +224,7 @@ type OrderInvoiceDocument struct {
 	RandomCode  string
 	AmountCents int64
 	Voided      bool
-	IssuedOn    string
+	IssuedOn    shoptime.Date
 }
 
 func (d OrderInvoiceDocument) Label(ctx context.Context) string {
