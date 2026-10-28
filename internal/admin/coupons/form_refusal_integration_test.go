@@ -115,7 +115,7 @@ func TestHandler_CreateLimitRefusal(t *testing.T) {
 				}
 				form.Set(tt.field, tt.corrected)
 				response = post()
-				if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/coupons?ok=1" {
+				if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/coupons?created=1" {
 					t.Fatalf("corrected POST = %d, location %q, want 303 to success; body: %s", response.Code, response.Header().Get("Location"), response.Body.String())
 				}
 				if err := owner.QueryRow(ctx, `SELECT count(*) FROM coupons WHERE code=$1`, code).Scan(&count); err != nil {

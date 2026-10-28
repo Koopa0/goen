@@ -91,7 +91,7 @@ func TestHandler_SetActiveFaults(t *testing.T) {
 				}
 				coupons.NewHandler(coupons.NewStore(recoveredPool), logger).Routes(mux, admintest.BackOffice)
 				retry := postCouponToggle(t, ctx, mux, code)
-				if retry.Code != http.StatusSeeOther || retry.Header().Get("Location") != "/admin/coupons?ok=1" {
+				if retry.Code != http.StatusSeeOther || retry.Header().Get("Location") != "/admin/coupons?off=1" {
 					t.Fatalf("recovered coupon toggle = %d to %q, want 303 to success", retry.Code, retry.Header().Get("Location"))
 				}
 				var active bool
