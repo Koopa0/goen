@@ -39,7 +39,7 @@ func TestRowCarriesTheColourOfItsWord(t *testing.T) {
 		t.Errorf("a picking order's row has intent %q, want %q", row.StatusIntent, widget.IntentProgress)
 	}
 	ready := orderRow(t.Context(), &db.AdminOrdersRow{FulfillmentStatus: string(order.FulfillmentPending), Committed: true}, false)
-	if ready.StatusIntent != widget.IntentWarn {
-		t.Errorf("a paid pending order's row has intent %q, want %q", ready.StatusIntent, widget.IntentWarn)
+	if ready.StatusIntent != widget.IntentStaffTurn {
+		t.Errorf("a paid pending order's row has intent %q, want %q", ready.StatusIntent, widget.IntentStaffTurn)
 	}
 }

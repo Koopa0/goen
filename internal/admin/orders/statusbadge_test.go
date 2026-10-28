@@ -70,24 +70,40 @@ func TestOrdersListPills(t *testing.T) {
 		Bound: firstPageBound("orders"),
 		Orders: []Row{
 			{Number: "GO-A", Status: order.FulfillmentPicking, StatusText: "備貨中", StatusIntent: widget.IntentProgress},
-			{Number: "GO-B", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: widget.IntentWarn},
+			{Number: "GO-B", Status: order.FulfillmentPending, StatusText: "待備貨", StatusIntent: widget.IntentStaffTurn},
 			{Number: "GO-C", Status: order.FulfillmentCompleted, StatusText: "已完成", StatusIntent: widget.IntentDone},
 		},
 	}
 	page := renderComponent(t, ctx, Orders(frame.Page{}, view))
 	wantBadge(t, page, "備貨中", "goen-badge goen-badge--progress")
-	wantBadge(t, page, "待出貨", "goen-badge goen-badge--warn")
+	wantBadge(t, page, "待備貨", "goen-badge goen-badge--staff-turn")
 	wantBadge(t, page, "已完成", "goen-badge goen-badge--done")
 	if got := badgeClasses(t, page, i18n.T(ctx, i18n.KeyAdminQueueCommitted)); len(got) != 0 {
 		t.Errorf("the list repeats the committed pill on every row: %v", got)
 	}
 }
 
-func TestOrderPageHeadKeepsItsGroupAndCommitted(t *testing.T) {
+// TestOrderPageHeadSaysConfirmedInItsSubLine: a committed order is confirmed in
+// the line under its number, not in a second badge beside the status.
+func TestOrderPageHeadSaysConfirmedInItsSubLine(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := &OrderView{Number: "GO-A", Status: order.FulfillmentShipped, StatusText: "已出貨", StatusIntent: widget.IntentProgress, Committed: true}
-	page := renderComponent(t, ctx, Order(frame.Page{}, view))
-	wantBadge(t, page, "已出貨", "goen-badge goen-badge--progress")
-	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQueueCommitted), "goen-badge")
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		confirmed := i18n.T(ctx, i18n.KeyAdminQueueCommitted)
+
+		committed := &OrderView{Number: "GO-A", Status: order.FulfillmentShipped, StatusText: "已出貨", StatusIntent: widget.IntentProgress, Committed: true, PlacedAt: "2026-10-01 10:00", ShippingName: "Home"}
+		page := renderComponent(t, ctx, Order(frame.Page{}, committed))
+		wantBadge(t, page, "已出貨", "goen-badge goen-badge--progress")
+		if got := badgeClasses(t, page, confirmed); len(got) != 0 {
+			t.Errorf("%s: %q is a badge again: %v", locale, confirmed, got)
+		}
+		if want := "2026-10-01 10:00 · Home · " + confirmed; committed.headSub(ctx) != want || !strings.Contains(page, want) {
+			t.Errorf("%s: the head's sub line is %q, want %q on the page", locale, committed.headSub(ctx), want)
+		}
+
+		open := &OrderView{Number: "GO-B", Status: order.FulfillmentPending, StatusText: "待付款", PlacedAt: "2026-10-01 10:00", ShippingName: "Home"}
+		if got := open.headSub(ctx); strings.Contains(got, confirmed) {
+			t.Errorf("%s: an order the shop has not taken on says %q", locale, got)
+		}
+	}
 }

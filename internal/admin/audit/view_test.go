@@ -67,7 +67,7 @@ func TestAuditChangesAsRows(t *testing.T) {
 		Action: "order.advance", Entity: "orders", Actor: "staff", At: "2026-10-02 10:00",
 		Changes: []Change{{Field: "status", Before: "pending", After: "picking"}},
 	}}}))
-	for _, want := range []string{"<dt>Status</dt>", "<dd>Awaiting payment → Picking</dd>"} {
+	for _, want := range []string{"<dt>Status</dt>", "<dd>Awaiting payment → Packing</dd>"} {
 		if !strings.Contains(markup, want) {
 			t.Errorf("audit row is missing %s", want)
 		}

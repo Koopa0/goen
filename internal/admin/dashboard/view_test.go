@@ -57,8 +57,8 @@ func wantBadge(t *testing.T, page, word, class string) {
 func TestDashboardRecentOrderBadge(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	row := OrderRow{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: widget.IntentWarn}
+	row := OrderRow{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待備貨", StatusIntent: widget.IntentStaffTurn}
 
 	dashboard := renderComponent(t, ctx, Dashboard(Meta(ctx), View{Recent: []OrderRow{row}}))
-	wantBadge(t, dashboard, "待出貨", "goen-badge goen-badge--warn")
+	wantBadge(t, dashboard, "待備貨", "goen-badge goen-badge--staff-turn")
 }

@@ -13,6 +13,7 @@ func TestBadgeClassFollowsItsIntent(t *testing.T) {
 		{IntentAccent, "goen-badge goen-badge--accent"},
 		{IntentProgress, "goen-badge goen-badge--progress"},
 		{IntentDone, "goen-badge goen-badge--done"},
+		{IntentStaffTurn, "goen-badge goen-badge--staff-turn"},
 		{IntentWarn, "goen-badge goen-badge--warn"},
 		{IntentDanger, "goen-badge goen-badge--danger"},
 	} {

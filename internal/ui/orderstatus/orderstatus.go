@@ -25,12 +25,12 @@ func Badge(ctx context.Context, s order.FulfillmentStatus, committed bool, owedC
 
 // intent is the colour group of the word s.FundedLabel gives the same
 // arguments: an order waiting for the customer is neutral, one waiting for the
-// shop to pick it needs the staff, picking and shipping are under way, and
+// shop to pack it is the staff's turn, packing and shipping are under way, and
 // delivered or completed is finished.
 func intent(s order.FulfillmentStatus, committed bool, owedCents int64) widget.Intent {
 	switch {
 	case s.ReadyToPick(committed, owedCents):
-		return widget.IntentWarn
+		return widget.IntentStaffTurn
 	case s == order.FulfillmentPicking, s == order.FulfillmentShipped:
 		return widget.IntentProgress
 	case s == order.FulfillmentDelivered, s == order.FulfillmentCompleted:

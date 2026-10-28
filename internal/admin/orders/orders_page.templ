@@ -141,17 +141,12 @@ templ Order(p frame.Page, v *OrderView) {
 		<div class="ui-page-head">
 			<div>
 				<h1 class="ui-page-head__title">{ v.Number }</h1>
-				<p class="ui-page-head__sub">{ v.PlacedAt } · { v.ShippingName }</p>
+				<p class="ui-page-head__sub">{ v.headSub(ctx) }</p>
 				<p id="order-next-step" class="goen-admin__hint">{ v.nextStepSummary(ctx) }</p>
 			</div>
 			<div class="ui-page-head__actions">
 				@widget.Badge(widget.BadgeProps{Intent: v.StatusIntent}) {
 					{ v.StatusText }
-				}
-				if v.Committed {
-					@widget.Badge(widget.BadgeProps{Intent: widget.IntentNeutral}) {
-						{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }
-					}
 				}
 			</div>
 		</div>

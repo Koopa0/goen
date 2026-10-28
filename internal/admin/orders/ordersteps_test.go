@@ -23,9 +23,9 @@ func TestOrderNextStepSummary(t *testing.T) {
 		{"invoice attention before consent", OrderView{AllowanceAttention: "attention", AllowanceAwaitingUntil: "2026-10-13 12:00", Unpaid: true, Status: order.FulfillmentPending}, "發票折讓需要人工處理，請看發票區。", "The invoice allowance needs staff attention; see the invoice section."},
 		{"consent before payment", OrderView{AllowanceAwaitingUntil: "2026-10-13 12:00", Unpaid: true, Status: order.FulfillmentPending}, "發票折讓等待買方同意，期限 2026-10-13 12:00。", "The invoice allowance awaits the buyer’s consent until 2026-10-13 12:00."},
 		{"unpaid", OrderView{Unpaid: true, Status: order.FulfillmentPending}, "等待顧客付款，付款前無法備貨。", "Waiting for the customer to pay; picking cannot begin before payment."},
-		{"paid pending", OrderView{Status: order.FulfillmentPending, Next: []Transition{{Value: order.FulfillmentPicking}}}, "已付款，可以開始備貨。", "Paid; picking can begin."},
+		{"paid pending", OrderView{Status: order.FulfillmentPending, Next: []Transition{{Value: order.FulfillmentPicking}}}, "已付款，可以開始備貨。", "Paid; packing can begin."},
 		{"pending without a legal picking step", OrderView{Status: order.FulfillmentPending}, "這筆訂單沒有需要處理的事。", "This order needs no further action."},
-		{"picking", OrderView{Status: order.FulfillmentPicking}, "備貨中，出貨時填寫物流與單號。", "Picking is in progress; enter the carrier and tracking number when dispatching."},
+		{"picking", OrderView{Status: order.FulfillmentPicking}, "備貨中，出貨時填寫物流與單號。", "Packing is in progress; enter the carrier and tracking number when dispatching."},
 		{"shipped", OrderView{Status: order.FulfillmentShipped}, "已出貨，下一步是標記為已送達。", "Shipped; the next step is to mark it delivered."},
 		{"delivered", OrderView{Status: order.FulfillmentDelivered}, "已送達，下一步是標記為已完成。", "Delivered; the next step is to mark it completed."},
 		{"delivered with goods outstanding", OrderView{Status: order.FulfillmentDelivered, Shippable: []ShippableLine{{Remaining: 1}}}, "已送達部分包裹，還有商品待出貨。", "Some parcels have arrived; goods still need to be shipped."},
@@ -131,7 +131,7 @@ func TestOrderStatusStepForms(t *testing.T) {
 					} else if primary || !inDetails {
 						t.Errorf("%s: %s is not a secondary move in other steps", locale, status)
 					}
-					want := map[order.FulfillmentStatus]string{order.FulfillmentPicking: "Start picking", order.FulfillmentDelivered: "Mark delivered", order.FulfillmentCompleted: "Mark completed", order.FulfillmentCancelled: "Cancel order"}[status]
+					want := map[order.FulfillmentStatus]string{order.FulfillmentPicking: "Start packing", order.FulfillmentDelivered: "Mark delivered", order.FulfillmentCompleted: "Mark completed", order.FulfillmentCancelled: "Cancel order"}[status]
 					if locale == i18n.ZhHant {
 						want = map[order.FulfillmentStatus]string{order.FulfillmentPicking: "開始備貨", order.FulfillmentDelivered: "標記為已送達", order.FulfillmentCompleted: "標記為已完成", order.FulfillmentCancelled: "取消訂單"}[status]
 					}

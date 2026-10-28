@@ -58,9 +58,9 @@ func wantBadge(t *testing.T, page, word, class string) {
 func TestCustomerRecentOrdersFollowTheirGroup(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	recent := RecentOrder{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: widget.IntentWarn}
+	recent := RecentOrder{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待備貨", StatusIntent: widget.IntentStaffTurn}
 	customer := renderComponent(t, ctx, Customer(Meta(ctx), &CustomerView{Orders: 1, Recent: []RecentOrder{recent}}))
-	wantBadge(t, customer, "待出貨", "goen-badge goen-badge--warn")
+	wantBadge(t, customer, "待備貨", "goen-badge goen-badge--staff-turn")
 }
 
 // From TestAuditEmptyPageRestartLink (row customers).

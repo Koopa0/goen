@@ -18,8 +18,8 @@ func TestIntentGroupsEachOrderState(t *testing.T) {
 		want      widget.Intent
 	}{
 		{"waiting for the customer", order.FulfillmentPending, false, 100, widget.IntentNeutral},
-		{"paid, waiting for the shop", order.FulfillmentPending, true, 0, widget.IntentWarn},
-		{"paid by credit alone", order.FulfillmentPending, false, 0, widget.IntentWarn},
+		{"paid, waiting for the shop", order.FulfillmentPending, true, 0, widget.IntentStaffTurn},
+		{"paid by credit alone", order.FulfillmentPending, false, 0, widget.IntentStaffTurn},
 		{"picking", order.FulfillmentPicking, true, 0, widget.IntentProgress},
 		{"shipped", order.FulfillmentShipped, true, 0, widget.IntentProgress},
 		{"delivered", order.FulfillmentDelivered, true, 0, widget.IntentDone},

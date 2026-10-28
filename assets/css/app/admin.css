@@ -273,6 +273,11 @@ h3 {
   color: var(--success);
 }
 
+.goen-badge--staff-turn {
+  background: var(--n-900);
+  color: var(--n-0);
+}
+
 .goen-badge--warn {
   background: var(--warn-tint);
   color: var(--warn);

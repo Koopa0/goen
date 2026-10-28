@@ -516,3 +516,13 @@ type Refund struct {
 	Reason  string
 	Staff   string
 }
+
+// headSub is the line under the order number: when it was placed and how it
+// goes, and, once the shop has taken the order on, that it is confirmed.
+func (v *OrderView) headSub(ctx context.Context) string {
+	sub := v.PlacedAt + " · " + v.ShippingName
+	if v.Committed {
+		sub += " · " + i18n.T(ctx, i18n.KeyAdminQueueCommitted)
+	}
+	return sub
+}
