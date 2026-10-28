@@ -445,7 +445,7 @@ func TestHandler_ImageOptionSpecRefusals(t *testing.T) {
 			name, path, notice, log, constraint string
 		}{
 			{name: "image option", path: "/images/option", notice: "refused=1", log: "set image option refused", constraint: "test_product_image_option_refused"},
-			{name: "add spec", path: "/specs", notice: "specfailed=1", log: "add spec refused", constraint: "test_product_spec_value_refused"},
+			{name: "add spec", path: "/specs", notice: "specfailed=1" + products.SectionSpecs.Query(), log: "add spec refused", constraint: "test_product_spec_value_refused"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				ctx := i18n.WithLocale(staff, locale)
