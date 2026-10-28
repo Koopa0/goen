@@ -1,11 +1,11 @@
 // Package sales is what the shop sold over a run of shop days, as the reports
 // desk reads it for another desk to show: each period's paid orders and
-// revenue, day by day, its best sellers and the newest paid order, and how a
-// figure of one period is set against the period before it. The desks reach
-// one another only through interfaces the consumer declares, so the values
-// and the error those interfaces promise, and the comparison the report and
-// the dashboard both write, live here, where no desk has to import another.
-// It does not hold the work that waits for a person (admin/worklist) or the
+// revenue, every shop day of a run, its best sellers and the newest paid
+// order, and how a figure of one period is set against the period before it.
+// The desks reach one another only through interfaces the consumer declares,
+// so the values and the error those interfaces promise, and the comparison the
+// report and the dashboard both write, live here, where no desk has to import
+// another. It does not hold the work that waits for a person (admin/worklist) or the
 // report that reads the figures (admin/reports).
 package sales
 
@@ -35,16 +35,13 @@ type Recent struct {
 	Latest *PaidOrder
 }
 
-// Period is a run of shop days: its paid orders and revenue, and each day's.
+// Period is a run of shop days: its paid orders and revenue.
 type Period struct {
 	Orders       int64
 	RevenueCents int64
 	// RevenueSquares is the sum of the squared order totals, which the noise
 	// of RevenueCents is read from.
 	RevenueSquares float64
-	// Days has a row for every shop day of the period, a day without orders
-	// included.
-	Days []Day
 	// Partial is a period whose last shop day is cut short.
 	Partial bool
 }

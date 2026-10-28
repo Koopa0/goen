@@ -139,27 +139,15 @@ func latestPaidOrder(ctx context.Context, q *db.Queries, since time.Time) (db.La
 	return latest, err
 }
 
-// readPeriod is the period's paid orders and revenue, in total and for each
-// shop day.
+// readPeriod is the period's paid orders and revenue.
 func readPeriod(ctx context.Context, q *db.Queries, p period) (sales.Period, error) {
 	revenue, err := q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: p.from, ToAt: p.to})
 	if err != nil {
 		return sales.Period{}, fmt.Errorf("read the week's revenue: %w", err)
 	}
-	rows, err := q.PaidByShopDay(ctx, db.PaidByShopDayParams{
-		FirstDay: shoptime.QueryDate(p.from), LastDay: shoptime.QueryDate(p.to.Add(-time.Nanosecond)),
-		FromAt: p.from, ToAt: p.to,
-	})
-	if err != nil {
-		return sales.Period{}, fmt.Errorf("read the week's paid orders by day: %w", err)
-	}
-	days := make([]sales.Day, 0, len(rows))
-	for _, r := range rows {
-		days = append(days, sales.Day{Day: r.Day, Orders: r.Orders, RevenueCents: r.RevenueCents})
-	}
 	return sales.Period{
 		Orders: revenue.Orders, RevenueCents: revenue.RevenueCents, RevenueSquares: revenue.SumOfSquares,
-		Days: days, Partial: endsMidDay(p),
+		Partial: endsMidDay(p),
 	}, nil
 }
 

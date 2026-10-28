@@ -4,11 +4,14 @@ package dashboard_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/dashboard"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // TestStore_DashboardQueueTabs: the dashboard and the queue tabs split pending the same way.
@@ -77,6 +80,71 @@ func TestStore_DashboardQueueTabs(t *testing.T) {
 		}
 		if !sawIn || sawOut {
 			t.Errorf("tab %q lists the expected order = %t and the other = %t, want true and false", status, sawIn, sawOut)
+		}
+	}
+}
+
+// TestStore_DashboardWaitAgreesWithTabs: a task's wait is the wait the first row of the tab it opens states.
+// Both count shop days from a timestamp (shoptime.DaysAgo). The pool is the
+// test's own, so each tab's first row is the order placed here. The credit
+// order is placed three days and the time since today's shop midnight and a
+// minute ago: that is four shop days and just under four 24-hour spans, so
+// counting the wait in 24-hour spans of the database clock reads 3 and fails.
+// The picking order was paid five days ago and taken into picking now, so
+// ageing it from the picking event reads 0 and fails. Mutation left to CI.
+func TestStore_DashboardWaitAgreesWithTabs(t *testing.T) {
+	isolated := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, isolated)
+	queue := admintest.OrderStore(isolated, admintest.HealthyGateway(t), nil, nil)
+	desk := storeOver(isolated, health.NewStore(isolated))
+
+	now := admintest.DatabaseNow(t, isolated)
+	sinceMidnight := now.Sub(shoptime.Midnight(now))
+	admintest.PlaceOrderPaidByCredit(t, isolated, 3*24*time.Hour+sinceMidnight+time.Minute)
+	_, pickingID, _ := admintest.PaidUnshippedOrder(t, isolated, 500000, 0, true)
+	if _, err := isolated.Exec(ctx, `
+		INSERT INTO order_events (order_id, kind, occurred_at) VALUES
+		    ($1, 'paid', now() - interval '5 days'),
+		    ($1, 'picking', now())`,
+		pickingID); err != nil {
+		t.Fatalf("record paying and picking: %v", err)
+	}
+
+	dash, err := desk.Dashboard(ctx)
+	if err != nil {
+		t.Fatalf("Dashboard: %v", err)
+	}
+	for _, tc := range []struct {
+		label    i18n.Key
+		tab      orders.QueueFilter
+		wantDays int
+	}{
+		{i18n.KeyAdminStatusReadyToPick, orders.QueueReady, 4},
+		{i18n.KeyAdminStatusPicking, orders.QueuePicking, 5},
+	} {
+		tabView, listErr := queue.List(ctx, tc.tab, "", "")
+		if listErr != nil {
+			t.Fatalf("List(%s): %v", tc.tab, listErr)
+		}
+		if len(tabView.Work) != 1 {
+			t.Fatalf("the %q tab lists %d rows, want the one order placed here", tc.tab, len(tabView.Work))
+		}
+		var task *dashboard.Task
+		for i := range dash.Tasks {
+			if dash.Tasks[i].Label == tc.label {
+				task = &dash.Tasks[i]
+			}
+		}
+		if task == nil {
+			t.Fatalf("the dashboard lists no %v task", tc.label)
+		}
+		first := tabView.Work[0]
+		if task.WaitDays != first.WaitDays || task.Overdue != first.Overdue {
+			t.Errorf("%q: the dashboard says %d days, overdue %t; the first row of the tab says %d days, overdue %t",
+				tc.tab, task.WaitDays, task.Overdue, first.WaitDays, first.Overdue)
+		}
+		if first.WaitDays != tc.wantDays {
+			t.Errorf("%q: the tab says %d days, want %d", tc.tab, first.WaitDays, tc.wantDays)
 		}
 	}
 }

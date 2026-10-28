@@ -215,7 +215,7 @@ func TestStore_DashboardReadyOrderAge(t *testing.T) {
 	s := storeOver(isolated, health.NewStore(isolated))
 	desk := health.NewStore(isolated)
 
-	readyAge := func() (dashboard.Task, bool) {
+	readyAge := func() (dashboard.View, dashboard.Task, bool) {
 		t.Helper()
 		v, err := s.Dashboard(t.Context())
 		if err != nil {
@@ -223,10 +223,10 @@ func TestStore_DashboardReadyOrderAge(t *testing.T) {
 		}
 		for _, task := range v.Tasks {
 			if task.Label == i18n.KeyAdminStatusReadyToPick {
-				return task, true
+				return v, task, true
 			}
 		}
-		return dashboard.Task{}, false
+		return v, dashboard.Task{}, false
 	}
 	fundedAtOnHealthDesk := func(number string) string {
 		t.Helper()
@@ -244,12 +244,12 @@ func TestStore_DashboardReadyOrderAge(t *testing.T) {
 	}
 	assertAge := func(since time.Time, number string) {
 		t.Helper()
-		task, ok := readyAge()
+		v, task, ok := readyAge()
 		if !ok || !task.HasAge {
 			t.Fatalf("the ready-orders task = %+v, want one carrying an age", task)
 		}
-		if want := int64(time.Since(since).Seconds()); task.AgeSeconds < want-60 || task.AgeSeconds > want+60 {
-			t.Errorf("ready orders have waited %d s, want about %d s (funded %s)", task.AgeSeconds, want, since)
+		if got := v.ReadyOldestSince; got.Before(since.Add(-time.Minute)) || got.After(since.Add(time.Minute)) {
+			t.Errorf("ready orders have waited since %s, want about %s", got, since)
 		}
 		if got, want := fundedAtOnHealthDesk(number), shoptime.Minute(since); got != want {
 			t.Errorf("health desk funded %s at %s, dashboard ages it from %s", number, got, want)
@@ -260,15 +260,15 @@ func TestStore_DashboardReadyOrderAge(t *testing.T) {
 	// starts at placed_at.
 	creditNumber, creditPlaced := admintest.PlaceOrderPaidByCredit(t, isolated, 2*24*time.Hour)
 	assertAge(creditPlaced, creditNumber)
-	if task, _ := readyAge(); task.AgeSeconds/86400 != 2 {
-		t.Errorf("an owes-nothing order placed two days ago is %d days old, want 2", task.AgeSeconds/86400)
+	if _, task, _ := readyAge(); task.WaitDays != 2 {
+		t.Errorf("an owes-nothing order placed two days ago is %d days old, want 2", task.WaitDays)
 	}
 
 	// A card payment the provider confirmed three days ago, though recorded now.
 	cardNumber, cardPaid := captureCardPaidAgo(t, isolated, 3*24*time.Hour)
 	assertAge(cardPaid, cardNumber)
-	if task, _ := readyAge(); task.AgeSeconds/86400 != 3 {
-		t.Errorf("a card order paid three days ago is %d days old, want 3", task.AgeSeconds/86400)
+	if _, task, _ := readyAge(); task.WaitDays != 3 {
+		t.Errorf("a card order paid three days ago is %d days old, want 3", task.WaitDays)
 	}
 
 	// The latest paid order is funded when the ready-orders age says: it is the
@@ -277,12 +277,12 @@ func TestStore_DashboardReadyOrderAge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RecentSales: %v", err)
 	}
-	task, _ := readyAge()
+	view, _, _ := readyAge()
 	if recent.Latest == nil || recent.Latest.Number != cardNumber {
 		t.Fatalf("Latest = %+v, want %s", recent.Latest, cardNumber)
 	}
-	if got, want := int64(recent.Latest.Elapsed.Seconds()), task.AgeSeconds; got < want-60 || got > want+60 {
-		t.Errorf("the latest paid order was funded %d s ago, the ready-orders age says %d s", got, want)
+	if got, want := recent.Latest.Elapsed, time.Since(view.ReadyOldestSince); got < want-time.Minute || got > want+time.Minute {
+		t.Errorf("the latest paid order was funded %v ago, the ready-orders age says %v", got, want)
 	}
 }
 
@@ -318,16 +318,9 @@ func TestStore_DashboardReturnAge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	for _, task := range v.Tasks {
-		if task.Label != i18n.KeyAdminQueueTaskUninspected {
-			continue
-		}
-		if want := int64(time.Since(decided).Seconds()); task.AgeSeconds < want-60 || task.AgeSeconds > want+60 {
-			t.Errorf("uninspected return has waited %d s, want about %d s since the decision", task.AgeSeconds, want)
-		}
-		return
+	if got := v.UninspectedReturnsOldestSince; got.Before(decided.Add(-time.Minute)) || got.After(decided.Add(time.Minute)) {
+		t.Errorf("uninspected return has waited since %s, want about %s, the decision", got, decided)
 	}
-	t.Fatal("the dashboard lists no uninspected return")
 }
 
 // captureCardPaidAgo captures a card payment whose confirming webhook event
@@ -382,7 +375,7 @@ func TestStore_RecentSalesWeek(t *testing.T) {
 	if empty.Latest != nil || empty.Current.Orders != 0 {
 		t.Fatalf("a shop with no order: Latest = %v, orders = %d, want none", empty.Latest, empty.Current.Orders)
 	}
-	if got := len(empty.Current.Days) + len(empty.Previous.Days); got != 14 {
+	if got := len(empty.Days); got != 14 {
 		t.Errorf("days drawn = %d, want 14, a day without orders included", got)
 	}
 
@@ -396,7 +389,7 @@ func TestStore_RecentSalesWeek(t *testing.T) {
 	if recent.Previous.Orders != 0 || recent.Previous.RevenueCents != 0 {
 		t.Errorf("the week before = %d orders, %d cents, want none: today's sale is not in it", recent.Previous.Orders, recent.Previous.RevenueCents)
 	}
-	today := recent.Current.Days
+	today := recent.Days
 	if got := today[len(today)-1].RevenueCents; got != 100000 {
 		t.Errorf("today's revenue = %d, want 100000", got)
 	}
@@ -460,16 +453,19 @@ func TestStore_RecentSalesLatestPaid(t *testing.T) {
 	}
 }
 
-// TestStore_DashboardPickingOrderAge: the dashboard ages a picking order from when it was taken.
-// A picking order is as old as the moment a person took it into picking.
+// TestStore_DashboardPickingOrderAge: the dashboard ages a picking order from when it was funded.
+// A picking order waits as long as it has since it was paid, as the work tab
+// counts it: taking it into picking an hour ago does not make it new.
 func TestStore_DashboardPickingOrderAge(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
 	_, orderID := ordertest.PaidPickingOrderForUser(t, isolated, ordertest.Customer(t, isolated), 100000)
 	if _, err := isolated.Exec(t.Context(), `
-		INSERT INTO order_events (order_id, kind, occurred_at) VALUES ($1, 'picking', now() - interval '2 days')`,
+		INSERT INTO order_events (order_id, kind, occurred_at) VALUES
+		    ($1, 'paid', now() - interval '2 days'),
+		    ($1, 'picking', now() - interval '1 hour')`,
 		orderID); err != nil {
-		t.Fatalf("record picking: %v", err)
+		t.Fatalf("record paying and picking: %v", err)
 	}
 	view, err := s.Dashboard(t.Context())
 	if err != nil {
@@ -477,7 +473,7 @@ func TestStore_DashboardPickingOrderAge(t *testing.T) {
 	}
 	for _, task := range view.Tasks {
 		if task.Label == i18n.KeyAdminStatusPicking {
-			if !task.HasAge || task.AgeSeconds/86400 != 2 {
+			if !task.HasAge || task.WaitDays != 2 {
 				t.Errorf("picking task = %+v, want an age of 2 days", task)
 			}
 			return

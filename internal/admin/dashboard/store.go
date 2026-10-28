@@ -60,21 +60,21 @@ func (s *Store) Dashboard(ctx context.Context) (View, error) {
 		return View{}, fmt.Errorf("read summary: %w", err)
 	}
 	view := View{
-		PendingOrders:             sum.PendingOrders,
-		ReadyOrders:               sum.ReadyOrders,
-		ReadyOldestSeconds:        sum.ReadyOldestSeconds,
-		PickingOrders:             sum.PickingOrders,
-		PickingOldestSeconds:      sum.PickingOldestSeconds,
-		SoldOut:                   sum.SoldOut,
-		OpenMessages:              sum.OpenMessages,
-		OpenMessagesOldestSeconds: sum.OpenMessagesOldestSeconds,
+		PendingOrders:           sum.PendingOrders,
+		ReadyOrders:             sum.ReadyOrders,
+		ReadyOldestSince:        sum.ReadyOldestSince,
+		PickingOrders:           sum.PickingOrders,
+		PickingOldestSince:      sum.PickingOldestSince,
+		SoldOut:                 sum.SoldOut,
+		OpenMessages:            sum.OpenMessages,
+		OpenMessagesOldestSince: sum.OpenMessagesOldestSince,
 
-		PendingReturns:                   sum.PendingReturns,
-		PendingReturnsOldestSeconds:      sum.PendingReturnsOldestSeconds,
-		UninspectedReturns:               sum.UninspectedReturns,
-		UninspectedReturnsOldestSeconds:  sum.UninspectedReturnsOldestSeconds,
-		UnansweredQuestions:              sum.UnansweredQuestions,
-		UnansweredQuestionsOldestSeconds: sum.UnansweredQuestionsOldestSeconds,
+		PendingReturns:                 sum.PendingReturns,
+		PendingReturnsOldestSince:      sum.PendingReturnsOldestSince,
+		UninspectedReturns:             sum.UninspectedReturns,
+		UninspectedReturnsOldestSince:  sum.UninspectedReturnsOldestSince,
+		UnansweredQuestions:            sum.UnansweredQuestions,
+		UnansweredQuestionsOldestSince: sum.UnansweredQuestionsOldestSince,
 	}
 	// No status: the newest orders whatever state they are in. The tiles above
 	// the queue already count each state, and a queue filtered to one of them
@@ -95,7 +95,7 @@ func (s *Store) Dashboard(ctx context.Context) (View, error) {
 		return View{}, fmt.Errorf("read days cover: %w", err)
 	}
 	view.Runway, view.RunwayCut, view.RunwayBasis = Runway(stockrisk.NewRows(listed, now))
-	view.Tasks = view.DeskTasks()
+	view.Tasks = view.DeskTasks(now)
 	return view, nil
 }
 

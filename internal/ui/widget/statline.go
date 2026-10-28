@@ -6,8 +6,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/a-h/templ"
-
 	"github.com/koopa0/goen/internal/money"
 )
 
@@ -35,14 +33,12 @@ func (v StatLineLayout) class() string {
 }
 
 // Stat is one labelled figure. Note says how the figure is counted, in at most two lines.
-// Trend is a drawing under the note; the line holds it without importing what draws it.
 // LabelHref, when set, makes the label a link to the screen that explains the figure; the figure stays outside
 // the link, so the link's name says what it opens. StatLineGlance requires it.
 type Stat struct {
 	Label     string
 	Value     StatValue
 	Note      string
-	Trend     templ.Component
 	LabelHref string
 }
 

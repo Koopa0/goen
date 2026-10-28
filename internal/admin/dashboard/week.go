@@ -9,12 +9,15 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/sales"
-	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // WeekDays is how many shop days the dashboard's figures cover.
 const WeekDays = 7
+
+// DailyDays is how many shop days the dashboard's revenue chart draws: the
+// last week and the week before it.
+const DailyDays = 2 * WeekDays
 
 // Week is the last WeekDays shop days of paid orders and revenue, read as the
 // report reads them, and the same number of days before them.
@@ -23,8 +26,6 @@ type Week struct {
 	RevenueCents   int64
 	RevenueSquares float64
 	Previous       sales.Period
-	RevenueDays    chart.SparklineProps
-	OrderDays      chart.SparklineProps
 }
 
 // LatestPaid is the newest order whose money has come in, and how long ago.
@@ -40,6 +41,7 @@ func (w *Week) revenueAgainst(ctx context.Context) string {
 		Current: w.RevenueCents, Previous: w.Previous.RevenueCents,
 		Noise:        w.RevenueSquares + w.Previous.RevenueSquares,
 		PreviousText: money.TWD(w.Previous.RevenueCents),
+		AtSameTime:   true,
 	}.Sentence(ctx)
 }
 
@@ -49,29 +51,23 @@ func (w *Week) ordersAgainst(ctx context.Context) string {
 		Current: w.Orders, Previous: w.Previous.Orders,
 		Noise:        float64(w.Orders + w.Previous.Orders),
 		PreviousText: strconv.FormatInt(w.Previous.Orders, 10),
+		AtSameTime:   true,
 	}.Sentence(ctx)
 }
 
-// sparklines labels the keys under the two small charts.
-func sparklines(ctx context.Context, p chart.SparklineProps) chart.SparklineProps {
-	p.Previous.Label = i18n.Count(ctx, i18n.KeyAdminRepPreviousDays, WeekDays, WeekDays)
-	p.Current.Label = i18n.Count(ctx, i18n.KeyAdminRepLastDays, WeekDays, WeekDays)
-	return p
-}
-
 // WeekStats is the stat line of the last week: revenue and paid orders each set
-// against the week before with their days drawn, then the latest paid order.
+// against the week before, then the latest paid order.
 func (v *View) WeekStats(ctx context.Context) []widget.Stat {
 	const reports = "/admin/reports?days=7"
 	w := &v.Week
 	return []widget.Stat{
 		{
-			Label: i18n.T(ctx, i18n.KeyAdminRepRevenue), Value: widget.StatMoney(w.RevenueCents),
-			Note: w.revenueAgainst(ctx), Trend: chart.Sparkline(sparklines(ctx, w.RevenueDays)), LabelHref: reports,
+			Label: i18n.Count(ctx, i18n.KeyAdminQueueRevenueDays, WeekDays, WeekDays), Value: widget.StatMoney(w.RevenueCents),
+			Note: w.revenueAgainst(ctx), LabelHref: reports,
 		},
 		{
-			Label: i18n.T(ctx, i18n.KeyAdminRepPaidOrders), Value: widget.StatNumber(w.Orders),
-			Note: w.ordersAgainst(ctx), Trend: chart.Sparkline(sparklines(ctx, w.OrderDays)), LabelHref: reports,
+			Label: i18n.Count(ctx, i18n.KeyAdminQueuePaidOrdersDays, WeekDays, WeekDays), Value: widget.StatNumber(w.Orders),
+			Note: w.ordersAgainst(ctx), LabelHref: reports,
 		},
 		v.latestStat(ctx),
 	}

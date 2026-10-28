@@ -2270,48 +2270,116 @@ tr:has(.goen-admin__pick input:checked) td {
   gap: 8px;
 }
 
+/* What waits for a person: one panel, a row to each kind of work. The label is
+   on the left and the count above its wait on the right; where the panel is
+   narrower than 24rem, or the text large, the row stacks so that the label
+   keeps the width. */
 .goen-admin__tasks {
+  background: var(--n-50);
+  border-radius: var(--r-admin-panel);
+  container-type: inline-size;
   display: grid;
-  gap: 8px;
   list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
+  margin: 0;
+  padding: 4px 16px;
 }
 
 .goen-admin__task {
-  align-items: baseline;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-admin-panel);
+  align-items: start;
   display: flex;
-  gap: 12px;
+  gap: 16px;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 10px 0;
 }
 
-.goen-admin__task--alert {
-  border-color: var(--warn);
+.goen-admin__task + .goen-admin__task {
+  border-top: 1px solid var(--line);
+}
+
+.goen-admin__task > a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Work that is wrong, not merely waiting: a triangle before the label. The
+   label says what is wrong, so the mark is decoration. */
+.goen-admin__task--alert > a::before {
+  color: var(--warn-mark);
+  content: "▲" / "";
+  font-size: 0.75em;
+  margin-inline-end: 6px;
 }
 
 .goen-admin__taskfigure {
-  align-items: baseline;
+  align-items: flex-end;
   display: flex;
-  gap: 12px;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .goen-admin__taskfigure .goen-admin__cellnum {
+  font-size: var(--fs-ed-20);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-regular);
-}
-
-.goen-admin__task:first-child .goen-admin__cellnum {
-  font-size: var(--fs-ed-30);
-  line-height: 1;
+  line-height: 1.2;
 }
 
 .goen-admin__taskage {
+  align-items: center;
   color: var(--fg-muted);
-  font-size: var(--fs-13);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-12);
+  gap: 4px 6px;
+  justify-content: flex-end;
+}
+
+@container (width < 24rem) {
+  .goen-admin__task {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .goen-admin__taskfigure {
+    align-items: baseline;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .goen-admin__taskage {
+    justify-content: flex-start;
+  }
+}
+
+@media (forced-colors: active) {
+  .goen-admin__tasks {
+    outline: 1px solid CanvasText;
+  }
+
+  .goen-admin__task--alert > a::before {
+    color: CanvasText;
+  }
+}
+
+/* The landing page: the work that waits first, then how the shop is doing. One
+   column in reading order; from 80rem the tasks sit beside the revenue and the
+   stock beside the best sellers, and the newest orders run across. */
+.goen-dash {
+  display: grid;
+  gap: 2.5rem 2rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 80rem) {
+  .goen-dash {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  }
+
+  .goen-dash__orders {
+    grid-column: 1 / -1;
+  }
 }
 
 /* Worker health. One box per worker, marked at the edge when it needs
@@ -3849,56 +3917,6 @@ form[data-request-pending] [aria-disabled="true"] {
   stroke-width: 3px;
 }
 
-/* Fourteen days under a figure: the earlier seven in the previous grey, the
-   last seven in the data colour. A day not yet over is an outline. */
-.goen-spark {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-block-start: 12px;
-  max-width: 16rem;
-}
-
-.goen-spark svg {
-  display: block;
-  overflow: visible;
-}
-
-.goen-spark__base {
-  shape-rendering: crispEdges;
-  stroke: var(--chart-grid);
-  stroke-width: 1;
-}
-
-.goen-spark__bar--previous {
-  fill: var(--chart-previous);
-}
-
-.goen-spark__bar--current {
-  fill: var(--chart-hue);
-}
-
-.goen-spark__bar--open {
-  fill: var(--bg);
-  stroke-width: 1.5;
-}
-
-.goen-spark__bar--previous.goen-spark__bar--open {
-  stroke: var(--chart-previous);
-}
-
-.goen-spark__bar--current.goen-spark__bar--open {
-  stroke: var(--chart-hue);
-}
-
-.goen-spark__keys {
-  color: var(--fg-muted);
-  display: flex;
-  font-size: var(--fs-11);
-  font-weight: var(--fw-regular);
-  justify-content: space-between;
-}
-
 @container (max-width: 519px) {
   .goen-chart__tick--minor {
     display: none;
@@ -4078,34 +4096,6 @@ form[data-request-pending] [aria-disabled="true"] {
     stroke: CanvasText;
   }
 
-  .goen-spark svg {
-    forced-color-adjust: none;
-  }
-
-  .goen-spark__bar--current {
-    fill: CanvasText;
-  }
-
-  .goen-spark__bar--previous {
-    fill: GrayText;
-  }
-
-  .goen-spark__bar--open {
-    fill: Canvas;
-  }
-
-  .goen-spark__bar--current.goen-spark__bar--open {
-    stroke: CanvasText;
-  }
-
-  .goen-spark__bar--previous.goen-spark__bar--open {
-    stroke: GrayText;
-  }
-
-  .goen-spark__base {
-    stroke: transparent;
-  }
-
   .goen-chart__level,
   .goen-chart__safety,
   .goen-chart__receipt {
@@ -4194,20 +4184,31 @@ form[data-request-pending] [aria-disabled="true"] {
   font-weight: var(--fw-regular);
 }
 
+/* A value is placed on the server, fitted to a 12px label (columns.go,
+   textWidth and valueSpan), so it keeps that size: a rem size outgrows the room
+   it was fitted to and runs into its neighbour at large text. Page zoom still
+   scales it, and the data table under the chart gives every value. */
 .goen-chart__value {
   fill: var(--fg);
-  font-size: var(--fs-12);
+  font-size: 12px;
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: var(--fw-medium);
 }
 
-/* The names over the brackets are placed for a plot of narrowPlot, 244px, at
-   12px text (internal/ui/chart/columns.go): with the value axis, a figure of
-   18rem at any text size. A narrower figure, the campaign card at 320px or a
-   small screen with large text, would push a name off the screen (WCAG
-   1.4.10), so it drops them; the table names the stretch on each of its days. */
+/* The names over the brackets and the values over the columns are placed for a
+   plot of narrowPlot, 244px, at 12px text (internal/ui/chart/columns.go): with
+   the value axis, a figure of 18rem at any text size. A narrower figure, the
+   campaign card at 320px or a small screen with large text, would push a name
+   off the screen (WCAG 1.4.10) or set two values over each other, so it drops
+   them, and the line under the previous stretch's name with them; the table
+   names the stretch and gives the value on each of its days. */
 @container (width < 18rem) {
   .goen-chart__spanlabel {
+    display: none;
+  }
+
+  .goen-chart__window,
+  .goen-chart__value {
     display: none;
   }
 }
