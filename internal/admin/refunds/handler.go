@@ -21,17 +21,17 @@ import (
 
 type Handler struct {
 	store *Store
-	// sessions closes a cancelled order's checkout at the payment provider. Nil
+	// payments closes a cancelled order's checkout at the payment provider. Nil
 	// or disabled on a deployment with no Stripe key, where no session was ever opened.
-	sessions *payment.Gateway
+	payments *payment.Gateway
 	log      *slog.Logger
 }
 
-func NewHandler(store *Store, sessions *payment.Gateway, log *slog.Logger) *Handler {
+func NewHandler(store *Store, payments *payment.Gateway, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("refunds: NewHandler requires a store and a logger")
 	}
-	return &Handler{store: store, sessions: sessions, log: log}
+	return &Handler{store: store, payments: payments, log: log}
 }
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
@@ -63,7 +63,7 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err == nil {
-		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
+		payment.CloseSessions(r.Context(), h.payments, h.log, number, sessions)
 	} else {
 		h.log.Log(r.Context(), outcome.Level, "refund before shipment", "order", number, "error", err)
 	}
