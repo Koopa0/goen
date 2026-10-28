@@ -180,6 +180,36 @@ func TestShort(t *testing.T) {
 	}
 }
 
+func TestShortRounded(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		cents   int64
+		divisor int64
+		want    string
+	}{
+		{"zero", 0, 10_000, "0"},
+		{"rounds down to three digits", 11_253_700, 10_000, "11.3"},
+		{"rounds half up", 11_250_000, 10_000, "11.3"},
+		{"just under half stays", 11_249_900, 10_000, "11.2"},
+		{"a whole number of units is whole", 200_000_000, 10_000, "200"},
+		{"the whole part is never cut", 123_456_700, 10_000, "123"},
+		{"a carry reaches the next digit", 9_995_000, 10_000, "10"},
+		{"a carry reaches the next unit", 99_950_000, 10_000, "100"},
+		{"under a unit counts significant digits", 893_400, 10_000, "0.893"},
+		{"a small amount keeps its digits", 5_000, 10_000, "0.005"},
+		{"a unit of one is not rounded below dollars", 893_400, 1, "8,934"},
+		{"a unit of one groups the digits", 1_234_500, 1, "12,345"},
+		{"thousands", 11_253_700, 1_000, "113"},
+		{"fewer digits than asked are exact", 12_300, 1, "123"},
+	} {
+		if got := money.ShortRounded(tt.cents, tt.divisor, 3); got != tt.want {
+			t.Errorf("%s: ShortRounded(%d, %d, 3) = %q, want %q", tt.name, tt.cents, tt.divisor, got, tt.want)
+		}
+	}
+}
+
 // TestShortNoFiniteExpansion checks that Short returns a bounded string for a
 // divisor with no finite decimal expansion, and does not loop.
 func TestShortNoFiniteExpansion(t *testing.T) {
