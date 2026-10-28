@@ -4,14 +4,13 @@ package checkout_test
 
 import (
 	"bytes"
-	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -26,17 +25,19 @@ import (
 	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
-type checkoutBarcode struct {
-	status  issuer.BarcodeStatus
-	err     error
-	calls   int
-	barcode string
-}
+const checkBarcodePath = "/B2CInvoice/CheckBarcode"
 
-func (c *checkoutBarcode) CheckBarcode(_ context.Context, barcode string) (issuer.BarcodeStatus, error) {
-	c.calls++
-	c.barcode = barcode
-	return c.status, c.err
+// ecpayAnswering is a stand-in ECPay that answers every barcode check as answer
+// says; its Gateway is the real client pointed at it.
+func ecpayAnswering(t *testing.T, answer issuer.FakeBarcodeAnswer) *issuer.FakeECPay {
+	t.Helper()
+	fake, err := issuer.NewFakeECPay(time.Now())
+	if err != nil {
+		t.Fatalf("fake ECPay: %v", err)
+	}
+	t.Cleanup(fake.Close)
+	fake.AnswerBarcodes(answer)
+	return fake
 }
 
 type barcodeCheckout struct {
@@ -49,7 +50,7 @@ type barcodeCheckout struct {
 	id      uuid.UUID
 }
 
-func barcodeCheckoutFor(t *testing.T, checker *checkoutBarcode) barcodeCheckout {
+func barcodeCheckoutFor(t *testing.T, invoiceGateway *issuer.Gateway) barcodeCheckout {
 	t.Helper()
 	s := checkout.NewStore(pool)
 	token := bearer.New()
@@ -72,7 +73,7 @@ func barcodeCheckoutFor(t *testing.T, checker *checkoutBarcode) barcodeCheckout 
 	logs := &bytes.Buffer{}
 	return barcodeCheckout{
 		logs:    logs,
-		handler: newHandler(s, access.NewStore(pool, false), slog.New(slog.NewTextHandler(logs, nil)), nil, checker),
+		handler: newHandler(s, access.NewStore(pool, false), slog.New(slog.NewTextHandler(logs, nil)), nil, invoiceGateway),
 		form:    form, token: token, variant: variant, stock: ordertest.StockOf(t, pool, variant), id: id,
 	}
 }
@@ -106,11 +107,11 @@ func (c barcodeCheckout) assertUnplaced(t *testing.T) {
 // barcode the provider reports missing, keeps what the shopper typed, and
 // writes no checkout state.
 func TestHandler_PlaceOrderBarcodeMissing(t *testing.T) {
-	checker := &checkoutBarcode{status: issuer.BarcodeMissing}
-	attempt := barcodeCheckoutFor(t, checker)
+	ecpay := ecpayAnswering(t, issuer.FakeBarcodeMissing)
+	attempt := barcodeCheckoutFor(t, ecpay.Gateway())
 	w := attempt.post(t)
-	if w.Code != http.StatusUnprocessableEntity || checker.calls != 1 || checker.barcode != "/ABC+123" {
-		t.Fatalf("missing barcode: status=%d calls=%d barcode=%q", w.Code, checker.calls, checker.barcode)
+	if w.Code != http.StatusUnprocessableEntity || ecpay.Calls(checkBarcodePath) != 1 || ecpay.LastBarcode() != "/ABC+123" {
+		t.Fatalf("missing barcode: status=%d calls=%d barcode=%q", w.Code, ecpay.Calls(checkBarcodePath), ecpay.LastBarcode())
 	}
 	for _, want := range []string{i18n.T(t.Context(), i18n.KeyMobileBarcodeMissing), `id="invoice_carrier"`, `aria-describedby="invoice_carrier-example invoice_carrier-error"`, `aria-invalid="true"`, "carrier@example.com", "please ring", "松仁路 200 號", " /abc+123 ", attempt.form.Get("idempotency")} {
 		if !strings.Contains(w.Body.String(), want) {
@@ -121,28 +122,27 @@ func TestHandler_PlaceOrderBarcodeMissing(t *testing.T) {
 }
 
 // TestHandler_PlaceOrderBarcodeProviderDown: PlaceOrder places the order when
-// the barcode provider fails or gives no verdict, logging a failure once
+// the barcode provider fails or gives no verdict, logging the failure once
 // without the barcode, and an idempotent retry neither rechecks nor changes the
 // order.
 func TestHandler_PlaceOrderBarcodeProviderDown(t *testing.T) {
-	for name, checker := range map[string]*checkoutBarcode{
-		"provider error": {status: issuer.BarcodeUnknown, err: errors.New("provider unavailable")},
-		"no verdict":     {status: issuer.BarcodeUnknown},
+	for name, answer := range map[string]issuer.FakeBarcodeAnswer{
+		"provider error": issuer.FakeBarcodeUnavailable,
+		"no verdict":     issuer.FakeBarcodeNoVerdict,
 	} {
 		t.Run(name, func(t *testing.T) {
-			attempt := barcodeCheckoutFor(t, checker)
+			ecpay := ecpayAnswering(t, answer)
+			attempt := barcodeCheckoutFor(t, ecpay.Gateway())
 			w := attempt.post(t)
-			if w.Code != http.StatusSeeOther || checker.calls != 1 {
-				t.Fatalf("unavailable provider: status=%d calls=%d", w.Code, checker.calls)
+			if w.Code != http.StatusSeeOther || ecpay.Calls(checkBarcodePath) != 1 {
+				t.Fatalf("unavailable provider: status=%d calls=%d", w.Code, ecpay.Calls(checkBarcodePath))
 			}
-			if checker.err != nil {
-				if got := strings.Count(attempt.logs.String(), "check mobile barcode"); got != 1 || !strings.Contains(attempt.logs.String(), "level=WARN") || strings.Contains(attempt.logs.String(), "ABC+123") {
-					t.Fatalf("provider failure logged wrongly (%d entries): %s", got, attempt.logs.String())
-				}
+			if got := strings.Count(attempt.logs.String(), "check mobile barcode"); got != 1 || !strings.Contains(attempt.logs.String(), "level=WARN") || strings.Contains(attempt.logs.String(), "ABC+123") {
+				t.Fatalf("provider failure logged wrongly (%d entries): %s", got, attempt.logs.String())
 			}
 			location := w.Header().Get("Location")
 			w = attempt.post(t)
-			if w.Code != http.StatusSeeOther || w.Header().Get("Location") != location || checker.calls != 1 {
+			if w.Code != http.StatusSeeOther || w.Header().Get("Location") != location || ecpay.Calls(checkBarcodePath) != 1 {
 				t.Fatal("idempotent retry rechecked or changed the placed order")
 			}
 		})
@@ -155,8 +155,8 @@ func TestHandler_PlaceOrderBarcodeProviderDown(t *testing.T) {
 func TestHandler_PlaceOrderBarcodeAfterValidation(t *testing.T) {
 	for _, mode := range []string{"malformed", "other field", "chooser"} {
 		t.Run(mode, func(t *testing.T) {
-			checker := &checkoutBarcode{status: issuer.BarcodeExists}
-			attempt := barcodeCheckoutFor(t, checker)
+			ecpay := ecpayAnswering(t, issuer.FakeBarcodeExists)
+			attempt := barcodeCheckoutFor(t, ecpay.Gateway())
 			switch mode {
 			case "malformed":
 				attempt.form.Set("invoice_carrier", "bad")
@@ -166,8 +166,8 @@ func TestHandler_PlaceOrderBarcodeAfterValidation(t *testing.T) {
 				attempt.form.Set("update", "invoice")
 			}
 			w := attempt.post(t)
-			if checker.calls != 0 || (w.Code != http.StatusOK && w.Code != http.StatusUnprocessableEntity) {
-				t.Fatalf("%s called provider %d times: status %d", mode, checker.calls, w.Code)
+			if calls := ecpay.Calls(checkBarcodePath); calls != 0 || (w.Code != http.StatusOK && w.Code != http.StatusUnprocessableEntity) {
+				t.Fatalf("%s called provider %d times: status %d", mode, calls, w.Code)
 			}
 			attempt.assertUnplaced(t)
 		})
@@ -178,11 +178,11 @@ func TestHandler_PlaceOrderBarcodeAfterValidation(t *testing.T) {
 // provider says the barcode exists, and freezes the barcode in canonical form
 // in the invoice preference.
 func TestHandler_PlaceOrderBarcodeExists(t *testing.T) {
-	checker := &checkoutBarcode{status: issuer.BarcodeExists}
-	attempt := barcodeCheckoutFor(t, checker)
+	ecpay := ecpayAnswering(t, issuer.FakeBarcodeExists)
+	attempt := barcodeCheckoutFor(t, ecpay.Gateway())
 	w := attempt.post(t)
-	if w.Code != http.StatusSeeOther || checker.calls != 1 {
-		t.Fatalf("existing barcode = %d, calls=%d", w.Code, checker.calls)
+	if w.Code != http.StatusSeeOther || ecpay.Calls(checkBarcodePath) != 1 {
+		t.Fatalf("existing barcode = %d, calls=%d", w.Code, ecpay.Calls(checkBarcodePath))
 	}
 	number := strings.TrimSuffix(strings.TrimPrefix(w.Header().Get("Location"), "/orders/"), "/pay")
 	var barcode string
@@ -191,5 +191,26 @@ func TestHandler_PlaceOrderBarcodeExists(t *testing.T) {
 	}
 	if barcode != "/ABC+123" {
 		t.Fatalf("frozen barcode = %q", barcode)
+	}
+}
+
+// TestHandler_PlaceOrderBarcodeNoGateway: PlaceOrder places the order without
+// asking ECPay when the shop has no invoice gateway, nil or without
+// credentials, and logs no failed check.
+func TestHandler_PlaceOrderBarcodeNoGateway(t *testing.T) {
+	disabled, err := issuer.NewGateway("", "", "", "")
+	if err != nil {
+		t.Fatalf("NewGateway without credentials: %v", err)
+	}
+	for name, gateway := range map[string]*issuer.Gateway{"nil gateway": nil, "no credentials": disabled} {
+		t.Run(name, func(t *testing.T) {
+			attempt := barcodeCheckoutFor(t, gateway)
+			if w := attempt.post(t); w.Code != http.StatusSeeOther {
+				t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
+			}
+			if strings.Contains(attempt.logs.String(), "check mobile barcode") {
+				t.Errorf("a gateway that is off was asked: %s", attempt.logs.String())
+			}
+		})
 	}
 }

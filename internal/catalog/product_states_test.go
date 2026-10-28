@@ -86,6 +86,86 @@ func TestProductFirstReview(t *testing.T) {
 	}
 }
 
+// TestProductOpinionsNoneShareRow holds that the reviews and questions sections
+// share one row while nobody has reviewed or asked, and stack as before once
+// either has something to show.
+func TestProductOpinionsNoneShareRow(t *testing.T) {
+	t.Parallel()
+	const row = `<div class="goen-pdp__opinions">`
+
+	tests := []struct {
+		name string
+		view ProductView
+		want bool
+	}{
+		{name: "no review and no question", want: true},
+		{
+			name: "one review",
+			view: ProductView{RatingCount: 1, Rating: 5, Reviews: []ProductReview{{Rating: 5, Body: "Good."}}},
+		},
+		{name: "one question", view: ProductView{Questions: []Question{{Body: "Is it waterproof?"}}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			v := tt.view
+			v.Name, v.Slug, v.PriceCents = "Sample", "sample", 100000
+			html := renderToString(t, Product(ProductMeta(&v), &v))
+			start := strings.Index(html, row)
+			if got := start >= 0; got != tt.want {
+				t.Fatalf("%s: %q present = %v, want %v", tt.name, row, got, tt.want)
+			}
+			if !tt.want {
+				return
+			}
+			end := strings.Index(html[start:], `id="related-heading"`)
+			if end < 0 {
+				end = len(html) - start
+			}
+			inside := html[start : start+end]
+			for _, id := range []string{`id="reviews"`, `id="questions"`} {
+				if !strings.Contains(inside, id) {
+					t.Errorf("the shared row does not hold %s", id)
+				}
+			}
+		})
+	}
+}
+
+// TestProductRatingBarsBeyondList holds that the distribution is drawn only when
+// there are more ratings than the page lists; otherwise every rating is already
+// a listed review.
+func TestProductRatingBarsBeyondList(t *testing.T) {
+	t.Parallel()
+	review := ProductReview{Rating: 4, Body: "Good."}
+	tests := []struct {
+		name     string
+		count    int64
+		reviews  []ProductReview
+		wantBars bool
+	}{
+		{name: "two ratings, two listed", count: 2, reviews: []ProductReview{review, review}},
+		{name: "as many ratings as the page lists", count: ReviewCount, reviews: make([]ProductReview, ReviewCount)},
+		{name: "nine ratings, six listed", count: 9, reviews: make([]ProductReview, ReviewCount), wantBars: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			v := ProductView{
+				Name: "Sample", Slug: "sample", PriceCents: 100000,
+				RatingCount: tt.count, Rating: 4, Reviews: tt.reviews,
+			}
+			html := renderToString(t, Product(ProductMeta(&v), &v))
+			if !strings.Contains(html, `class="goen-pdp__score"`) {
+				t.Error("the score summary is gone")
+			}
+			if got := strings.Contains(html, `class="goen-pdp__bars"`); got != tt.wantBars {
+				t.Errorf("bars drawn = %v, want %v", got, tt.wantBars)
+			}
+		})
+	}
+}
+
 // TestProductAskStates holds the three Q&A states of the product page as one
 // matrix.
 //

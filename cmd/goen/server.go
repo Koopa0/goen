@@ -113,8 +113,8 @@ type StorefrontConfig struct {
 	BaseURL  string
 	// SecureCookies selects the __Host- cookie prefix.
 	SecureCookies bool
-	// Invoices checks mobile barcodes at checkout, or is disabled and the
-	// checkout accepts none.
+	// Invoices checks mobile barcodes at checkout, or is disabled and a barcode
+	// is checked for its shape only.
 	Invoices *issuer.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *google.Client
@@ -184,14 +184,10 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	}
 	deals := campaign.NewStore(pool)
 	sitePages := site.NewHandler(log, baseURL, catalogue, deals, siteStore, secureCookies)
-	var barcodeChecker checkout.MobileBarcodeChecker
-	if front.Invoices.Enabled() {
-		barcodeChecker = front.Invoices
-	}
 	orderAccess := access.NewStore(pool, secureCookies)
 	basket := cart.NewHandler(cart.NewStore(pool), orderAccess, log, secureCookies, front.StoreMap)
 	checkouts := checkout.NewHandler(checkout.NewStore(pool), basket, orderAccess, log, secureCookies,
-		front.Payments, front.StoreMap, barcodeChecker)
+		front.Payments, front.StoreMap, front.Invoices)
 	authn := auth.NewHandler(auth.NewStore(pool), basket, orderAccess, log, secureCookies, front.Google)
 	authn.OfferDemoAccount(front.DemoAccount)
 	// One store decides whether this deployment has a second factor at all, so

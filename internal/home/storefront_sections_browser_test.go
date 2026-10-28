@@ -142,7 +142,6 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		view := &catalog.ProductView{
 			Name: "Restwood Mug", Brand: "Restwood", Slug: "restwood-mug", Description: "A stoneware mug.",
 			SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, PriceCents: 43200,
-			Tone: tones[r.URL.Query().Get("tone")],
 		}
 		if chosen := r.URL.Query().Get("options"); chosen != "" {
 			view.Options = []catalog.ProductOption{{Name: "storage", Label: "Storage", Values: []catalog.ProductOptionValue{

@@ -79,7 +79,7 @@ func TestHandler_PlaceOrderNoDelivery(t *testing.T) {
 				}
 				before := deliveryWriteState(t, ownerPool, id, variant)
 				var diagnostics bytes.Buffer
-				h := newHandler(s, access.NewStore(appPool, false), slog.New(slog.NewJSONHandler(&diagnostics, nil)), nil)
+				h := newHandler(s, access.NewStore(appPool, false), slog.New(slog.NewJSONHandler(&diagnostics, nil)), nil, nil)
 				mux := http.NewServeMux()
 				mux.HandleFunc("GET /checkout", h.Page)
 				mux.HandleFunc("POST /checkout", h.PlaceOrder)

@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/catalog"
-	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 const rootDepartmentOf = `
@@ -95,17 +94,5 @@ func TestStore_ProductRelated(t *testing.T) {
 				}
 			}
 		}
-	}
-}
-
-// TestStore_ProductTone holds that a product loads its department's tone.
-func TestStore_ProductTone(t *testing.T) {
-	t.Parallel()
-	view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Product(t.Context(), "nimbus-buds-pro", catalog.Selection{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if view.Tone != tone.Mist {
-		t.Errorf("a product under tech/audio loads tone %q, want %q", view.Tone, tone.Mist)
 	}
 }

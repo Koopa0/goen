@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
-	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -217,9 +216,6 @@ type ProductView struct {
 	AlsoBought   []tile.Tile
 
 	Related []tile.Tile
-
-	// Tone is the department's; the gallery's mat and the band wear it.
-	Tone tone.Tone
 }
 
 // StarHalves keeps an average of 4.5 at four stars and half of the fifth, not five.
@@ -323,14 +319,6 @@ func (v *ProductView) MaxQuantity() string {
 
 func (v *ProductView) HasImages() bool { return len(v.Images) > 0 }
 
-// BandPhoto is the second photograph: the first is the gallery's.
-func (v *ProductView) BandPhoto() (ProductImage, bool) {
-	if len(v.Images) < 2 {
-		return ProductImage{}, false
-	}
-	return v.Images[1], true
-}
-
 // GalleryFollowsChoice is true only when a photograph shows one value: only then can choosing another reorder the gallery.
 func (v *ProductView) GalleryFollowsChoice() bool {
 	return slices.ContainsFunc(v.Images, func(i ProductImage) bool { return i.ShowsOption })
@@ -371,6 +359,10 @@ func (v *ProductView) HasSpecs() bool { return len(v.Specs) > 0 }
 func (v *ProductView) HasRelated() bool { return len(v.Related) >= 2 }
 
 func (v *ProductView) HasRating() bool { return v.RatingCount > 0 }
+
+// RatingsBeyondList is true when there are more ratings than the page lists;
+// only then does the distribution say anything the list does not.
+func (v *ProductView) RatingsBeyondList() bool { return v.RatingCount > int64(len(v.Reviews)) }
 
 func (v *ProductView) RatingText() string { return strconv.FormatFloat(v.Rating, 'f', 1, 64) }
 
@@ -512,6 +504,9 @@ func (v *ProductView) NotifyAction() string {
 func (v *ProductView) HasRecommendations() bool { return len(v.AlsoBought) > 0 }
 
 func (v *ProductView) HasQuestions() bool { return len(v.Questions) > 0 }
+
+// HasOpinions is false while nobody has reviewed or asked.
+func (v *ProductView) HasOpinions() bool { return v.HasRating() || v.HasQuestions() }
 
 func (v *ProductView) AskTaken() bool { return v.AskOutcome == "1" }
 

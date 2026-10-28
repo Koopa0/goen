@@ -47,7 +47,7 @@ templ Compare(p frame.Page, v CompareView) {
 						for _, item := range v.Products {
 							<li>
 								<a href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
-								@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.RemoveHref(item.Slug))) {
+								@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, templ.SafeURL(v.RemoveHref(item.Slug))) {
 									{ i18n.T(ctx, i18n.KeyRemove) }
 								}
 							</li>
@@ -89,7 +89,7 @@ templ comparePicker(v CompareView) {
 						if c.Brand != "" {
 							{ " · " + c.Brand }
 						}
-						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.AddHref(c.Slug))) {
+						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, templ.SafeURL(v.AddHref(c.Slug))) {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), c.Name) }
 						}
 					</li>
@@ -123,7 +123,7 @@ templ compareSuggestions(v CompareView) {
 							<span class="goen-compare__brand">{ t.Brand }</span>
 						}
 						<span class="goen-compare__price">{ t.Price() }</span>
-						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.AddHref(t.Slug))) {
+						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, templ.SafeURL(v.AddHref(t.Slug))) {
 							{ i18n.T(ctx, i18n.KeyAddToCompare) }
 							<span class="goen-sr-only">{ " " + t.Name }</span>
 						}
