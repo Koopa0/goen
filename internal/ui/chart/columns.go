@@ -389,8 +389,8 @@ func valueGap(cols []Column, scale int64) float64 {
 }
 
 // valueUnit is how the values of a chart are written: the axis counts in one
-// unit, divisor dollars of money and named by suffix, and the values over the
-// columns follow it, so that no two of them are in different units.
+// unit, divisor dollars of money and named by suffix, and the values of money
+// over the columns follow it, so that no two of them are in different units.
 type valueUnit struct {
 	measure Measure
 	divisor int64
@@ -476,47 +476,58 @@ func fitValues(cols []Column, heights []float64, candidates []int, baseline floa
 
 	var kept []int
 	var boxes [][2]float64
+	anchors := make(map[int]string, len(candidates))
 	for _, i := range candidates {
-		left, right := valueSpan(i, n, u.over(cols[i].Value))
+		left, right, anchor := valueSpan(i, n, u.over(cols[i].Value), share)
 		if left < 0 || right > narrowPlot ||
 			slices.ContainsFunc(boxes, func(b [2]float64) bool { return left < b[1] && right > b[0] }) ||
 			coveredByBar(i, left, right, heights, share) {
 			continue
 		}
 		kept = append(kept, i)
+		anchors[i] = anchor
 		boxes = append(boxes, [2]float64{left, right})
 	}
 	slices.Sort(kept)
 
 	values := make([]valueLabel, 0, len(kept))
 	for _, i := range kept {
-		x, anchor := percent((float64(i)+0.5)*band), "middle"
-		switch i {
-		case 0:
-			x, anchor = percent(0), "start"
-		case n - 1:
-			x, anchor = "100%", "end"
+		barLeft := float64(i)*band + (1-share)/2*band
+		x := percent((float64(i) + 0.5) * band)
+		switch anchors[i] {
+		case "start":
+			x = percent(barLeft)
+		case "end":
+			x = percent(barLeft + share*band)
 		}
-		values = append(values, valueLabel{X: x, Anchor: anchor, Y: baseline - heights[i] - valueLift, Text: u.over(cols[i].Value)})
+		values = append(values, valueLabel{X: x, Anchor: anchors[i], Y: baseline - heights[i] - valueLift, Text: u.over(cols[i].Value)})
 	}
 	return values
 }
 
 // valueSpan is where the value over column i of n is written on a plot of
-// narrowPlot, the narrowest there is, and so the plot where it is most likely
-// not to fit: the left and right it takes in pixels, with its margin. The first
-// and last values are held to the plot's edges rather than centred over a
-// column that is half out of it.
-func valueSpan(i, n int, text string) (left, right float64) {
+// narrowPlot, the narrowest plot that draws the span names, and so the plot
+// where it is most likely not to fit: the left and right it takes in pixels,
+// with its margin, and its anchor. A value is centred over its column. Only the
+// first or last, when centred it would run past the plot, is anchored at the
+// edge of its own bar that faces the plot's edge, so it stays over its bar.
+func valueSpan(i, n int, text string, share float64) (left, right float64, anchor string) {
 	w := textWidth(text) + 2*valueMargin
+	col := float64(narrowPlot) / float64(n)
+	centre := (float64(i) + 0.5) * col
+	left, right, anchor = centre-w/2, centre+w/2, "middle"
+	if left >= 0 && right <= narrowPlot {
+		return left, right, anchor
+	}
 	switch i {
 	case 0:
-		return 0, w
+		left = (1 - share) / 2 * col
+		return left, left + w, "start"
 	case n - 1:
-		return narrowPlot - w, narrowPlot
+		right = narrowPlot - (1-share)/2*col
+		return right - w, right, "end"
 	}
-	centre := (float64(i) + 0.5) * narrowPlot / float64(n)
-	return centre - w/2, centre + w/2
+	return left, right, anchor
 }
 
 // coveredByBar is whether a value of column i, taking left to right in pixels

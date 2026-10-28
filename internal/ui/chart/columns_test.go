@@ -911,31 +911,35 @@ func TestColumnsValueInsideThePlot(t *testing.T) {
 	}
 }
 
-// TestColumnsEdgeValuesStayInside: the first and last values are held to the plot's edges.
+// TestColumnsEdgeValuesStayInside: a value is centred over its column, and the
+// first or last that would run past the plot is anchored at its own bar's edge,
+// not at the corner of the plot.
 func TestColumnsEdgeValuesStayInside(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
-		name       string
-		at         int
-		x, anchors string
-	}{
-		{"first", 0, "0.00%", "start"},
-		{"last", 13, "100%", "end"},
-		{"between", 6, "46.43%", "middle"},
-	} {
-		got := overColumns(renderColumns(t, i18n.En, columnsProps(valued(14, map[int]int64{tc.at: 40, 1: 1, 4: 2, 8: 3, 10: 1, 11: 1, 12: 1}))))
-		var found bool
-		for _, m := range got {
-			if m[3] == "40" {
-				found = true
-				if m[1] != tc.x || m[2] != tc.anchors {
-					t.Errorf("%s: the highest is at x=%s anchored %s, want x=%s anchored %s", tc.name, m[1], m[2], tc.x, tc.anchors)
-				}
+	t.Run("a value that fits stays centred", func(t *testing.T) {
+		t.Parallel()
+		got := overColumns(renderColumns(t, i18n.En, columnsProps(valued(3, map[int]int64{0: 12, 1: 7, 2: 4}))))
+		want := [][]string{{"", "16.67%", "middle", "12"}, {"", "50.00%", "middle", "7"}, {"", "83.33%", "middle", "4"}}
+		if len(got) != len(want) {
+			t.Fatalf("%d values drawn, want %d: %q", len(got), len(want), got)
+		}
+		for i, m := range got {
+			if m[1] != want[i][1] || m[2] != want[i][2] || m[3] != want[i][3] {
+				t.Errorf("value %d is %q at x=%s anchored %s, want %q at x=%s anchored %s", i, m[3], m[1], m[2], want[i][3], want[i][1], want[i][2])
 			}
 		}
-		if !found {
-			t.Errorf("%s: the highest is not drawn", tc.name)
+	})
+
+	t.Run("the last value too wide to centre ends at its bar", func(t *testing.T) {
+		t.Parallel()
+		const lastBarRight = "97.78%"
+		p := revenue()
+		p.Series.Buckets[13].Value = 12_000_000
+		got := overColumns(renderColumns(t, i18n.En, p))
+		last := got[len(got)-1]
+		if last[3] != "120K" || last[2] != "end" || last[1] != lastBarRight {
+			t.Errorf("last value is %q at x=%s anchored %s, want %q at x=%s anchored end", last[3], last[1], last[2], "120K", lastBarRight)
 		}
-	}
+	})
 }

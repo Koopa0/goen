@@ -86,10 +86,10 @@ func Short(cents, divisor int64) string {
 	return out + "." + string(decimals)
 }
 
-// ShortRounded is Short for an amount that need not be exact: cents rounded half
-// up to digits significant digits, but never to less than a whole divisor, so
-// 11_253_700 cents over a divisor of 10_000 is "11.3" and 123_456_700 is "123",
-// while 893_400 over a divisor of 1 stays "8,934".
+// ShortRounded is Short, for a non-negative amount that need not be exact:
+// cents are rounded half up to digits significant digits, but never past a whole
+// unit of divisor dollars, so 11_253_700 cents over a divisor of 10_000 is
+// "11.3", 123_456_700 is "123", and 893_400 over a divisor of 1 stays "8,934".
 func ShortRounded(cents, divisor int64, digits int) string {
 	step := int64(1)
 	for range max(len(strconv.FormatInt(cents, 10))-digits, 0) {
