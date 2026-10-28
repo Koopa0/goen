@@ -58,7 +58,7 @@ func (m Message) Waiting(ctx context.Context) string {
 }
 
 // replyWithinDays is the shop days a message may wait for an answer; the third
-// day is overdue, as it is for a paid order waiting to be picked.
+// day is overdue.
 const replyWithinDays = 2
 
 func (m Message) Overdue() bool { return !m.Handled && m.WaitingDays > replyWithinDays }
