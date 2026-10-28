@@ -41,7 +41,7 @@ func TestStore_ReadyExpiryCalendar(t *testing.T) {
 						t.Fatalf("next expiry for %s = %+v (%v), want %s", tc.delivered, ready, err, tc.expiry)
 					}
 					form := nextWarrantyGet(t, handler, f, locale, "/account/warranty/"+f.number)
-					if !strings.Contains(form.Body.String(), tc.expiry) || !strings.Contains(form.Body.String(), `name="unit" value="1"`) {
+					if !strings.Contains(form.Body.String(), shownExpiry(t, locale, tc.expiry)) || !strings.Contains(form.Body.String(), `name="unit" value="1"`) {
 						t.Error("next-unit form omits its independently expected calendar expiry")
 					}
 					posted := nextWarrantyPost(t, handler, f, locale, "1", "CALENDAR-"+f.lineID.String())
@@ -57,7 +57,7 @@ func TestStore_ReadyExpiryCalendar(t *testing.T) {
 					}
 					follow := nextWarrantyGet(t, handler, f, locale, posted.Header().Get("Location"))
 					confirmation := warrantyResponseText(warrantyResponseNodes(t, follow.Body.String())["warranty-registered"])
-					if !strings.Contains(confirmation, tc.expiry) {
+					if !strings.Contains(confirmation, shownExpiry(t, locale, tc.expiry)) {
 						t.Errorf("confirmation = %q, want expiry %s", confirmation, tc.expiry)
 					}
 				})
