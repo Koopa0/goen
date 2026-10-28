@@ -45,7 +45,7 @@ func TestFAQNoticeShown(t *testing.T) {
 	for _, tc := range []struct {
 		query   string
 		failure bool
-	}{{"ok", false}, {"refused", true}} {
+	}{{"saved", false}, {"refused", true}} {
 		ctx := i18n.WithLocale(t.Context(), i18n.En)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/faq?"+tc.query+"=1", http.NoBody)
 		var page strings.Builder
@@ -70,11 +70,27 @@ func TestFAQNoticeShown(t *testing.T) {
 func TestNoticesOutcome(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]widget.Outcome{
-		"ok":      widget.OutcomeDone,
+		"saved":   widget.OutcomeDone,
 		"refused": widget.OutcomeRefused,
 	} {
 		if got := notices[name].Outcome; got != want {
 			t.Errorf("notices[%q].Outcome = %d, want %d", name, got, want)
 		}
+	}
+}
+
+// TestDoneNoticesAreDistinct: no two actions share a sentence, so a save says
+// which change it was.
+func TestDoneNoticesAreDistinct(t *testing.T) {
+	t.Parallel()
+	seen := map[i18n.Key]string{}
+	for name, e := range notices {
+		if e.Outcome != widget.OutcomeDone {
+			continue
+		}
+		if first, dup := seen[e.Key]; dup {
+			t.Errorf("?%s=1 and ?%s=1 both say %q", first, name, e.Key)
+		}
+		seen[e.Key] = name
 	}
 }
