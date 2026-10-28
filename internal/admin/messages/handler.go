@@ -33,8 +33,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":   widget.NoticeDone(i18n.KeyAdminNoticeOK),
-	"gone": widget.NoticeRefused(i18n.KeyAdminNoticeGone),
+	"handled":  widget.NoticeDone(i18n.KeyAdminNoticeMessageHandled),
+	"reopened": widget.NoticeDone(i18n.KeyAdminNoticeMessageReopened),
+	"gone":     widget.NoticeRefused(i18n.KeyAdminNoticeGone),
 }
 
 func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
@@ -63,8 +64,10 @@ func (h *Handler) setMessageHandled(w http.ResponseWriter, r *http.Request, hand
 		return
 	}
 	switch err := h.store.SetMessageHandled(r.Context(), r.PostFormValue("message"), handled); {
+	case err == nil && handled:
+		http.Redirect(w, r, "/admin/messages?handled=1", http.StatusSeeOther)
 	case err == nil:
-		http.Redirect(w, r, "/admin/messages?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/messages?reopened=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		http.Redirect(w, r, "/admin/messages?gone=1", http.StatusSeeOther)
 	default:
