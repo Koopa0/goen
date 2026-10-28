@@ -13,19 +13,19 @@ import (
 )
 
 type Variant struct {
-	SKU                        string
-	Slug                       string
-	ProductName                string
-	Brand                      string
-	PriceCents                 int64
-	CompareCents               int64
-	Stock                      int32
-	Safety                     int32
-	Active                     bool
-	Options                    []string
-	FormID                     string
-	DraftDelta, DeltaError     string
-	ArrivalInput, ArrivalError string
+	SKU                          string
+	Slug                         string
+	ProductName                  string
+	Brand                        string
+	PriceCents                   int64
+	CompareCents                 int64
+	Stock                        int32
+	Safety                       int32
+	Active                       bool
+	Options                      []string
+	FormID                       string
+	DraftQuantity, QuantityError string
+	ArrivalInput, ArrivalError   string
 }
 
 func (v *Variant) OptionText() string { return strings.Join(v.Options, " · ") }
@@ -79,18 +79,18 @@ func (v *Variant) CompareText() string {
 	return strconv.FormatInt(v.CompareCents/100, 10)
 }
 
-// AdjustKey is the adjustment form's idempotency key. It is spent for good in
-// the ledger, so it names the rendered form and not the stock level: stock
+// ReceiveKey is the row's goods-receipt idempotency key. It is spent for good
+// in the ledger, so it names the rendered form and not the stock level: stock
 // returns to an earlier figure, and a key built from it would then be refused.
-func (v *Variant) AdjustKey() string {
-	return "adj:" + v.SKU + ":" + v.FormID
+func (v *Variant) ReceiveKey() string {
+	return "rcv:" + v.SKU + ":" + v.FormID
 }
 
 func (v VariantsView) Refusals() []widget.Refusal {
 	out := make([]widget.Refusal, 0, len(v.Variants))
 	for i := range v.Variants {
 		row := &v.Variants[i]
-		out = append(out, widget.SummarizeRefusal(i18n.KeyAdminRefusalStock, map[string]string{"delta": row.DeltaError}, widget.RefusalField{Key: "delta", ID: "adj-" + row.SKU}))
+		out = append(out, widget.SummarizeRefusal(i18n.KeyAdminRefusalReceipt, map[string]string{"quantity": row.QuantityError}, widget.RefusalField{Key: "quantity", ID: "rcv-" + row.SKU}))
 	}
 	return out
 }

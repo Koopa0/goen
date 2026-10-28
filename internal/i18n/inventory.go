@@ -17,9 +17,9 @@ var (
 	KeyAdminPageStockList = key("admin.page.stocklist", Message{ZhHant: "庫存管理", En: "Stock management"})
 
 	KeyAdminQueueStockLead = key("admin.queue.stock.lead", Message{
-		ZhHant: "庫存只能透過調整寫入，每次調整都會留下一筆異動紀錄。",
-		En: "Stock can only be written through an adjustment, and every adjustment leaves a " +
-			"movement in the ledger.",
+		ZhHant: "進貨在每一列登記；盤點修正與停用在各 SKU 的頁面。每次變動都留下一筆異動紀錄。",
+		En: "Record deliveries on each row; corrections and retiring are on each SKU's page. " +
+			"Every change leaves a movement in the ledger.",
 	})
 
 	KeyAdminStockList = key("admin.stock.list", Message{ZhHant: "庫存品項清單", En: "Stock items"})
@@ -31,10 +31,11 @@ var (
 		En:     "SKU or product name",
 	})
 
-	KeyAdminQueueColStock = key("admin.queue.col.stock", Message{
-		ZhHant: "庫存 / 安全 / 可售",
-		En:     "Stock / safety / sellable",
-	})
+	KeyAdminColSellable = key("admin.col.sellable", Message{ZhHant: "可售", En: "Sellable"})
+
+	KeyAdminStockFacts = key("admin.stock.facts", Message{ZhHant: "庫存 %s · 安全庫存 %s", En: "%s in stock · safety %s"})
+
+	KeyAdminStockLow = key("admin.stock.low", Message{ZhHant: "庫存偏低", En: "Low stock"})
 
 	KeyAdminQueueColPrice = key("admin.queue.col.price", Message{ZhHant: "價格", En: "Price"})
 
@@ -124,8 +125,8 @@ var (
 	KeyAdminReceiveButton = key("admin.receive.button", Message{ZhHant: "登記進貨", En: "Record receipt"})
 
 	KeyAdminReceiveHint = key("admin.receive.hint", Message{
-		ZhHant: "這會在帳本記一筆「進貨」。數量算錯要往下修正時，請到庫存頁用「調整」。",
-		En:     "This records a goods receipt in the ledger. To correct a count downward, use “Adjust” on the stock page.",
+		ZhHant: "這會在帳本記一筆「進貨」。數量算錯要往下修正時，請用下面的「修正庫存」。",
+		En:     "This records a goods receipt in the ledger. To correct a count downward, use “Correct the count” below.",
 	})
 
 	KeyAdminStockOf = key("admin.stock.of", Message{
@@ -135,7 +136,7 @@ var (
 
 	KeyAdminMoveReceipt = key("admin.move.receipt", Message{ZhHant: "進貨", En: "Goods receipt"})
 
-	KeyAdminMoveHold = key("admin.move.hold", Message{ZhHant: "結帳保留", En: "Checkout hold"})
+	KeyAdminMoveHold = key("admin.move.hold", Message{ZhHant: "結帳扣除", En: "Taken at checkout"})
 
 	KeyAdminMoveSale = key("admin.move.sale", Message{ZhHant: "出貨扣除", En: "Dispatched"})
 
@@ -148,8 +149,8 @@ var (
 
 var (
 	KeyAdminNoticeReceived = key("admin.notice.received", Message{
-		ZhHant: "進貨已入庫，帳本上記的是「進貨」而不是「人工調整」。",
-		En:     "Received. The ledger records this as a goods receipt, not as a manual correction.",
+		ZhHant: "已登記進貨。",
+		En:     "Receipt recorded.",
 	})
 
 	KeyAdminReceiptConflict = key("admin.receipt.conflict", Message{
@@ -158,7 +159,26 @@ var (
 	})
 
 	KeyAdminNoticeBadQty = key("admin.notice.badqty", Message{
-		ZhHant: "請輸入 1 到 10,000 的整數。要往下修正數量，請用「調整」。",
-		En:     "Enter a whole number from 1 to 10,000. To correct a count downward, use “Adjust”.",
+		ZhHant: "請輸入 1 到 10,000 的整數。要往下修正數量，請用 SKU 頁面上的「修正庫存」。",
+		En:     "Enter a whole number from 1 to 10,000. To correct a count downward, use “Correct the count” on the SKU page.",
+	})
+
+	KeyAdminAdjustHeading = key("admin.adjust.heading", Message{ZhHant: "修正庫存", En: "Correct the count"})
+
+	KeyAdminAdjustHint = key("admin.adjust.hint", Message{
+		ZhHant: "盤點差異或損壞時使用；進貨請用上面的「登記進貨」。",
+		En:     "Use this for a stocktake difference or damaged goods. Record a delivery with “Record receipt” above.",
+	})
+
+	KeyAdminRetireSummary = key("admin.retire.summary", Message{ZhHant: "停用這個規格", En: "Switch this variant off"})
+
+	KeyAdminRetireEffect = key("admin.retire.effect", Message{
+		ZhHant: "停用後商店不再賣這個規格；可以隨時再啟用。",
+		En:     "Once it is off, the shop no longer sells this variant. You can switch it on again at any time.",
+	})
+
+	KeyAdminVariantIsOff = key("admin.variant.isoff", Message{
+		ZhHant: "這個規格已停用，商店不再賣它。",
+		En:     "This variant is switched off, so the shop does not sell it.",
 	})
 )

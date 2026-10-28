@@ -222,7 +222,7 @@ func TestVariantsExamples(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"stock adjustment", Variants(p, VariantsView{Variants: []Variant{{SKU: "sample", DraftDelta: typed, DeltaError: refusal}}}), map[string]string{"adj-sample": prefix + "+10"}},
+					{"stock adjustment", Movements(p, &MovementsView{SKU: "sample", DraftDelta: typed, DeltaError: refusal}), map[string]string{"adjust-delta": prefix + "-3"}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)
@@ -295,7 +295,7 @@ func TestVariantsRefusalSummary(t *testing.T) {
 				title                 i18n.Key
 				count                 int
 			}{
-				{"stock", Variants(frame.Page{}, VariantsView{Variants: []Variant{{SKU: "TEST-SKU", DraftDelta: " +oops ", DeltaError: bad}}}), "/admin/stock/adjust#row-TEST-SKU", "row-TEST-SKU", "adj-TEST-SKU", i18n.KeyAdminRefusalStock, 1},
+				{"stock", Variants(frame.Page{}, VariantsView{Variants: []Variant{{SKU: "TEST-SKU", DraftQuantity: " +oops ", QuantityError: bad}}}), "/admin/stock/receive#row-TEST-SKU", "row-TEST-SKU", "rcv-TEST-SKU", i18n.KeyAdminRefusalReceipt, 1},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {

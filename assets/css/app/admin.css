@@ -1317,7 +1317,7 @@ input.goen-check {
 /* Eight controls a row take the table's spare width, so the SKU and the product
    name shrink to their shortest unbreakable piece unless they are held. The
    table scrolls inside its frame; the SKU stays pinned on the left and, where
-   there is room, the stock adjustment on the right, so the one control that
+   there is room, the goods receipt on the right, so the one control that
    writes stock is never off-screen. scroll-padding keeps a focused control out
    from under a pinned column (WCAG 2.4.11). */
 .goen-admin__stock td:first-child a:first-child {
@@ -1534,6 +1534,79 @@ input.goen-check {
    fits a 1440 frame and nothing sits beneath the pinned column. */
 .goen-admin__stock td:is(:nth-child(4), :nth-child(5)) .goen-admin__inline {
   flex-wrap: wrap;
+}
+
+/* The sellable count is the figure the row is read for; the stock and safety
+   figures it comes from sit under it. */
+.goen-admin__cellstock > * {
+  display: block;
+  inline-size: fit-content;
+  margin-block-start: 2px;
+}
+
+.goen-admin__cellstock > :first-child {
+  margin-block-start: 0;
+}
+
+.goen-admin__sellable {
+  font-size: var(--fs-ed-20);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+/* The two price fields are named on screen, the label above its field, so the
+   cell stays narrow in English where "Compare-at price" is long. */
+.goen-admin__pricefield {
+  align-items: baseline;
+  color: var(--fg-muted);
+  display: flex;
+  font-size: var(--fs-12);
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.goen-admin__pricelabel {
+  color: var(--fg);
+  font-weight: var(--fw-medium);
+}
+
+.goen-admin__inline:has(.goen-admin__pricefield) {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(7rem, 9rem);
+}
+
+.goen-admin__inline:has(.goen-admin__pricefield) > .goen-admin__pricefield:not(:first-of-type) {
+  margin-block-start: 6px;
+}
+
+.goen-admin__inline:has(.goen-admin__pricefield) > button {
+  justify-self: start;
+  margin-block-start: 6px;
+}
+
+.goen-admin__inline:has(input[type='date']) {
+  min-inline-size: 10rem;
+}
+
+/* A refused quantity says why under the field and its button, not beside them. */
+.goen-admin__inline:has(input[name='quantity']) {
+  flex-wrap: wrap;
+}
+
+.goen-admin__inline .ui-error-text {
+  flex-basis: 100%;
+}
+
+.goen-admin__retire > summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  min-block-size: 44px;
+}
+
+.goen-admin__retire[open] > summary {
+  margin-block-end: 10px;
 }
 
 .goen-admin__num {
