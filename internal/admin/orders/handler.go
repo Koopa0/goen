@@ -139,11 +139,12 @@ func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	sessions, err := h.store.Advance(r.Context(), number, order.FulfillmentStatus(r.PostFormValue("status")), audit.ActorID(r.Context()))
+	status := order.FulfillmentStatus(r.PostFormValue("status"))
+	sessions, err := h.store.Advance(r.Context(), number, status, audit.ActorID(r.Context()))
 	switch classifyAdvance(err) {
 	case advanced:
 		payment.CloseSessions(r.Context(), h.payments, h.log, number, sessions)
-		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
+		http.Redirect(w, r, "/admin/orders/"+number+advancedNotice(status), http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case advancePaidCancel:
 		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case advanceUnfunded:
@@ -159,6 +160,24 @@ func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(r.Context(), "advance order", "error", err)
 		admin.ServerError(w, r, h.log)
+	}
+}
+
+// advancedNotice is the query that makes the order page say which status the
+// order moved to. Shipped is not here: Ship is the only door to it and answers
+// with its own.
+func advancedNotice(status order.FulfillmentStatus) string {
+	switch status {
+	case order.FulfillmentPicking:
+		return "?picking=1"
+	case order.FulfillmentDelivered:
+		return "?delivered=1"
+	case order.FulfillmentCompleted:
+		return "?completed=1"
+	case order.FulfillmentCancelled:
+		return "?cancelled=1"
+	default:
+		return ""
 	}
 }
 
@@ -311,11 +330,16 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 		admin.ServerError(w, r, h.log)
 		return
 	}
-	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
+	http.Redirect(w, r, "/admin/orders/"+number+"?note=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"ok":              widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"picking":         widget.NoticeDone(i18n.KeyAdminNoticePicking),
+	"delivered":       widget.NoticeDone(i18n.KeyAdminNoticeDelivered),
+	"completed":       widget.NoticeDone(i18n.KeyAdminNoticeCompleted),
+	"cancelled":       widget.NoticeDone(i18n.KeyAdminNoticeCancelled),
+	"note":            widget.NoticeDone(i18n.KeyAdminNoticeStaffNote),
+	"delivery":        widget.NoticeDone(i18n.KeyAdminNoticeDeliveryCorrected),
 	"refused":         widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
 	"started":         widget.NoticeDone(i18n.KeyAdminBatchStarted),
 	"nosel":           widget.NoticeRefused(i18n.KeyAdminBatchNone),
@@ -386,7 +410,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: number is the route's own path value
-		http.Redirect(w, r, target+"?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, target+"?delivery=1", http.StatusSeeOther)
 	case errors.Is(err, ErrTooLateToCorrect):
 		//nolint:gosec // G710: same
 		http.Redirect(w, r, target+"?toolate=1", http.StatusSeeOther)

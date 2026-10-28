@@ -437,4 +437,16 @@ var (
 		En: "Those quantities do not work: no line can exceed what is still outstanding, or what this " +
 			"order is holding in stock.",
 	})
+
+	KeyAdminNoticePicking = key("admin.notice.picking", Message{ZhHant: "已開始備貨。", En: "Packing started."})
+
+	KeyAdminNoticeDelivered = key("admin.notice.delivered", Message{ZhHant: "已標記送達。", En: "Marked as delivered."})
+
+	KeyAdminNoticeCompleted = key("admin.notice.completed", Message{ZhHant: "已完成訂單。", En: "Order completed."})
+
+	KeyAdminNoticeCancelled = key("admin.notice.cancelled", Message{ZhHant: "已取消訂單。", En: "Order cancelled."})
+
+	KeyAdminNoticeStaffNote = key("admin.notice.staffnote", Message{ZhHant: "已儲存內部備註。", En: "Staff note saved."})
+
+	KeyAdminNoticeDeliveryCorrected = key("admin.notice.deliverycorrected", Message{ZhHant: "已更正收件資料。", En: "Delivery details corrected."})
 )

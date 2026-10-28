@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -19,7 +20,12 @@ func TestOrdersRedirectedNotice(t *testing.T) {
 		name    string
 		outcome widget.Outcome
 	}{
-		{"ok", widget.OutcomeDone},
+		{"picking", widget.OutcomeDone},
+		{"delivered", widget.OutcomeDone},
+		{"completed", widget.OutcomeDone},
+		{"cancelled", widget.OutcomeDone},
+		{"note", widget.OutcomeDone},
+		{"delivery", widget.OutcomeDone},
 		{"refused", widget.OutcomeRefused},
 		{"started", widget.OutcomeDone},
 		{"nosel", widget.OutcomeRefused},
@@ -121,5 +127,39 @@ func TestOrderInvoicingOffSentence(t *testing.T) {
 		if got := strings.Contains(page.String(), off); got != tc.shown {
 			t.Errorf("?%s=1: page shows %q = %t, want %t", tc.query, off, got, tc.shown)
 		}
+	}
+}
+
+// TestAdvancedNoticeNamesTheStatus: a status change says which status the order
+// moved to. Shipped is dispatch's own, so no status change reaches it.
+func TestAdvancedNoticeNamesTheStatus(t *testing.T) {
+	t.Parallel()
+	for status, want := range map[order.FulfillmentStatus]string{
+		order.FulfillmentPicking:   "?picking=1",
+		order.FulfillmentDelivered: "?delivered=1",
+		order.FulfillmentCompleted: "?completed=1",
+		order.FulfillmentCancelled: "?cancelled=1",
+		order.FulfillmentShipped:   "",
+		order.FulfillmentPending:   "",
+	} {
+		if got := advancedNotice(status); got != want {
+			t.Errorf("advancedNotice(%q) = %q, want %q", status, got, want)
+		}
+	}
+}
+
+// TestDoneNoticesAreDistinct: no two actions share a sentence, so a save says
+// which change it was.
+func TestDoneNoticesAreDistinct(t *testing.T) {
+	t.Parallel()
+	seen := map[i18n.Key]string{}
+	for name, e := range notices {
+		if e.Outcome != widget.OutcomeDone {
+			continue
+		}
+		if first, dup := seen[e.Key]; dup {
+			t.Errorf("?%s=1 and ?%s=1 both say %q", first, name, e.Key)
+		}
+		seen[e.Key] = name
 	}
 }

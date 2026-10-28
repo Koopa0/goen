@@ -488,7 +488,7 @@ func TestHandler_CorrectDeliveryNonPostal(t *testing.T) {
 					values.Set("pickup_store_name", " Proposed store ")
 				}
 				w = postDeliveryWithStore(ctx, t, store, f.number, values)
-				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/orders/"+f.number+"?ok=1" {
+				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/orders/"+f.number+"?delivery=1" {
 					t.Fatalf("corrected delivery status=%d location=%q", w.Code, w.Header().Get("Location"))
 				}
 				updated, err := store.Order(ctx, f.number)
@@ -602,7 +602,7 @@ func TestHandler_CorrectDeliveryStoreFailure(t *testing.T) {
 				t.Fatal(err)
 			}
 			w = postDeliveryWithStore(ctx, t, store, f.number, values)
-			if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/orders/"+f.number+"?ok=1" {
+			if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/orders/"+f.number+"?delivery=1" {
 				t.Fatalf("recovery status=%d location=%q, want successful correction", w.Code, w.Header().Get("Location"))
 			}
 			if deliveryPrivateSnapshot(t, f.id) == before || countAudits() != auditsBefore+1 {
