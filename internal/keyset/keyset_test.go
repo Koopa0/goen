@@ -147,7 +147,7 @@ func TestResumeAcceptable(t *testing.T) {
 	const scope = "/admin/x"
 	accept := func(p testPosition) bool { return p.ID != "" }
 	good, _ := NextURL(scope, `{"ID":"a"}`)
-	token := func(u string) []string { return []string{u[len(scope)+len("?after="):]} }
+	token := func(u string) string { return u[len(scope)+len("?after="):] }
 	if p, ok := Resume(scope, token(good), accept); !ok || p.ID != "a" {
 		t.Errorf("a minted position was refused: %v %v", p, ok)
 	}
@@ -155,7 +155,7 @@ func TestResumeAcceptable(t *testing.T) {
 	if _, ok := Resume(scope, token(empty), accept); ok {
 		t.Error("a position the list refuses was accepted")
 	}
-	if _, ok := Resume(scope, nil, accept); ok {
+	if _, ok := Resume(scope, "", accept); ok {
 		t.Error("no position resumed")
 	}
 }

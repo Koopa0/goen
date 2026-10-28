@@ -60,7 +60,7 @@ type movementPosition struct {
 	At time.Time
 }
 
-func (s *Store) Variants(ctx context.Context, soldOutOnly bool, term string, after ...string) (VariantsView, error) {
+func (s *Store) Variants(ctx context.Context, soldOutOnly bool, term, after string) (VariantsView, error) {
 	term = formtext.SearchTerm(term)
 	soldOut := ""
 	if soldOutOnly {
@@ -284,7 +284,7 @@ const MovementPageSize = 50
 
 // Movements reads the variant, a page of its ledger and, on the first page, its
 // days up to now in one snapshot, so the stock it shows is the last day's.
-func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after ...string) (MovementsView, error) {
+func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after string) (MovementsView, error) {
 	scope := "/admin/stock/" + url.PathEscape(sku)
 	from, resumed := keyset.Resume(scope, after, func(p movementPosition) bool { return p.ID != uuid.Nil })
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})

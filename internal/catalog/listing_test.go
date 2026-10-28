@@ -285,10 +285,32 @@ func TestListingCompareForm(t *testing.T) {
 		}
 	}
 
-	// Every control needs a name, and two dozen controls called 比較 are two
-	// dozen identical announcements.
-	if !strings.Contains(html, `aria-label="把 Pixelight 9 Pro 加入比較"`) {
-		t.Error("the checkbox does not name its product")
+	// The box is named by its label: the visible word first (WCAG 2.5.3), then
+	// the product, so two dozen boxes are not two dozen identical announcements.
+	// The label follows its card's link, never sits inside it.
+	var cell string
+	for _, c := range strings.Split(html, `<li class="goen-tile__cell"`) {
+		if strings.Contains(c, `href="/p/pixelight-9-pro"`) {
+			cell, _, _ = strings.Cut(c, "</li>")
+		}
+	}
+	if cell == "" {
+		t.Fatal("the listing has no cell for Pixelight 9 Pro")
+	}
+	link, label, found := strings.Cut(cell, `<label class="goen-tile__compare">`)
+	if !found {
+		t.Fatal("the card has no compare label")
+	}
+	if !strings.Contains(link, "</a>") {
+		t.Error("the compare label is not after the card's link")
+	}
+	label, _, _ = strings.Cut(label, "</label>")
+	word, name := strings.Index(label, `<span>比較</span>`), strings.Index(label, `<span class="goen-sr-only"> Pixelight 9 Pro</span>`)
+	if word < 0 || name < word {
+		t.Errorf("the compare label does not read the word, then the product: %s", label)
+	}
+	if strings.Contains(label, "aria-label") {
+		t.Error("the checkbox is named by aria-label; its label already names it")
 	}
 
 	// And the set survives a click back out of the table, or building a third

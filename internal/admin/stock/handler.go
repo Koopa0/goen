@@ -182,7 +182,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectReceipt(w http.ResponseWriter, r *http.Request, key i18n.Key) {
-	view, err := h.store.Movements(r.Context(), r.PostFormValue("sku"), time.Now())
+	view, err := h.store.Movements(r.Context(), r.PostFormValue("sku"), time.Now(), "")
 	switch {
 	case err == nil:
 		h.renderReceiptRefusal(w, r, &view, key)

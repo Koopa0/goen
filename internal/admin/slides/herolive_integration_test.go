@@ -31,7 +31,7 @@ func TestStore_HeroSlidesCampaign(t *testing.T) {
 		t.Fatalf("insert campaign: %v", err)
 	}
 	featureSellableProduct(t, ctx, title)
-	view, err := s.HeroSlides(ctx)
+	view, err := s.HeroSlides(ctx, "")
 	if err != nil {
 		t.Fatal(err)
 	}

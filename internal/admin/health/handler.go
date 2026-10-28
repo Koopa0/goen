@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
@@ -28,19 +29,19 @@ type Handler struct {
 	store    *Store
 	messages *outbox.Store
 	pools    []NamedPool
-	disputes DisputeSource
+	payments *payment.Gateway
 	log      *slog.Logger
 }
 
-// NewHandler returns the health page's handler. disputes may be nil, which
-// leaves the disputes row off the page.
+// NewHandler returns the health page's handler. payments may be nil or
+// disabled, which leaves the disputes row off the page.
 func NewHandler(
-	store *Store, messages *outbox.Store, pools []NamedPool, disputes DisputeSource, log *slog.Logger,
+	store *Store, messages *outbox.Store, pools []NamedPool, payments *payment.Gateway, log *slog.Logger,
 ) *Handler {
 	if store == nil || messages == nil || log == nil {
 		panic("health: NewHandler requires a store, an outbox and a logger")
 	}
-	return &Handler{store: store, messages: messages, pools: pools, disputes: disputes, log: log}
+	return &Handler{store: store, messages: messages, pools: pools, payments: payments, log: log}
 }
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
@@ -174,7 +175,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	view.Pools = h.poolHealth()
-	view.Disputes = readDisputes(r.Context(), h.disputes, disputeReadTimeout, h.log, h.store.OrderNumbersBySession)
+	view.Disputes = readDisputes(r.Context(), h.payments, disputeReadTimeout, h.log, h.store.OrderNumbersBySession)
 	respond.Component(w, r, h.log, http.StatusOK, Health(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
 }

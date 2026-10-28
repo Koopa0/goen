@@ -61,8 +61,7 @@ var (
 
 	KeyCompareAdd = key("compare.add", Message{ZhHant: "比較", En: "Compare"})
 
-	// KeyCompareAddNamed is the checkbox's accessible name; a screen reader
-	// would otherwise read "Compare" once per tile.
+	// KeyCompareAddNamed names the compare page's candidate button.
 	KeyCompareAddNamed = key("compare.add.named", Message{
 		ZhHant: "把 %s 加入比較",
 		En:     "Add %s to the comparison",

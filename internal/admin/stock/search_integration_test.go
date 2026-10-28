@@ -50,7 +50,7 @@ func TestStore_VariantsSearch(t *testing.T) {
 	}
 
 	for _, term := range []string{strings.ToLower(stem), slug} {
-		got, readErr := stock.NewStore(pool).Variants(ctx, false, term)
+		got, readErr := stock.NewStore(pool).Variants(ctx, false, term, "")
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
@@ -64,7 +64,7 @@ func TestStore_VariantsSearch(t *testing.T) {
 		}
 	}
 	for _, term := range []string{"%", "_", stem + "-9"} {
-		got, readErr := stock.NewStore(pool).Variants(ctx, false, term)
+		got, readErr := stock.NewStore(pool).Variants(ctx, false, term, "")
 		if readErr != nil {
 			t.Fatal(readErr)
 		}

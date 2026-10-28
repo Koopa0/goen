@@ -32,7 +32,7 @@ type questionPosition struct {
 	At   time.Time
 }
 
-func (s *Store) Questions(ctx context.Context, queue Queue, after ...string) (View, error) {
+func (s *Store) Questions(ctx context.Context, queue Queue, after string) (View, error) {
 	if queue != QueueVisible && queue != QueueHidden {
 		return View{}, ErrInvalid
 	}

@@ -22,3 +22,4 @@ internal/ui/uitest.TextareaByID # reason: finds a textarea by id for the desks' 
 internal/ui/uitest.Browser # reason: the one browser-test skip helper, called only from _browser_test.go files, which deadcode does not analyse
 internal/ui/uitest.LocalChrome # reason: the skip helper of the browser test that resolves Chrome itself, called only from a test file, which deadcode does not analyse
 internal/ui/uitest.repoRoot # reason: locates scripts/ for LocalChrome, which deadcode reaches only from test files it does not analyse
+internal/payment.NewGatewayAt # reason: points a real Gateway at an httptest Stripe stand-in for other packages' untagged and integration tests, which deadcode does not analyse

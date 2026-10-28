@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -112,7 +113,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
 	view.ReorderAdjusted = view.FromReorder() && r.URL.Query().Get("qty") == "adjusted"
-	if notice := cartPageNotice(r); notice != "" && !view.ReorderAdjusted {
+	if notice := cartPageNotice(r); notice.Text != "" && !view.ReorderAdjusted {
 		view.Notice = notice
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Page(Meta(r.Context()), view))
@@ -125,14 +126,14 @@ func cartContinuation(r *http.Request) string {
 	return siteurl.PathOr(r.URL.Query().Get("next"), "")
 }
 
-func cartPageNotice(r *http.Request) string {
+func cartPageNotice(r *http.Request) widget.Result {
 	switch r.URL.Query().Get("qty") {
 	case "adjusted":
-		return i18n.T(r.Context(), i18n.KeyCartQuantityAdjusted)
+		return widget.Result{Outcome: widget.OutcomeDone, Text: i18n.T(r.Context(), i18n.KeyCartQuantityAdjusted)}
 	case "unavailable":
-		return i18n.T(r.Context(), i18n.KeyAddRefused)
+		return widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAddRefused)}
 	default:
-		return ""
+		return widget.Result{}
 	}
 }
 

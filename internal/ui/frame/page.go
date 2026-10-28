@@ -17,7 +17,11 @@ import (
 // htmxConfig is set from the document because a policy that allows no inline script
 // leaves nowhere else. includeIndicatorCSS is off because htmx would otherwise adopt
 // a stylesheet of its own, and every rule belongs in the sheet the policy allows.
-const htmxConfig = `{"transitions":true,"includeIndicatorCSS":false}`
+//
+// history "reload" keeps pushing URLs but makes Back and Forward reload the page. Restoring
+// an entry through ajax replaces the body without running goen.js again, and the header's
+// menu, popover and department handlers hold the nodes it removed.
+const htmxConfig = `{"transitions":true,"includeIndicatorCSS":false,"history":"reload"}`
 
 type Page struct {
 	Title          string

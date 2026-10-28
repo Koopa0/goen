@@ -10,14 +10,6 @@ import (
 // Card is the card Cell wraps in its grid cell, for a grid whose cell holds
 // more than the card (the wishlist's, with its buttons).
 templ Card(t Tile) {
-	if t.Comparable {
-		// Outside the card, never inside: the whole card is one link, and a control
-		// nested in an anchor is neither clickable nor valid.
-		<label class="goen-tile__compare">
-			<input type="checkbox" name="p" value={ t.Slug } class="goen-check" aria-label={ t.CompareLabel(ctx) } form="compare-pick"/>
-			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
-		</label>
-	}
 	<a class={ "goen-tile", templ.KV("goen-tile--out", t.SoldOut()) } href={ templ.URL("/p/" + t.Slug) }>
 		<div class="goen-tile__media">
 			if t.HasImage() {
@@ -66,6 +58,15 @@ templ Card(t Tile) {
 			}
 		</div>
 	</a>
+	if t.Comparable {
+		// Outside the link, never inside: a control nested in an anchor is neither
+		// clickable nor valid.
+		<label class="goen-tile__compare">
+			<input type="checkbox" name="p" value={ t.Slug } class="goen-check" form="compare-pick"/>
+			<span>{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
+			<span class="goen-sr-only">{ " " + t.Name }</span>
+		</label>
+	}
 }
 
 templ Price(t Tile) {

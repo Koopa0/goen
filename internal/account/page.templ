@@ -34,8 +34,8 @@ templ Account(p frame.Page, v *View) {
 				</form>
 			</div>
 			if v.HasNotice() {
-				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "account-notice"}) {
-					{ v.Notice }
+				@widget.Notice(widget.NoticeProps{Intent: v.Notice.Outcome.Intent(), ID: "account-notice"}) {
+					{ v.Notice.Text }
 				}
 			}
 			if v.CartAdjusted {

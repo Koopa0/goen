@@ -103,7 +103,7 @@ type listPosition struct {
 	ID uuid.UUID
 }
 
-func (s *Store) List(ctx context.Context, status QueueFilter, term string, after ...string) (View, error) {
+func (s *Store) List(ctx context.Context, status QueueFilter, term, after string) (View, error) {
 	term = strings.TrimSpace(term)
 	scope := keyset.ScopeURL("/admin/orders", "q", term, "status", string(status))
 	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })

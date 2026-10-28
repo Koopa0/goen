@@ -121,9 +121,9 @@ func TestStore_ListBuyableAgreement(t *testing.T) {
 
 func listRowSellable(t *testing.T, office *campaigns.Store, slug string) bool {
 	t.Helper()
-	var after []string
+	var after string
 	for {
-		view, err := office.List(t.Context(), after...)
+		view, err := office.List(t.Context(), after)
 		if err != nil {
 			t.Fatalf("read the back-office list: %v", err)
 		}
@@ -136,6 +136,6 @@ func listRowSellable(t *testing.T, office *campaigns.Store, slug string) bool {
 		if err != nil || view.Next == "" {
 			t.Fatalf("campaign %s is not in the back-office list (next %q, %v)", slug, view.Next, err)
 		}
-		after = []string{next.Query().Get(keyset.Param)}
+		after = next.Query().Get(keyset.Param)
 	}
 }

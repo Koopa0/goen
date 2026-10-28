@@ -98,7 +98,7 @@ type listPosition struct {
 	ID uuid.UUID
 }
 
-func (s *Store) List(ctx context.Context, after ...string) (View, error) {
+func (s *Store) List(ctx context.Context, after string) (View, error) {
 	scope := "/admin/products"
 	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminProducts(ctx, db.AdminProductsParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})

@@ -93,7 +93,7 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string) {
-	view, err := h.store.Questions(r.Context(), QueueVisible)
+	view, err := h.store.Questions(r.Context(), QueueVisible, "")
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read questions after refused answer", "error", err)
 		admin.ServerError(w, r, h.log)
