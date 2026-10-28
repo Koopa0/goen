@@ -122,7 +122,7 @@ func startPacking(ctx context.Context, log *slog.Logger, numbers []string, advan
 // batchReason is why an order was left as it was, in the words a packer can act on.
 func batchReason(ctx context.Context, err error) string {
 	if errors.Is(err, ErrCancelled) {
-		return i18n.T(ctx, i18n.KeyAdminBatchReasonCancelled)
+		return i18n.T(ctx, i18n.KeyAdminStatusCancelled)
 	}
 	switch classifyAdvance(err) {
 	case advancePaidCancel:

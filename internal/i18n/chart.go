@@ -5,6 +5,9 @@ import "context"
 var (
 	KeyChartTable = key("chart.table", Message{ZhHant: "以表格檢視", En: "Show as a table"})
 
+	// The heading of a chart table's column that names the stretch a row covers.
+	KeyChartPeriod = key("chart.period", Message{ZhHant: "期間", En: "Period"})
+
 	KeyChartToday = key("chart.today", Message{ZhHant: "今天", En: "Today"})
 
 	// A day as a chart writes it (chart.DayLabel), on its axis and in the

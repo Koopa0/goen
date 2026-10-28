@@ -341,7 +341,7 @@ func TestDashboardSalesChart(t *testing.T) {
 			t.Errorf("%v: the dashboard's chart brackets a campaign", loc)
 		}
 		for _, want := range []string{
-			i18n.T(ctx, i18n.KeyAdminQueueSalesPeriod),
+			i18n.T(ctx, i18n.KeyChartPeriod),
 			i18n.Count(ctx, i18n.KeyAdminRepPreviousDays, WeekDays, WeekDays),
 			"NT$112,500",
 		} {

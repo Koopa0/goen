@@ -75,5 +75,4 @@ WHERE sm.is_active
 -- name: StatedWindows :one
 SELECT rescission_days()::bigint AS rescission_days,
        return_goodwill_days()::bigint AS return_days,
-       checkout_hold_minutes()::bigint AS hold_minutes,
        checkout_pay_start_minutes()::bigint AS pay_start_minutes;
