@@ -1,8 +1,6 @@
 package i18n
 
 var (
-	KeyAdminPageDashboard = key("admin.page.dashboard", Message{ZhHant: "後台", En: "Back office"})
-
 	KeyAdminQueueDashboardTitle = key("admin.queue.dashboard.title", Message{
 		ZhHant: "後台總覽",
 		En:     "Back-office overview",

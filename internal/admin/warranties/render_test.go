@@ -25,5 +25,5 @@ func renderComponent(t *testing.T, ctx context.Context, c templ.Component) strin
 // Meta is the page the warranty tests wrap their views in: the title is not
 // what they assert, so a fixed one is enough.
 func Meta(ctx context.Context) frame.Page {
-	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminQueueDashboardTitle)}
 }
