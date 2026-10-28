@@ -2435,12 +2435,24 @@ const TRANSITION_RECORDER = `(() => {
         let clip = el && el.parentElement;
         while (clip && (getComputedStyle(clip).overflowX === 'visible' || parseFloat(getComputedStyle(clip).borderTopLeftRadius) === 0)) clip = clip.parentElement;
         const s = getComputedStyle(document.documentElement, '::view-transition-image-pair(' + n + ')');
-        const blend = getComputedStyle(document.documentElement, '::view-transition-new(' + n + ')').mixBlendMode;
-        return { name: n, overflowX: s.overflowX, overflowY: s.overflowY, radius: corners(s), landing: clip ? corners(getComputedStyle(clip)) : null, blend };
+        return { name: n, overflowX: s.overflowX, overflowY: s.overflowY, radius: corners(s), landing: clip ? corners(getComputedStyle(clip)) : null };
       });
+      // The old and new snapshot of each named photo, read with every animation
+      // paused at a few instants: their opacities must add up to one, and they
+      // must blend the same way, or the photo dips or washes out in the middle.
+      running.forEach((a) => a.pause());
+      const fades = named().map((n) => {
+        const side = (which) => getComputedStyle(document.documentElement, '::view-transition-' + which + '(' + n + ')');
+        return { name: n, frames: [0, 40, 80, 120, 160, 199].map((at) => {
+          running.forEach((a) => { a.currentTime = at; });
+          return { at, old: parseFloat(side('old').opacity), new: parseFloat(side('new').opacity), oldBlend: side('old').mixBlendMode, newBlend: side('new').mixBlendMode };
+        }) };
+      });
+      running.forEach((a) => a.finish());
       rec({
         ready: 'resolved',
         pairs,
+        fades,
         newNames: named(),
         groups: running.map(pseudo).filter((p) => p.startsWith('::view-transition-group(')),
         durations: Object.fromEntries(running.map((a) => [pseudo(a), a.effect.getTiming().duration])),
@@ -2510,7 +2522,14 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
     else if (pair.overflowX !== 'clip' || pair.overflowY !== 'clip') fail(label, `::view-transition-image-pair(${name}) overflows ${pair.overflowX}/${pair.overflowY}, want clip`);
     else if (!pair.landing) fail(label, `${name} lands in no clipping, rounded ancestor to compare with`);
     else if (pair.radius.some((r) => parseFloat(r) === 0) || JSON.stringify(pair.radius) !== JSON.stringify(pair.landing)) fail(label, `::view-transition-image-pair(${name}) has corners ${pair.radius}, the photo lands on ${pair.landing}`);
-    if (pair && pair.blend !== 'normal') fail(label, `::view-transition-new(${name}) blends ${pair.blend}, want normal: the opaque old photo would be added to it`);
+    const flight = (got.fades || []).find((f) => f.name === name);
+    if (!flight) fail(label, `no fade was read for ${name}: ` + JSON.stringify(got.fades));
+    else {
+      const unlike = flight.frames.find((f) => f.oldBlend !== f.newBlend);
+      if (unlike) fail(label, `${name} snapshots blend ${unlike.oldBlend} and ${unlike.newBlend} at ${unlike.at}ms, want the same blend`);
+      const off = flight.frames.find((f) => !(Math.abs(f.old + f.new - 1) <= 0.02));
+      if (off) fail(label, `${name} snapshots' opacities add up to ${off.old + off.new} at ${off.at}ms, want 1: the photo dips or washes out`);
+    }
   }
   let persisted;
   await new Promise((r) => setTimeout(r, 400));
