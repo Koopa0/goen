@@ -22,7 +22,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/auth"
@@ -523,10 +522,6 @@ func openStoreMap(cfg *config, log *slog.Logger) (*storemap.Client, error) {
 	return m, nil
 }
 
-// The one Stripe client the Gateway holds also issues refunds; the back office
-// reaches it through the refunds.Refunder it consumes.
-var _ refunds.Refunder = (*payment.Gateway)(nil)
-
 // openProviders builds the outside services goen talks to and says when any is
 // absent. Each refuses to start on HALF a configuration.
 func openProviders(cfg *config, log *slog.Logger) (
@@ -648,7 +643,7 @@ func run() error {
 			Invoices: invoices, Google: googleSignIn, StoreMap: storeMap, DemoAccount: demoAccount,
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: gateway,
+			AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway,
 			TOTPKey: cfg.totpKey, TOTPPreviousKey: cfg.totpPreviousKey, Invoices: invoices, StoreMap: storeMap,
 		},
 	}, proxies, log)

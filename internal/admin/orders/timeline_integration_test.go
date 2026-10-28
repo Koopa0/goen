@@ -31,7 +31,7 @@ func TestStore_OrderTimelineSources(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, staff).Scan(&staffAddress); err != nil {
 		t.Fatalf("read the staff member's address: %v", err)
 	}
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	q := db.New(pool)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	var orderID uuid.UUID
@@ -147,7 +147,7 @@ func TestStore_OrderTimelineSources(t *testing.T) {
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Order(%s).Timeline mismatch (-want +got):\n%s", number, diff)
 	}
-	enabled, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, admintest.DisabledInvoiceWriter{}).Order(ctx, number)
+	enabled, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, admintest.DisabledInvoiceWriter{}).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("Order(%s) with e-invoicing on: %v", number, err)
 	}
@@ -170,7 +170,7 @@ func TestStore_OrderTimelineSources(t *testing.T) {
 // time of creation.
 func TestStore_OrderTimelineDelivered(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	if err := outbox.Enqueue(ctx, db.New(pool), outbox.TopicOrderPaid, number,
 		&outbox.OrderPaid{OrderNumber: number, Email: "x@example.com"}); err != nil {
@@ -249,7 +249,7 @@ func TestStore_OrderIssueNotInProgress(t *testing.T) {
 		{"e-invoicing off", nil, i18n.KeyAdminTimelineInvoiceNotSent},
 		{"e-invoicing on", admintest.DisabledInvoiceWriter{}, i18n.KeyAdminTimelineInvoicePending},
 	} {
-		view, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, tc.writer).Order(ctx, number)
+		view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, tc.writer).Order(ctx, number)
 		if err != nil {
 			t.Fatalf("%s: read the order: %v", tc.name, err)
 		}
@@ -269,7 +269,7 @@ func TestStore_OrderIssueNotInProgress(t *testing.T) {
 // invoice provider's refusal codes.
 func TestStore_OrderTimelineRefusedCodes(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
 	for _, tc := range []struct {
 		name      string
 		kind      string

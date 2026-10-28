@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,8 +30,8 @@ import (
 // and cancels.
 func TestStore_RefundBeforeShipmentAllLegs(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	var sent atomic.Int64
-	s := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.Refunder{Sent: &sent}, nil)
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s := refunds.NewStore(admintest.AdminRolePool(t, pool), stripe.Gateway(), nil)
 	number, orderID, variantID := admintest.PaidUnshippedOrder(t, pool, 900000, 300000, true)
 
 	var stockHeld int32
@@ -102,8 +101,15 @@ func TestStore_RefundBeforeShipmentAllLegs(t *testing.T) {
 	if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" || returnStatus != "completed" {
 		t.Errorf("order/refund = %s/%s, want cancelled/completed", got, returnStatus)
 	}
-	if card != 900000 || cardRows != 1 || sent.Load() != 1 {
-		t.Errorf("card refund %d in %d rows after %d provider calls, want 900000 once", card, cardRows, sent.Load())
+	if card != 900000 || cardRows != 1 || len(stripe.Refunds()) != 1 {
+		t.Errorf("card refund %d in %d rows after %d provider calls, want 900000 once", card, cardRows, len(stripe.Refunds()))
+	}
+	var cardKey string
+	if err := pool.QueryRow(ctx, `SELECT request_key FROM refunds WHERE return_request_id = $1`, returnID).Scan(&cardKey); err != nil {
+		t.Fatalf("read the card refund's request key: %v", err)
+	}
+	if sent := stripe.Refunds(); len(sent) != 1 || sent[0].AmountCents != 900000 || sent[0].IdempotencyKey != cardKey {
+		t.Errorf("refunds sent to Stripe = %+v, want one of 900000 keyed %q, the row's own", sent, cardKey)
 	}
 	if credit != 300000 || creditOrder.UUID != orderID {
 		t.Errorf("credit refund %d on order %v, want 300000 posted with the order", credit, creditOrder)
@@ -128,7 +134,7 @@ func TestStore_RefundBeforeShipmentAllLegs(t *testing.T) {
 // invoice correction.
 func TestStore_RefundBeforeShipmentInvoiceWait(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), nil)
 
 	// invoicedRefund is a paid, unshipped order whose 統一發票 is live when its
 	// refund settles, so the first press stops at the invoice.
@@ -232,8 +238,8 @@ func TestStore_RefundBeforeShipmentInvoiceWait(t *testing.T) {
 // before it pays.
 func TestHandler_RefundBeforeShipmentConfirm(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	var sent atomic.Int64
-	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, nil)
+	stripe := admintest.NewStripe(t, admintest.StripeBehaviour{})
+	s := refunds.NewStore(pool, stripe.Gateway(), nil)
 	h := refunds.NewHandler(s, nil, slog.New(slog.DiscardHandler))
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 400000, 0, true)
 
@@ -254,8 +260,8 @@ func TestHandler_RefundBeforeShipmentConfirm(t *testing.T) {
 			`SELECT count(*) FROM return_requests WHERE order_id = $1`, orderID).Scan(&refunds); err != nil {
 			t.Fatalf("count refunds: %v", err)
 		}
-		if refunds != 0 || sent.Load() != 0 {
-			t.Fatalf("%s wrote %d refunds and made %d provider calls", step, refunds, sent.Load())
+		if refunds != 0 || len(stripe.Refunds()) != 0 {
+			t.Fatalf("%s wrote %d refunds and made %d provider calls", step, refunds, len(stripe.Refunds()))
 		}
 	}
 
@@ -283,8 +289,8 @@ func TestHandler_RefundBeforeShipmentConfirm(t *testing.T) {
 	if done.Code != http.StatusSeeOther || done.Header().Get("Location") != "/admin/orders/"+number+"?refunded=1" {
 		t.Fatalf("confirmed POST = %d %s", done.Code, done.Header().Get("Location"))
 	}
-	if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" || sent.Load() != 1 {
-		t.Fatalf("order %s after %d provider calls, want cancelled after one", got, sent.Load())
+	if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" || len(stripe.Refunds()) != 1 {
+		t.Fatalf("order %s after %d provider calls, want cancelled after one", got, len(stripe.Refunds()))
 	}
 }
 
@@ -294,7 +300,7 @@ func TestHandler_RefundBeforeShipmentConfirm(t *testing.T) {
 // lot was partly or wholly spent before cancellation.
 func TestStore_RefundBeforeShipmentClawback(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
+	s := refunds.NewStore(pool, admintest.HealthyGateway(t), nil)
 
 	t.Run("untouched lot", func(t *testing.T) {
 		userID := ordertest.Customer(t, pool)

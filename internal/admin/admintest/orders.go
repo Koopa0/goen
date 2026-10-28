@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/payment"
 )
 
 func PlaceUnpaidOrder(t *testing.T, pool *pgxpool.Pool) string {
@@ -252,11 +253,11 @@ func (DisabledInvoiceWriter) FileAllowance(
 
 // OrderStore builds the order desk's store and the refunds store it reads
 // through, all over p, as cmd/goen does.
-func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader orders.InvoiceReader, writer orders.InvoiceWriter) *orders.Store {
+func OrderStore(p *pgxpool.Pool, gateway *payment.Gateway, reader orders.InvoiceReader, writer orders.InvoiceWriter) *orders.Store {
 	if reader == nil {
 		reader = issuer.NewStore(p, &issuer.Gateway{})
 	}
-	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), reader, writer)
+	return orders.NewStore(p, refunds.NewStore(p, gateway, nil), reader, writer)
 }
 
 func OrderDesk(s *orders.Store) *orders.Handler {

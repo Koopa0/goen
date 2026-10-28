@@ -33,7 +33,7 @@ func TestNewRouterReadyz(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: store, Payments: gateway, BaseURL: "http://127.0.0.1"},
-		BackOffice: BackOfficeConfig{AdminPool: admin, Payments: gateway, Refunder: gateway},
+		BackOffice: BackOfficeConfig{AdminPool: admin, Payments: gateway},
 	}, slog.New(slog.DiscardHandler))
 	check := func(path string, wantStatus int, wantBody string) {
 		t.Helper()

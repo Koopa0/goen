@@ -18,7 +18,7 @@ import (
 // the customer as credit and not stall waiting for a provider.
 func TestHandler_DecideCreditFunded(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	h := handlerOver(storeOver(pool, admintest.Refunder{}))
+	h := handlerOver(storeOver(pool, admintest.HealthyGateway(t)))
 	requestID, _, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
 
 	form := url.Values{"decision": {"approved"}, "resolution": {"全額購物金"}, "confirm": {"approved"}}

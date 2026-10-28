@@ -129,7 +129,7 @@ func confirmationRouter(t *testing.T) http.Handler {
 	}
 	return newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1"},
-		BackOffice: BackOfficeConfig{AdminPool: pool, Payments: gateway, Refunder: gateway},
+		BackOffice: BackOfficeConfig{AdminPool: pool, Payments: gateway},
 	}, slog.New(slog.DiscardHandler))
 }
 

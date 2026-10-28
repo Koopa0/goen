@@ -25,7 +25,7 @@ import (
 // requires confirmation.
 func TestHandler_DecideNeedsConfirmation(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	h := handlerOver(s)
 	for _, decision := range []string{"approved", "rejected"} {
 		t.Run(decision, func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestHandler_DecideNeedsConfirmation(t *testing.T) {
 // store boundary.
 func TestStore_DecideRejectionReason(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	id, _ := admintest.ReturnedOrder(t, pool, 1)
 	err := s.Decide(ctx, id.String(), "rejected", " \t ", "")
 	refused, ok := errors.AsType[*returndesk.FormRefusalError](err)
@@ -94,7 +94,7 @@ func TestStore_DecideRejectionReason(t *testing.T) {
 // holding what was typed, and the return untouched.
 func TestHandler_DecideRejectionReason(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(pool, admintest.HealthyGateway(t))
 	h := handlerOver(s)
 	for name, blank := range map[string]string{"empty": "", "whitespace": " \t "} {
 		t.Run(name, func(t *testing.T) {

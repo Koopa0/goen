@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,7 +26,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/payment/refund"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/requestid"
 )
@@ -280,38 +278,6 @@ func WaitForBlockedApplication(
 			t.Fatalf("writer %q never blocked behind pid %d: %v", applicationName, blockerPID, ctx.Err())
 		}
 	}
-}
-
-// Refunder stands in for Stripe's refund API: State is what a refund comes back
-// as, succeeded when empty.
-type Refunder struct {
-	FailIntent bool
-	RefundErr  error
-	State      refund.Status
-	// Sent counts calls to Refund. Local rows prove durable outcomes, but only
-	// this provider-side counter can prove a retry did not execute twice.
-	Sent *atomic.Int64
-}
-
-func (f Refunder) PaymentIntentFor(_ context.Context, sessionID string) (string, error) {
-	if f.FailIntent {
-		return "", errors.New("stripe is unreachable")
-	}
-	return "pi_for_" + sessionID, nil
-}
-
-func (f Refunder) Refund(_ context.Context, intentID, requestKey string, _ int64) (string, refund.Status, error) {
-	if f.Sent != nil {
-		f.Sent.Add(1)
-	}
-	if f.RefundErr != nil {
-		return "", "", f.RefundErr
-	}
-	state := f.State
-	if state == "" {
-		state = refund.Succeeded
-	}
-	return "re_" + requestKey + "_" + intentID[:6], state, nil
 }
 
 // PaidUnshippedOrder is a customer's order for one unit, paid with card and

@@ -54,7 +54,7 @@ func storeMapRouter(t *testing.T, configured bool) http.Handler {
 			StorePool: idle, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap,
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: idle, Payments: gateway, Refunder: gateway, StoreMap: storeMap,
+			AdminPool: idle, Payments: gateway, StoreMap: storeMap,
 		},
 	}, slog.New(slog.DiscardHandler))
 }
