@@ -49,7 +49,7 @@ func (h *Handler) Slides(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Slides(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueHomePage)}, &view))
 }
 
 func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back string, err error) {
@@ -159,7 +159,7 @@ func (h *Handler) rejectHeroSlide(
 		ImageAltEn: r.PostFormValue("alt_en"),
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Slides(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueHomePage)}, &view))
 }
 
 func (h *Handler) SetHeroActive(w http.ResponseWriter, r *http.Request) {

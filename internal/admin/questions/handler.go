@@ -50,7 +50,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Questions(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueQuestions)}, view))
 }
 
 func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
@@ -106,5 +106,5 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 		}
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Questions(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueQuestions)}, view))
 }

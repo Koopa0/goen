@@ -101,7 +101,7 @@ var (
 	KeyAdminQueueReviews = key("admin.queue.reviews", Message{ZhHant: "評價", En: "Reviews"})
 
 	KeyAdminQueueTaxonomy = key("admin.queue.taxonomy", Message{
-		ZhHant: "品牌分類",
+		ZhHant: "品牌與分類",
 		En:     "Brands and categories",
 	})
 
@@ -109,7 +109,7 @@ var (
 
 	KeyAdminQueueCampaigns = key("admin.queue.campaigns", Message{ZhHant: "活動", En: "Campaigns"})
 
-	KeyAdminQueueShipping = key("admin.queue.shipping", Message{ZhHant: "運費", En: "Delivery fees"})
+	KeyAdminQueueShipping = key("admin.queue.shipping", Message{ZhHant: "配送與運費", En: "Delivery and fees"})
 
 	KeyAdminQueueStaff = key("admin.queue.staff", Message{ZhHant: "人員", En: "Staff"})
 )

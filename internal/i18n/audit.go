@@ -44,9 +44,9 @@ var (
 
 	KeyAuditProductStatus = key("audit.product.status", Message{ZhHant: "商品上下架", En: "Product status"})
 
-	KeyAuditCouponCreate = key("audit.coupon.create", Message{ZhHant: "建立折扣碼", En: "Create coupon"})
+	KeyAuditCouponCreate = key("audit.coupon.create", Message{ZhHant: "建立折扣碼", En: "Create discount code"})
 
-	KeyAuditCouponToggle = key("audit.coupon.toggle", Message{ZhHant: "折扣碼啟用狀態", En: "Coupon active state"})
+	KeyAuditCouponToggle = key("audit.coupon.toggle", Message{ZhHant: "折扣碼啟用狀態", En: "Discount code active state"})
 
 	KeyAuditCampaignCreate = key("audit.campaign.create", Message{ZhHant: "建立活動", En: "Create campaign"})
 

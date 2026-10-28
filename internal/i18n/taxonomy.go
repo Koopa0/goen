@@ -82,8 +82,6 @@ var (
 		En:     "Shown on the home page, beside the department's heading and in the menu, each cropped from the centre, so keep the subject in the middle. 1200×800 works best. A sub-category shows its department's photograph.",
 	})
 
-	KeyAdminPageTaxonomy = key("admin.page.taxonomy", Message{ZhHant: "品牌與分類", En: "Brands and categories"})
-
 	// KeyFormPositionTaken is a collision, not a mistake: CreateCategory computes
 	// position as max(position) + 1, so two staff members adding at the same
 	// moment read the same maximum and categories_position_key refuses the

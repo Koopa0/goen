@@ -13,11 +13,15 @@ import (
 // the count has to be raised; the ledger is read afterwards to check it landed.
 templ Movements(p frame.Page, v *MovementsView) {
 	@frame.Admin(p, "stock") {
+		@widget.Breadcrumb(widget.BreadcrumbProps{
+			Label: i18n.T(ctx, i18n.KeyBreadcrumb),
+			Crumbs: []widget.Crumb{
+				{Label: i18n.T(ctx, i18n.KeyAdminQueueStock), Href: "/admin/stock"},
+				{Label: v.SKU},
+			},
+		})
 		<div class="ui-page-head">
 			<div>
-				<p class="ui-page-head__eyebrow">
-					<a href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminStockLink) }</a>
-				</p>
 				<h1 class="ui-page-head__title">{ v.SKU }</h1>
 				<p class="ui-page-head__sub">
 					<a href={ templ.SafeURL("/admin/products/" + v.Slug) }>{ v.ProductName }</a>

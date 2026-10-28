@@ -77,14 +77,14 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	notice := noticeFor(r)
-	if errors.Is(err, ErrSecretUnreadable) {
-		notice = i18n.T(r.Context(), i18n.KeyTOTPSecretUnreadable)
-	}
 	view := View{
 		Enabled:  h.store.Enabled(),
 		Enrolled: enrolled,
-		Notice:   notice,
+		Notice:   noticeFor(r),
+		Recovery: recoveryFor(r),
+	}
+	if errors.Is(err, ErrSecretUnreadable) {
+		view.Recovery = RecoveryUnreadable
 	}
 	respond.Component(w, r, h.log, http.StatusOK, TwoFactor(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, view))
@@ -234,8 +234,6 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 
 func noticeFor(r *http.Request) string {
 	switch {
-	case r.URL.Query().Get("stale") == "1":
-		return i18n.T(r.Context(), i18n.KeyTOTPSecretUnreadable)
 	case r.URL.Query().Get("bad") == "1":
 		return fmt.Sprintf(i18n.T(r.Context(), i18n.KeyTOTPWrongCode), MaxFailures)
 	case r.URL.Query().Get("locked") == "1":
@@ -244,10 +242,19 @@ func noticeFor(r *http.Request) string {
 		return i18n.T(r.Context(), i18n.KeyTOTPWrongSecret)
 	case r.URL.Query().Get("disabled") == "1":
 		return i18n.T(r.Context(), i18n.KeyTOTPNoKey)
-	case r.URL.Query().Get("enrolled") == "1":
-		return i18n.T(r.Context(), i18n.KeyTOTPAlreadyEnrolled)
 	default:
 		return ""
+	}
+}
+
+func recoveryFor(r *http.Request) Recovery {
+	switch {
+	case r.URL.Query().Get("stale") == "1":
+		return RecoveryUnreadable
+	case r.URL.Query().Get("enrolled") == "1":
+		return RecoveryEnrolled
+	default:
+		return RecoveryNone
 	}
 }
 

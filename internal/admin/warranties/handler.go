@@ -35,5 +35,5 @@ func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Warranties(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageWarranty)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueWarranty)}, view))
 }

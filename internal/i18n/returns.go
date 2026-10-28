@@ -135,8 +135,6 @@ var (
 		En:     "Lines fall in different return windows",
 	})
 
-	KeyAdminPageReturns = key("admin.page.returns", Message{ZhHant: "退貨申請", En: "Return requests"})
-
 	KeyAdminRetLead = key("admin.ret.lead", Message{
 		ZhHant: "同意退貨會依原付款組成退回：卡款走 Stripe，購物金退回餘額。金額由訂單本身的單價計算。",
 		En: "Approving a return pays it back the way it was funded: the card half through Stripe, " +
