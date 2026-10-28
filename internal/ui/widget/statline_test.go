@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-func renderStatLine(t *testing.T, stats []Stat, variant StatLineVariant) string {
+func renderStatLine(t *testing.T, stats []Stat, layout StatLineLayout) string {
 	t.Helper()
 	var b strings.Builder
-	if err := StatLine(stats, variant).Render(t.Context(), &b); err != nil {
+	if err := StatLine(stats, layout).Render(t.Context(), &b); err != nil {
 		t.Fatalf("StatLine: %v", err)
 	}
 	return b.String()
@@ -64,23 +64,23 @@ func TestStatLineMoneyLeadsWithItsCurrency(t *testing.T) {
 	}
 }
 
-func TestStatLineVariantsAndNoStyleAttribute(t *testing.T) {
+func TestStatLineLayoutsAndNoStyleAttribute(t *testing.T) {
 	t.Parallel()
 	s := []Stat{{Label: "a", Value: StatCount(1, "x"), Note: "n"}}
-	for variant, class := range map[StatLineVariant]string{
+	for layout, class := range map[StatLineLayout]string{
 		StatLinePlain: `<dl class="ui-statline">`,
 		StatLineWide:  `<dl class="ui-statline ui-statline--wide">`,
 		StatLinePairs: `<dl class="ui-statline ui-statline--pairs">`,
 	} {
-		got := renderStatLine(t, s, variant)
+		got := renderStatLine(t, s, layout)
 		if !strings.Contains(got, class) {
-			t.Errorf("StatLine(%q) = %q, want %q", variant, got, class)
+			t.Errorf("StatLine(%q) = %q, want %q", layout, got, class)
 		}
 		if strings.Contains(got, "style=") {
-			t.Errorf("StatLine(%q) carries a style attribute: %s", variant, got)
+			t.Errorf("StatLine(%q) carries a style attribute: %s", layout, got)
 		}
 		if !strings.Contains(got, `<span class="ui-statline__note">n</span>`) {
-			t.Errorf("StatLine(%q) lacks its note: %s", variant, got)
+			t.Errorf("StatLine(%q) lacks its note: %s", layout, got)
 		}
 	}
 }
