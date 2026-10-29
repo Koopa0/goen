@@ -24,6 +24,8 @@ func unsentNotice(err error) (refundOutcome, bool) {
 		return refundOutcome{Query: "?refundpending=1", Level: slog.LevelWarn}, true
 	case db.IsConstraint(err, "return_unsent_hold_short"):
 		return refundOutcome{Query: "?unsenthold=1", Level: slog.LevelError}, true
+	case errors.Is(err, refund.ErrFollowUpIncomplete):
+		return refundOutcome{Query: "?refundfollowup=1", Level: slog.LevelError}, true
 	case errors.Is(err, refund.ErrIncomplete):
 		return refundOutcome{Query: "?refundretry=1", Level: slog.LevelError}, true
 	case errors.Is(err, ErrUnsentDiffers):

@@ -179,6 +179,7 @@ func returnPayout(status returns.Status, facts returnPayoutFacts) (refund.Payout
 	if err != nil {
 		return refund.Payout{}, err
 	}
+	p.MoneySettled = position.MoneySettled
 	p.Owed = !position.MoneySettled || position.EventOutstanding ||
 		position.PointsOutstanding
 	// A terminal provider generation is known not to have moved money, so the
@@ -279,7 +280,9 @@ type refundSplit struct {
 //
 // A failure here leaves the return approved and the money not sent — visible,
 // and recoverable, because the refund execution claim has already committed an
-// immutable attempt keyed to its generation.
+// immutable attempt keyed to its generation. Once every source has settled, a
+// failure is refund.ErrFollowUpIncomplete instead: the money is sent and only
+// bookkeeping is left.
 func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecisionRow,
 	split refundSplit, actor uuid.NullUUID,
 ) error {
@@ -310,7 +313,7 @@ func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecision
 	// without duplicating the customer timeline.
 	if payoutDone {
 		if err := s.recordReturnRefundedEvent(ctx, row.ID, actor); err != nil {
-			return fmt.Errorf("%w: %w", refund.ErrIncomplete, err)
+			return err
 		}
 		if err := s.reverseReturnPoints(ctx, row); err != nil {
 			return err
@@ -347,6 +350,9 @@ func (s *Store) payReturnCreditSource(
 	return true, nil
 }
 
+// recordReturnRefundedEvent runs only once every source has settled, in
+// payApprovedReturn and in the repair payOutstanding makes of it, so its
+// failure is a settled refund waiting on a closing step.
 func (s *Store) recordReturnRefundedEvent(
 	ctx context.Context, returnID uuid.UUID, actor uuid.NullUUID,
 ) error {
@@ -354,7 +360,8 @@ func (s *Store) recordReturnRefundedEvent(
 		ReturnRequestID: returnID,
 		ActorUserID:     actor,
 	}); err != nil {
-		return fmt.Errorf("record refunded event for return %s: %w", returnID, err)
+		return fmt.Errorf("%w: record refunded event for return %s: %w",
+			refund.ErrFollowUpIncomplete, returnID, err)
 	}
 	return nil
 }
@@ -362,7 +369,9 @@ func (s *Store) recordReturnRefundedEvent(
 // reverseReturnPoints finishes the third, idempotent half of a return payout.
 // It deliberately receives the return's full refundable amount: a resumed
 // split payout carries only the still-outstanding money in refundSplit, while
-// the points calculation describes the return as a whole.
+// the points calculation describes the return as a whole. Like the refunded
+// event it runs only once every source has settled, so its failure is
+// refund.ErrFollowUpIncomplete.
 func (s *Store) reverseReturnPoints(ctx context.Context, row *db.ReturnForDecisionRow) error {
 	// Erasure detaches orders.user_id but retains the award lot and its loyalty
 	// account. reverse_return_points resolves those durable rows from the order,
@@ -372,7 +381,7 @@ func (s *Store) reverseReturnPoints(ctx context.Context, row *db.ReturnForDecisi
 	}
 	if _, err := s.q.ReverseReturnPoints(ctx, row.ID); err != nil {
 		return fmt.Errorf("%w: reverse points for return %s: %w",
-			refund.ErrIncomplete, row.ID, err)
+			refund.ErrFollowUpIncomplete, row.ID, err)
 	}
 	return nil
 }

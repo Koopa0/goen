@@ -200,6 +200,7 @@ func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after string) 
 func showPayout(row *Return, p *refund.Payout) {
 	row.CardRefundCents, row.CreditRefundCents = p.CardCents, p.CreditCents
 	row.PayoutOutstanding = p.Owed
+	row.PayoutMoneySettled = p.MoneySettled
 	row.PayoutBlocked = p.Unfit != nil
 }
 

@@ -51,6 +51,8 @@ func TestNoticesRefundRecovery(t *testing.T) {
 	}{
 		{"settled Chinese", i18n.ZhHant, "cancelretry", "退款已完成，但訂單還沒取消。請按「繼續退款」完成取消。"},
 		{"settled English", i18n.En, "cancelretry", "The refund went through, but the order is not cancelled yet. Press “Resume the refund” to finish."},
+		{"payout settled Chinese", i18n.ZhHant, "refundfollowup", "退款已完成，但最後一步（記錄退款或收回點數）沒有做完。請按「繼續退款」完成；不要到 Stripe 重複退款。"},
+		{"payout settled English", i18n.En, "refundfollowup", "The refund went through, but the last step (recording the refund or taking back the points) did not finish. Press “Resume the refund” to finish it; do not refund it again in Stripe."},
 		{"unpaid Chinese", i18n.ZhHant, "refundretry", "退款沒有完成。請到 Stripe 後台確認這筆款項，再按「繼續退款」。"},
 		{"unpaid English", i18n.En, "refundretry", "The refund did not complete. Check the payment in the Stripe dashboard, then press “Resume the refund”."},
 	} {

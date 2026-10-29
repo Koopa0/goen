@@ -12,6 +12,7 @@ package refund
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -36,6 +37,12 @@ var (
 	// post-settlement cancellation. The decision stands; Resume continues the
 	// first unfinished step.
 	ErrIncomplete = errors.New("refund: the decision is approved and the refund did not complete")
+	// ErrFollowUpIncomplete is an ErrIncomplete whose money has already gone
+	// back: every source settled and only the refunded event or the points
+	// clawback is missing. Resume finishes that step. A desk that tells the
+	// two apart tests this first, because a notice that sends staff to the
+	// provider for a refund that is not missing invites a second one.
+	ErrFollowUpIncomplete = fmt.Errorf("%w: the money went back and a closing step did not complete", ErrIncomplete)
 	// ErrCreateRejected is a decision from Stripe's refund-CREATE endpoint that
 	// no refund object was created; no provider object exists. It is deliberately
 	// narrower than a *stripe.Error: the preliminary LIST uses the same error
@@ -86,6 +93,9 @@ type Payout struct {
 	// Owed is an approved return whose money, refunded event or points
 	// bookkeeping is still outstanding.
 	Owed bool
+	// MoneySettled is a payout whose every source has gone back. With Owed it
+	// means only the refunded event or the points clawback is left.
+	MoneySettled bool
 	// Unfit is non-nil when the durable payout facts no longer fit the frozen
 	// split: the return a person must repair before a retry is safe. It wraps
 	// ErrRefused, and Owed is then true.

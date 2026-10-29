@@ -55,6 +55,11 @@ func TestShowPayout(t *testing.T) {
 			want:   Return{CardRefundCents: 149900, CreditRefundCents: 50100, PayoutOutstanding: true, PayoutBlocked: true},
 		},
 		{
+			name:   "closing step left",
+			payout: refund.Payout{CardCents: 200000, Owed: true, MoneySettled: true},
+			want:   Return{CardRefundCents: 200000, PayoutOutstanding: true, PayoutMoneySettled: true},
+		},
+		{
 			name:   "settled",
 			payout: refund.Payout{CardCents: 200000},
 			want:   Return{CardRefundCents: 200000},
