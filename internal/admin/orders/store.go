@@ -165,10 +165,16 @@ func (s *Store) List(ctx context.Context, status QueueFilter, term, after string
 // finds in all.
 func (s *Store) fillSearch(ctx context.Context, view *View, scope, after string) error {
 	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
+	// The order-number probe takes the number a term names, as the buyer's
+	// lookup does; the email and name probes keep the words as typed.
+	term := view.Term
+	if number, ok := order.NormalizeNumber(term); ok {
+		term = number
+	}
 	// A search ignores the status filter: somebody on the phone wants that
 	// order, not that order if it is in the tab they had open.
 	found, err := s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
-		Term: view.Term, EscapedTerm: db.EscapeLike(view.Term), RowLimit: keyset.PageLimit,
+		Term: term, EscapedTerm: db.EscapeLike(view.Term), RowLimit: keyset.PageLimit,
 	})
 	if err != nil {
 		return fmt.Errorf("read orders: %w", err)
@@ -179,7 +185,7 @@ func (s *Store) fillSearch(ctx context.Context, view *View, scope, after string)
 	for i := range found {
 		rows = append(rows, db.AdminOrdersRow(found[i]))
 	}
-	if view.SearchCount, err = s.q.AdminSearchOrderCount(ctx, db.AdminSearchOrderCountParams{Term: view.Term, EscapedTerm: db.EscapeLike(view.Term)}); err != nil {
+	if view.SearchCount, err = s.q.AdminSearchOrderCount(ctx, db.AdminSearchOrderCountParams{Term: term, EscapedTerm: db.EscapeLike(view.Term)}); err != nil {
 		return fmt.Errorf("count found orders: %w", err)
 	}
 	return s.fillRows(ctx, view, scope, resumed, rows)
