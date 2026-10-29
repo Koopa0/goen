@@ -461,7 +461,7 @@ templ Account(p frame.Page, v *View) {
 							<details class="goen-account__disclosure">
 								<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyChangePassword) }</summary>
 								<form class="goen-account__form" method="post" action="/account/password">
-									<input type="text" id="pw-account" value={ v.Email } autocomplete="username" hidden/>
+									<input type="text" id="pw-account" value={ v.Email } autocomplete="username" aria-label={ i18n.T(ctx, i18n.KeyFieldEmail) } hidden/>
 									<div class="goen-account__fields">
 										<div class="goen-field goen-account__field--wide">
 											@widget.Label(widget.LabelProps{For: "pw-current"}) {
