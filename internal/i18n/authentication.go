@@ -14,6 +14,13 @@ var (
 		En:     "Continue with Google",
 	})
 
+	KeyGoogleOpening = key("auth.google.opening", Message{
+		ZhHant: "登入完成，正在帶你回去…",
+		En:     "Signed in. Taking you back…",
+	})
+
+	KeyGoogleContinue = key("auth.google.continue", Message{ZhHant: "繼續", En: "Continue"})
+
 	KeyOAuthFailed = key("auth.google.failed", Message{
 		ZhHant: "Google 登入沒有完成，請再試一次，或用密碼登入。",
 		En:     "That Google sign-in did not complete. Try again, or sign in with your password.",

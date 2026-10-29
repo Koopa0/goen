@@ -172,3 +172,56 @@ func TestReadOAuthState(t *testing.T) {
 		})
 	}
 }
+
+// TestHandler_GoogleCallbackRefusals: a callback that cannot be matched to the
+// sign-in this browser began, or that Google reports as refused, is answered with
+// a 303 to /signin and starts no session. Only a success is the page that loads
+// the destination.
+func TestHandler_GoogleCallbackRefusals(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		cookie bool   // the browser returns the state cookie
+		query  string // {state} is the state the sign-in issued
+		want   string
+	}{
+		{"a browser without the state cookie", false, "state={state}&code=c", "/signin?oauth=state"},
+		{"a state that was not issued", true, "state=other&code=c", "/signin?oauth=state"},
+		{"consent refused at Google", true, "state={state}&error=access_denied", "/signin"},
+		{"a callback with no code", true, "state={state}", "/signin?oauth=state"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g, err := google.New("client-id", "client-secret", "https://goen.example")
+			if err != nil {
+				t.Fatalf("google.New: %v", err)
+			}
+			h := &Handler{log: slog.New(slog.DiscardHandler), google: g, signinLimit: accountTestLimiter()}
+			start := httptest.NewRecorder()
+			h.GoogleSignIn(start, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/google", http.NoBody))
+			authorise, err := url.Parse(start.Header().Get("Location"))
+			if err != nil {
+				t.Fatalf("parse the authorisation redirect: %v", err)
+			}
+
+			query := strings.ReplaceAll(tt.query, "{state}", url.QueryEscape(authorise.Query().Get("state")))
+			callback := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/google/callback?"+query, http.NoBody)
+			if tt.cookie {
+				for _, c := range start.Result().Cookies() {
+					callback.AddCookie(c)
+				}
+			}
+			res := httptest.NewRecorder()
+			h.GoogleCallback(res, callback)
+			if res.Code != http.StatusSeeOther {
+				t.Fatalf("GoogleCallback(%s) = %d, want 303", query, res.Code)
+			}
+			if loc := res.Header().Get("Location"); loc != tt.want {
+				t.Errorf("GoogleCallback(%s) redirects to %q, want %q", query, loc, tt.want)
+			}
+			for _, c := range res.Result().Cookies() {
+				if strings.HasSuffix(c.Name, "goen_session") {
+					t.Errorf("a refused callback set the session cookie %q", c.Name)
+				}
+			}
+		})
+	}
+}
