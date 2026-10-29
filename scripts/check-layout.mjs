@@ -3441,7 +3441,8 @@ if (process.env.ADMIN_TOKEN) {
   }
 
   // The order page is the packing slip: printed, the back office around it is
-  // gone and the delivery block and the lines are what is left.
+  // gone and the lines and the recipient and address are what is left. The slip
+  // travels in the parcel, so no price, email or phone goes with it.
   if (ADMIN.length && process.env.INVOICE_ORDER) {
     const label = 'admin order print';
     const target = `${ORIGIN}/admin/orders/${process.env.INVOICE_ORDER}`;
@@ -3461,13 +3462,17 @@ if (process.env.ADMIN_TOKEN) {
           nav: shown('.goen-admin__nav'),
           bar: shown('.goen-adminbar'),
           forms: shown('.goen-admin__orderpanel form, .goen-admin__orderside form'),
+          prices: document.body.innerText.includes('NT$'),
+          email: document.body.innerText.includes('@'),
         };
       })()`);
       if (printed.threw) {
         fail(label, `print probe did not run — ${printed.why}`);
       } else {
         if (printed.lines === 0) fail(label, 'no order lines are shown when printed');
-        if (printed.delivery === 0) fail(label, 'the recipient and destination are not shown when printed');
+        if (printed.delivery !== 2) fail(label, `${printed.delivery} delivery rows are shown when printed, want the recipient and the address`);
+        if (printed.prices) fail(label, 'a price is shown when printed');
+        if (printed.email) fail(label, 'an email address is shown when printed');
         if (printed.nav || printed.bar) fail(label, 'the back-office bar or rail is still shown when printed');
         if (printed.forms) fail(label, `${printed.forms} action forms are still shown when printed`);
         console.log(`${label.padEnd(16)} lines=${printed.lines} delivery=${printed.delivery} nav=${printed.nav} forms=${printed.forms}`);
@@ -3495,6 +3500,8 @@ if (process.env.ADMIN_TOKEN) {
           slips: slips.length,
           lines: slips.map((slip) => slip.querySelectorAll('.goen-order__line').length),
           delivery: slips.map((slip) => slip.querySelectorAll('.ui-dl__row').length),
+          prices: slips.filter((slip) => slip.innerText.includes('NT$')).length,
+          emails: slips.filter((slip) => slip.innerText.includes('@')).length,
           breaks: slips.map((slip) => getComputedStyle(slip).breakAfter),
           pickLists: document.querySelectorAll('.goen-admin__picklist').length,
           controls: controls.length,
@@ -3505,7 +3512,8 @@ if (process.env.ADMIN_TOKEN) {
         fail(label, `print probe did not run — ${printed.why}`);
       } else {
         if (printed.slips < 2) fail(label, `only ${printed.slips} slips; the multi-order fixture did not run`);
-        if (printed.lines.some((n) => n === 0) || printed.delivery.some((n) => n < 4)) fail(label, 'a slip lost its items or delivery');
+        if (printed.lines.some((n) => n === 0) || printed.delivery.some((n) => n !== 2)) fail(label, 'a slip lost its items, or its delivery is not the recipient and the address');
+        if (printed.prices || printed.emails) fail(label, `${printed.prices} slips show a price and ${printed.emails} an email address`);
         if (printed.breaks.slice(0, -1).some((value) => value !== 'page')) fail(label, 'a slip lacks its forced page break');
         if (printed.pickLists !== 1 || printed.controls) fail(label, `pickLists=${printed.pickLists} controls=${printed.controls}: ${printed.controlNames.join(", ")}`);
         const pdf = await send(ws, 'Page.printToPDF', { preferCSSPageSize: true, printBackground: true });

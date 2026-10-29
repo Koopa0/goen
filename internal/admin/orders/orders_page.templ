@@ -872,10 +872,16 @@ templ orderItemsAndDelivery(v *OrderView) {
 						if l.Label != "" {
 							<span class="goen-admin__meta">{ l.Label }</span>
 						}
-						<span class="goen-admin__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
+						<span class="goen-admin__meta">
+							{ l.SKU }
+							if !v.OutstandingQuantities {
+								<span class="goen-admin__offslip">· { l.UnitPrice() }</span>
+							}
+							× { l.QuantityText() }
+						</span>
 					</div>
 					if !v.OutstandingQuantities {
-						<span class="goen-admin__linetotal">{ l.LineTotal() }</span>
+						<span class="goen-admin__linetotal goen-admin__offslip">{ l.LineTotal() }</span>
 					}
 				</li>
 			}
@@ -888,20 +894,22 @@ templ orderItemsAndDelivery(v *OrderView) {
 				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</dt>
 				<dd class="ui-dl__desc">{ v.RecipientText(ctx) }</dd>
 			</div>
-			<div class="ui-dl__row">
-				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</dt>
-				<dd class="ui-dl__desc">{ v.Phone }</dd>
-			</div>
-			<div class="ui-dl__row">
-				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldEmail) }</dt>
-				<dd class="ui-dl__desc">{ v.Email }</dd>
-			</div>
+			if !v.OutstandingQuantities {
+				<div class="ui-dl__row goen-admin__offslip">
+					<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</dt>
+					<dd class="ui-dl__desc">{ v.Phone }</dd>
+				</div>
+				<div class="ui-dl__row goen-admin__offslip">
+					<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldEmail) }</dt>
+					<dd class="ui-dl__desc">{ v.Email }</dd>
+				</div>
+			}
 			<div class="ui-dl__row">
 				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminQueueAddress) }</dt>
 				<dd class="ui-dl__desc">{ v.Address }</dd>
 			</div>
-			if v.HasInvoice() {
-				<div class="ui-dl__row">
+			if v.HasInvoice() && !v.OutstandingQuantities {
+				<div class="ui-dl__row goen-admin__offslip">
 					<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeySectionInvoice) }</dt>
 					<dd class="ui-dl__desc">{ v.InvoiceText(ctx) }</dd>
 				</div>

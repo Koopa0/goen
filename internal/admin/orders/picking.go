@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -102,8 +101,7 @@ func pickingSnapshot(ctx context.Context, q *db.Queries, after string, numbers [
 		l := &lines[i]
 		slip := byOrder[l.OrderID]
 		slip.Lines = append(slip.Lines, Line{
-			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
-			UnitCents: l.UnitPriceCents, Quantity: l.Remaining,
+			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String, Quantity: l.Remaining,
 		})
 	}
 	totals, err := q.PickingTotals(ctx, numbers)
@@ -128,10 +126,7 @@ func pickingSlip(r *db.PickingSlipsRow) *OrderView {
 	return &OrderView{
 		OutstandingQuantities: true,
 		Number:                r.OrderNumber, PlacedAt: shoptime.Minute(r.PlacedAt), ShippingName: r.ShippingMethodName,
-		CustomerNote: r.CustomerNote, Email: r.Email, Recipient: r.RecipientName, Phone: r.Phone,
-		Address:     to.Line(),
-		InvoiceType: invoice.Preference(r.InvoiceType), InvoiceMobileBarcode: r.InvoiceMobileBarcode,
-		InvoiceDonationCode: r.InvoiceDonationCode, InvoiceTaxID: r.InvoiceTaxID,
+		CustomerNote: r.CustomerNote, Recipient: r.RecipientName, Address: to.Line(),
 	}
 }
 
