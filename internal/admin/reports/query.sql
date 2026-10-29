@@ -104,6 +104,9 @@ WHERE o.placed_at < @to_at::timestamptz
 ORDER BY o.placed_at DESC
 LIMIT 1;
 
+-- Ties on units and revenue fall to the name, then the slug, so the list does
+-- not reshuffle between reads and the dashboard's five and the report's ten
+-- agree on who comes fifth.
 -- name: BestSellersBetween :many
 SELECT
     p.slug,
@@ -118,7 +121,7 @@ JOIN sold_orders s ON s.id = o.id
 LEFT JOIN brands b ON b.id = p.brand_id
 WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
 GROUP BY p.slug, p.name, b.name
-ORDER BY units DESC, revenue_cents DESC
+ORDER BY units DESC, revenue_cents DESC, p.name, p.slug
 LIMIT @limit_to::integer;
 
 -- Units on decided-yes returns (approved or completed) against units sold, both

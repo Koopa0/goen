@@ -3539,7 +3539,7 @@ JOIN sold_orders s ON s.id = o.id
 LEFT JOIN brands b ON b.id = p.brand_id
 WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 GROUP BY p.slug, p.name, b.name
-ORDER BY units DESC, revenue_cents DESC
+ORDER BY units DESC, revenue_cents DESC, p.name, p.slug
 LIMIT $3::integer
 `
 
@@ -3557,6 +3557,9 @@ type BestSellersBetweenRow struct {
 	RevenueCents int64
 }
 
+// Ties on units and revenue fall to the name, then the slug, so the list does
+// not reshuffle between reads and the dashboard's five and the report's ten
+// agree on who comes fifth.
 func (q *Queries) BestSellersBetween(ctx context.Context, arg BestSellersBetweenParams) ([]BestSellersBetweenRow, error) {
 	rows, err := q.db.Query(ctx, bestSellersBetween, arg.FromAt, arg.ToAt, arg.LimitTo)
 	if err != nil {
