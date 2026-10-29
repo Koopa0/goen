@@ -36,6 +36,9 @@ func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 		h.log.WarnContext(r.Context(), "invoice refused", "order", number, "error", err)
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
+	case errors.Is(err, issuer.ErrNotFound):
+		// The number is well formed and names no order.
+		http.NotFound(w, r)
 	case errors.Is(err, issuer.ErrRejected):
 		// The provider's own reason, logged in full because it names the field to
 		// fix; the page says one thing, because nobody can act on an RtnCode.
