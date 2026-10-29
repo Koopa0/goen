@@ -266,7 +266,6 @@ var testNameExceptions = map[string]map[string]string{
 		"TestInvoicePreferencesClosedSet":            "its unit is the CHECK constraints of the invoice_preferences table (invoice_preferences_type_known), a SQL object, not a Go identifier",
 		"TestReconcileInvalidInvoiceAllowance":       "its unit is the SQL function reconcile_invalid_invoice_allowance, called directly; the package declares no identifier for it",
 		"TestReconcileInvalidInvoiceAllowanceExempt": "its unit is the SQL function reconcile_invalid_invoice_allowance, called directly; the package declares no identifier for it",
-		"TestRelateNumber":                           "its unit is relateNumber, a helper declared in the test file that mirrors the RelateNumber rule claim_invoice_issue applies in SQL; no non-test identifier names it",
 		"TestSettleInvoiceAllowanceLineFields":       "its unit is the SQL function settle_invoice_allowance, called directly as the admin role; the package declares no identifier for it",
 		"TestSettleInvoiceAllowanceLineTerms":        "its unit is the SQL functions settle_invoice_allowance and record_invalid_invoice_allowance, called directly as the admin role",
 		"TestSettleInvoiceIssueErasedActor":          "its unit is the SQL function settle_invoice_issue, called directly as the admin role after erase_user; Store.Issue is not what it exercises",
