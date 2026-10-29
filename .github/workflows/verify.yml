@@ -114,7 +114,15 @@ jobs:
 
       # The suite derives what it must cover from the system catalog, so this
       # job also fails when a constraint is added without a case for it.
+      #
+      # The packages start their PostgreSQL containers together and wait up to
+      # 60 s for the one reaper container they share, so a slow reaper start
+      # fails whole packages with no test failing. The reaper only removes what
+      # a killed run left behind, and this runner is thrown away after the job.
+      # The Makefile keeps it for an interrupted local run.
       - name: Schema conformance
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: 'true'
         run: make test-integration
 
       # A down migration that does not undo the up migration is only ever
