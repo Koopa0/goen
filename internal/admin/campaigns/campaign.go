@@ -343,10 +343,14 @@ func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) 
 		Before: audit.State{audit.FieldCampaign: campaign, audit.FieldProduct: product},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			if err := q.RemoveCampaignProduct(ctx, db.RemoveCampaignProductParams{
+			n, err := q.RemoveCampaignProduct(ctx, db.RemoveCampaignProductParams{
 				Campaign: strings.TrimSpace(campaign), Product: strings.TrimSpace(product),
-			}); err != nil {
+			})
+			if err != nil {
 				return db.WrapRefusal(err, ErrRefused)
+			}
+			if n == 0 {
+				return ErrNotFound
 			}
 			return nil
 		})

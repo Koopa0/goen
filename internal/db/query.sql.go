@@ -15642,7 +15642,7 @@ func (q *Queries) ReleaseReservation(ctx context.Context, pReservationID uuid.UU
 	return err
 }
 
-const removeCampaignProduct = `-- name: RemoveCampaignProduct :exec
+const removeCampaignProduct = `-- name: RemoveCampaignProduct :execrows
 DELETE FROM sale_campaign_products cp
 USING sale_campaigns c, products p
 WHERE cp.campaign_id = c.id AND cp.product_id = p.id
@@ -15654,9 +15654,12 @@ type RemoveCampaignProductParams struct {
 	Product  string
 }
 
-func (q *Queries) RemoveCampaignProduct(ctx context.Context, arg RemoveCampaignProductParams) error {
-	_, err := q.db.Exec(ctx, removeCampaignProduct, arg.Campaign, arg.Product)
-	return err
+func (q *Queries) RemoveCampaignProduct(ctx context.Context, arg RemoveCampaignProductParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeCampaignProduct, arg.Campaign, arg.Product)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const removeCartItem = `-- name: RemoveCartItem :exec
