@@ -108,9 +108,9 @@ func CartRecovery(p frame.Page, v CartRecoveryView) templ.Component {
 				}
 				ctx = templ.InitializeContext(ctx)
 				var templ_7745c5c3_Var7 string
-				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
+				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice.Text)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `auth/cart_recovery_page.templ`, Line: 22, Col: 14}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `auth/cart_recovery_page.templ`, Line: 22, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -118,7 +118,7 @@ func CartRecovery(p frame.Page, v CartRecoveryView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "cart-recovery", Class: "ui-alert--info notice__body"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: v.Notice.Outcome.Intent(), ID: "cart-recovery", Class: "notice__body"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

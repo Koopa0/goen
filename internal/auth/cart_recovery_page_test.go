@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // TestCartRecoveryBothCarts: the cart-recovery page lists the before-sign-in
@@ -24,7 +25,7 @@ func TestCartRecoveryBothCarts(t *testing.T) {
 			before := cartitem.Item{Name: "Guest item", Label: "Red / Small", Quantity: 2, ImageURL: "/guest.webp", ImageAlt: "Guest photo"}
 			stored := cartitem.Item{Name: "Account item", Label: "Blue / Large", Quantity: 3, ImageURL: "/account.webp", ImageAlt: "Account photo"}
 			body := renderComponent(t, ctx, CartRecovery(CartRecoveryMeta(ctx), CartRecoveryView{
-				Next: "/checkout", Notice: i18n.T(ctx, i18n.KeyCartMergeFailed), Retry: i18n.T(ctx, i18n.KeyCartMergeRetry),
+				Next: "/checkout", Notice: widget.Result{Outcome: widget.OutcomeFailed, Text: i18n.T(ctx, i18n.KeyCartMergeFailed)}, Retry: i18n.T(ctx, i18n.KeyCartMergeRetry),
 				Contents: CartRecoveryContents{BeforeSignIn: []cartitem.Item{before}, Account: []cartitem.Item{stored}},
 			}))
 			doc, err := html.Parse(strings.NewReader(body))

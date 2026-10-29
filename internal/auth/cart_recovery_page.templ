@@ -18,8 +18,8 @@ templ CartRecovery(p frame.Page, v CartRecoveryView) {
 					{ i18n.T(ctx, i18n.KeyAccountWelcome) }
 				}
 			}
-			@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "cart-recovery", Class: "ui-alert--info notice__body"}) {
-				{ v.Notice }
+			@widget.Notice(widget.NoticeProps{Intent: v.Notice.Outcome.Intent(), ID: "cart-recovery", Class: "notice__body"}) {
+				{ v.Notice.Text }
 			}
 			@cartRecoveryList("cart-recovery-before", i18n.KeyCartRecoveryBeforeSignIn, v.Contents.BeforeSignIn)
 			@cartRecoveryList("cart-recovery-account", i18n.KeyCartRecoveryAccount, v.Contents.Account)

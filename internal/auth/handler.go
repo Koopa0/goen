@@ -765,7 +765,7 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 		CartRecoveryMeta(r.Context()), CartRecoveryView{
 			Next:    next,
 			Welcome: r.URL.Query().Get("welcome") == "1",
-			Notice:  i18n.T(r.Context(), i18n.KeyCartMergeFailed),
+			Notice:  widget.Result{Outcome: widget.OutcomeFailed, Text: i18n.T(r.Context(), i18n.KeyCartMergeFailed)},
 			Retry:   i18n.T(r.Context(), i18n.KeyCartMergeRetry),
 			Contents: CartRecoveryContents{
 				BeforeSignIn: beforeSignIn,

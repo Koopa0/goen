@@ -3,13 +3,15 @@ package auth
 import (
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // TestCartRecoveryReturnsToCart: the cart-recovery page's back link returns to
 // the cart.
 func TestCartRecoveryReturnsToCart(t *testing.T) {
 	t.Parallel()
-	html := renderToString(t, CartRecovery(CartRecoveryMeta(t.Context()), CartRecoveryView{Next: "/account", Notice: "n", Retry: "r"}))
+	html := renderToString(t, CartRecovery(CartRecoveryMeta(t.Context()), CartRecoveryView{Next: "/account", Notice: widget.Result{Outcome: widget.OutcomeFailed, Text: "n"}, Retry: "r"}))
 	back := tagCarrying(t, html, "notice__back")
 	if !strings.Contains(back, `href="/cart"`) {
 		t.Errorf("cart recovery does not return to the cart: %s", back)

@@ -18,9 +18,9 @@ templ Forgot(p frame.Page, v ForgotView) {
 						{ v.SentMessage(ctx) }
 					}
 				}
-				if v.Notice != "" {
-					@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
-						{ v.Notice }
+				if v.Notice.Text != "" {
+					@widget.Notice(widget.NoticeProps{Intent: v.Notice.Outcome.Intent()}) {
+						{ v.Notice.Text }
 					}
 				}
 				if v.Sent {
