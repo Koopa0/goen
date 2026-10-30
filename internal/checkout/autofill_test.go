@@ -69,7 +69,8 @@ func TestPageAutofill(t *testing.T) {
 	assertCheckoutKeyboards(t, controls)
 }
 
-// renderedAutofillControls renders every conditional text-entry branch. Radio,
+// renderedAutofillControls renders every conditional text-entry branch; the invoice
+// types' fields are all on the page, so one render holds them. Radio,
 // checkbox, hidden, and submit controls describe state or actions, not data the
 // browser can autofill, so they are excluded by kind rather than by id.
 func renderedAutofillControls(t *testing.T) map[string]map[string]string {
@@ -82,11 +83,8 @@ func renderedAutofillControls(t *testing.T) map[string]map[string]string {
 		action    string
 		checkout  bool
 	}{
-		{name: "address", component: Page(Meta(ctx), &View{}), action: "/checkout", checkout: true},
+		{name: "address", component: Page(Meta(ctx), &View{InvoiceChoices: invoiceChoices(ctx)}), action: "/checkout", checkout: true},
 		{name: "pickup", component: Page(Meta(ctx), &View{Destination: "pickup_point"}), action: "/checkout", checkout: true},
-		{name: "mobile carrier", component: Page(Meta(ctx), &View{Invoice: InvoiceView{Type: "mobile_carrier"}}), action: "/checkout", checkout: true},
-		{name: "donation invoice", component: Page(Meta(ctx), &View{Invoice: InvoiceView{Type: "donation"}}), action: "/checkout", checkout: true},
-		{name: "company invoice", component: Page(Meta(ctx), &View{Invoice: InvoiceView{Type: "company"}}), action: "/checkout", checkout: true},
 	}
 
 	controls := map[string]map[string]string{}

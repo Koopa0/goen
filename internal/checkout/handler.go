@@ -136,9 +136,8 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		view.Chosen = chosen.Ship
 	}
 	view.Destination = destinationOf(view.Shipping, view.Chosen)
-	// The 發票 choice travels the same way: it decides which field the form asks
-	// for, so a chooser only a script could act on would leave the two
-	// disagreeing.
+	// The 發票 choice can be named in the URL too, so a link opens the form with
+	// that card chosen.
 	if kind := invoice.Preference(chosen.Invoice); kind.Known() {
 		view.Invoice.Type = kind
 	}
@@ -320,6 +319,10 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 	guess.settle(submission.couponMissed)
 	view, addr, inv := &submission.view, &submission.address, &submission.invoice
 
+	// Every invoice type's fields are in the page, so the form carries what was typed under
+	// the types not chosen. The draft is personal data and keeps the chosen type's only; the
+	// refusals are for a placement, not for a trip to the map.
+	inv.Validate()
 	draft := checkoutDraft{
 		Email: addr.Email, Name: addr.RecipientName, Phone: addr.Phone,
 		PostalCode: addr.PostalCode, City: addr.City, District: addr.District, Street: addr.Street,
@@ -623,9 +626,9 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	guess.settle(submission.couponMissed)
 
-	// A CHOOSER CHANGE, not an order: the delivery method, saved address and 發票
-	// type each decide which fields the form asks for, so it re-renders with
-	// the submitted values and validates nothing.
+	// A CHOOSER CHANGE, not an order: the delivery method and the saved address
+	// each decide which fields the form asks for, so it re-renders with the
+	// submitted values and validates nothing.
 	if r.PostFormValue("update") != "" {
 		h.renderCheckout(w, r, http.StatusOK, &submission.view)
 		return

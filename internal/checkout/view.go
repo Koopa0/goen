@@ -393,19 +393,11 @@ func (i InvoiceView) Chosen() invoice.Preference {
 	return i.Type
 }
 
-// NeedsMobileBarcode and NeedsTaxID decide which half of the form exists:
-// rendering both would leave required promising something the server will not demand.
-func (i InvoiceView) NeedsMobileBarcode() bool { return i.Chosen().NeedsMobileBarcode() }
-
-func (i InvoiceView) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
-
 func (v *View) HasCoupon() bool {
 	return v.CouponApplied != "" && (v.CouponDiscountCents > 0 || v.CouponFreeShipping)
 }
 
 func (v *View) CouponDiscount() string { return "-" + twd(v.CouponDiscountCents) }
-
-func (i InvoiceView) NeedsDonationCode() bool { return i.Chosen() == invoice.PreferenceDonate }
 
 // summaryRow is a row of the totals that the notice for a changed quote can name and mark.
 type summaryRow uint8

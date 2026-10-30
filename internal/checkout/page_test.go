@@ -3,6 +3,7 @@ package checkout
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestPageChoicesInsideForm(t *testing.T) {
 		},
 		CouponCode:     "SAVE10",
 		Invoice:        InvoiceView{Type: "mobile_carrier", MobileBarcode: "/ABC+123"},
-		InvoiceChoices: []InvoiceChoice{{Value: "mobile_carrier", Label: "手機條碼載具"}},
+		InvoiceChoices: invoiceChoices(ctx),
 	}
 	markup := renderToString(t, Page(Meta(ctx), &typed))
 
@@ -50,7 +51,6 @@ func TestPageChoicesInsideForm(t *testing.T) {
 		// Each 更新 names the chooser it applies, so the handler can tell which
 		// one was pressed.
 		`name="update" value="shipping"`,
-		`name="update" value="invoice"`,
 	} {
 		if !strings.Contains(markup, want) {
 			t.Errorf("the checkout does not carry %s — a chooser outside the form "+
@@ -78,14 +78,13 @@ func TestPageChoiceAppliesOnChange(t *testing.T) {
 		Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:         "ship-1",
 		SavedAddresses: []SavedAddress{{ID: "addr-1", Label: "家"}},
-		InvoiceChoices: []InvoiceChoice{{Value: "mobile_carrier", Label: "手機條碼載具"}},
 	}
 	markup := renderToString(t, Page(Meta(ctx), &view))
 
 	if !strings.Contains(markup, `id="checkout-form"`) {
 		t.Fatal("the checkout form has no id, so a swap has nothing to select or to replace")
 	}
-	for _, which := range []string{"shipping", "address", "invoice"} {
+	for _, which := range []string{"shipping", "address"} {
 		group := tagCarrying(t, markup, `hx-vals="{&#34;update&#34;:&#34;`+which+`&#34;}"`)
 		for _, want := range []string{
 			`hx-post="/checkout"`,
@@ -110,7 +109,6 @@ func TestPageChoiceAppliesOnChange(t *testing.T) {
 	for _, want := range []string{
 		`id="shipping-ship-1"`,
 		`id="address-book"`,
-		`id="invoice_type-mobile_carrier"`,
 	} {
 		if !strings.Contains(markup, want) {
 			t.Errorf("no radio carries %s, so the swap answers with the focus lost", want)
@@ -132,11 +130,10 @@ func TestPageApplyButtonSection(t *testing.T) {
 		Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:         "ship-1",
 		SavedAddresses: []SavedAddress{{ID: "addr-1", Label: "家"}},
-		InvoiceChoices: []InvoiceChoice{{Value: "mobile_carrier", Label: "手機條碼載具"}},
 	}
 	markup := renderToString(t, Page(Meta(ctx), &view))
 
-	for _, which := range []string{"shipping", "address", "invoice"} {
+	for _, which := range []string{"shipping", "address"} {
 		if !strings.Contains(markup, `formaction="/checkout#`+which+`"`) {
 			t.Errorf("the %s 更新 button does not name its own section, so its answer "+
 				"opens at the top of the form", which)
@@ -336,77 +333,67 @@ func TestPageSummaryVariant(t *testing.T) {
 	}
 }
 
-// TestPageInvoiceFields: Page renders only the invoice fields the chosen
-// preference needs (mobile barcode, donation code, company name and tax ID),
-// and keeps the three choosers in one form. It holds which half of the form
-// exists. 會員載具, 手機條碼載具, 捐贈 and 公司統編 need different information, and Validate()
-// blanks the field that does not apply, so rendering both would leave the form
-// promising something the server will not demand.
+// TestPageInvoiceFields: Page puts the fields an invoice type asks for inside
+// that type's own card, whichever type is chosen, and marks none of them
+// required. It holds what the shopper reads: the donation code under 捐贈發票,
+// not under the option that happens to come last. CSS opens only the chosen
+// card's fields and Invoice.Validate blanks the fields a type does not use, so a
+// field a card carries while another is chosen must never ask the server for
+// anything. Changing the choice sends nothing: it has no 更新 button and no
+// request of its own.
 func TestPageInvoiceFields(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
-	tests := []struct {
-		name            string
-		kind            invoice.Preference
-		wantBarcode     bool
-		wantDonation    bool
-		wantCompanyName bool
-		wantTaxID       bool
-	}{
-		{name: "the default keeps neither", kind: "", wantBarcode: false, wantTaxID: false},
-		{name: "a mobile barcode needs its field", kind: "mobile_carrier", wantBarcode: true},
-		{name: "a donation needs the donation code and nothing else", kind: "donation", wantDonation: true},
-		{name: "a company invoice needs its registered buyer", kind: "company", wantCompanyName: true, wantTaxID: true},
+	own := map[invoice.Preference][]string{
+		invoice.PreferenceMember:  nil,
+		invoice.PreferenceMobile:  {"invoice_carrier"},
+		invoice.PreferenceDonate:  {"invoice_donation_code"},
+		invoice.PreferenceCompany: {"invoice_company_name", "invoice_tax_id"},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, chosen := range invoice.OfferedPreferences() {
+		t.Run(string(chosen), func(t *testing.T) {
 			t.Parallel()
 			view := View{
 				Cart:           cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
-				Shipping:       []cart.ShippingChoice{{Code: "home", Name: "宅配到府"}},
-				Invoice:        InvoiceView{Type: tt.kind},
-				InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
+				Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+				Chosen:         "ship-1",
+				Invoice:        InvoiceView{Type: chosen},
+				InvoiceChoices: invoiceChoices(ctx),
 			}
 			markup := renderToString(t, Page(Meta(ctx), &view))
-			if got := strings.Contains(markup, `id="invoice_carrier"`); got != tt.wantBarcode {
-				t.Errorf("invoice=%q renders the mobile barcode field = %v, want %v", tt.kind, got, tt.wantBarcode)
+			doc, err := html.Parse(strings.NewReader(markup))
+			if err != nil {
+				t.Fatal(err)
 			}
-			if got := strings.Contains(markup, `id="invoice_donation_code"`); got != tt.wantDonation {
-				t.Errorf("invoice=%q renders the donation code field = %v, want %v", tt.kind, got, tt.wantDonation)
+
+			var inCards int
+			for _, option := range invoice.OfferedPreferences() {
+				card := invoiceCard(t, doc, option)
+				var got []string
+				for _, field := range invoiceTextFields(card) {
+					got = append(got, attrValue(field, "id"))
+					for _, attr := range []string{"required", "aria-required"} {
+						if slices.ContainsFunc(field.Attr, func(a html.Attribute) bool { return a.Key == attr }) {
+							t.Errorf("chosen=%s: %s in the %s card carries %s", chosen, attrValue(field, "id"), option, attr)
+						}
+					}
+				}
+				if !slices.Equal(got, own[option]) {
+					t.Errorf("chosen=%s: the %s card holds the fields %v, want %v", chosen, option, got, own[option])
+				}
+				inCards += len(got)
 			}
-			if got := strings.Contains(markup, `id="invoice_tax_id"`); got != tt.wantTaxID {
-				t.Errorf("invoice=%q renders the 統編 field = %v, want %v", tt.kind, got, tt.wantTaxID)
+			if all := len(invoiceTextFields(doc)); all != inCards {
+				t.Errorf("chosen=%s: %d invoice fields are on the page, %d inside a card", chosen, all, inCards)
 			}
-			if got := strings.Contains(markup, `id="invoice_company_name"`); got != tt.wantCompanyName {
-				t.Errorf("invoice=%q renders the company-name field = %v, want %v",
-					tt.kind, got, tt.wantCompanyName)
+
+			for _, update := range []string{`name="update" value="invoice"`, `&#34;update&#34;:&#34;invoice&#34;`} {
+				if strings.Contains(markup, update) {
+					t.Errorf("chosen=%s: changing the invoice choice still sends a request (%s)", chosen, update)
+				}
 			}
 		})
-	}
-
-	// The three choosers compose because they are three radio groups in ONE
-	// form, so a submission carries all of them.
-	full := View{
-		Cart:           cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
-		Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
-		Chosen:         "ship-1",
-		Invoice:        InvoiceView{Type: "company"},
-		InvoiceChoices: []InvoiceChoice{{Value: "company", Label: "公司統編"}},
-	}
-	markup := renderToString(t, Page(Meta(ctx), &full))
-	for _, want := range []string{
-		`type="radio" name="shipping"`,
-		`type="radio" name="invoice_type"`,
-		// Each 更新 names the chooser it applies, so the handler can tell which
-		// one was pressed.
-		`name="update" value="shipping"`,
-		`name="update" value="invoice"`,
-	} {
-		if !strings.Contains(markup, want) {
-			t.Errorf("the checkout does not carry %s — a chooser outside the form "+
-				"cannot preserve what has been typed into it", want)
-		}
 	}
 }
 

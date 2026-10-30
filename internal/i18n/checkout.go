@@ -123,13 +123,18 @@ var (
 
 	KeyFieldStoreName = key("field.pickup.name", Message{ZhHant: "門市名稱", En: "Store name"})
 
-	KeyFieldMobileBarcode = key("field.invoice.carrier", Message{ZhHant: "手機條碼載具", En: "Mobile barcode carrier"})
+	KeyFieldMobileBarcode = key("field.invoice.carrier", Message{ZhHant: "手機條碼載具", En: "Mobile barcode (invoice carrier)"})
+
+	KeyMobileBarcodeFormat = key("invoice.carrier.format", Message{
+		ZhHant: "斜線開頭，共 8 碼",
+		En:     "Starts with a slash, 8 characters in all",
+	})
 
 	KeyFieldDonationCode = key("field.invoice.donation", Message{ZhHant: "愛心碼", En: "Donation code"})
 
 	KeyDonationCodeHelp = key("invoice.donation.help", Message{
 		ZhHant: "請向受贈單位確認愛心碼（3 至 7 碼數字）。本店的捐贈發票不能同時使用載具或統一編號。",
-		En:     "Confirm the code (3 to 7 digits) with the recipient organisation. This shop cannot combine a donated invoice with a carrier or a company tax ID.",
+		En:     "Confirm the code (3 to 7 digits) with the recipient organisation. This shop cannot combine a donated invoice with an invoice carrier or a company tax ID.",
 	})
 
 	KeyFieldCompanyName = key("field.invoice.company_name", Message{
@@ -139,14 +144,16 @@ var (
 
 	KeyFieldTaxID = key("field.invoice.taxid", Message{ZhHant: "統一編號", En: "Company tax ID"})
 
+	KeyTaxIDFormat = key("invoice.taxid.format", Message{ZhHant: "8 碼數字", En: "8 digits"})
+
 	KeyInvoiceMember = key("invoice.member", Message{
-		ZhHant: memberInvoiceCarrierZhHant + "（存在綠界會員載具，通知寄到結帳時填的電子郵件）",
-		En:     memberInvoiceCarrierEn + " (stored and notified using your checkout email)",
+		ZhHant: memberInvoiceCarrierZhHant + "（發票存入載具，通知寄到結帳時填的電子郵件）",
+		En:     memberInvoiceCarrierEn + " (the invoice is stored in the carrier, and you are notified at your checkout email)",
 	})
 
 	KeyInvoiceMobile = key("invoice.mobile", Message{
 		ZhHant: "手機條碼載具",
-		En:     "Mobile barcode carrier",
+		En:     "Mobile barcode (invoice carrier)",
 	})
 
 	KeyInvoiceCompany = key("invoice.company", Message{
@@ -157,8 +164,8 @@ var (
 	// Issue sends the company invoice with the member carrier (issue.go), which
 	// ECPay holds against the checkout email.
 	KeyInvoiceCompanyStored = key("invoice.company.stored", Message{
-		ZhHant: "公司統編發票會存入" + memberInvoiceCarrierZhHant + "，通知寄到結帳時填的電子郵件，可在綠界的載具中查詢。",
-		En:     "A company tax ID invoice is stored in the " + memberInvoiceCarrierEn + ", tied to your checkout email, and can be retrieved there.",
+		ZhHant: "公司統編發票會存入" + memberInvoiceCarrierZhHant + "，通知寄到結帳時填的電子郵件，可在載具中查詢。",
+		En:     "A company tax ID invoice is stored in the member invoice carrier, tied to your checkout email, and can be retrieved there.",
 	})
 
 	KeyDeliveryToAddress = key("checkout.dest.address", Message{ZhHant: "收件地址", En: "Delivery address"})
@@ -368,8 +375,8 @@ var (
 // The member-carrier option's name, shared so a refusal that points shoppers at
 // it cannot drift from the label they see on the form.
 const (
-	memberInvoiceCarrierZhHant = "綠界電子發票載具"
-	memberInvoiceCarrierEn     = "ECPay e-invoice carrier"
+	memberInvoiceCarrierZhHant = "會員載具"
+	memberInvoiceCarrierEn     = "Member invoice carrier"
 )
 
 var KeyMobileBarcodeMissing = key("checkout.carrier.missing", Message{ZhHant: "查無此手機條碼，請確認載具號碼，或改選「" + memberInvoiceCarrierZhHant + "」。", En: "This mobile barcode does not exist. Check it, or choose \"" + memberInvoiceCarrierEn + "\"."})
