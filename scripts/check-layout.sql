@@ -361,16 +361,16 @@ SELECT redeem_coupon(:'capped_coupon_id', :'invoice_id', :'customer_id', discoun
 FROM orders WHERE id = :'invoice_id';
 
 -- /admin/reports draws its running totals only from seven shop days with paid
--- orders, so the report gets seven, none today. The latest is NT$1,234,567, which
--- gives the chart's end label seven digits to measure at 320. Each is placed and
--- paid as the reports tests pay one: a succeeded payment is what puts a pending
--- order in committed_orders, off the picking queue.
--- The first placed (uuidv7 ids ascend) is moved back one day, the latest.
+-- orders, and ?days=7 counts today as one of them, so the report gets eight, one
+-- on today and one on each of the seven days before it. Yesterday's is
+-- NT$1,234,567, which gives the chart's end label seven digits to measure at 320.
+-- Each is placed and paid as the reports tests pay one: a succeeded payment is
+-- what puts a pending order in committed_orders, off the picking queue.
 WITH revenue_orders AS (
     INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
                         shipping_cents)
     SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', 0
-    FROM generate_series(1, 7) AS day_ago
+    FROM generate_series(1, 8)
     RETURNING id
 ), revenue_lines AS (
     INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
@@ -384,10 +384,7 @@ INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_c
 SELECT order_id, 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
 FROM revenue_lines;
 RESET ROLE;
-UPDATE orders o SET placed_at = now() - make_interval(days => d.day_ago::integer)
-FROM (SELECT ol.order_id, row_number() OVER (ORDER BY ol.order_id) AS day_ago
-      FROM order_lines ol WHERE ol.sku = 'LAYOUT-REVENUE') d
-WHERE o.id = d.order_id;
+\ir check-layout-revenue-days.sql
 SET ROLE store;
 SELECT open_payment(o.id, 'layout-rev-' || o.id, ol.unit_price_cents)
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id

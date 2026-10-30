@@ -1,5 +1,19 @@
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const REVENUE_DAYS = fileURLToPath(new URL('./check-layout-revenue-days.sql', import.meta.url));
+
+// ?days=7 ends in the shop's today, which a run can reach after check-layout.sql
+// placed the revenue orders, and its window then holds six days with orders.
+// Placing them again just before the read gives each of its seven days one.
+function placeRevenueDays() {
+  execFileSync('psql', [process.env.GOEN_DATABASE_URL, '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', REVENUE_DAYS],
+    { stdio: ['ignore', 'ignore', 'pipe'] });
+}
+
 export async function checkRunningTotalReflow({ send, evaluate, navigate, fail, origin, adminToken }) {
   if (!adminToken) { fail('running total reflow', 'staff fixture is missing'); return; }
+  if (!process.env.GOEN_DATABASE_URL) { fail('running total reflow', 'GOEN_DATABASE_URL is missing, so the report\'s days cannot be placed'); return; }
   const { cookies: priorCookies } = await send('Network.getCookies', { urls: [origin] });
   try {
     for (const lang of ['zh-Hant', 'en']) for (const width of [320, 375, 1440]) for (const scale of [100, 200]) {
@@ -9,6 +23,12 @@ export async function checkRunningTotalReflow({ send, evaluate, navigate, fail, 
         for (const [name, value] of [['goen_session', adminToken], ['goen_locale', lang]])
           await send('Network.setCookie', { name, value, url: origin, path: '/' });
         await send('Emulation.setDeviceMetricsOverride', { width, height: 812, deviceScaleFactor: 1, mobile: width < 768 });
+        if (path.endsWith('?days=7')) {
+          try { placeRevenueDays(); } catch (err) {
+            fail(label, `the report's days were not placed: ${err.stderr?.toString().trim() || err.message}`);
+            continue;
+          }
+        }
         await navigate(origin + path);
         await evaluate(`document.documentElement.style.fontSize = '${scale}%'`);
         await evaluate('document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))', true);
