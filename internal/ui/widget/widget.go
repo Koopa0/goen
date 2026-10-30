@@ -67,7 +67,7 @@ func (s Size) class() string {
 // visitor can still act inside or something late or wrong that the staff should look at, and danger is a refusal or an
 // absence. Progress, Done and StaffTurn are back-office badge states only, for something under way, something finished
 // and something waiting for the shop's next step, such as an order to pack, a return to decide, a question or a message
-// to answer; the storefront stylesheet has no class for them. Only a message that is overdue is warn.
+// to answer; the storefront stylesheet has no class for them.
 type Intent string
 
 const (
