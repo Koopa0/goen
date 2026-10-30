@@ -108,14 +108,14 @@ func (s *checkoutStripe) requested() int {
 	return s.requests
 }
 
-// handlerWithCheckouts is the buyer handler wired as cmd/goen wires it: on the
+// handlerWithSessionExpirer is the buyer handler wired as cmd/goen wires it: on the
 // store role, with the expirer that asks gateway.
-func handlerWithCheckouts(t *testing.T, gateway *payment.Gateway) *buyer.Handler {
+func handlerWithSessionExpirer(t *testing.T, gateway *payment.Gateway) *buyer.Handler {
 	t.Helper()
 	appPool := storeRolePool(t)
 	return buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false),
 		slog.New(slog.DiscardHandler), testLimiter(), true).
-		WithCheckouts(payment.NewSessionExpirer(payment.NewStore(appPool), gateway))
+		WithSessionExpirer(payment.NewSessionExpirer(payment.NewStore(appPool), gateway))
 }
 
 // orderWithCheckout is an unpaid order holding one unit for ten more minutes,
@@ -186,7 +186,7 @@ func TestHandler_CancelOrderOpenCheckout(t *testing.T) {
 			h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false),
 				slog.New(slog.DiscardHandler), testLimiter(), true)
 			if !tc.unwired {
-				h = h.WithCheckouts(payment.NewSessionExpirer(payment.NewStore(appPool), gateway))
+				h = h.WithSessionExpirer(payment.NewSessionExpirer(payment.NewStore(appPool), gateway))
 			}
 			if tc.cancels {
 				assertCancelledBehindCheckout(t, h, number, variant)
@@ -273,7 +273,7 @@ func TestHandler_CancelOrderThenExpiry(t *testing.T) {
 	appPool := storeRolePool(t)
 	h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false),
 		slog.New(slog.DiscardHandler), testLimiter(), true).
-		WithCheckouts(payment.NewSessionExpirer(payment.NewStore(appPool), gateway))
+		WithSessionExpirer(payment.NewSessionExpirer(payment.NewStore(appPool), gateway))
 	if res := cancelRequest(t, h, i18n.Locales()[0], number); res.Code != http.StatusSeeOther {
 		t.Fatalf("cancellation = %d, want a redirect", res.Code)
 	}
@@ -371,7 +371,7 @@ func TestHandler_CancelOrderHeldBack(t *testing.T) {
 				t.Fatalf("read the open checkout of %s: %v", number, err)
 			}
 			stripeAPI.set(open, "open")
-			h := handlerWithCheckouts(t, gateway)
+			h := handlerWithSessionExpirer(t, gateway)
 
 			before := ordertest.StockOf(t, pool, variant)
 			for _, locale := range i18n.Locales() {

@@ -41,9 +41,9 @@ type Handler struct {
 	// takesPayment is the cart's TakesPayment: false on a deployment with no
 	// Stripe key, where the order page offers no way to pay.
 	takesPayment bool
-	// checkouts expires the Checkout Session a cancelled order has open. Without
+	// sessions expires the Checkout Session a cancelled order has open. Without
 	// it a cancellation behind an open session is refused, never made.
-	checkouts *payment.SessionExpirer
+	sessions *payment.SessionExpirer
 }
 
 func NewHandler(s *Store, grants *access.Store, log *slog.Logger, findLimit *ratelimit.Limiter, takesPayment bool) *Handler {
@@ -60,12 +60,12 @@ func NewHandler(s *Store, grants *access.Store, log *slog.Logger, findLimit *rat
 	}
 }
 
-// WithCheckouts lets a customer cancel an order whose Checkout Session is still
+// WithSessionExpirer lets a customer cancel an order whose Checkout Session is still
 // open: the session is expired at Stripe first, and the order is cancelled only
 // once Stripe has confirmed it.
-func (h *Handler) WithCheckouts(e *payment.SessionExpirer) *Handler {
+func (h *Handler) WithSessionExpirer(e *payment.SessionExpirer) *Handler {
 	c := *h
-	c.checkouts = e
+	c.sessions = e
 	return &c
 }
 
@@ -263,10 +263,10 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) cancel(ctx context.Context, number string) error {
 	err := h.store.CancelOrder(ctx, number)
 	open, ok := errors.AsType[*CheckoutOpenError](err)
-	if !ok || h.checkouts == nil {
+	if !ok || h.sessions == nil {
 		return err
 	}
-	if expireErr := h.checkouts.ExpireOpen(ctx, number); expireErr != nil {
+	if expireErr := h.sessions.ExpireOpen(ctx, number); expireErr != nil {
 		if !errors.Is(expireErr, payment.ErrStillPayable) {
 			return expireErr
 		}

@@ -55,7 +55,7 @@ func TestHandler_CancelOrderMayTakeMoney(t *testing.T) {
 				}
 			}
 			stripeAPI, gateway := newCheckoutStripe(t)
-			h := handlerWithCheckouts(t, gateway)
+			h := handlerWithSessionExpirer(t, gateway)
 			before := ordertest.StockOf(t, pool, variant)
 			for _, locale := range i18n.Locales() {
 				localized := i18n.WithLocale(ctx, locale)

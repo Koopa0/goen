@@ -288,7 +288,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	buyerOrders := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log, findLimit, checkouts.TakesPayment()).
-		WithCheckouts(payment.NewSessionExpirer(payments, gateway))
+		WithSessionExpirer(payment.NewSessionExpirer(payments, gateway))
 
 	homePage.Routes(mux)
 	images.Routes(mux)
