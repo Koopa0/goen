@@ -148,7 +148,7 @@ var (
 
 	KeyInvoiceMember = key("invoice.member", Message{
 		ZhHant: memberInvoiceCarrierZhHant + "（發票存入載具，通知寄到結帳時填的電子郵件）",
-		En:     memberInvoiceCarrierEn + " (the invoice is stored in the carrier, and you are notified at your checkout email)",
+		En:     memberInvoiceCarrierEn + " (the invoice is stored in the invoice carrier, and you are notified at your checkout email)",
 	})
 
 	KeyInvoiceMobile = key("invoice.mobile", Message{

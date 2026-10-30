@@ -53,8 +53,15 @@ func TestMessagesCheckoutInvoiceNoProvider(t *testing.T) {
 func TestMessagesInvoiceCarrierEnglish(t *testing.T) {
 	t.Parallel()
 	for k, message := range messages {
-		if strings.Contains(message.ZhHant, "載具") && !strings.Contains(strings.ToLower(message.En), "invoice carrier") {
+		if !strings.Contains(message.ZhHant, "載具") {
+			continue
+		}
+		en := strings.ToLower(message.En)
+		if !strings.Contains(en, "invoice carrier") {
 			t.Errorf("%s says 載具 but its English does not say \"invoice carrier\": %s", k, message.En)
+		}
+		if strings.Count(en, "carrier") != strings.Count(en, "invoice carrier") {
+			t.Errorf("%s says 載具 and its English has a bare \"carrier\", which reads as the parcel company: %s", k, message.En)
 		}
 	}
 }
