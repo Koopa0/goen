@@ -157,7 +157,7 @@ var (
 	// internal/cart/cartitem is a vocabulary leaf, not a page.
 	storefrontPages = []string{
 		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/checkout", "internal/discount/campaign", "internal/home",
-		"internal/newsletter", "internal/policy", "internal/site", "internal/wishlist",
+		"internal/newsletter", "internal/order/buyer", "internal/order/warranty", "internal/policy", "internal/site", "internal/wishlist",
 	}
 	// siteMayImport is what internal/site may import besides itself and the
 	// leaves: the foundation every storefront page is built on, and the picture
