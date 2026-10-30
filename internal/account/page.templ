@@ -3,6 +3,7 @@ package account
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -17,6 +18,31 @@ templ accountNavItem(href, label, hint string) {
 			<span class="goen-account__navhint">{ hint }</span>
 		}
 	</a>
+}
+
+// formRefusal says why a request from form was refused when no single control
+// does, in the form's own section, where the page opens.
+templ formRefusal(v *View, form auth.AccountForm) {
+	if v.RefusedIn(form) {
+		if v.ReturnOrder != "" {
+			{{ before, after := openReturnText(ctx) }}
+			@widget.Notice(widget.NoticeProps{Intent: widget.OutcomeRefused.Intent(), ID: string(form) + "-refusal"}) {
+				{ before }<a href={ templ.SafeURL("/orders/" + v.ReturnOrder) }>{ v.ReturnOrder }</a>{ after }
+			}
+		} else if v.Refusal.Notice != "" {
+			@widget.Notice(widget.NoticeProps{Intent: widget.OutcomeRefused.Intent(), ID: string(form) + "-refusal"}) {
+				{ v.Refusal.Notice }
+			}
+		}
+	}
+}
+
+// fieldRefusal is the message under a refused control, which the control names
+// in aria-describedby.
+templ fieldRefusal(id, message string) {
+	if message != "" {
+		<p class="ui-error-text" id={ id } role="alert">{ message }</p>
+	}
 }
 
 templ Account(p frame.Page, v *View) {
@@ -140,31 +166,37 @@ templ Account(p frame.Page, v *View) {
 					</section>
 					<section class="goen-card goen-account__section" aria-labelledby="profile-heading">
 						<h2 class="goen-account__heading" id="profile-heading">{ i18n.T(ctx, i18n.KeyProfile) }</h2>
-						<form class="goen-account__form" method="post" action="/account/profile">
+						<form class="goen-account__form" method="post" action="/account/profile#profile-heading">
 							<div class="goen-account__fields">
 								<div class="goen-field">
 									@widget.Label(widget.LabelProps{For: "acct-name"}) {
 										{ i18n.T(ctx, i18n.KeyFieldFullName) }
 									}
 									@widget.Input(widget.FieldProps{
-										ID:    "acct-name",
-										Name:  "name",
-										Type:  "text",
-										Value: v.Name,
-										Attrs: templ.Attributes{"maxlength": "60", "autocomplete": "name"},
+										ID:        "acct-name",
+										Name:      "name",
+										Type:      "text",
+										Value:     v.ProfileValue("name"),
+										Invalid:   v.ProfileInvalid("name"),
+										Describes: "acct-name-error",
+										Attrs:     templ.Attributes{"maxlength": "60", "autocomplete": "name"},
 									})
+									@fieldRefusal("acct-name-error", v.ProfileErr("name"))
 								</div>
 								<div class="goen-field">
 									@widget.Label(widget.LabelProps{For: "acct-phone"}) {
 										{ i18n.T(ctx, i18n.KeyFieldPhone) }
 									}
 									@widget.Input(widget.FieldProps{
-										ID:    "acct-phone",
-										Name:  "phone",
-										Type:  "tel",
-										Value: v.Phone,
-										Attrs: templ.Attributes{"maxlength": "30", "autocomplete": "tel"},
+										ID:        "acct-phone",
+										Name:      "phone",
+										Type:      "tel",
+										Value:     v.ProfileValue("phone"),
+										Invalid:   v.ProfileInvalid("phone"),
+										Describes: "acct-phone-error",
+										Attrs:     templ.Attributes{"maxlength": "30", "autocomplete": "tel"},
 									})
+									@fieldRefusal("acct-phone-error", v.ProfileErr("phone"))
 								</div>
 							</div>
 							<div class="goen-account__actions">
@@ -375,6 +407,7 @@ templ Account(p frame.Page, v *View) {
 					</section>
 					<section class="goen-card goen-account__section" aria-labelledby="email-heading">
 						<h2 class="goen-account__heading" id="email-heading">{ i18n.T(ctx, i18n.KeyEmailSection) }</h2>
+						@formRefusal(v, auth.EmailForm)
 						<p class="goen-account__value">
 							{ v.Email }
 							if v.EmailVerified {
@@ -389,7 +422,7 @@ templ Account(p frame.Page, v *View) {
 						</p>
 						if !v.EmailVerified {
 							<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEmailUnverifiedHint) }</p>
-							<form class="goen-account__form" method="post" action="/account/email/resend">
+							<form class="goen-account__form" method="post" action="/account/email/resend#email-heading">
 								<div class="goen-account__actions">
 									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 										{ i18n.T(ctx, i18n.KeyEmailResend) }
@@ -405,9 +438,9 @@ templ Account(p frame.Page, v *View) {
 						if v.EmailConfirmationRequested {
 							<p class="goen-account__meta"><a href="/account?email=reenter#account-email-form">{ i18n.T(ctx, i18n.KeyEmailReenter) }</a></p>
 						}
-						<details class="goen-account__disclosure" id="account-email-form" open?={ v.EmailReentry }>
+						<details class="goen-account__disclosure" id="account-email-form" open?={ v.EmailReentry || v.RefusedIn(auth.EmailForm) }>
 							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyEmailChange) }</summary>
-							<form class="goen-account__form" method="post" action="/account/email">
+							<form class="goen-account__form" method="post" action="/account/email#email-heading">
 								<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEmailChangeHint) }</p>
 								<div class="goen-account__fields">
 									<div class="goen-field">
@@ -415,22 +448,29 @@ templ Account(p frame.Page, v *View) {
 											{ i18n.T(ctx, i18n.KeyFieldNewEmail) }
 										}
 										@widget.Input(widget.FieldProps{
-											ID:    "new-email",
-											Name:  "email",
-											Type:  "email",
-											Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{"required": true, "autocomplete": "email"}),
+											ID:        "new-email",
+											Name:      "email",
+											Type:      "email",
+											Value:     v.FormValue(auth.EmailForm, "email"),
+											Invalid:   v.FormInvalid(auth.EmailForm, "email"),
+											Describes: "new-email-error",
+											Attrs:     fieldrule.Email.Attrs(ctx, templ.Attributes{"required": true, "autocomplete": "email"}),
 										})
+										@fieldRefusal("new-email-error", v.FormError(auth.EmailForm, "email"))
 									</div>
 									<div class="goen-field">
 										@widget.Label(widget.LabelProps{For: "email-current"}) {
 											{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }
 										}
 										@widget.Input(widget.FieldProps{
-											ID:    "email-current",
-											Name:  "current",
-											Type:  "password",
-											Attrs: templ.Attributes{"required": true, "autocomplete": "current-password"},
+											ID:        "email-current",
+											Name:      "current",
+											Type:      "password",
+											Invalid:   v.FormInvalid(auth.EmailForm, "current"),
+											Describes: "email-current-error",
+											Attrs:     templ.Attributes{"required": true, "autocomplete": "current-password"},
 										})
+										@fieldRefusal("email-current-error", v.FormError(auth.EmailForm, "current"))
 									</div>
 								</div>
 								<div class="goen-account__actions">
@@ -444,6 +484,7 @@ templ Account(p frame.Page, v *View) {
 					<section class="goen-card goen-account__section" aria-labelledby="password-heading">
 						if v.GoogleLinked && !v.HasPassword {
 							<h2 class="goen-account__heading" id="password-heading">{ i18n.T(ctx, i18n.KeySetPassword) }</h2>
+							@formRefusal(v, auth.PasswordForm)
 							if v.PasswordSetupSent {
 								@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "password-setup-sent"}) {
 									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPasswordSetupSent), v.Email) }
@@ -458,9 +499,10 @@ templ Account(p frame.Page, v *View) {
 							</form>
 						} else {
 							<h2 class="goen-account__heading" id="password-heading">{ i18n.T(ctx, i18n.KeyChangePassword) }</h2>
-							<details class="goen-account__disclosure">
+							@formRefusal(v, auth.PasswordForm)
+							<details class="goen-account__disclosure" open?={ v.RefusedIn(auth.PasswordForm) }>
 								<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyChangePassword) }</summary>
-								<form class="goen-account__form" method="post" action="/account/password">
+								<form class="goen-account__form" method="post" action="/account/password#password-heading">
 									<input type="text" id="pw-account" value={ v.Email } autocomplete="username" aria-label={ i18n.T(ctx, i18n.KeyFieldEmail) } hidden/>
 									<div class="goen-account__fields">
 										<div class="goen-field goen-account__field--wide">
@@ -468,39 +510,43 @@ templ Account(p frame.Page, v *View) {
 												{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }
 											}
 											@widget.Input(widget.FieldProps{
-												ID:    "pw-current",
-												Name:  "current",
-												Type:  "password",
-												Attrs: templ.Attributes{"required": true, "autocomplete": "current-password"},
+												ID:        "pw-current",
+												Name:      "current",
+												Type:      "password",
+												Invalid:   v.FormInvalid(auth.PasswordForm, "current"),
+												Describes: "pw-current-error",
+												Attrs:     templ.Attributes{"required": true, "autocomplete": "current-password"},
 											})
+											@fieldRefusal("pw-current-error", v.FormError(auth.PasswordForm, "current"))
 										</div>
 										<div class="goen-field">
 											@widget.Label(widget.LabelProps{For: "pw-new"}) {
 												{ i18n.T(ctx, i18n.KeyFieldNewPassword) }
 											}
 											@widget.Input(widget.FieldProps{
-												ID:   "pw-new",
-												Name: "password",
-												Type: "password",
-												Attrs: templ.Attributes{
-													"required":         true,
-													"minlength":        "10",
-													"autocomplete":     "new-password",
-													"aria-describedby": "pw-hint",
-												},
+												ID:        "pw-new",
+												Name:      "password",
+												Type:      "password",
+												Invalid:   v.FormInvalid(auth.PasswordForm, "password"),
+												Describes: v.newPasswordDescribedBy(),
+												Attrs:     v.newPasswordAttrs(),
 											})
-											<p class="goen-account__hint" id="pw-hint">{ i18n.T(ctx, i18n.KeyPasswordHintEndsSessions) }</p>
+											<p class="goen-account__hint" id="pw-new-example">{ i18n.T(ctx, i18n.KeyPasswordHintEndsSessions) }</p>
+											@fieldRefusal("pw-new-error", v.FormError(auth.PasswordForm, "password"))
 										</div>
 										<div class="goen-field">
 											@widget.Label(widget.LabelProps{For: "pw-confirm"}) {
 												{ i18n.T(ctx, i18n.KeyFieldConfirmNewPassword) }
 											}
 											@widget.Input(widget.FieldProps{
-												ID:    "pw-confirm",
-												Name:  "confirm",
-												Type:  "password",
-												Attrs: templ.Attributes{"required": true, "autocomplete": "new-password"},
+												ID:        "pw-confirm",
+												Name:      "confirm",
+												Type:      "password",
+												Invalid:   v.FormInvalid(auth.PasswordForm, "confirm"),
+												Describes: "pw-confirm-error",
+												Attrs:     templ.Attributes{"required": true, "autocomplete": "new-password"},
 											})
+											@fieldRefusal("pw-confirm-error", v.FormError(auth.PasswordForm, "confirm"))
 										</div>
 									</div>
 									<div class="goen-account__actions">
@@ -539,20 +585,25 @@ templ Account(p frame.Page, v *View) {
 					</form>
 					<section class="goen-card goen-account__section goen-account__section--danger" aria-labelledby="erase-heading">
 						<h2 class="goen-account__heading" id="erase-heading">{ i18n.T(ctx, i18n.KeyEraseAccount) }</h2>
+						@formRefusal(v, auth.EraseForm)
 						<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEraseWarning) }</p>
-						<details class="goen-account__disclosure">
+						<details class="goen-account__disclosure" open?={ v.RefusedIn(auth.EraseForm) }>
 							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyEraseDisclosure) }</summary>
-							<form class="goen-account__form" method="post" action="/account/erase">
+							<form class="goen-account__form" method="post" action="/account/erase#erase-heading">
 								<div class="goen-field">
 									@widget.Label(widget.LabelProps{For: "erase-confirm"}) {
 										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyEraseConfirmLabel), v.Email) }
 									}
 									@widget.Input(widget.FieldProps{
-										ID:    "erase-confirm",
-										Name:  "confirm",
-										Type:  "text",
-										Attrs: templ.Attributes{"required": true, "autocomplete": "off"},
+										ID:        "erase-confirm",
+										Name:      "confirm",
+										Type:      "text",
+										Value:     v.FormValue(auth.EraseForm, "confirm"),
+										Invalid:   v.FormInvalid(auth.EraseForm, "confirm"),
+										Describes: "erase-confirm-error",
+										Attrs:     templ.Attributes{"required": true, "autocomplete": "off"},
 									})
+									@fieldRefusal("erase-confirm-error", v.FormError(auth.EraseForm, "confirm"))
 								</div>
 								<div class="goen-account__actions">
 									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleDanger}, "submit") {

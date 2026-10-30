@@ -11673,6 +11673,46 @@ func (q *Queries) OpenRefunds(ctx context.Context, limit int32) ([]OpenRefundsRo
 	return items, nil
 }
 
+const openReturnOrders = `-- name: OpenReturnOrders :many
+SELECT o.order_number
+FROM orders o
+WHERE o.user_id = $1
+  AND EXISTS (
+      SELECT 1 FROM return_requests rr
+      WHERE rr.order_id = o.id
+        AND (rr.status = 'requested'
+             OR (rr.status = 'approved'
+                 AND rr.goods_refund_cents + rr.shipping_refund_cents > 0
+                 AND NOT EXISTS (SELECT 1 FROM order_events e
+                                 WHERE e.return_request_id = rr.id AND e.kind = 'refunded'))))
+ORDER BY o.placed_at, o.id
+LIMIT 2
+`
+
+// The account's own orders that have a return still being processed: one nobody
+// has decided, or an approved one whose refund has not settled, which is the
+// opposite of what the order history counts as returned (OrderReturns). Two rows
+// are enough to tell one order from several.
+func (q *Queries) OpenReturnOrders(ctx context.Context, userID uuid.NullUUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, openReturnOrders, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var order_number string
+		if err := rows.Scan(&order_number); err != nil {
+			return nil, err
+		}
+		items = append(items, order_number)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const openSessionsForOrder = `-- name: OpenSessionsForOrder :many
 SELECT p.provider_ref
 FROM payments p

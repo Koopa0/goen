@@ -7,6 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/loyalty"
@@ -134,9 +135,20 @@ type View struct {
 	GoogleLinked               bool
 	CanUnlinkGoogle            bool
 	PaymentsEnabled            bool
-	// Both are nil on a plain visit.
+	// Each pair is nil on a plain visit.
 	AddressDraft  *AddressDraft
 	AddressErrors map[string]string
+	ProfileDraft  *ProfileDraft
+	ProfileErrors map[string]string
+	// Refusal is the email, password or erase form that auth refused, and
+	// ReturnOrder the order its notice names, if it names one.
+	Refusal     *auth.AccountRefusal
+	ReturnOrder string
+}
+
+// ProfileDraft is what was typed into the profile form.
+type ProfileDraft struct {
+	Name, Phone string
 }
 
 type AddressDraft struct {
@@ -144,6 +156,65 @@ type AddressDraft struct {
 
 	Label, Name, Phone, PostalCode, City, District, Street string
 	Default                                                bool
+}
+
+func (v *View) ProfileValue(field string) string {
+	name, phone := v.Name, v.Phone
+	if d := v.ProfileDraft; d != nil {
+		name, phone = d.Name, d.Phone
+	}
+	switch field {
+	case "name":
+		return name
+	case "phone":
+		return phone
+	}
+	return ""
+}
+
+func (v *View) ProfileInvalid(field string) bool { return v.ProfileErrors[field] != "" }
+
+func (v *View) ProfileErr(field string) string { return v.ProfileErrors[field] }
+
+// RefusedIn reports whether auth refused a request from form: its section opens
+// and says why.
+func (v *View) RefusedIn(form auth.AccountForm) bool {
+	return v.Refusal != nil && v.Refusal.Form == form
+}
+
+// FormValue is what was typed into the refused form's control, or "".
+func (v *View) FormValue(form auth.AccountForm, field string) string {
+	if !v.RefusedIn(form) {
+		return ""
+	}
+	return v.Refusal.Values[field]
+}
+
+func (v *View) FormInvalid(form auth.AccountForm, field string) bool {
+	return v.FormError(form, field) != ""
+}
+
+func (v *View) FormError(form auth.AccountForm, field string) string {
+	if !v.RefusedIn(form) {
+		return ""
+	}
+	return v.Refusal.Errors[field]
+}
+
+// newPasswordDescribedBy keeps the hint a refusal follows.
+func (v *View) newPasswordDescribedBy() string {
+	if v.FormInvalid(auth.PasswordForm, "password") {
+		return "pw-new-example pw-new-error"
+	}
+	return "pw-new-example"
+}
+
+func (v *View) newPasswordAttrs() templ.Attributes {
+	attrs := templ.Attributes{"required": true, "minlength": "10", "autocomplete": "new-password"}
+	if !v.FormInvalid(auth.PasswordForm, "password") {
+		attrs["aria-describedby"] = v.newPasswordDescribedBy()
+	}
+	return attrs
 }
 
 func (v *View) AddressOpen() bool { return v.AddressDraft != nil }
@@ -156,7 +227,7 @@ func (v *View) AddressAction() string {
 	if v.AddressEditing() {
 		return "/account/addresses/update#addresses-heading"
 	}
-	return "/account/addresses"
+	return "/account/addresses#addresses-heading"
 }
 
 func (v *View) AddressID() string {
@@ -234,5 +305,12 @@ func (v *View) HasNotice() bool { return v.Notice.Text != "" }
 
 func googlePasswordSetupText(ctx context.Context) (before, after string) {
 	before, after, _ = strings.Cut(i18n.T(ctx, i18n.KeyGoogleOnlyMethod), "%s")
+	return before, after
+}
+
+// openReturnText is the sentence that names the order whose return is still
+// being processed, split where the order's number, a link, goes.
+func openReturnText(ctx context.Context) (before, after string) {
+	before, after, _ = strings.Cut(i18n.T(ctx, i18n.KeyEraseOpenReturnNamed), "%s")
 	return before, after
 }

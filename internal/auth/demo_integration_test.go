@@ -4,6 +4,7 @@ package auth_test
 
 import (
 	"errors"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -201,11 +202,11 @@ func TestStore_EnsureDemoAccountStaff(t *testing.T) {
 }
 
 // TestHandler_DemoAccountFixed: with a real store, the demo account is refused
-// a change of address, a resend, a change of password and erasure (303 to
-// /account?demo=fixed), nothing is mailed, and the sign-in page prints its
-// credentials, while the profile and address saves still work and an ordinary
-// account keeps every change. It drives the handlers through Authenticate,
-// signed in as the demo account and as an ordinary one.
+// a change of address, a resend, a change of password and erasure (422 on the
+// section of the account page it came from), nothing is mailed, and the
+// sign-in page prints its credentials, while the profile and address saves
+// still work and an ordinary account keeps every change. It drives the handlers
+// through Authenticate, signed in as the demo account and as an ordinary one.
 func TestHandler_DemoAccountFixed(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
@@ -214,7 +215,7 @@ func TestHandler_DemoAccountFixed(t *testing.T) {
 	if err := s.EnsureDemoAccount(ctx, d); err != nil {
 		t.Fatalf("ensure: %v", err)
 	}
-	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
+	h := refuseOnAccountPage(auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil), pool)
 	h.OfferDemoAccount(d)
 	b := changeBrowser{t: t, h: h}
 	accounts := accountPage(pool)
@@ -228,18 +229,23 @@ func TestHandler_DemoAccountFixed(t *testing.T) {
 	demo := b.signIn(demoAddr)
 	moveTo := "elsewhere-" + uuid.NewString() + "@example.com"
 	refusals := map[string]struct {
-		serve http.HandlerFunc
-		form  url.Values
+		serve   http.HandlerFunc
+		form    url.Values
+		section string
 	}{
-		"change the address":     {h.ChangeEmail, url.Values{"current": {sharedPassword}, "email": {moveTo}}},
-		"resend an address link": {h.ResendVerification, url.Values{}},
-		"change the password":    {h.ChangePassword, url.Values{"current": {sharedPassword}, "password": {"a password of my own"}, "confirm": {"a password of my own"}}},
-		"delete the account":     {h.Erase, url.Values{"confirm": {demoAddr}}},
+		"change the address":     {h.ChangeEmail, url.Values{"current": {sharedPassword}, "email": {moveTo}}, "email"},
+		"resend an address link": {h.ResendVerification, url.Values{}, "email"},
+		"change the password":    {h.ChangePassword, url.Values{"current": {sharedPassword}, "password": {"a password of my own"}, "confirm": {"a password of my own"}}, "password"},
+		"delete the account":     {h.Erase, url.Values{"confirm": {demoAddr}}, "erase"},
 	}
 	for name, action := range refusals {
 		res := b.serve(action.serve, cartForm(ctx, "/account", action.form), demo)
-		if loc := res.Header().Get("Location"); res.Code != http.StatusSeeOther || loc != "/account?demo=fixed" {
-			t.Errorf("%s as the demo account answered %d to %q, want 303 to /account?demo=fixed", name, res.Code, loc)
+		body := res.Body.String()
+		if res.Code != http.StatusUnprocessableEntity || res.Header().Get("Location") != "" ||
+			!strings.Contains(body, `id="`+action.section+`-refusal"`) ||
+			!strings.Contains(body, html.EscapeString(i18n.T(ctx, i18n.KeyDemoAccountFixed))) {
+			t.Errorf("%s as the demo account answered %d to %q, want 422 saying so in the %s section",
+				name, res.Code, res.Header().Get("Location"), action.section)
 		}
 	}
 	if _, err := s.Authenticate(ctx, demoAddr, sharedPassword); err != nil {
@@ -255,21 +261,16 @@ func TestHandler_DemoAccountFixed(t *testing.T) {
 	if mail != 0 {
 		t.Errorf("the refused changes queued %d messages", mail)
 	}
-	notice := b.serve(accounts.Overview, httptest.NewRequestWithContext(ctx, http.MethodGet, "/account?demo=fixed", http.NoBody), demo)
-	if want := i18n.T(ctx, i18n.KeyDemoAccountFixed); !strings.Contains(notice.Body.String(), want) {
-		t.Errorf("the account page after a refusal does not say %q (status %d)", want, notice.Code)
-	}
-
 	for name, action := range map[string]struct {
 		serve http.HandlerFunc
 		form  url.Values
 		want  string
 	}{
-		"save the profile": {accounts.UpdateProfile, url.Values{"name": {"訪客"}, "phone": {"0912345678"}}, "/account?saved=1"},
+		"save the profile": {accounts.UpdateProfile, url.Values{"name": {"訪客"}, "phone": {"0912345678"}}, "/account?saved=1#account-notice"},
 		"add an address": {accounts.AddAddress, url.Values{
 			"label": {"家"}, "name": {"訪客"}, "phone": {"0912345678"}, "postal_code": {"100"},
 			"city": {"臺北市"}, "district": {"中正區"}, "street": {"重慶南路一段 122 號"},
-		}, "/account?saved=1"},
+		}, "/account?saved=1#addresses-heading"},
 	} {
 		res := b.serve(action.serve, cartForm(ctx, "/account", action.form), demo)
 		if loc := res.Header().Get("Location"); res.Code != http.StatusSeeOther || loc != action.want {
@@ -280,7 +281,7 @@ func TestHandler_DemoAccountFixed(t *testing.T) {
 	ownAddr := "demo-neighbour-" + uuid.NewString() + "@example.com"
 	registerProved(t, s, ownAddr)
 	own := b.signIn(ownAddr)
-	if res := b.askToMove(own, "moved-"+uuid.NewString()+"@example.com"); res.Header().Get("Location") != "/account?address=m%2A%2A%2A%40example.com&email=sent" {
+	if res := b.askToMove(own, "moved-"+uuid.NewString()+"@example.com"); res.Header().Get("Location") != "/account?address=m%2A%2A%2A%40example.com&email=sent#account-notice" {
 		t.Errorf("an ordinary account asking to move answered %d to %q", res.Code, res.Header().Get("Location"))
 	}
 	changed := b.serve(h.ChangePassword, cartForm(ctx, "/account/password", url.Values{

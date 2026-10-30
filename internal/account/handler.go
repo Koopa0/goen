@@ -52,12 +52,21 @@ func (h *Handler) Routes(mux *http.ServeMux, requireUser func(http.HandlerFunc) 
 	mux.HandleFunc("POST /account/addresses/delete", requireUser(h.DeleteAddress))
 }
 
-// Refuse answers with the account page, its notice saying why, and 422: a
-// request made from the page is refused on the page. auth's credential changes
+// Refuse answers with the account page and 422: a request made from the page is
+// refused on the page, in the section it came from. auth's credential changes
 // answer this way through [auth.Handler.RefuseOnAccountPage].
-func (h *Handler) Refuse(w http.ResponseWriter, r *http.Request, notice string) {
+func (h *Handler) Refuse(w http.ResponseWriter, r *http.Request, refusal auth.AccountRefusal) {
+	returnOrder := ""
+	if u, ok := user.FromContext(r.Context()); ok && refusal.OpenReturn {
+		var err error
+		if returnOrder, err = h.store.OpenReturnOrder(r.Context(), u.ID); err != nil {
+			// The refusal stands without the number.
+			h.log.WarnContext(r.Context(), "read open return", "error", err)
+		}
+	}
 	h.overview(w, r, http.StatusUnprocessableEntity, func(v *View) {
-		v.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: notice}
+		v.Refusal = &refusal
+		v.ReturnOrder = returnOrder
 	})
 }
 
@@ -109,8 +118,6 @@ func accountNotice(r *http.Request) widget.Result {
 		return widget.Result{Outcome: widget.OutcomeDone, Text: i18n.T(ctx, i18n.KeyAccountWelcome)}
 	case q.Get("saved") == "1":
 		return widget.Result{Outcome: widget.OutcomeDone, Text: i18n.T(ctx, i18n.KeyProfileSaved)}
-	case q.Get("profile") == "invalid":
-		return widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(ctx, i18n.KeyProfileInvalid)}
 	}
 	return auth.Notice(r)
 }
@@ -134,17 +141,22 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	if err := h.store.UpdateProfile(r.Context(), u.ID,
-		r.PostFormValue("name"), r.PostFormValue("phone")); err != nil {
-		if errors.Is(err, ErrInvalidInput) {
-			http.Redirect(w, r, "/account?profile=invalid", http.StatusSeeOther)
-			return
-		}
+	name, phone := r.PostFormValue("name"), r.PostFormValue("phone")
+	if errs := profileRefusals(normalizeProfile(name, phone)); len(errs) > 0 {
+		h.overview(w, r, http.StatusUnprocessableEntity, func(v *View) {
+			v.ProfileDraft = &ProfileDraft{Name: name, Phone: phone}
+			v.ProfileErrors = formtext.FieldMessages(r.Context(), errs)
+		})
+		return
+	}
+	if err := h.store.UpdateProfile(r.Context(), u.ID, name, phone); err != nil {
 		h.log.ErrorContext(r.Context(), "update profile", "error", err)
 		h.serverError(w, r)
 		return
 	}
-	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
+	// The form posts to its section, which a redirect without a fragment
+	// keeps; the sentence it sends back is at the top.
+	http.Redirect(w, r, "/account?saved=1#account-notice", http.StatusSeeOther)
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
@@ -184,7 +196,7 @@ func (h *Handler) AddAddress(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/account?saved=1#addresses-heading", http.StatusSeeOther)
 }
 
 func (h *Handler) refuseAddress(w http.ResponseWriter, r *http.Request, a *Address, errs map[string]string, notice string) {

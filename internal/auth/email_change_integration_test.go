@@ -199,8 +199,9 @@ func TestHandler_VerifyChangeLinkOwn(t *testing.T) {
 // followed after promotion.
 func TestHandler_ChangeEmailBackOffice(t *testing.T) {
 	ctx := t.Context()
-	s := auth.NewStore(accountStorePool(t, "change-staff"))
-	b := changeBrowser{t: t, h: auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)}
+	appPool := accountStorePool(t, "change-staff")
+	s := auth.NewStore(appPool)
+	b := changeBrowser{t: t, h: refuseOnAccountPage(auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil), appPool)}
 	promote := func(u user.User) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, `UPDATE users SET role = 'staff' WHERE id = $1`, u.ID); err != nil {
@@ -214,8 +215,9 @@ func TestHandler_ChangeEmailBackOffice(t *testing.T) {
 		target := "change-staff-to-" + uuid.NewString() + "@example.com"
 
 		res := b.askToMove(b.signIn(staff.Email), target)
-		if loc := res.Header().Get("Location"); res.Code != http.StatusSeeOther || loc != "/account?email=staff" {
-			t.Errorf("ChangeEmail for a staff account = %d Location %q, want 303 /account?email=staff", res.Code, loc)
+		if body := res.Body.String(); res.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `id="email-refusal"`) ||
+			!strings.Contains(body, html.EscapeString(i18n.T(ctx, i18n.KeyEmailStaffFixed))) {
+			t.Errorf("ChangeEmail for a staff account = %d, want 422 with the back-office refusal in the email section", res.Code)
 		}
 		var queued int
 		if err := pool.QueryRow(ctx, `SELECT count(*) FROM outbox_messages WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
@@ -273,7 +275,7 @@ func TestHandler_ChangeEmailTakenAddress(t *testing.T) {
 	if takenRec.Code != http.StatusSeeOther || freeRec.Code != takenRec.Code {
 		t.Fatalf("statuses taken/free = %d/%d, want 303 for both", takenRec.Code, freeRec.Code)
 	}
-	if loc := freeRec.Header().Get("Location"); loc != "/account?address=c%2A%2A%2A%40example.com&email=sent" {
+	if loc := freeRec.Header().Get("Location"); loc != "/account?address=c%2A%2A%2A%40example.com&email=sent#account-notice" {
 		t.Errorf("a change lands at %q, want the masked destination at /account", loc)
 	}
 	if diff := cmp.Diff(takenRec.Header(), freeRec.Header()); diff != "" {
@@ -472,7 +474,7 @@ func TestHandler_ChangeEmailAddressBound(t *testing.T) {
 			req.AddCookie(session)
 			rec := httptest.NewRecorder()
 			h.Authenticate(route).ServeHTTP(rec, req)
-			if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/account?address=c%2A%2A%2A%40example.com&email=sent" {
+			if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/account?address=c%2A%2A%2A%40example.com&email=sent#account-notice" {
 				t.Fatalf("a change request answered %d to %q, want 303 to the sent notice",
 					rec.Code, rec.Header().Get("Location"))
 			}

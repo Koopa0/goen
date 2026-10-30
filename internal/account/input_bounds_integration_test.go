@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -35,12 +37,25 @@ func TestHandler_UpdateProfileBounds(t *testing.T) {
 		return out
 	}
 
-	profile := post("/account/profile", url.Values{
-		"name": {strings.Repeat("名", 61)}, "phone": {"0912345678"},
-	}, h.UpdateProfile)
-	if profile.Code != http.StatusSeeOther || profile.Header().Get("Location") != "/account?profile=invalid" {
-		t.Errorf("overlong raw profile = %d Location %q, want 303 invalid",
-			profile.Code, profile.Header().Get("Location"))
+	longName, longPhone := strings.Repeat("名", 61), strings.Repeat("1", 31)
+	profile := post("/account/profile", url.Values{"name": {longName}, "phone": {"0912345678"}}, h.UpdateProfile)
+	if profile.Code != http.StatusUnprocessableEntity {
+		t.Errorf("overlong raw name = %d, want 422", profile.Code)
+	}
+	uitest.AssertRefusedInput(t, profile.Body.String(), "acct-name", longName)
+	if got := uitest.InputAttribute(t, uitest.InputElementByID(t, profile.Body.String(), "acct-phone"), "value"); got != "0912345678" {
+		t.Errorf("the phone beside a refused name shows %q, want the typed 0912345678", got)
+	}
+	phone := post("/account/profile", url.Values{"name": {"王小明"}, "phone": {longPhone}}, h.UpdateProfile)
+	if phone.Code != http.StatusUnprocessableEntity {
+		t.Errorf("overlong raw phone = %d, want 422", phone.Code)
+	}
+	uitest.AssertRefusedInput(t, phone.Body.String(), "acct-phone", longPhone)
+	if want := i18n.T(ctx, i18n.KeyPhoneMalformed); !strings.Contains(phone.Body.String(), ">"+want+"<") {
+		t.Errorf("the refused phone does not say %q under its field", want)
+	}
+	if got := uitest.InputAttribute(t, uitest.InputElementByID(t, phone.Body.String(), "acct-name"), "value"); got != "王小明" {
+		t.Errorf("the name beside a refused phone shows %q, want the typed 王小明", got)
 	}
 	if err := s.UpdateProfile(ctx, u.ID, "測試", strings.Repeat("1", 31)); !errors.Is(err, account.ErrInvalidInput) {
 		t.Errorf("direct overlong profile = %v, want ErrInvalidInput", err)

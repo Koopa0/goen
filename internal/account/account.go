@@ -6,8 +6,11 @@ package account
 
 import (
 	"errors"
+	"strings"
 	"unicode/utf8"
 
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 )
@@ -24,8 +27,27 @@ const (
 	maxAddressLabelRunes = 30
 )
 
-func profileInputValid(name, phone string) bool {
-	return utf8.RuneCountInString(name) <= user.MaxNameRunes &&
-		utf8.RuneCountInString(phone) <= maxPhoneRunes &&
-		!formtext.HasControlChars(name) && !formtext.HasControlChars(phone)
+// normalizeProfile is the profile as it is kept: trimmed, with the phone
+// folded to the width the delivery forms keep.
+func normalizeProfile(name, phone string) (cleanName, cleanPhone string) {
+	return strings.TrimSpace(name), strings.TrimSpace(formtext.FoldWidth(phone))
+}
+
+// profileRefusals holds a normalized profile to the form's own bounds. A phone
+// that is too long reads as not being one, as it does on the delivery forms.
+func profileRefusals(name, phone string) []formtext.FieldRefusal {
+	var errs []formtext.FieldRefusal
+	if utf8.RuneCountInString(name) > user.MaxNameRunes {
+		errs = append(errs, formtext.FieldRefusal{Field: "name", MessageKey: i18n.KeyNameTooLong})
+	}
+	if formtext.HasControlChars(name) {
+		errs = append(errs, formtext.FieldRefusal{Field: "name", MessageKey: i18n.KeyFieldHasControlChars})
+	}
+	if utf8.RuneCountInString(phone) > maxPhoneRunes {
+		errs = append(errs, formtext.FieldRefusal{Field: "phone", MessageKey: fieldrule.Phone.Message})
+	}
+	if formtext.HasControlChars(phone) {
+		errs = append(errs, formtext.FieldRefusal{Field: "phone", MessageKey: i18n.KeyFieldHasControlChars})
+	}
+	return errs
 }

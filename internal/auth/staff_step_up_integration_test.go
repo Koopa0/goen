@@ -101,7 +101,7 @@ func TestHandler_StepUpProfileEdit(t *testing.T) {
 	res := httptest.NewRecorder()
 	h.Authenticate(http.HandlerFunc(accountPage(appPool).UpdateProfile)).ServeHTTP(res, req)
 
-	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/account?saved=1" {
-		t.Errorf("profile edit = %d %q, want 303 /account?saved=1", res.Code, res.Header().Get("Location"))
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/account?saved=1#account-notice" {
+		t.Errorf("profile edit = %d %q, want 303 /account?saved=1#account-notice", res.Code, res.Header().Get("Location"))
 	}
 }

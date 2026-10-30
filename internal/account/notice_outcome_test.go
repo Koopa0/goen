@@ -26,10 +26,6 @@ func TestAccountNoticeLooksLikeItsOutcome(t *testing.T) {
 		{"unlinked=1", "goen-notice--accent", "status"},
 		{"other_devices=signed_out", "goen-notice--accent", "status"},
 		{"email=sent", "goen-notice--accent", "status"},
-		{"password=wrong", "goen-notice--danger", "alert"},
-		{"password=invalid", "goen-notice--danger", "alert"},
-		{"profile=invalid", "goen-notice--danger", "alert"},
-		{"erase=admin", "goen-notice--danger", "alert"},
 		{"lastmethod=1", "goen-notice--danger", "alert"},
 	} {
 		for _, locale := range i18n.Locales() {

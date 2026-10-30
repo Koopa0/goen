@@ -22,13 +22,15 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_MutationAuthFailure: ChangePassword and ChangeEmail answer a
-// wrong current password with 303 /account?password=wrong and no error log, but
-// a failed credential read with a generic 500 page that leaks neither the
-// password nor the cause and one ERROR record that names the cause without the
-// password; either way the password, address, session and cookie are untouched.
+// wrong current password with 422 and the message under that field and no error
+// log, but a failed credential read with a generic 500 page that leaks neither
+// the password nor the cause and one ERROR record that names the cause without
+// the password; either way the password, address, session and cookie are
+// untouched.
 func TestHandler_MutationAuthFailure(t *testing.T) {
 	type accountMutationFacts struct {
 		OriginalPassword, OriginalEmail, NoLastLogin bool
@@ -58,7 +60,7 @@ func TestHandler_MutationAuthFailure(t *testing.T) {
 	auth.SetSessionCookie(cookies, token, false)
 	cookie := cookies.Result().Cookies()[0]
 	var diagnostics bytes.Buffer
-	h := auth.NewHandler(s, nil, nil, slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, nil)
+	h := refuseOnAccountPage(auth.NewHandler(s, nil, nil, slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, nil), owner)
 	routes := func(mutationHandler *auth.Handler) *http.ServeMux {
 		mux := http.NewServeMux()
 		mux.Handle("POST /account/password", h.Authenticate(mutationHandler.RequireUser(mutationHandler.ChangePassword)))
@@ -98,9 +100,7 @@ func TestHandler_MutationAuthFailure(t *testing.T) {
 					if backendFailure {
 						assertMutationAuthenticationFailure(t, ctx, response, diagnostics.Bytes(), password)
 					} else {
-						if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/account?password=wrong" {
-							t.Errorf("wrong password = %d %q, want 303 /account?password=wrong", response.Code, response.Header().Get("Location"))
-						}
+						assertWrongPasswordRefused(t, ctx, response, path)
 						if diagnostics.Len() != 0 {
 							t.Errorf("wrong password logged an operational error: %s", diagnostics.String())
 						}
@@ -144,6 +144,21 @@ func mutationAuthenticationPool(t *testing.T, owner *pgxpool.Pool) *pgxpool.Pool
 		t.Fatalf("current_user = %q, want store: %v", role, err)
 	}
 	return p
+}
+
+// assertWrongPasswordRefused holds a wrong current password to 422 on the
+// account page, with the message under the current-password field of the form
+// posted to path.
+func assertWrongPasswordRefused(t *testing.T, ctx context.Context, response *httptest.ResponseRecorder, path string) {
+	t.Helper()
+	if response.Code != http.StatusUnprocessableEntity || response.Header().Get("Location") != "" {
+		t.Errorf("wrong password = %d %q, want 422 on the account page", response.Code, response.Header().Get("Location"))
+	}
+	field := map[string]string{"/account/password": "pw-current", "/account/email": "email-current"}[path]
+	uitest.AssertRefusedInput(t, response.Body.String(), field, "")
+	if want := html.EscapeString(i18n.T(ctx, i18n.KeyWrongCurrentPassword)); !strings.Contains(response.Body.String(), ">"+want+"<") {
+		t.Errorf("wrong password does not say %q under %s", want, field)
+	}
 }
 
 func assertMutationAuthenticationFailure(t *testing.T, ctx context.Context, response *httptest.ResponseRecorder, diagnostic []byte, password string) {

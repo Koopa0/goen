@@ -44,11 +44,6 @@ var (
 
 	KeyProfileSaved = key("account.notice.saved", Message{ZhHant: "資料已更新。", En: "Saved."})
 
-	KeyProfileInvalid = key("account.notice.profile.invalid", Message{
-		ZhHant: "姓名或電話過長，或含有不允許的字元。",
-		En:     "The name or phone is too long, or contains a character that is not allowed.",
-	})
-
 	KeyCartMergeRecoveryTitle = key("account.cart.merge.title", Message{
 		ZhHant: "購物車沒有合在一起",
 		En:     "Your carts weren't combined",

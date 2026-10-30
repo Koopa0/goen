@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -107,30 +108,45 @@ func TestHandler_SignInPageDemoAccount(t *testing.T) {
 // erasure, reset link) and refuse no other account. Every visitor holds this
 // account's password, so none may change how the next one signs in, end the
 // account, or send mail on its behalf. Each refusal comes before the store is
-// asked anything, which the dead store here would fail.
+// asked anything, which the dead store here would fail, and is answered on the
+// section of the account page the change came from.
 func TestHandler_DemoAccountRefusals(t *testing.T) {
 	h := demoHandler(t)
+	var refusal *AccountRefusal
+	h.RefuseOnAccountPage(func(w http.ResponseWriter, _ *http.Request, r AccountRefusal) {
+		refusal = &r
+		w.WriteHeader(http.StatusUnprocessableEntity)
+	})
 	form := url.Values{
 		"current": {demoPassword}, "password": {"a new long password"}, "email": {"elsewhere@goen.example"},
 	}
-	for name, serve := range map[string]http.HandlerFunc{
-		"change the address":     h.ChangeEmail,
-		"resend an address link": h.ResendVerification,
-		"change the password":    h.ChangePassword,
-		"delete the account":     h.Erase,
+	for name, door := range map[string]struct {
+		serve http.HandlerFunc
+		form  AccountForm
+	}{
+		"change the address":     {h.ChangeEmail, EmailForm},
+		"resend an address link": {h.ResendVerification, EmailForm},
+		"change the password":    {h.ChangePassword, PasswordForm},
+		"delete the account":     {h.Erase, EraseForm},
 	} {
 		for who, addr := range map[string]string{"the demo account": "Demo@Goen.example", "another account": "own@goen.example"} {
 			t.Run(name+" as "+who, func(t *testing.T) {
+				refusal = nil
 				r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account",
 					strings.NewReader(form.Encode()))
 				r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				r = r.WithContext(user.NewContext(r.Context(), user.User{ID: "00000000-0000-0000-0000-000000000001", Email: addr, Role: user.RoleCustomer}))
 				res := httptest.NewRecorder()
-				serve(res, r)
-				refused := res.Code == http.StatusSeeOther && res.Header().Get("Location") == "/account?demo=fixed"
+				door.serve(res, r)
+				refused := refusal != nil
 				if wantRefused := who == "the demo account"; refused != wantRefused {
-					t.Errorf("answered %d to %q; refused as the demo account = %v, want %v",
-						res.Code, res.Header().Get("Location"), refused, wantRefused)
+					t.Fatalf("answered %d; refused as the demo account = %v, want %v", res.Code, refused, wantRefused)
+				}
+				if refused {
+					want := AccountRefusal{Form: door.form, Notice: i18n.T(t.Context(), i18n.KeyDemoAccountFixed)}
+					if res.Code != http.StatusUnprocessableEntity || !reflect.DeepEqual(*refusal, want) {
+						t.Errorf("refusal = %d %+v, want 422 %+v", res.Code, *refusal, want)
+					}
 				}
 			})
 		}

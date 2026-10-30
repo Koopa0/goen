@@ -153,8 +153,8 @@ func (s *Store) UpdateProfile(ctx context.Context, userID, name, phone string) e
 	if err != nil {
 		return fmt.Errorf("parse user id: %w", err)
 	}
-	name, phone = strings.TrimSpace(name), strings.TrimSpace(formtext.FoldWidth(phone))
-	if !profileInputValid(name, phone) {
+	name, phone = normalizeProfile(name, phone)
+	if len(profileRefusals(name, phone)) > 0 {
 		return ErrInvalidInput
 	}
 	if err := s.q.UpdateProfile(ctx, db.UpdateProfileParams{
@@ -163,6 +163,25 @@ func (s *Store) UpdateProfile(ctx context.Context, userID, name, phone string) e
 		return fmt.Errorf("update profile: %w", err)
 	}
 	return nil
+}
+
+// OpenReturnOrder is the number of the account's one order with a return still
+// being processed, or "" when it has none or several. erase_user alone decides
+// that a return stands in the way, by an exposure the store role cannot read,
+// so a return is named only when it is the one candidate.
+func (s *Store) OpenReturnOrder(ctx context.Context, userID string) (string, error) {
+	id, err := uuid.Parse(userID)
+	if err != nil {
+		return "", fmt.Errorf("parse user id: %w", err)
+	}
+	numbers, err := s.q.OpenReturnOrders(ctx, uuid.NullUUID{UUID: id, Valid: true})
+	if err != nil {
+		return "", fmt.Errorf("read open returns: %w", err)
+	}
+	if len(numbers) != 1 {
+		return "", nil
+	}
+	return numbers[0], nil
 }
 
 func text(s string) pgtype.Text {

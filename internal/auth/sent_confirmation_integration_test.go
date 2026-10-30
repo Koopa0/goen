@@ -97,11 +97,13 @@ func TestHandler_ChangeEmailConfirmation(t *testing.T) {
 				req.AddCookie(cookie)
 				posted := httptest.NewRecorder()
 				serve.ServeHTTP(posted, req)
-				const want = "/account?address=t%2A%2A%2A%40example.com&email=sent"
+				const want = "/account?address=t%2A%2A%2A%40example.com&email=sent#account-notice"
 				if posted.Code != http.StatusSeeOther || posted.Header().Get("Location") != want {
 					t.Fatalf("email change = %d to %q, want 303 to %q", posted.Code, posted.Header().Get("Location"), want)
 				}
-				get := httptest.NewRequestWithContext(ctx, http.MethodGet, want, http.NoBody)
+				// A request line carries no fragment; the browser keeps it.
+				target, _, _ := strings.Cut(want, "#")
+				get := httptest.NewRequestWithContext(ctx, http.MethodGet, target, http.NoBody)
 				get.AddCookie(cookie)
 				shown := httptest.NewRecorder()
 				serve.ServeHTTP(shown, get)
@@ -129,7 +131,7 @@ func TestHandler_ChangeEmailConfirmation(t *testing.T) {
 				reenter.AddCookie(cookie)
 				opened := httptest.NewRecorder()
 				serve.ServeHTTP(opened, reenter)
-				if opened.Code != http.StatusOK || !strings.Contains(opened.Body.String(), `id="account-email-form" open`) || !strings.Contains(opened.Body.String(), `action="/account/email"`) {
+				if opened.Code != http.StatusOK || !strings.Contains(opened.Body.String(), `id="account-email-form" open`) || !strings.Contains(opened.Body.String(), `action="/account/email#email-heading"`) {
 					t.Error("email re-entry did not open the existing change form")
 				}
 			}

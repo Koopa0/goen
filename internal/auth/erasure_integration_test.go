@@ -107,11 +107,11 @@ func TestStore_ErasePersonalData(t *testing.T) {
 
 // TestStore_EraseOpenReturn: Erase refuses with ErrOpenReturn while a
 // store-credit-funded return is requested or approved and unpaid, the handler
-// answers 303 /account?erase=return and keeps the session, and erasure goes
-// through once the credit has settled. The account relation is what lets
-// compensate_return_with_credit identify the owner; erasing it while a return
-// is still owed credit would turn a valid return into an orphan the payout door
-// must refuse.
+// answers 422 on the account page naming and linking the order and keeps the
+// session, and erasure goes through once the credit has settled. The account
+// relation is what lets compensate_return_with_credit identify the owner;
+// erasing it while a return is still owed credit would turn a valid return into
+// an orphan the payout door must refuse.
 func TestStore_EraseOpenReturn(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
@@ -126,26 +126,37 @@ func TestStore_EraseOpenReturn(t *testing.T) {
 
 	// The browser gets a recoverable account-page outcome and keeps its session;
 	// an ordinary server error would hide the action the customer must wait for.
-	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
+	h := refuseOnAccountPage(auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil), pool)
 	form := url.Values{"confirm": {u.Email}}
 	token, err := s.StartSession(ctx, u.ID, "test", "192.0.2.1")
 	if err != nil {
 		t.Fatalf("start session: %v", err)
 	}
-	req := httptest.NewRequestWithContext(user.NewContext(ctx, u), http.MethodPost,
-		"/account/erase", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
-	out := httptest.NewRecorder()
-	h.Erase(out, req)
-	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/account?erase=return" {
-		t.Fatalf("erase handler = %d Location %q, want 303 /account?erase=return",
-			out.Code, out.Header().Get("Location"))
+	var number string
+	if err := pool.QueryRow(ctx, `SELECT order_number FROM orders WHERE id = $1`, orderID).Scan(&number); err != nil {
+		t.Fatalf("read the order number: %v", err)
 	}
-	if cookies := out.Result().Cookies(); len(cookies) != 0 {
-		t.Errorf("refused erasure changed %d cookie(s); the signed-in account must remain usable", len(cookies))
+	refuse := func(stage string) {
+		t.Helper()
+		req := httptest.NewRequestWithContext(user.NewContext(ctx, u), http.MethodPost,
+			"/account/erase", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
+		out := httptest.NewRecorder()
+		h.Erase(out, req)
+		if out.Code != http.StatusUnprocessableEntity || out.Header().Get("Location") != "" {
+			t.Fatalf("erase handler with a %s return = %d Location %q, want 422 on the account page",
+				stage, out.Code, out.Header().Get("Location"))
+		}
+		if want := `<a href="/orders/` + number + `">` + number + `</a>`; !strings.Contains(out.Body.String(), want) {
+			t.Errorf("the refusal for a %s return does not link %s", stage, number)
+		}
+		if cookies := out.Result().Cookies(); len(cookies) != 0 {
+			t.Errorf("refused erasure changed %d cookie(s); the signed-in account must remain usable", len(cookies))
+		}
+		assertOpenReturnErasureRolledBack(t, userID, orderID, creditAccountID)
 	}
-	assertOpenReturnErasureRolledBack(t, userID, orderID, creditAccountID)
+	refuse("requested")
 
 	// A decision does not settle the customer's money. Approval therefore stays
 	// protected until the exact credit-funded amount has landed in the ledger.
@@ -159,6 +170,7 @@ func TestStore_EraseOpenReturn(t *testing.T) {
 		t.Fatalf("erase with approved unpaid return = %v, want ErrOpenReturn", err)
 	}
 	assertOpenReturnErasureRolledBack(t, userID, orderID, creditAccountID)
+	refuse("approved")
 
 	var actorID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -576,10 +588,10 @@ func TestStore_EraseAdminConcurrent(t *testing.T) {
 }
 
 // TestHandler_EraseLastAdmin: Erase refuses the only administrator with
-// ErrLastAdmin, and the handler answers 303 /account?erase=admin and leaves the
-// session and the account alone. erase_user refuses the only administrator by
-// name, and the page must say so and keep the account usable rather than answer
-// a server error for a request the shop decided to refuse.
+// ErrLastAdmin, and the handler answers 422 saying so in the erase section and
+// leaves the session and the account alone. erase_user refuses the only
+// administrator by name, and the page must say so and keep the account usable
+// rather than answer a server error for a request the shop decided to refuse.
 func TestHandler_EraseLastAdmin(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
@@ -607,7 +619,7 @@ func TestHandler_EraseLastAdmin(t *testing.T) {
 		t.Fatalf("erasing the last administrator = %v, want ErrLastAdmin", err)
 	}
 
-	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
+	h := refuseOnAccountPage(auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil), pool)
 	token, err := s.StartSession(ctx, u.ID, "test", "192.0.2.1")
 	if err != nil {
 		t.Fatalf("start session: %v", err)
@@ -619,8 +631,10 @@ func TestHandler_EraseLastAdmin(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
 	out := httptest.NewRecorder()
 	h.Erase(out, req)
-	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/account?erase=admin" {
-		t.Fatalf("erase handler = %d Location %q, want 303 /account?erase=admin",
+	if out.Code != http.StatusUnprocessableEntity || out.Header().Get("Location") != "" ||
+		!strings.Contains(out.Body.String(), `id="erase-refusal"`) ||
+		!strings.Contains(out.Body.String(), html.EscapeString(i18n.T(ctx, i18n.KeyEraseLastAdmin))) {
+		t.Fatalf("erase handler = %d Location %q, want 422 saying so in the erase section",
 			out.Code, out.Header().Get("Location"))
 	}
 	if cookies := out.Result().Cookies(); len(cookies) != 0 {

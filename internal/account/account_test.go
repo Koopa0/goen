@@ -7,27 +7,32 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
 )
 
-// TestProfileInputValidBounds: the profile and saved-address validators accept
-// exactly what the rendered forms allow and refuse what exceeds their maxlength
-// (Address.Validate is read in the same test).
-func TestProfileInputValidBounds(t *testing.T) {
+// TestProfileRefusalsBounds: the profile and saved-address validators accept
+// exactly what the rendered forms allow and refuse what exceeds their maxlength,
+// each on its own field (Address.Validate is read in the same test).
+func TestProfileRefusalsBounds(t *testing.T) {
 	t.Parallel()
 
-	if !profileInputValid(strings.Repeat("名", user.MaxNameRunes), strings.Repeat("1", maxPhoneRunes)) {
-		t.Fatal("profile validator rejects the exact rendered maxlength")
+	if errs := profileRefusals(strings.Repeat("名", user.MaxNameRunes), strings.Repeat("1", maxPhoneRunes)); len(errs) != 0 {
+		t.Fatalf("profile validator rejects the exact rendered maxlength: %+v", errs)
 	}
 	for _, tt := range []struct {
 		name, phone string
+		field       string
+		key         i18n.Key
 	}{
-		{name: strings.Repeat("名", user.MaxNameRunes+1)},
-		{phone: strings.Repeat("1", maxPhoneRunes+1)},
-		{name: "name\nwith control"},
+		{name: strings.Repeat("名", user.MaxNameRunes+1), field: "name", key: i18n.KeyNameTooLong},
+		{phone: strings.Repeat("1", maxPhoneRunes+1), field: "phone", key: i18n.KeyPhoneMalformed},
+		{name: "name\nwith control", field: "name", key: i18n.KeyFieldHasControlChars},
+		{phone: "09\x0012", field: "phone", key: i18n.KeyFieldHasControlChars},
 	} {
-		if profileInputValid(tt.name, tt.phone) {
-			t.Errorf("profile accepted name=%q phone=%q outside its server bounds", tt.name, tt.phone)
+		errs := profileRefusals(tt.name, tt.phone)
+		if len(errs) != 1 || errs[0].Field != tt.field || errs[0].MessageKey != tt.key {
+			t.Errorf("profileRefusals(%q, %q) = %+v, want one refusal of %s with %s", tt.name, tt.phone, errs, tt.field, tt.key)
 		}
 	}
 
