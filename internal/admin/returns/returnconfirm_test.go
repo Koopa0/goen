@@ -52,3 +52,27 @@ func TestConfirmReturnRequiredMark(t *testing.T) {
 		}
 	}
 }
+
+// TestConfirmationBack: a decision asked from a return's own page goes back to
+// that page, from both the link and the final post.
+func TestConfirmationBack(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, own := range []bool{true, false} {
+		v := Confirmation{ID: "return-id", OrderNumber: "GO-1", Decision: "approved", OwnPage: own}
+		wantBack := "/admin/returns"
+		if own {
+			wantBack = "/admin/returns?request=return-id"
+		}
+		if got := v.Back(); got != wantBack {
+			t.Errorf("Confirmation{OwnPage: %t}.Back() = %q, want %q", own, got, wantBack)
+		}
+		html := renderComponent(t, ctx, ConfirmReturn(frame.Page{}, v))
+		if got := strings.Contains(html, `href="`+wantBack+`"`); !got {
+			t.Errorf("OwnPage=%t: the page does not link back to %q", own, wantBack)
+		}
+		if got := strings.Contains(html, `<input type="hidden" name="from" value="return">`); got != own {
+			t.Errorf("OwnPage=%t: the final post carries the flag = %t", own, got)
+		}
+	}
+}

@@ -104,6 +104,7 @@ templ Returns(p frame.Page, v View) {
 						} else if !r.Decided {
 							if (r.Goodwill() || r.Mixed()) && !r.mixedStatutoryApproval() {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.AssessAction()) }>
+									@ownPageField(v.OwnPage)
 									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetAssessHint) }</p>
 									if stamp := r.AssessmentStamp(ctx); stamp != "" {
 										<p class="goen-admin__meta">{ stamp }</p>
@@ -141,6 +142,7 @@ templ Returns(p frame.Page, v View) {
 							}
 							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
 								<input type="hidden" name="assessment_version" value={ r.AssessmentVersionText() }/>
+								@ownPageField(v.OwnPage)
 								<p class="ui-error-text" id={ "decision-" + r.ID + "-error" } role="alert">{ v.FieldRefusal(r.ID, "decision") }</p>
 								<div class="ui-field">
 									<label class="ui-label" for={ "res-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetResolution) }</label>
@@ -187,6 +189,7 @@ templ Returns(p frame.Page, v View) {
 							</form>
 						} else if r.CanRetryPayout() {
 							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
+								@ownPageField(v.OwnPage)
 								<p class="goen-admin__hint">{ i18n.T(ctx, r.PayoutHint()) }</p>
 								<input type="hidden" name="decision" value="approved"/>
 								<div class="goen-admin__decidebtns">
@@ -200,6 +203,7 @@ templ Returns(p frame.Page, v View) {
 						}
 						if r.AwaitingGoods() {
 							<form class="goen-admin__decide" id={ "inspect-" + r.ID } method="post" action={ templ.SafeURL(r.InspectAction() + "#inspect-" + r.ID) }>
+								@ownPageField(v.OwnPage)
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetInspectHint) }</p>
 								for _, l := range r.Lines {
 									<fieldset class="goen-admin__inspectline">
@@ -276,6 +280,7 @@ templ Returns(p frame.Page, v View) {
 						}
 						if r.CanComplete() {
 							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.CompleteAction()) }>
+								@ownPageField(v.OwnPage)
 								<p class="goen-admin__hint">
 									{ i18n.Count(ctx, i18n.KeyAdminRetRestockedUnits, int64(r.RestockedUnits()), r.RestockedUnitsText()) }
 								</p>
@@ -295,6 +300,13 @@ templ Returns(p frame.Page, v View) {
 			</ul>
 		}
 		@widget.ListPager(v.Bound)
+	}
+}
+
+// ownPageField tells the handler the form was posted from a return's own page.
+templ ownPageField(own bool) {
+	if own {
+		<input type="hidden" name={ fromField } value={ fromOwnPage }/>
 	}
 }
 

@@ -57,12 +57,14 @@ var notices = map[string]widget.NoticeEntry{
 func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 	var queue Queue
 	var err error
+	own := false
 	if raw := r.URL.Query().Get("request"); raw != "" {
 		request, parseErr := uuid.Parse(raw)
 		if parseErr != nil || request == uuid.Nil {
 			admin.NotFound(w, r, h.log)
 			return
 		}
+		own = true
 		queue, err = h.store.RequestQueue(r.Context(), request, r.URL.Query().Get(keyset.Param))
 	} else {
 		queue, err = h.store.Queue(r.Context(), r.URL.Query().Get(keyset.Param))
@@ -72,14 +74,21 @@ func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 		admin.ServerError(w, r, h.log)
 		return
 	}
+	// A page for one return that is not there is a link to nothing, not a queue
+	// with nobody waiting in it.
+	if own && len(queue.Rows) == 0 {
+		admin.NotFound(w, r, h.log)
+		return
+	}
 	for _, issue := range queue.payoutIssues {
 		h.log.ErrorContext(r.Context(), "return payout no longer fits its sources",
 			"return_id", issue.returnID, "error", issue.err)
 	}
 	view := View{
-		Bound:  queue.Bound,
-		Rows:   queue.Rows,
-		Notice: widget.NoticeFrom(r, notices),
+		Bound:   queue.Bound,
+		Rows:    queue.Rows,
+		OwnPage: own,
+		Notice:  widget.NoticeFrom(r, notices),
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Returns(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminQueueReturns)}, view))
@@ -101,27 +110,27 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		kind, _ := returns.ParseDecisionKind(r.PostFormValue("decision"))
-		http.Redirect(w, r, decidedTarget(kind), http.StatusSeeOther)
+		http.Redirect(w, r, answerAt(r, decidedNotice(kind)), http.StatusSeeOther)
 	case errors.Is(err, refund.ErrFollowUpIncomplete):
 		// The money is back, so the notice must not send staff to Stripe. Test
 		// this before ErrIncomplete, which it wraps.
 		h.log.ErrorContext(r.Context(), "decide return",
 			"return", r.PathValue("id"), "error", err)
-		http.Redirect(w, r, "/admin/returns?refundfollowup=1", http.StatusSeeOther)
+		http.Redirect(w, r, answerAt(r, "refundfollowup"), http.StatusSeeOther)
 	case errors.Is(err, refund.ErrIncomplete):
 		// A payout may preserve a database refusal as its cause, but once approval
 		// committed the operator needs the recovery notice, not the generic
 		// "decision refused" notice. Test this before ErrRefused.
 		h.log.ErrorContext(r.Context(), "decide return",
 			"return", r.PathValue("id"), "error", err)
-		http.Redirect(w, r, "/admin/returns?refundfailed=1", http.StatusSeeOther)
+		http.Redirect(w, r, answerAt(r, "refundfailed"), http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused), errors.Is(err, refund.ErrRefused):
 		h.log.WarnContext(r.Context(), "return decision refused",
 			"return", r.PathValue("id"), "error", err)
 		if h.renderReturnRefusal(w, r, err) {
 			return
 		}
-		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, answerAt(r, "refused"), http.StatusSeeOther)
 	default:
 		// Infrastructure errors which occurred before this became a durable payout
 		// recovery land here.
@@ -144,20 +153,20 @@ func (h *Handler) Assess(w http.ResponseWriter, r *http.Request) {
 		if h.renderReturnRefusal(w, r, formRefuse("decision", returns.RefuseIncomplete)) {
 			return
 		}
-		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, answerAt(r, "refused"), http.StatusSeeOther)
 		return
 	}
 	err := h.store.Assess(r.Context(), r.PathValue("id"), r.PostFormValue("basis"), facts)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/returns?assessed=1", http.StatusSeeOther)
+		http.Redirect(w, r, answerAt(r, "assessed"), http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "return assessment refused",
 			"return", r.PathValue("id"), "error", err)
 		if h.renderReturnRefusal(w, r, err) {
 			return
 		}
-		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, answerAt(r, "refused"), http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "assess return",
 			"return", r.PathValue("id"), "error", err)
@@ -220,7 +229,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	if !ok {
 		return false
 	}
-	queue, readErr := h.store.Queue(r.Context(), r.URL.Query().Get(keyset.Param))
+	queue, readErr := h.refusedQueue(r)
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refusal", "error", readErr)
 		admin.ServerError(w, r, h.log)
@@ -234,10 +243,12 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	if field == "basis" {
 		msg = i18n.T(r.Context(), i18n.KeyAdminRetErrBasis)
 	}
+	_, own := ownPage(r)
 	view := View{
-		Bound:  queue.Bound,
-		Rows:   queue.Rows,
-		Errors: map[string]string{r.PathValue("id") + "." + field: msg},
+		Bound:   queue.Bound,
+		Rows:    queue.Rows,
+		OwnPage: own,
+		Errors:  map[string]string{r.PathValue("id") + "." + field: msg},
 	}
 	for i := range view.Rows {
 		if view.Rows[i].ID != r.PathValue("id") {
@@ -257,17 +268,19 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 }
 
 func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i18n.Key) {
-	queue, readErr := h.store.Queue(r.Context(), r.URL.Query().Get(keyset.Param))
+	queue, readErr := h.refusedQueue(r)
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refused inspection", "error", readErr)
 		admin.ServerError(w, r, h.log)
 		return
 	}
 	id := r.PathValue("id")
+	_, own := ownPage(r)
 	view := View{
-		Bound:  queue.Bound,
-		Rows:   queue.Rows,
-		Errors: map[string]string{id + ".inspect": i18n.T(r.Context(), key)},
+		Bound:   queue.Bound,
+		Rows:    queue.Rows,
+		OwnPage: own,
+		Errors:  map[string]string{id + ".inspect": i18n.T(r.Context(), key)},
 	}
 	for i := range view.Rows {
 		if view.Rows[i].ID != id {
@@ -338,7 +351,7 @@ func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 	err := h.store.Inspect(r.Context(), r.PathValue("id"), lines, audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/returns?inspected=1", http.StatusSeeOther)
+		http.Redirect(w, r, answerAt(r, "inspected"), http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
 		h.renderInspection(w, r, i18n.KeyAdminNoticeBadCount)
 	case errors.Is(err, ErrRefused):
@@ -399,11 +412,11 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("resolution"))
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/returns?closed=1", http.StatusSeeOther)
+		http.Redirect(w, r, answerAt(r, "closed"), http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "return completion refused",
 			"return", r.PathValue("id"), "error", err)
-		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, answerAt(r, "refused"), http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "complete return",
 			"return", r.PathValue("id"), "error", err)
@@ -427,30 +440,72 @@ func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) 
 	row, retry, err := h.store.returnUnderDecision(r.Context(), r.PathValue("id"), kind)
 	if err != nil {
 		if errors.Is(err, ErrRefused) {
-			http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+			http.Redirect(w, r, answerAt(r, "refused"), http.StatusSeeOther)
 		} else {
 			admin.ServerError(w, r, h.log)
 		}
 		return true
 	}
-	view := Confirmation{ID: row.ID.String(), OrderNumber: row.OrderNumber, Decision: string(kind), Reason: row.Reason, AmountCents: row.RefundableCents, Resolution: resolution, AssessmentVersion: r.PostFormValue("assessment_version"), Required: required, Retry: retry}
+	_, own := ownPage(r)
+	view := Confirmation{ID: row.ID.String(), OrderNumber: row.OrderNumber, Decision: string(kind), Reason: row.Reason, AmountCents: row.RefundableCents, Resolution: resolution, AssessmentVersion: r.PostFormValue("assessment_version"), Required: required, Retry: retry, OwnPage: own}
 	respond.Component(w, r, h.log, http.StatusOK, ConfirmReturn(frame.Page{Title: view.Title(r.Context())}, view))
 	return true
 }
 
-// decidedTarget is where a decision that took goes. Approval says only that the
+// decidedNotice is what a decision that took says. Approval says only that the
 // return was approved: what was paid back is the return card's own status,
 // which follows the verified payout.
-func decidedTarget(kind returns.DecisionKind) string {
+func decidedNotice(kind returns.DecisionKind) string {
 	switch kind {
 	case returns.DecisionApprove:
-		return "/admin/returns?approved=1"
+		return "approved"
 	case returns.DecisionException:
-		return "/admin/returns?exception=1"
+		return "exception"
 	case returns.DecisionReject:
-		return "/admin/returns?declined=1"
+		return "declined"
 	default:
 		// Decide refused any other kind before it wrote.
-		return "/admin/returns"
+		return ""
 	}
+}
+
+const (
+	fromField   = "from"
+	fromOwnPage = "return"
+)
+
+// ownPage is the return whose own page a form was posted from. The address of
+// the answer is built from the path id and never read off the form, so a posted
+// value cannot send staff anywhere else.
+func ownPage(r *http.Request) (uuid.UUID, bool) {
+	if r.PostFormValue(fromField) != fromOwnPage {
+		return uuid.Nil, false
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	return id, err == nil && id != uuid.Nil
+}
+
+// answerAt is where a form's answer goes: the queue, or the return's own page
+// when the form was posted from it, so staff stay on the return they acted on.
+// notice is the query parameter the page reads, or empty.
+func answerAt(r *http.Request, notice string) string {
+	var pairs []string
+	if id, ok := ownPage(r); ok {
+		pairs = append(pairs, "request", id.String())
+	}
+	if notice != "" {
+		pairs = append(pairs, notice, "1")
+	}
+	return keyset.ScopeURL("/admin/returns", pairs...)
+}
+
+// refusedQueue reads what a refused form draws again: the return's own page
+// when the form came from it, else the queue page the action URL names. Without
+// this a return further down the queue loses its error and its drafts to the
+// first page.
+func (h *Handler) refusedQueue(r *http.Request) (Queue, error) {
+	if id, ok := ownPage(r); ok {
+		return h.store.RequestQueue(r.Context(), id, "")
+	}
+	return h.store.Queue(r.Context(), r.URL.Query().Get(keyset.Param))
 }
