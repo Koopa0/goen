@@ -43,6 +43,15 @@ var (
 	// order records one.
 	KeyDiscountFor = key("buy.discount.for", Message{ZhHant: "折扣（%s）", En: "Discount (%s)"})
 
+	// %s is the code of the coupon a placed order used.
+	KeyDiscountCode = key("buy.discount.code", Message{ZhHant: "折扣碼 %s", En: "Discount code %s"})
+
+	// %[1]s is the code and %[2]s the coupon's name, where the name says more than the code.
+	KeyDiscountCodeNamed = key("buy.discount.code.named", Message{ZhHant: "折扣碼 %[1]s（%[2]s）", En: "Discount code %[1]s (%[2]s)"})
+
+	// A free-delivery code takes nothing off the goods, so its row says what it did.
+	KeyDiscountCodeFreeShipping = key("buy.discount.code.freeshipping", Message{ZhHant: "折扣碼 %s：免運", En: "Discount code %s: free delivery"})
+
 	KeyTotal = key("buy.total", Message{ZhHant: "應付金額", En: "Total"})
 
 	KeyFreeShipping = key("buy.freeshipping", Message{ZhHant: "免運", En: "Free"})

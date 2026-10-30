@@ -3,9 +3,11 @@ package buyer
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
@@ -51,21 +53,24 @@ type OrderView struct {
 	// Pickup is set for an order collected from a store, where delivery reads as collection.
 	Pickup bool
 	// Lines are the lines as bought; Unshipped are the units no parcel carries yet.
-	Lines          []OrderLine
-	Unshipped      []OrderLine
-	Returned       *OrderReturned
-	SubtotalCents  int64
-	ShippingCents  int64
-	DiscountCents  int64
-	DiscountReason string
-	TotalCents     int64
-	CreditCents    int64
-	Timeline       []OrderEvent
-	Shipments      []OrderShipment
-	Invoice        *OrderInvoice
-	Cancelled      bool
-	Committed      bool
-	OwedCents      int64
+	Lines         []OrderLine
+	Unshipped     []OrderLine
+	Returned      *OrderReturned
+	SubtotalCents int64
+	ShippingCents int64
+	DiscountCents int64
+	Coupon        coupon.Redeemed
+	TotalCents    int64
+	CreditCents   int64
+	Timeline      []OrderEvent
+	Shipments     []OrderShipment
+	Invoice       *OrderInvoice
+	Cancelled     bool
+	Committed     bool
+	OwedCents     int64
+	// OpenReturn is a return request nobody has decided, which is what a second request is refused for; HasReturn
+	// is any request the buyer made, decided or not.
+	OpenReturn, HasReturn bool
 	// ShowWarrantyLink is set only when a signed-in account owns the order: guest-token
 	// viewers must not see account-only registration.
 	ShowWarrantyLink bool
@@ -163,9 +168,12 @@ func (v *OrderView) paymentReturnHoldsCancel() bool {
 	return v.PaymentReturnHint && v.AwaitingPayment() && v.HoldUntil.After(v.Now)
 }
 
+// PaidByCredit is true for an order store credit paid in full: it owes nothing and has no payment.
+func (v *OrderView) PaidByCredit() bool { return v.CreditCents > 0 && v.OwedCents == 0 }
+
 // CancelVoidsInvoice reports whether cancelling voids the order's 統一發票:
 // store credit paid it in full, and the invoice was owed then.
-func (v *OrderView) CancelVoidsInvoice() bool { return v.CreditCents > 0 && v.OwedCents == 0 }
+func (v *OrderView) CancelVoidsInvoice() bool { return v.PaidByCredit() }
 
 func OrderMeta(ctx context.Context, number string) frame.Page {
 	return frame.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), number)}
@@ -182,7 +190,15 @@ func (v *OrderView) Shipping(ctx context.Context) string {
 
 func (v *OrderView) Discounted() bool { return v.DiscountCents > 0 }
 
-func (v *OrderView) Discount() string { return "-" + twd(v.DiscountCents) }
+// ListsDiscount is true while the summary has a discount row: a free-delivery code has one at nothing.
+func (v *OrderView) ListsDiscount() bool { return v.Discounted() || v.Coupon.Used() }
+
+func (v *OrderView) Discount() string {
+	if v.DiscountCents == 0 {
+		return twd(0)
+	}
+	return "-" + twd(v.DiscountCents)
+}
 
 // Total states the database's order_totals figure rather than re-adding the
 // subtotal, discount and delivery, so no page can sum them differently.
@@ -194,8 +210,10 @@ func (v *OrderView) UsedCredit() bool { return v.CreditCents > 0 }
 
 func (v *OrderView) Credit() string { return "-" + twd(v.CreditCents) }
 
+// CanRequestReturn is offered from shipment, as the POST and return_within_shipment allow; the days count from
+// receipt. A request nobody has decided refuses another.
 func (v *OrderView) CanRequestReturn() bool {
-	if v.Returned != nil {
+	if v.Returned != nil || v.OpenReturn {
 		return false
 	}
 	switch v.Status {
@@ -204,6 +222,24 @@ func (v *OrderView) CanRequestReturn() bool {
 	default:
 		return false
 	}
+}
+
+// ViewsReturn is true where the order has no request to make but has one to read: the return page is the only
+// place its outcome is shown.
+func (v *OrderView) ViewsReturn() bool { return !v.CanRequestReturn() && (v.OpenReturn || v.HasReturn) }
+
+// AwaitsDelivery is true while a return could be requested but no parcel has arrived to count its days from.
+func (v *OrderView) AwaitsDelivery() bool {
+	return v.CanRequestReturn() && len(v.Shipments) > 0 && !slices.ContainsFunc(v.Shipments, OrderShipment.Delivered)
+}
+
+// ReturnAfterDelivery is what the return button says about the days, until a parcel has been delivered.
+func (v *OrderView) ReturnAfterDelivery(ctx context.Context) string {
+	if !v.AwaitsDelivery() {
+		return ""
+	}
+	days := v.Shipments[0].RescissionDays
+	return i18n.Count(ctx, i18n.KeyOrderReturnAfterDelivery, days, days)
 }
 
 func (v *OrderView) WarrantyLink() string { return "/account/warranty/" + v.Number }
