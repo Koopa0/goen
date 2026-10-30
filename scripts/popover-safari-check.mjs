@@ -14,6 +14,9 @@ async function command(method, path, data) {
   return value;
 }
 const evaluate = script => command('POST', `/session/${session}/execute/sync`, {script, args: []});
+// One execute call reads one document: a new timeOrigin means another document answered, and an empty inline size on the same one means a script reset it.
+// Before each 200 percent case the previous case's locale POST leaves its 303 target on the other language, so a lang that is not the case's locale means the setup ran on that document.
+const rootSnapshot = 'return {timeOrigin: performance.timeOrigin, url: location.href, lang: document.documentElement.lang, readyState: document.readyState, inline: document.documentElement.style.fontSize, computed: getComputedStyle(document.documentElement).fontSize}';
 async function until(script, message) {
   const deadline = performance.now() + 10000;
   while (performance.now() < deadline) {
@@ -51,10 +54,12 @@ try {
     await evaluate(`document.cookie = 'goen_locale=${locale}; path=/'; return document.cookie`);
     await command('POST', `/session/${session}/url`, {url: origin + '/c/audio?brand=nimbus'});
     await until("return document.readyState === 'complete' && typeof htmx !== 'undefined'", at + ': listing did not load');
-    await evaluate(`document.documentElement.style.fontSize = '${text * 16 / 100}px'; return true`);
+    const prepared = await evaluate(`document.documentElement.style.fontSize = '${text * 16 / 100}px'; ${rootSnapshot}`);
+    console.log('Prepared root text ' + at + ' ' + JSON.stringify(prepared));
     assert.equal(await evaluate('return document.documentElement.lang'), locale);
     assert.ok(await evaluate('return innerWidth >= 1024'), at + ': desktop layout required');
-    assert.equal(await evaluate('return parseFloat(getComputedStyle(document.documentElement).fontSize)'), text * 16 / 100);
+    const root = await evaluate(rootSnapshot);
+    assert.equal(parseFloat(root.computed), text * 16 / 100, at + ': root text size was lost; prepared ' + JSON.stringify(prepared) + ', now ' + JSON.stringify(root));
     await evaluate("window.checkedPopover = document.querySelector('.goen-filters__group:has(input[name=brand])'); checkedPopover.querySelector('summary').focus(); return true");
     await key('\uE007');
     assert.equal(await evaluate('return checkedPopover.open'), true, at + ': Enter opens the group');
