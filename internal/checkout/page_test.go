@@ -806,12 +806,14 @@ func couponTestView() View {
 	}
 }
 
-// TestPageCouponSwap: Page's coupon button swaps only the code, the totals and
-// the quote when 套用 is pressed, and each id it names exists in the page. It
-// holds what a script replaces when 套用 is pressed. Each named id must exist in
-// the page, or the swap silently drops it; the quote is among them because the
-// code changes it and a stale one fails the next 送出訂單. The whole summary is not
-// named: it holds the buttons, and replacing them drops the focus.
+// TestPageCouponSwap: Page's coupon button swaps only the code, the totals, the
+// quote, the figures posted beside it and the moved-rows notice when 套用 is
+// pressed, and each id it names exists in the page. It holds what a script
+// replaces when 套用 is pressed. Each named id must exist in the page, or the
+// swap silently drops it; the quote is among them because the code changes it
+// and a stale one fails the next 送出訂單, and the figures are because stale
+// ones would name rows that never moved. The whole summary is not named: it
+// holds the buttons, and replacing them drops the focus.
 func TestPageCouponSwap(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -822,7 +824,7 @@ func TestPageCouponSwap(t *testing.T) {
 	for _, want := range []string{
 		`hx-post="/checkout"`,
 		`hx-swap="none"`,
-		`hx-select-oob="#coupon,#coupon-message:innerHTML,#summary-totals,#checkout-quote"`,
+		`hx-select-oob="#coupon,#coupon-message:innerHTML,#summary-totals,#summary-moved,#checkout-quote,#checkout-shown"`,
 		`formaction="/checkout#coupon-field"`,
 		`data-coupon-apply`,
 		`data-busy="` + i18n.T(ctx, i18n.KeyTooManyRequests) + `"`,
@@ -832,7 +834,9 @@ func TestPageCouponSwap(t *testing.T) {
 			t.Errorf("the coupon button omits %s:\n%s", want, button)
 		}
 	}
-	for _, id := range []string{"coupon", "coupon-message", "summary-totals", "checkout-quote", "coupon-field"} {
+	for _, id := range []string{
+		"coupon", "coupon-message", "summary-totals", "summary-moved", "checkout-quote", "checkout-shown", "coupon-field",
+	} {
 		if !strings.Contains(markup, `id="`+id+`"`) {
 			t.Errorf("the page has no element with id %q for the coupon swap", id)
 		}

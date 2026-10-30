@@ -41,9 +41,10 @@ var (
 		En:     "No payment is needed; placing the order completes it.",
 	})
 
-	KeyZoneSurcharge = key("checkout.zone.surcharge", Message{
-		ZhHant: "%s加價（已含）",
-		En:     "%s surcharge (included)",
+	// Follows the delivery fee in the same line: the first %s is the zone's name, the second its surcharge.
+	KeyShippingZoneExtra = key("checkout.zone.extra", Message{
+		ZhHant: "，%s +%s",
+		En:     ", %s +%s",
 	})
 
 	KeyCouponPlaceholder = key("checkout.coupon.placeholder", Message{
@@ -244,6 +245,27 @@ var (
 	KeyCheckoutChanged = key("checkout.quote.changed", Message{
 		ZhHant: "商品、配送、優惠或折抵內容已更新。請確認新的明細後再送出一次。",
 		En:     "Your items, delivery, discount, or store credit changed. Check the new details and submit again.",
+	})
+
+	// What the shopper is told when an amount moved: the lead, then one line per
+	// moved row (label, the figure they were shown, the figure now), and the
+	// word that marks the row in the summary.
+	KeyCheckoutMoved = key("checkout.quote.moved", Message{
+		ZhHant: "以下金額已更新，請確認後再送出一次。",
+		En:     "These amounts changed. Check them and submit again.",
+	})
+
+	KeyCheckoutMovedRow = key("checkout.quote.moved.row", Message{
+		ZhHant: "%s：%s → %s",
+		En:     "%s: %s → %s",
+	})
+
+	KeyCheckoutMovedMark = key("checkout.quote.moved.mark", Message{ZhHant: "已更新", En: "Updated"})
+
+	// The three %s are the balance the shopper can use, what this order takes and what is left.
+	KeyCreditRemaining = key("checkout.credit.remaining", Message{
+		ZhHant: "可用 %s，本次折抵 %s，剩 %s",
+		En:     "%s available, %s used on this order, %s left",
 	})
 
 	KeyNameRequired = key("valid.name.required", Message{ZhHant: "請填寫收件人姓名。", En: "Enter the recipient's name."})
