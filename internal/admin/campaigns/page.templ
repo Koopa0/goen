@@ -285,7 +285,7 @@ templ Campaign(p frame.Page, v CampaignView) {
 					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
-					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
+					{ i18n.T(ctx, i18n.KeyAdminCampSaveWindow) }
 				}
 			</form>
 		}
@@ -357,7 +357,7 @@ templ Campaign(p frame.Page, v CampaignView) {
 					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
-					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
+					{ i18n.T(ctx, i18n.KeyAdminCampSaveTone) }
 				}
 			</form>
 		}
@@ -442,12 +442,12 @@ templ Campaign(p frame.Page, v CampaignView) {
 					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
-					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
+					{ i18n.T(ctx, i18n.KeyAdminCampSaveImage) }
 				}
 			</form>
 		}
 		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
-			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampAdd) }</h2>
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampAddProducts) }</h2>
 			<form class="goen-admin__search" method="get" action={ templ.SafeURL("/admin/campaigns/" + v.Slug) }>
 				<label class="goen-sr-only" for="k-find">{ i18n.T(ctx, i18n.KeyAdminCampFind) }</label>
 				<input

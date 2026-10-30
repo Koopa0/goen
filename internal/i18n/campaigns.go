@@ -139,6 +139,18 @@ var (
 
 	KeyAdminCampAdd = key("admin.camp.add", Message{ZhHant: "加入活動", En: "Add to the campaign"})
 
+	// The heading over the search that finds products to add, which a row's own
+	// button (KeyAdminCampAdd) must not repeat.
+	KeyAdminCampAddProducts = key("admin.camp.addproducts", Message{ZhHant: "加入商品", En: "Add products"})
+
+	// The editor saves its dates, tone and header image separately, so each
+	// button names what it saves.
+	KeyAdminCampSaveWindow = key("admin.camp.savewindow", Message{ZhHant: "儲存檔期", En: "Save dates"})
+
+	KeyAdminCampSaveTone = key("admin.camp.savetone", Message{ZhHant: "儲存色調", En: "Save tone"})
+
+	KeyAdminCampSaveImage = key("admin.camp.saveimage", Message{ZhHant: "儲存圖片", En: "Save image"})
+
 	KeyAdminCampProducts = key("admin.camp.products", Message{
 		ZhHant: "活動商品",
 		En:     "Products in this campaign",
