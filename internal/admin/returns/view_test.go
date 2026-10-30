@@ -160,6 +160,37 @@ func TestReturnsBadgesFollowGroup(t *testing.T) {
 	}
 }
 
+// TestReturn_PayoutHint: the sentence beside the retry button says the money is
+// still owed only while it is, and never tells staff its money has not gone back
+// once it has.
+func TestReturn_PayoutHint(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		for _, tt := range []struct {
+			name         string
+			settled      bool
+			want, absent i18n.Key
+		}{
+			{"money owed", false, i18n.KeyAdminRetPayoutOutstanding, i18n.KeyAdminRetPayoutFollowUp},
+			{"closing step owed", true, i18n.KeyAdminRetPayoutFollowUp, i18n.KeyAdminRetPayoutOutstanding},
+		} {
+			row := Return{
+				ID: "r1", OrderNumber: "GO-260929-000001", Status: returns.StatusApproved, Decided: true,
+				PayoutOutstanding: true, PayoutMoneySettled: tt.settled, Window: "within",
+				Lines: []Line{{OrderLineID: "l1", Quantity: 1, Inspected: true}},
+			}
+			if got := row.PayoutHint(); got != tt.want {
+				t.Errorf("PayoutHint() for %s = %q, want %q", tt.name, got, tt.want)
+			}
+			page := html.UnescapeString(renderComponent(t, ctx, Returns(frame.Page{}, View{Rows: []Return{row}})))
+			if !strings.Contains(page, i18n.T(ctx, tt.want)) || strings.Contains(page, i18n.T(ctx, tt.absent)) {
+				t.Errorf("%s queue row for %s: want the %q hint and not %q", locale, tt.name, tt.want, tt.absent)
+			}
+		}
+	}
+}
+
 // TestReturnsBeforeShipmentRow: a refund before shipment is finished on its
 // order page: the queue offers neither the decision nor the inspection, only a
 // link to the order.

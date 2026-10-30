@@ -39,6 +39,7 @@ func TestOrdersRedirectedNotice(t *testing.T) {
 		{"cancelinvoice", widget.OutcomeFailed},
 		{"refundretry", widget.OutcomeFailed},
 		{"cancelretry", widget.OutcomeFailed},
+		{"refundfollowup", widget.OutcomeFailed},
 		{"refundshipped", widget.OutcomeRefused},
 		{"refundhasreturn", widget.OutcomeRefused},
 		{"refundcancelled", widget.OutcomeRefused},

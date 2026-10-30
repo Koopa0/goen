@@ -93,7 +93,8 @@ func TestHandler_RefundBeforeShipmentLockFailure(t *testing.T) {
 	if diff := cmp.Diff(wantSettled, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {
 		t.Fatalf("failed finishing changed settled facts (-want +got):\n%s", diff)
 	}
-	assertRefundRecoveryPage(t, ctx, adminPool, admintest.HealthyGateway(t), number, first.Header().Get("Location"), true)
+	assertRefundRecoveryPage(t, ctx, adminPool, admintest.HealthyGateway(t), number, first.Header().Get("Location"),
+		i18n.KeyAdminNoticeCancelRetry, i18n.KeyAdminNoticeRefundRetry)
 	if releaseErr := blocker.Commit(ctx); releaseErr != nil {
 		t.Fatalf("release finishing barrier: %v", releaseErr)
 	}
@@ -168,18 +169,17 @@ func TestHandler_RefundBeforeShipmentRecovery(t *testing.T) {
 	if got := len(stripe.Refunds()); got != 1 {
 		t.Errorf("provider calls = %d, want 1", got)
 	}
-	assertRefundRecoveryPage(t, ctx, adminPool, gateway, number, response.Header().Get("Location"), false)
+	assertRefundRecoveryPage(t, ctx, adminPool, gateway, number, response.Header().Get("Location"),
+		i18n.KeyAdminNoticeRefundRetry, i18n.KeyAdminNoticeCancelRetry)
 }
 
-func assertRefundRecoveryPage(t *testing.T, ctx context.Context, adminPool *pgxpool.Pool, gateway *payment.Gateway, number, location string, settled bool) {
+// assertRefundRecoveryPage opens the redirect's order page in both languages and
+// wants the want notice and the Resume button, and none of the wrong notices.
+func assertRefundRecoveryPage(t *testing.T, ctx context.Context, adminPool *pgxpool.Pool, gateway *payment.Gateway, number, location string, want i18n.Key, wrong ...i18n.Key) {
 	t.Helper()
 	handler := admintest.OrderDesk(admintest.OrderStore(adminPool, gateway, nil, nil))
 	mux := http.NewServeMux()
 	handler.Routes(mux, admintest.BackOffice)
-	want, wrong := i18n.KeyAdminNoticeRefundRetry, i18n.KeyAdminNoticeCancelRetry
-	if settled {
-		want, wrong = wrong, want
-	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		local := i18n.WithLocale(ctx, locale)
 		request := httptest.NewRequestWithContext(local, http.MethodGet, location, nil)
@@ -187,8 +187,13 @@ func assertRefundRecoveryPage(t *testing.T, ctx context.Context, adminPool *pgxp
 		mux.ServeHTTP(response, request)
 		body := html.UnescapeString(response.Body.String())
 		if response.Code != http.StatusOK || !strings.Contains(body, i18n.T(local, want)) ||
-			strings.Contains(body, i18n.T(local, wrong)) || !strings.Contains(body, i18n.T(local, i18n.KeyAdminRefundResume)) {
-			t.Errorf("%s recovery page of %s = %d, want the matching notice and Resume without the other notice", locale, number, response.Code)
+			!strings.Contains(body, i18n.T(local, i18n.KeyAdminRefundResume)) {
+			t.Errorf("%s recovery page of %s = %d, want the %s notice and Resume", locale, number, response.Code, want)
+		}
+		for _, key := range wrong {
+			if strings.Contains(body, i18n.T(local, key)) {
+				t.Errorf("%s recovery page of %s shows the %s notice, want only %s", locale, number, key, want)
+			}
 		}
 	}
 }
@@ -257,11 +262,11 @@ func (b *refundFinisherBarrier) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, 
 	}
 }
 
-func refundCompletionPool(t *testing.T, barrier *refundFinisherBarrier) *pgxpool.Pool {
+func refundCompletionPool(t *testing.T, tracer pgx.QueryTracer) *pgxpool.Pool {
 	t.Helper()
 	cfg := pool.Config().Copy()
 	cfg.MaxConns = 2
-	cfg.ConnConfig.Tracer = barrier
+	cfg.ConnConfig.Tracer = tracer
 	cfg.ConnConfig.RuntimeParams["lock_timeout"] = "200ms"
 	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		_, err := conn.Exec(ctx, `SET ROLE admin`)

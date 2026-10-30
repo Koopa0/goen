@@ -41,6 +41,10 @@ type Return struct {
 	// Decided and settled are separate facts: approval is committed before the
 	// provider or credit ledger completes what the shop owes.
 	PayoutOutstanding bool
+	// PayoutMoneySettled is a payout whose every source has gone back. With
+	// PayoutOutstanding it means only the refunded event or the points clawback
+	// is left.
+	PayoutMoneySettled bool
 	// PayoutBlocked says the durable payout facts do not fit their frozen source
 	// allocation. Known terminal provider attempts are not blocked: retry appends
 	// a new generation with a fresh idempotency key.
@@ -57,6 +61,15 @@ type Return struct {
 // resume-safe door.
 func (r *Return) CanRetryPayout() bool {
 	return r.Decided && r.PayoutOutstanding && !r.PayoutBlocked
+}
+
+// PayoutHint is the sentence beside the retry button: the money is still owed,
+// or it has gone back and only the closing step is.
+func (r *Return) PayoutHint() i18n.Key {
+	if r.PayoutMoneySettled {
+		return i18n.KeyAdminRetPayoutFollowUp
+	}
+	return i18n.KeyAdminRetPayoutOutstanding
 }
 
 // PayoutStranded reports whether a person must repair inconsistent durable

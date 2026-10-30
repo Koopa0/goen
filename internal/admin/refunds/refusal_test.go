@@ -29,6 +29,8 @@ func TestRefundNoticeCause(t *testing.T) {
 	}{
 		{"?refunded=1", nil, "?refunded=1", true},
 		{"unsettled", ErrUnsettled, "?refundpending=1", true},
+		{"payout incomplete", fmt.Errorf("a source: %w", refund.ErrIncomplete), "?refundretry=1", true},
+		{"money back and a closing step failed", fmt.Errorf("a step: %w", refund.ErrFollowUpIncomplete), "?refundfollowup=1", true},
 		{"shipped", fmt.Errorf("order G1: %w", ErrShipped), "?refundshipped=1", true},
 		{"has a return", fmt.Errorf("order G1: %w", ErrHasReturn), "?refundhasreturn=1", true},
 		{"cancelled", fmt.Errorf("order G1: %w", ErrOrderCancelled), "?refundcancelled=1", true},
@@ -68,6 +70,8 @@ func TestRefundNoticeRecoveryFirst(t *testing.T) {
 		{"cancellation incomplete after the order was cancelled", errors.Join(
 			fmt.Errorf("%w: %w", ErrCancellationIncomplete, refusedBy("orders_history_frozen")), errors.New("correct the invoice")), "?cancelretry=1"},
 		{"payout incomplete with a mismatch as its cause", fmt.Errorf("%w: %w", refund.ErrIncomplete, ErrPayoutUnfit), "?refundretry=1"},
+		{"closing step failed with a refusal as its cause", fmt.Errorf("%w: %w", refund.ErrFollowUpIncomplete, refusedBy("refunds_return_captured")), "?refundfollowup=1"},
+		{"closing step failed with the payout unfit as its cause", fmt.Errorf("%w: %w", refund.ErrFollowUpIncomplete, ErrPayoutUnfit), "?refundfollowup=1"},
 		{"cancellation waits on the invoice", refusedBy("orders_cancel_invoice_resolved"), "?cancelinvoice=1"},
 	} {
 		if got, _ := refundNotice(tc.err); got.Query != tc.want {
@@ -111,6 +115,7 @@ func TestRefundNoticeLogsAtError(t *testing.T) {
 	}{
 		{"cancellation incomplete", ErrCancellationIncomplete, slog.LevelError},
 		{"refund incomplete", refund.ErrIncomplete, slog.LevelError},
+		{"closing step incomplete", refund.ErrFollowUpIncomplete, slog.LevelError},
 		{"payout does not fit", ErrPayoutUnfit, slog.LevelError},
 		{"constraint mismatch", refusedBy("refunds_return_captured"), slog.LevelError},
 		{"unnamed refusal", refusedBy("refunds_request_attribution"), slog.LevelError},
