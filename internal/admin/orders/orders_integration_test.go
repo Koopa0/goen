@@ -799,6 +799,55 @@ func TestStore_ListFindsOrder(t *testing.T) {
 	}
 }
 
+// TestStore_ListFindsTypedNumber: the back office reads a typed order number as
+// the buyer's lookup does, so full-width characters and the O, I and L that
+// stand for 0 and 1 find the order, and a number that names no order finds
+// nothing.
+func TestStore_ListFindsTypedNumber(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	// The suffix opens with 0 and 1 so that O and I can spell them.
+	number := "GO-201231-01" + strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", "")[:4])
+	placeNumberedOrder(t, number)
+	// fullWidth spells ASCII as a full-width input method types it.
+	fullWidth := func(s string) string {
+		return strings.Map(func(r rune) rune {
+			if r > ' ' && r <= '~' {
+				return r + 0xFEE0
+			}
+			return r
+		}, s)
+	}
+	lookalike := number[:10] + "OI" + number[12:]
+
+	for _, term := range []string{
+		fullWidth(number),
+		strings.ToLower(lookalike),
+		fullWidth(lookalike),
+		"\u3000" + fullWidth(strings.ToLower(lookalike)) + "\u3000",
+	} {
+		view, err := s.List(ctx, "", term, "")
+		if err != nil {
+			t.Fatalf("List(%q): %v", term, err)
+		}
+		if !hasOrder(&view, number) {
+			t.Errorf("searching %q did not find %s", term, number)
+		}
+		if view.SearchCount != 1 {
+			t.Errorf("searching %q counted %d orders, want 1", term, view.SearchCount)
+		}
+	}
+
+	other := fullWidth(number[:15] + "Z")
+	view, err := s.List(ctx, "", other, "")
+	if err != nil {
+		t.Fatalf("List(%q): %v", other, err)
+	}
+	if hasOrder(&view, number) || view.SearchCount != 0 {
+		t.Errorf("searching %q found %d orders, want none", other, view.SearchCount)
+	}
+}
+
 // TestStore_ListSearchIgnoresStatus: a search ignores the status filter.
 func TestStore_ListSearchIgnoresStatus(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
@@ -909,6 +958,43 @@ func hasOrder(v *orders.View, number string) bool {
 		}
 	}
 	return false
+}
+
+// placeNumberedOrder places an order under a number of the test's choosing.
+func placeNumberedOrder(t *testing.T, number string) {
+	t.Helper()
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var orderID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id`, number).Scan(&orderID); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, 'NUMBERED-SKU', '測試商品', 100000, 1)`, orderID); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, $2, '收件人', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID, "numbered-"+uuid.NewString()+"@goen.invalid"); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
 }
 
 func searchableOrder(t *testing.T) (number, recipient, addr string) {
