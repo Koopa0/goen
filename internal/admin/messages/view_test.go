@@ -136,16 +136,19 @@ func TestMessagesNextLink(t *testing.T) {
 	}
 }
 
-// TestMessagesWaitingBadges: in the message queue, waiting and overdue need you, and overdue says so.
+// TestMessagesWaitingBadges: in the message queue a wait is the staff's turn, a handled message is a plain badge, and
+// overdue is warn and says so.
 func TestMessagesWaitingBadges(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	fresh := Message{ID: "fresh", SubjectLabel: "S1", WaitingDays: 0}
 	late := Message{ID: "late", SubjectLabel: "S2", WaitingDays: 4}
-	view := View{Bound: firstPageBound("messages"), Rows: []Message{fresh, late}}
+	done := Message{ID: "done", SubjectLabel: "S3", WaitingDays: 4, Handled: true}
+	view := View{Bound: firstPageBound("messages"), Rows: []Message{fresh, late, done}}
 	page := renderComponent(t, ctx, Messages(frame.Page{}, view))
-	wantBadge(t, page, fresh.Waiting(ctx), "goen-badge goen-badge--warn")
-	wantBadge(t, page, "已等 4 天", "goen-badge goen-badge--warn")
+	wantBadge(t, page, fresh.Waiting(ctx), "goen-badge goen-badge--staff-turn")
+	wantBadge(t, page, late.Waiting(ctx), "goen-badge goen-badge--staff-turn")
+	wantBadge(t, page, done.Waiting(ctx), "goen-badge")
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminOverdue), "goen-badge goen-badge--warn")
 	if got := badgeClasses(t, page, i18n.T(ctx, i18n.KeyAdminOverdue)); len(got) != 1 {
 		t.Errorf("%d badges say overdue, want one, on the late row", len(got))

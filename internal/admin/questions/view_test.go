@@ -61,13 +61,18 @@ func wantBadge(t *testing.T, page, word, class string) {
 }
 
 // From statusbadge_test.go, moved whole.
-// TestQuestionsWaitingBadge: a waiting question needs you and the count is plain text.
+// TestQuestionsWaitingBadge: a waiting question is the staff's turn, an answered one is not, and the count is plain
+// text.
 func TestQuestionsWaitingBadge(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := View{Rows: []Question{{ID: "q", ProductName: "P"}}}
+	view := View{Rows: []Question{
+		{ID: "q", ProductName: "P"},
+		{ID: "a", ProductName: "P", AnswerCount: 1, AnsweredByShop: true},
+	}}
 	page := renderComponent(t, ctx, Questions(frame.Page{}, view))
-	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQWaiting), "goen-badge goen-badge--warn")
+	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQWaiting), "goen-badge goen-badge--staff-turn")
+	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQAnswered), "goen-badge")
 	count := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), "1")
 	if !strings.Contains(page, `<p class="goen-admin__headcount">`+count+`</p>`) {
 		t.Errorf("the waiting count %q is not plain text in the page head", count)
