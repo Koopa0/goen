@@ -59,7 +59,7 @@ func positionOf(rows []orders.WorkRow, number string) int {
 // an order waits from its payment, not from when it was placed.
 // Mutation left to CI: ORDER BY w.since DESC in AdminWorkQueue, o.placed_at in its place, or the @funding condition dropped.
 func TestStore_ListWorkTabsOldestFirst(t *testing.T) {
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	credit, _ := admintest.PlaceOrderPaidByCredit(t, pool, 10*24*time.Hour)
 	early, _, _ := admintest.PaidUnshippedOrder(t, pool, 20000, 0, false)
 	late, lateID, _ := admintest.PaidUnshippedOrder(t, pool, 20000, 0, false)
@@ -104,7 +104,7 @@ func TestStore_ListWorkTabsOldestFirst(t *testing.T) {
 // Mutation left to CI: compare (w.since, o.id) with < instead of > (red), or drop o.id from the ORDER BY (likely red:
 // the tied pair is then in no fixed order).
 func TestStore_AdminWorkQueueKeysetWalk(t *testing.T) {
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	for range 3 {
 		admintest.PaidUnshippedOrder(t, pool, 20000, 0, false)
 	}
@@ -187,7 +187,7 @@ func TestStore_AdminWorkQueueKeysetWalk(t *testing.T) {
 // Mutation left to CI: drop the after != "" && !view.Resumed() check, or the single-hit redirect.
 func TestHandler_ListSearchAndStalePage(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	get := func(target string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()

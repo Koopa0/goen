@@ -218,7 +218,7 @@ func TestStore_RefundBeforeShipmentLapsed(t *testing.T) {
 	if status != "attention" || category != string(invoice.ReasonAllowanceBuyerUnconfirmed) {
 		t.Errorf("lapsed allowance is %s/%s, want attention/%s", status, category, string(invoice.ReasonAllowanceBuyerUnconfirmed))
 	}
-	view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices, invoices).Order(ctx, number)
+	view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("fill the order page: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestOrderPageIssuedInvoiceNoProvider(t *testing.T) {
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 	issueNow(t, ctx, invoices, orderID)
 
-	view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices, nil).Order(ctx, number)
+	view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("fill the order page: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestOrderPageIssuedInvoiceNoProvider(t *testing.T) {
 		t.Errorf("invoice documents = %+v, want the issued invoice", view.InvoiceDocuments)
 	}
 	if view.InvoicingEnabled {
-		t.Error("an order page with no invoice writer offers invoice actions")
+		t.Error("an order page with no 加值中心 offers invoice actions")
 	}
 }
 
@@ -541,7 +541,7 @@ func TestStore_RefundBeforeShipmentSentAllowance(t *testing.T) {
 				t.Errorf("health lists the allowance with reason %q, want %q", listed, tt.reason)
 			}
 
-			view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices, invoices).Order(ctx, number)
+			view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices).Order(ctx, number)
 			if err != nil {
 				t.Fatalf("fill the order page: %v", err)
 			}

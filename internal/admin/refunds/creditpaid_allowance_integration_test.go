@@ -58,7 +58,7 @@ func TestStore_RefundBeforeShipmentCreditPaid(t *testing.T) {
 		t.Fatalf("order_refunds reads card %d, credit %d; want the 500000 reversed spend as credit", card, credit)
 	}
 
-	store := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices, invoices)
+	store := admintest.OrderStore(pool, admintest.HealthyGateway(t), invoices)
 	view, err := store.Order(ctx, number)
 	if err != nil {
 		t.Fatalf("fill the order page: %v", err)

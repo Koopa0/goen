@@ -64,7 +64,7 @@ func pickingEventsOf(t *testing.T, id uuid.UUID) int {
 // through Advance, and the answer is a redirect to the packing tab.
 // Mutation left to CI: skip the Advance call, or answer the tab it came from.
 func TestHandler_StartPickingBatch(t *testing.T) {
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	a, aID := readyOrder(t)
 	b, bID := readyOrder(t)
 	c, cID := readyOrder(t)
@@ -89,7 +89,7 @@ func TestHandler_StartPickingBatch(t *testing.T) {
 // Mutation left to CI: let an order in any other status through, or answer 303
 // whatever was refused.
 func TestHandler_StartPickingRefusals(t *testing.T) {
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	ctx, _ := admintest.StaffContext(t, pool)
 	for _, tt := range []struct {
 		locale                           i18n.Locale
@@ -138,7 +138,7 @@ func TestHandler_StartPickingRefusals(t *testing.T) {
 // after it is named as not tried and is still waiting.
 // Mutation left to CI: answer admin.ServerError when Advance fails.
 func TestHandler_StartPickingLockTimeout(t *testing.T) {
-	s := admintest.OrderStore(admintest.LockTimeoutPool(t, pool), admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(admintest.LockTimeoutPool(t, pool), admintest.HealthyGateway(t), nil)
 	a, aID := readyOrder(t)
 	held, heldID := readyOrder(t)
 	c, cID := readyOrder(t)
@@ -181,7 +181,7 @@ func sep(l i18n.Locale) string {
 // order's lock, in Advance.
 // Mutation left to CI: map ErrAlreadyThere to a refusal.
 func TestHandler_StartPickingTwice(t *testing.T) {
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	a, aID := readyOrder(t)
 	b, bID := readyOrder(t)
 
@@ -201,7 +201,7 @@ func TestHandler_StartPickingTwice(t *testing.T) {
 // TestStore_AdvanceAlreadyThere: a move to the status the order holds says so
 // under the lock, and still is a refusal for the order's own form.
 func TestStore_AdvanceAlreadyThere(t *testing.T) {
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, _ := readyOrder(t)
 	if _, err := s.Advance(ctx, number, order.FulfillmentPicking, uuid.NullUUID{}); err != nil {
@@ -230,7 +230,7 @@ func TestStore_AdvanceAlreadyThere(t *testing.T) {
 // orders only; a cursor in the request does nothing, and there is no next page.
 // Mutation left to CI: drop the numbers condition from PickingTotals.
 func TestStore_PickingOf(t *testing.T) {
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	ctx, _ := admintest.StaffContext(t, pool)
 	var picking [3]string
 	for i := range picking {

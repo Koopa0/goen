@@ -106,7 +106,7 @@ func TestStore_UnrelievedRefunds(t *testing.T) {
 			}
 
 			operationID := uuid.New()
-			err = admintest.OrderStore(owner, admintest.HealthyGateway(t), invoices, invoices).FileAllowance(ctx, number, operationID)
+			err = admintest.OrderStore(owner, admintest.HealthyGateway(t), invoices).FileAllowance(ctx, number, operationID)
 			if err != nil && !errors.Is(err, issuer.ErrAwaitingBuyer) {
 				t.Fatalf("file the allowance from the order page: %v", err)
 			}

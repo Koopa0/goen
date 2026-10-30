@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/payment"
 )
@@ -234,30 +233,26 @@ func TwoLineOrderWithStock(t *testing.T, pool *pgxpool.Pool, name string) (
 	return number, orderID, lineIDs, variantIDs
 }
 
-// DisabledInvoiceWriter is an invoice writer with no provider behind it.
-type DisabledInvoiceWriter struct{}
-
-func (DisabledInvoiceWriter) Issue(context.Context, string) (invoice.Document, error) {
-	return invoice.Document{}, issuer.ErrDisabled
-}
-
-func (DisabledInvoiceWriter) Void(context.Context, string, string) error {
-	return issuer.ErrDisabled
-}
-
-func (DisabledInvoiceWriter) FileAllowance(
-	context.Context, string, uuid.UUID,
-) (invoice.Document, error) {
-	return invoice.Document{}, issuer.ErrDisabled
+// EnabledInvoices is the invoice store of a shop with a 加值中心: the real
+// issuer.Store over p, filing against FakeECPay.
+func EnabledInvoices(t *testing.T, p *pgxpool.Pool) *issuer.Store {
+	t.Helper()
+	fake, err := issuer.NewFakeECPay(time.Now())
+	if err != nil {
+		t.Fatalf("fake ECPay: %v", err)
+	}
+	t.Cleanup(fake.Close)
+	return issuer.NewStore(p, fake.Gateway())
 }
 
 // OrderStore builds the order desk's store and the refunds store it reads
-// through, all over p, as cmd/goen does.
-func OrderStore(p *pgxpool.Pool, gateway *payment.Gateway, reader orders.InvoiceReader, writer orders.InvoiceWriter) *orders.Store {
-	if reader == nil {
-		reader = issuer.NewStore(p, &issuer.Gateway{})
+// through, all over p, as cmd/goen does. A nil invoices is the store of a shop
+// with no 加值中心: it shows what was filed and files nothing.
+func OrderStore(p *pgxpool.Pool, gateway *payment.Gateway, invoices *issuer.Store) *orders.Store {
+	if invoices == nil {
+		invoices = issuer.NewStore(p, &issuer.Gateway{})
 	}
-	return orders.NewStore(p, refunds.NewStore(p, gateway, nil), reader, writer)
+	return orders.NewStore(p, refunds.NewStore(p, gateway, nil), invoices)
 }
 
 func OrderDesk(s *orders.Store) *orders.Handler {

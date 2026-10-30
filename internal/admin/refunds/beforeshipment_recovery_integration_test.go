@@ -177,7 +177,7 @@ func TestHandler_RefundBeforeShipmentRecovery(t *testing.T) {
 // wants the want notice and the Resume button, and none of the wrong notices.
 func assertRefundRecoveryPage(t *testing.T, ctx context.Context, adminPool *pgxpool.Pool, gateway *payment.Gateway, number, location string, want i18n.Key, wrong ...i18n.Key) {
 	t.Helper()
-	handler := admintest.OrderDesk(admintest.OrderStore(adminPool, gateway, nil, nil))
+	handler := admintest.OrderDesk(admintest.OrderStore(adminPool, gateway, nil))
 	mux := http.NewServeMux()
 	handler.Routes(mux, admintest.BackOffice)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

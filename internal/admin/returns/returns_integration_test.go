@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/invoice"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
@@ -2802,9 +2801,7 @@ func TestStore_DecideSplitResumeFailed(t *testing.T) {
 	// office displays this total, while the invoice claim independently uses the
 	// same authoritative view under lock. A card-only definition would leave the
 	// 統一發票 recording part of a sale that was reversed.
-	withInvoices := admintest.OrderStore(
-		pool, admintest.HealthyGateway(t), noDocuments{}, admintest.DisabledInvoiceWriter{},
-	)
+	withInvoices := admintest.OrderStore(pool, admintest.HealthyGateway(t), admintest.EnabledInvoices(t, pool))
 	view, viewErr := withInvoices.Order(ctx, orderNumber)
 	if viewErr != nil {
 		t.Fatalf("read the order: %v", viewErr)
@@ -2819,13 +2816,4 @@ func TestStore_DecideSplitResumeFailed(t *testing.T) {
 			"and a 折讓 short of what was refunded over-reports the sale to the 財政部",
 			view.RefundedCents, want, 140000, credited)
 	}
-}
-
-// noDocuments is the read side with no filed documents. The figure under test
-// is what has been REFUNDED, which is a question about money and not about
-// documents, so the documents are the part that can be empty.
-type noDocuments struct{}
-
-func (noDocuments) Documents(context.Context, string) ([]invoice.Document, error) {
-	return nil, nil
 }

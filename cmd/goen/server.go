@@ -325,16 +325,12 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 		invoiceGateway = &issuer.Gateway{}
 	}
 	invoices := issuer.NewStore(adminPool, invoiceGateway)
-	var invoiceWriter orders.InvoiceWriter
-	if invoices.Enabled() {
-		invoiceWriter = invoices
-	}
 	adminImages := media.NewHandler(media.NewStore(adminPool), log)
 	stockroom := stock.NewStore(adminPool)
 	checkup := health.NewStore(adminPool).WithInvoicing(invoices.Enabled())
 	payouts := refunds.NewStore(adminPool, gateway, invoices)
 	salesFigures := reports.NewStore(adminPool, stockroom)
-	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoices, invoiceWriter), gateway, log)
+	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoices), gateway, log)
 	landing := dashboard.NewHandler(dashboard.NewStore(adminPool, stockroom, checkup, salesFigures), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(salesFigures, log)

@@ -64,7 +64,7 @@ func TestHandler_CorrectDeliveryAbsentControl(t *testing.T) {
 				if err := writer.QueryRow(ctx, `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
 					t.Fatalf("delivery writer role = %q, want admin: %v", role, err)
 				}
-				store := admintest.OrderStore(writer, admintest.HealthyGateway(t), nil, nil)
+				store := admintest.OrderStore(writer, admintest.HealthyGateway(t), nil)
 				saved, err := store.Order(ctx, f.number)
 				if err != nil {
 					t.Fatal(err)

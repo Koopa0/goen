@@ -53,7 +53,7 @@ func TestCompleteFundingAdminRole(t *testing.T) {
 	}
 
 	ctx, actor := staffContext(t)
-	backOffice := admintest.OrderStore(adminPool, disabledGateway(t), nil, nil)
+	backOffice := admintest.OrderStore(adminPool, disabledGateway(t), nil)
 	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("admin-role advance to picking: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestCompleteFundingSideEffectsOnce(t *testing.T) {
 func advanceToPicking(t *testing.T, number string) {
 	t.Helper()
 	ctx, actor := staffContext(t)
-	backOffice := admintest.OrderStore(pool, disabledGateway(t), nil, nil)
+	backOffice := admintest.OrderStore(pool, disabledGateway(t), nil)
 	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("advance to picking: %v", err)
 	}

@@ -28,7 +28,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -36,7 +35,7 @@ import (
 // TestStore_AdvanceRefusesUnfunded: Advance refuses an unfunded order.
 func TestStore_AdvanceRefusesUnfunded(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	_, err := s.Advance(ctx, number, "picking", uuid.NullUUID{})
@@ -54,7 +53,7 @@ func TestStore_AdvanceRefusesUnfunded(t *testing.T) {
 // TestStore_AdvanceIllegalTransition: Advance refuses an illegal transition.
 func TestStore_AdvanceIllegalTransition(t *testing.T) {
 	ctx := t.Context()
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 
 	if _, err := s.Advance(ctx, number, "shipped", uuid.NullUUID{}); !errors.Is(err, orders.ErrRefused) {
@@ -71,7 +70,7 @@ func TestStore_AdvanceIllegalTransition(t *testing.T) {
 func TestHandler_AdvanceLockTimeout(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number := admintest.PlaceUnpaidOrder(t, pool)
-	s := admintest.OrderStore(admintest.LockTimeoutPool(t, pool), admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(admintest.LockTimeoutPool(t, pool), admintest.HealthyGateway(t), nil)
 	admintest.HoldRow(t, pool, `SELECT 1 FROM orders WHERE order_number = $1 FOR UPDATE`, number)
 
 	_, err := s.Advance(ctx, number, order.FulfillmentCancelled, uuid.NullUUID{})
@@ -121,7 +120,7 @@ func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
 // its lines, the consumed reservation and the event.
 func TestStore_ShipWritesAll(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number, orderID := pickingOrderHoldingStock(t)
 
 	if err := s.Ship(ctx, number, orders.Dispatch{Carrier: "black_cat", Tracking: "TW1234567890"}, uuid.NullUUID{}); err != nil {
@@ -200,7 +199,7 @@ func TestStore_ShipWritesAll(t *testing.T) {
 // refused.
 func TestStore_ShipNeverPicked(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, variantID := ordertest.PendingOrderHoldingStock(t, pool)
 
@@ -283,7 +282,7 @@ func TestStore_ShipNeverPicked(t *testing.T) {
 // number.
 func TestStore_ShipNeedsCarrierTracking(t *testing.T) {
 	ctx := t.Context()
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number, _ := pickingOrderHoldingStock(t)
 
 	tests := []struct{ name, carrier, tracking string }{
@@ -306,7 +305,7 @@ func TestStore_ShipNeedsCarrierTracking(t *testing.T) {
 // TestStore_AdvanceCannotShip: Advance cannot ship an order.
 func TestStore_AdvanceCannotShip(t *testing.T) {
 	ctx := t.Context()
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number, orderID := pickingOrderHoldingStock(t)
 
 	if _, err := s.Advance(ctx, number, "shipped", uuid.NullUUID{}); !errors.Is(err, orders.ErrRefused) {
@@ -325,7 +324,7 @@ func TestStore_AdvanceCannotShip(t *testing.T) {
 // TestStore_AdvanceRecordsWhoWhen: Advance records who made the move and when.
 func TestStore_AdvanceRecordsWhoWhen(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number, orderID, _ := ordertest.PendingOrderHoldingStock(t, pool)
 
 	var staff uuid.UUID
@@ -359,7 +358,7 @@ func TestStore_AdvanceRecordsWhoWhen(t *testing.T) {
 // returns its stock.
 func TestStore_AdvanceCancelReturnsStock(t *testing.T) {
 	ctx := t.Context()
-	s := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.HealthyGateway(t), nil)
 
 	var vid uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -469,7 +468,7 @@ func TestStore_AdvanceCancelHoldsAfterLock(t *testing.T) {
 	cancelPool := admintest.NamedPool(t, pool, "admin-cancel-behind-sweep")
 	cancelDone := make(chan error, 1)
 	go func() {
-		_, advanceErr := admintest.OrderStore(cancelPool, admintest.HealthyGateway(t), nil, nil).Advance(
+		_, advanceErr := admintest.OrderStore(cancelPool, admintest.HealthyGateway(t), nil).Advance(
 			staffCtx, number, "cancelled", uuid.NullUUID{UUID: staff, Valid: true})
 		cancelDone <- advanceErr
 	}()
@@ -510,7 +509,7 @@ func TestStore_AdvanceCancelHoldsAfterLock(t *testing.T) {
 // TestStore_ShipEnqueuesDispatchNotice: shipping enqueues the dispatch notice.
 func TestStore_ShipEnqueuesDispatchNotice(t *testing.T) {
 	ctx := t.Context()
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := shippableOrder(t, "en")
 
 	var staff uuid.UUID
@@ -632,7 +631,7 @@ func shippableOrderFor(t *testing.T, locale string, pickup bool) string {
 // until the order ships.
 func TestStore_CorrectDeliveryUntilShipped(t *testing.T) {
 	ctx, staffID := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := shippableOrder(t, "zh-Hant")
 
 	correction := &orders.DeliveryCorrection{
@@ -663,7 +662,7 @@ func TestStore_CorrectDeliveryUntilShipped(t *testing.T) {
 // the address into the audit trail.
 func TestStore_CorrectDeliveryAuditNoAddress(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := shippableOrder(t, "zh-Hant")
 
 	const street = "非常獨特的街道名稱 12345"
@@ -695,7 +694,7 @@ func TestStore_CorrectDeliveryAuditNoAddress(t *testing.T) {
 // it into an address order.
 func TestStore_CorrectDeliveryPickupStays(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := pickupOrderForCorrection(t)
 
 	if err := s.CorrectDelivery(ctx, number, &orders.DeliveryCorrection{
@@ -775,7 +774,7 @@ func pickupOrderForCorrection(t *testing.T) string {
 // TestStore_ListFindsOrder: the back office can find an order by searching.
 func TestStore_ListFindsOrder(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number, recipient, addr := searchableOrder(t)
 
 	for _, term := range []string{
@@ -805,7 +804,7 @@ func TestStore_ListFindsOrder(t *testing.T) {
 // nothing.
 func TestStore_ListFindsTypedNumber(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	// The suffix opens with 0 and 1 so that O and I can spell them.
 	number := "GO-201231-01" + strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", "")[:4])
 	placeNumberedOrder(t, number)
@@ -851,7 +850,7 @@ func TestStore_ListFindsTypedNumber(t *testing.T) {
 // TestStore_ListSearchIgnoresStatus: a search ignores the status filter.
 func TestStore_ListSearchIgnoresStatus(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number, _, _ := searchableOrder(t)
 
 	view, err := s.List(ctx, "shipped", number, "")
@@ -866,7 +865,7 @@ func TestStore_ListSearchIgnoresStatus(t *testing.T) {
 // TestStore_ListShortSearch: a search term that is too short is not a search.
 func TestStore_ListShortSearch(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 
 	view, err := s.List(ctx, "", "王", "")
 	if err != nil {
@@ -881,7 +880,7 @@ func TestStore_ListShortSearch(t *testing.T) {
 // address.
 func TestStore_ListErasedOrderNotFound(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number, recipient, addr := searchableOrder(t)
 
 	if _, err := pool.Exec(ctx, `
@@ -916,7 +915,7 @@ func TestStore_ListErasedOrderNotFound(t *testing.T) {
 // stand-in for any character.
 func TestStore_ListWildcardsLiteral(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	underscored, _, _ := searchableOrder(t)
 	lettered, _, _ := searchableOrder(t)
 	stem := strings.ReplaceAll(uuid.NewString(), "-", "")
@@ -1041,7 +1040,7 @@ func searchableOrder(t *testing.T) (number, recipient, addr string) {
 // in both languages, and never the customer's.
 func TestStore_OrderSweeperCancelBy(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := admintest.PlaceUnpaidOrderHolding(t, pool, true)
 	if _, err := pool.Exec(ctx, `
 		UPDATE inventory_reservations
@@ -1078,7 +1077,7 @@ func TestStore_OrderSweeperCancelBy(t *testing.T) {
 func TestStore_OrderCancelledBy(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	customer := buyer.NewStore(pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 
 	if err := customer.CancelOrder(ctx, number); err != nil {
@@ -1111,7 +1110,7 @@ func TestStore_OrderCancelledBy(t *testing.T) {
 // delivered.
 func TestStore_AdvanceMarksParcelsDelivered(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number := shippableOrder(t, "zh-Hant")
 
@@ -1157,7 +1156,7 @@ func TestStore_AdvanceMarksParcelsDelivered(t *testing.T) {
 // step still stamps its parcels delivered.
 func TestStore_AdvanceCompleteStampsParcels(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number := shippableOrder(t, "zh-Hant")
 
@@ -1182,7 +1181,7 @@ func TestStore_AdvanceCompleteStampsParcels(t *testing.T) {
 // TestStore_ShipNoStockHeld: shipping is refused when the order holds no stock.
 func TestStore_ShipNoStockHeld(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number, orderID := pickingOrderHoldingStock(t)
 
 	if _, err := pool.Exec(ctx, `
@@ -1232,7 +1231,7 @@ func deliveredAt(t *testing.T, number string) time.Time {
 // TestStore_OrderInvoiceChoice: the order page shows the invoice choice.
 func TestStore_OrderInvoiceChoice(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 
 	var orderID uuid.UUID
@@ -1294,7 +1293,7 @@ func shippedFor(t *testing.T, lineID uuid.UUID) int32 {
 // TestStore_ShipTwoParcels: an order can ship in two parcels.
 func TestStore_ShipTwoParcels(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, lines, variants := admintest.TwoLineOrderWithStock(t, pool, "partial")
 
@@ -1367,7 +1366,7 @@ func TestStore_ShipTwoParcels(t *testing.T) {
 // TestStore_ShipParcelOverRemains: a parcel cannot carry more than remains.
 func TestStore_ShipParcelOverRemains(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, lines, variants := admintest.TwoLineOrderWithStock(t, pool, "overship")
 
@@ -1395,7 +1394,7 @@ func TestStore_ShipParcelOverRemains(t *testing.T) {
 // TestStore_ShipEmptyParcel: an empty parcel is refused.
 func TestStore_ShipEmptyParcel(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, lines, _ := admintest.TwoLineOrderWithStock(t, pool, "emptyparcel")
 
@@ -1419,7 +1418,7 @@ func TestStore_ShipEmptyParcel(t *testing.T) {
 // TestStore_ShipParcelNotices: each parcel tells the customer.
 func TestStore_ShipParcelNotices(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, lines, _ := admintest.TwoLineOrderWithStock(t, pool, "notice")
 
@@ -1472,7 +1471,7 @@ func TestStore_ShipParcelNotices(t *testing.T) {
 // effect of a dropdown.
 func TestStore_AdvanceOwedParcel(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, lines, variants := admintest.TwoLineOrderWithStock(t, pool, "unfinished")
 
@@ -1549,7 +1548,7 @@ func TestStore_AdvanceOwedParcel(t *testing.T) {
 // two parcels of different orders may share one.
 func TestStore_ShipSharedTracking(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 
 	const shared = "SHARED-1234567890"
@@ -1592,7 +1591,7 @@ func TestStore_ShipSharedTracking(t *testing.T) {
 // order, ExpiredReservations excludes it, and /admin/health counts neither.
 func TestStore_ShipAfterDelivered(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, _, lines, _ := admintest.TwoLineOrderWithStock(t, pool, "wedged")
 
@@ -1643,7 +1642,7 @@ func TestStore_ShipAfterDelivered(t *testing.T) {
 // is marked as pickup.
 func TestStore_EnqueueShippedNoticePickup(t *testing.T) {
 	ctx := t.Context()
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := pickupOrderForCorrection(t)
 	var orderID uuid.UUID
 	if err := pool.QueryRow(ctx, `SELECT id FROM orders WHERE order_number = $1`, number).Scan(&orderID); err != nil {
@@ -1663,17 +1662,19 @@ func TestStore_EnqueueShippedNoticePickup(t *testing.T) {
 	}
 }
 
-type fixedInvoices []invoice.Document
-
-func (f fixedInvoices) Documents(context.Context, string) ([]invoice.Document, error) { return f, nil }
-
 // TestStore_OrderInvoiceIssuedAt: the order page shows an invoice at the time
 // the provider issued it.
 func TestStore_OrderInvoiceIssuedAt(t *testing.T) {
 	ctx := t.Context()
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	issued := time.Date(2026, 9, 30, 9, 30, 0, 0, time.UTC) // ECPay said "2026-09-30 17:30:00" Taipei time
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), fixedInvoices{{Kind: "invoice", Number: "AB12345678", IssuedAt: issued}}, admintest.DisabledInvoiceWriter{})
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO invoice_documents (order_id, kind, number, amount_cents, issued_at)
+		SELECT id, 'invoice', 'AB' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 8), 100000, $2
+		FROM orders WHERE order_number = $1`, number, issued); err != nil {
+		t.Fatalf("file the invoice: %v", err)
+	}
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), admintest.EnabledInvoices(t, pool))
 
 	view, err := s.Order(ctx, number)
 	if err != nil {
@@ -1688,7 +1689,7 @@ func TestStore_OrderInvoiceIssuedAt(t *testing.T) {
 // payment.
 func TestStore_ListUnpaidLabel(t *testing.T) {
 	ctx := t.Context()
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 
 	view, err := s.List(ctx, "", number, "")
@@ -1707,7 +1708,7 @@ func TestStore_ListUnpaidLabel(t *testing.T) {
 func TestStore_AdvanceSameStatus(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
 
 	if _, err := s.Advance(ctx, number, order.FulfillmentPicking, actor); err != nil {
@@ -1737,7 +1738,7 @@ func TestStore_AdvanceSameStatus(t *testing.T) {
 // will accept.
 func TestStore_OrderStatusSteps(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	offers := func(v *orders.OrderView, status order.FulfillmentStatus) bool {
 		for _, n := range v.Next {
@@ -1780,7 +1781,7 @@ func TestStore_OrderStatusSteps(t *testing.T) {
 // TestHandler_AdvanceRefusalReason: a refused status move names its reason.
 func TestHandler_AdvanceRefusalReason(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	h := admintest.OrderDesk(s)
 	post := func(number, status string) string {
 		t.Helper()
@@ -1816,7 +1817,7 @@ func TestHandler_AdvanceRefusalReason(t *testing.T) {
 // links it.
 func TestStore_ShipAuditEntry(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := shippableOrder(t, "zh-Hant")
 	if err := s.Ship(ctx, number, orders.Dispatch{Carrier: "black_cat", Tracking: "AUD-" + number},
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
@@ -1841,7 +1842,7 @@ func TestStore_ShipAuditEntry(t *testing.T) {
 // TestHandler_ShipRefusedKeepsInput: a refused dispatch keeps what was typed.
 func TestHandler_ShipRefusedKeepsInput(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	h := admintest.OrderDesk(admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil))
+	h := admintest.OrderDesk(admintest.OrderStore(pool, admintest.HealthyGateway(t), nil))
 	number, _, lines, _ := admintest.TwoLineOrderWithStock(t, pool, "retype")
 
 	form := url.Values{
@@ -1868,7 +1869,7 @@ func TestHandler_ShipRefusedKeepsInput(t *testing.T) {
 // and what was refunded.
 func TestStore_OrderPaymentAndRefund(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
 
 	if _, err := pool.Exec(ctx,
@@ -1912,7 +1913,7 @@ func TestStore_OrderPaymentAndRefund(t *testing.T) {
 // word, as does a return of part of the order.
 func TestStore_OrderRefundedOnSettled(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 
 	for _, tc := range []struct {
 		name     string
