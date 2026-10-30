@@ -21,6 +21,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -49,6 +51,17 @@ var orderSequence atomic.Uint64
 // are another day.
 func testOrderNumber() string {
 	return fmt.Sprintf("GO-991230-%06d", orderSequence.Add(1))
+}
+
+// relateNumber restates the RelateNumber rule of claim_invoice_issue so a test
+// can name the number the provider must receive for an order's attempt-th
+// issue. It holds nothing itself: the tests that compare the request with it do.
+func relateNumber(orderNumber string, attempt int32) string {
+	orderNumber = strings.ReplaceAll(orderNumber, "-", "")
+	if attempt <= 0 {
+		return orderNumber
+	}
+	return orderNumber + "R" + strconv.FormatInt(int64(attempt), 10)
 }
 
 // TestTestOrderNumberIsUnique: 5,000 numbers from a 900,000-value random draw
