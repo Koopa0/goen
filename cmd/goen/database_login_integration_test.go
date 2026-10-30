@@ -18,9 +18,10 @@ import (
 )
 
 // TestReachDatabaseLogin: in the secure posture each startup pool (storefront,
-// back office, maintenance) refuses a login that is a superuser or a member of
-// the table owner, naming the variable that configures it, and every pool that
-// does start runs its session as its own role and not as a superuser.
+// back office, maintenance) refuses a login that is a superuser, a member of
+// the table owner or a member of a predefined role that bypasses table
+// privileges, naming the variable that configures it, and every pool that does
+// start runs its session as its own role and not as a superuser.
 func TestReachDatabaseLogin(t *testing.T) {
 	var owner string
 	if err := pool.QueryRow(t.Context(), `SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'public.orders'::regclass`).Scan(&owner); err != nil {
@@ -32,6 +33,24 @@ func TestReachDatabaseLogin(t *testing.T) {
 	ownerURL := databaseLoginURL(t, ownerMemberships, "INHERIT")
 	// A NOINHERIT member holds none of the owner's privileges until SET ROLE.
 	noInheritOwnerURL := databaseLoginURL(t, ownerMemberships, "NOINHERIT")
+	type loginCase struct{ name, dsn, condition string }
+	// The *_all_data roles hold their privileges on every table whatever 001
+	// revokes; the others reach the server's files and programs.
+	predefined := func(name, role, inherit string) loginCase {
+		return loginCase{name, databaseLoginURL(t, memberships+", "+role, inherit), "a member of the predefined role " + role}
+	}
+	logins := []loginCase{
+		{"plain member", plainURL, ""},
+		{"owner member", ownerURL, "a member of the table owner"},
+		{"no-inherit owner member", noInheritOwnerURL, "a member of the table owner"},
+		{"superuser", pool.Config().ConnString(), "a superuser"},
+		predefined("read all data member", "pg_read_all_data", "INHERIT"),
+		predefined("write all data member", "pg_write_all_data", "INHERIT"),
+		predefined("no-inherit write all data member", "pg_write_all_data", "NOINHERIT"),
+		predefined("read server files member", "pg_read_server_files", "INHERIT"),
+		predefined("write server files member", "pg_write_server_files", "INHERIT"),
+		predefined("execute server program member", "pg_execute_server_program", "INHERIT"),
+	}
 	openers := []struct {
 		role     databaseRole
 		variable string
@@ -44,16 +63,7 @@ func TestReachDatabaseLogin(t *testing.T) {
 		{maintenanceRole, "GOEN_MAINTENANCE_DATABASE_URL", openMaintenancePool},
 	}
 	for _, opener := range openers {
-		for _, login := range []struct {
-			name      string
-			dsn       string
-			condition string
-		}{
-			{"plain member", plainURL, ""},
-			{"owner member", ownerURL, "a member of the table owner"},
-			{"no-inherit owner member", noInheritOwnerURL, "a member of the table owner"},
-			{"superuser", pool.Config().ConnString(), "a superuser"},
-		} {
+		for _, login := range logins {
 			for _, secure := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/%s/secure=%t", opener.role, login.name, secure), func(t *testing.T) {
 					p, err := opener.open(t.Context(), login.dsn, secure, quietLog)

@@ -354,6 +354,10 @@ type databaseLoginPrivileges struct {
 	memberOfTableOwner  bool
 	schemaOwner         string
 	memberOfSchemaOwner bool
+	// bypassRoles are the predefined roles the login is a member of that
+	// reach past goen's grants: every table's data, or the server's files and
+	// programs.
+	bypassRoles []string
 }
 
 func (r databaseRole) urlVariable() string {
@@ -377,19 +381,27 @@ func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, role dat
 	// SET ROLE changes current_user, but session_user can still RESET ROLE or
 	// assume an owner and escape the application's write restrictions. MEMBER
 	// rather than USAGE: a NOINHERIT member does not inherit the owner's
-	// privileges but can still SET ROLE to it.
+	// privileges but can still SET ROLE to it. pg_read_all_data and
+	// pg_write_all_data hold their privileges on every table whatever 001
+	// revokes; the server-files and server-program roles reach past the
+	// database altogether.
 	var privileges databaseLoginPrivileges
 	if roleErr := pool.QueryRow(pingCtx, `
 		SELECT session_user::text, r.rolsuper,
 		       pg_catalog.pg_get_userbyid(c.relowner), pg_catalog.pg_has_role(session_user, c.relowner, 'MEMBER'),
-		       pg_catalog.pg_get_userbyid(n.nspowner), pg_catalog.pg_has_role(session_user, n.nspowner, 'MEMBER')
+		       pg_catalog.pg_get_userbyid(n.nspowner), pg_catalog.pg_has_role(session_user, n.nspowner, 'MEMBER'),
+		       (SELECT pg_catalog.array_agg(b.rolname::text ORDER BY b.rolname)
+		        FROM pg_catalog.pg_roles b
+		        WHERE b.rolname IN ('pg_read_all_data', 'pg_write_all_data',
+		                            'pg_read_server_files', 'pg_write_server_files', 'pg_execute_server_program')
+		          AND pg_catalog.pg_has_role(session_user, b.oid, 'MEMBER'))
 		FROM pg_catalog.pg_roles r
 		CROSS JOIN pg_catalog.pg_class c
 		CROSS JOIN pg_catalog.pg_namespace n
 		WHERE r.rolname = session_user AND c.oid = 'public.orders'::regclass AND n.nspname = 'public'
 	`).Scan(&privileges.login, &privileges.superuser,
 		&privileges.tableOwner, &privileges.memberOfTableOwner,
-		&privileges.schemaOwner, &privileges.memberOfSchemaOwner); roleErr != nil {
+		&privileges.schemaOwner, &privileges.memberOfSchemaOwner, &privileges.bypassRoles); roleErr != nil {
 		return fmt.Errorf("check %s database login privileges: %w", role, redactURL(roleErr, url))
 	}
 	if err := checkDatabaseLogin(role, secureCookies, privileges, log); err != nil {
@@ -466,6 +478,12 @@ func checkDatabaseLogin(role databaseRole, secureCookies bool, privileges databa
 		condition = fmt.Sprintf("a member of the table owner %q", privileges.tableOwner)
 	case privileges.memberOfSchemaOwner:
 		condition = fmt.Sprintf("a member of the schema owner %q", privileges.schemaOwner)
+	case len(privileges.bypassRoles) > 0:
+		noun := "role"
+		if len(privileges.bypassRoles) > 1 {
+			noun = "roles"
+		}
+		condition = fmt.Sprintf("a member of the predefined %s %s", noun, strings.Join(privileges.bypassRoles, ", "))
 	default:
 		return nil
 	}

@@ -10,8 +10,9 @@ import (
 
 // TestCheckDatabaseLogin: checkDatabaseLogin refuses in the secure posture, and
 // warns once in development, about a login that is a superuser or a member of
-// the table or schema owner, naming the pool, the condition and the variable to
-// set, and says nothing for a plain member, for each of the three roles.
+// the table or schema owner or of a predefined role that bypasses table
+// privileges, naming the pool, the condition and the variable to set, and says
+// nothing for a plain member, for each of the three roles.
 func TestCheckDatabaseLogin(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -28,6 +29,10 @@ func TestCheckDatabaseLogin(t *testing.T) {
 		{name: "insecure table owner member", privileges: databaseLoginPrivileges{memberOfTableOwner: true}, wantCondition: `a member of the table owner "tbl"`},
 		{name: "secure schema owner member", secureCookies: true, privileges: databaseLoginPrivileges{memberOfSchemaOwner: true}, wantCondition: `a member of the schema owner "sch"`},
 		{name: "insecure schema owner member", privileges: databaseLoginPrivileges{memberOfSchemaOwner: true}, wantCondition: `a member of the schema owner "sch"`},
+		{name: "secure predefined role member", secureCookies: true, privileges: databaseLoginPrivileges{bypassRoles: []string{"pg_write_all_data"}}, wantCondition: "a member of the predefined role pg_write_all_data"},
+		{name: "insecure predefined role member", privileges: databaseLoginPrivileges{bypassRoles: []string{"pg_write_all_data"}}, wantCondition: "a member of the predefined role pg_write_all_data"},
+		{name: "secure predefined roles member", secureCookies: true, privileges: databaseLoginPrivileges{bypassRoles: []string{"pg_read_all_data", "pg_write_all_data"}}, wantCondition: "a member of the predefined roles pg_read_all_data, pg_write_all_data"},
+		{name: "secure owner and predefined role", secureCookies: true, privileges: databaseLoginPrivileges{memberOfTableOwner: true, bypassRoles: []string{"pg_write_all_data"}}, wantCondition: `a member of the table owner "tbl"`},
 		{name: "secure superuser and owners", secureCookies: true, privileges: databaseLoginPrivileges{superuser: true, memberOfTableOwner: true, memberOfSchemaOwner: true}, wantCondition: "a superuser"},
 	}
 	wantVariable := map[databaseRole]string{
