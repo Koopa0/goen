@@ -99,9 +99,14 @@ func (s *Store) IssueInvoice(ctx context.Context, number string) error {
 		return err
 	}
 	_, err = s.invoiceWriter.Issue(filingCtx, number)
-	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-		pgErr.Code == "23514" && pgErr.ConstraintName == "invoice_issue_itemisation" {
-		return fmt.Errorf("%w: invoice itemisation: %w", ErrInvoiceRefused, err)
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23514" {
+		// A stale page or a hand-made POST reaches these two rules of the claim.
+		switch pgErr.ConstraintName {
+		case "invoice_issue_itemisation":
+			return fmt.Errorf("%w: invoice itemisation: %w", ErrInvoiceRefused, err)
+		case "invoice_issue_committed":
+			return fmt.Errorf("%w: order is not committed: %w", ErrInvoiceRefused, err)
+		}
 	}
 	return err
 }

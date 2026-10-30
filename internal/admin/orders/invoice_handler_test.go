@@ -289,25 +289,30 @@ func TestHandler_FileAllowanceIgnoresAmount(t *testing.T) {
 	}
 }
 
-// TestHandler_IssueInvoiceRefusedItems: a refused issue itemisation is a notice
-// and other failures remain errors.
+// TestHandler_IssueInvoiceRefusedItems: the claim's own rules are a notice and a
+// missing order a 404; other failures remain errors.
 func TestHandler_IssueInvoiceRefusedItems(t *testing.T) {
 	t.Parallel()
+	claim := func(code, constraint string) error {
+		return fmt.Errorf("claim invoice: %w", &pgconn.PgError{Code: code, ConstraintName: constraint})
+	}
+	refused := "/admin/orders/" + invoiceNoticeOrder + "?refused=1"
 	for _, tc := range []struct {
 		name         string
-		code         string
-		constraint   string
+		err          error
 		wantStatus   int
 		wantLocation string
 	}{
-		{"itemisation refused", "23514", "invoice_issue_itemisation", http.StatusSeeOther, "/admin/orders/" + invoiceNoticeOrder + "?refused=1"},
-		{"other constraint", "23514", "invoice_issue_filing_snapshot", http.StatusInternalServerError, ""},
-		{"other error code", "XX000", "invoice_issue_itemisation", http.StatusInternalServerError, ""},
+		{"itemisation refused", claim("23514", "invoice_issue_itemisation"), http.StatusSeeOther, refused},
+		{"uncommitted refused", claim("23514", "invoice_issue_committed"), http.StatusSeeOther, refused},
+		{"no such order", issuer.ErrNotFound, http.StatusNotFound, ""},
+		{"other constraint", claim("23514", "invoice_issue_filing_snapshot"), http.StatusInternalServerError, ""},
+		{"other error code", claim("XX000", "invoice_issue_itemisation"), http.StatusInternalServerError, ""},
+		{"other code uncommitted", claim("XX000", "invoice_issue_committed"), http.StatusInternalServerError, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := fmt.Errorf("claim invoice: %w", &pgconn.PgError{Code: tc.code, ConstraintName: tc.constraint})
-			h := invoiceNoticeHandler(stubInvoiceWriter{issueErr: err})
+			h := invoiceNoticeHandler(stubInvoiceWriter{issueErr: tc.err})
 			req := httptest.NewRequestWithContext(invoiceNoticeContext(t), http.MethodPost,
 				"/admin/orders/"+invoiceNoticeOrder+"/invoice", nil)
 			req.SetPathValue("number", invoiceNoticeOrder)
