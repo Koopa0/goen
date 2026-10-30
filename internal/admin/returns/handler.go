@@ -43,14 +43,15 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 }
 
 var notices = map[string]widget.NoticeEntry{
-	"approved":     widget.NoticeDone(i18n.KeyAdminNoticeReturnApproved),
-	"exception":    widget.NoticeDone(i18n.KeyAdminNoticeReturnException),
-	"declined":     widget.NoticeDone(i18n.KeyAdminNoticeReturnDeclined),
-	"refused":      widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"refundfailed": widget.NoticeFailed(i18n.KeyAdminNoticeRefundFailed),
-	"assessed":     widget.NoticeDone(i18n.KeyAdminNoticeAssessed),
-	"inspected":    widget.NoticeDone(i18n.KeyAdminNoticeInspected),
-	"closed":       widget.NoticeDone(i18n.KeyAdminNoticeClosed),
+	"approved":       widget.NoticeDone(i18n.KeyAdminNoticeReturnApproved),
+	"exception":      widget.NoticeDone(i18n.KeyAdminNoticeReturnException),
+	"declined":       widget.NoticeDone(i18n.KeyAdminNoticeReturnDeclined),
+	"refused":        widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"refundfailed":   widget.NoticeFailed(i18n.KeyAdminNoticeRefundFailed),
+	"refundfollowup": widget.NoticeFailed(i18n.KeyAdminNoticeReturnFollowUp),
+	"assessed":       widget.NoticeDone(i18n.KeyAdminNoticeAssessed),
+	"inspected":      widget.NoticeDone(i18n.KeyAdminNoticeInspected),
+	"closed":         widget.NoticeDone(i18n.KeyAdminNoticeClosed),
 }
 
 func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
@@ -101,6 +102,12 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		kind, _ := returns.ParseDecisionKind(r.PostFormValue("decision"))
 		http.Redirect(w, r, decidedTarget(kind), http.StatusSeeOther)
+	case errors.Is(err, refund.ErrFollowUpIncomplete):
+		// The money is back, so the notice must not send staff to Stripe. Test
+		// this before ErrIncomplete, which it wraps.
+		h.log.ErrorContext(r.Context(), "decide return",
+			"return", r.PathValue("id"), "error", err)
+		http.Redirect(w, r, "/admin/returns?refundfollowup=1", http.StatusSeeOther)
 	case errors.Is(err, refund.ErrIncomplete):
 		// A payout may preserve a database refusal as its cause, but once approval
 		// committed the operator needs the recovery notice, not the generic

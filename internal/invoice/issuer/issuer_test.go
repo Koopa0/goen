@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -38,14 +37,6 @@ type result struct {
 	AllowanceNo        string `json:"IA_Allow_No"`
 	AllowanceInvoiceNo string `json:"IA_Invoice_No"`
 	AllowanceExpiresAt string `json:"IA_TempExpireDate"`
-}
-
-func relateNumber(orderNumber string, attempt int32) string {
-	orderNumber = strings.ReplaceAll(orderNumber, "-", "")
-	if attempt <= 0 {
-		return orderNumber
-	}
-	return orderNumber + "R" + strconv.FormatInt(int64(attempt), 10)
 }
 
 // TestFilingContext: filingContext keeps the parent's values, drops its
@@ -1026,29 +1017,6 @@ func reply(t *testing.T, w http.ResponseWriter, res any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response{TransCode: 1, Data: sealed}); err != nil {
 		t.Errorf("write reply: %v", err)
-	}
-}
-
-// TestRelateNumber: the first invoice's relate number is the order number
-// without punctuation, and each reissue adds R and its attempt. It holds
-// ECPay's idempotency key: a repeat is refused with RtnCode 5070357, so the
-// order number alone makes the void-then-reissue correction path impossible.
-func TestRelateNumber(t *testing.T) {
-	tests := []struct {
-		name    string
-		attempt int32
-		want    string
-	}{
-		{name: "the first invoice strips punctuation", attempt: 0, want: "GO260101000001"},
-		{name: "a reissue after one void", attempt: 1, want: "GO260101000001R1"},
-		{name: "and after two", attempt: 2, want: "GO260101000001R2"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := relateNumber("GO-260101-000001", tt.attempt); got != tt.want {
-				t.Errorf("relateNumber(%d) = %q, want %q", tt.attempt, got, tt.want)
-			}
-		})
 	}
 }
 

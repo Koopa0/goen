@@ -35,6 +35,9 @@ func newCommitAttributionRepo(t *testing.T) (dir string, git func(...string) str
 	git("config", "user.email", "message-test@goen.invalid")
 	git("config", "commit.gpgsign", "false")
 	git("config", "core.hooksPath", os.DevNull) // a developer's global commit-msg hook must not stop the fixtures from being created
+	// git commit starts auto-maintenance detached, and it may still be writing under .git when t.TempDir removes the repository.
+	git("config", "maintenance.auto", "false")
+	git("config", "gc.auto", "0")
 	return dir, git
 }
 

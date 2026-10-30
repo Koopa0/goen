@@ -353,6 +353,7 @@ var notices = map[string]widget.NoticeEntry{
 	"cancelinvoice":   widget.NoticeFailed(i18n.KeyAdminNoticeCancelInvoice),
 	"refundretry":     widget.NoticeFailed(i18n.KeyAdminNoticeRefundRetry),
 	"cancelretry":     widget.NoticeFailed(i18n.KeyAdminNoticeCancelRetry),
+	"refundfollowup":  widget.NoticeFailed(i18n.KeyAdminNoticeRefundFollowUp),
 	"refundshipped":   widget.NoticeRefused(i18n.KeyAdminNoticeRefundShipped),
 	"refundhasreturn": widget.NoticeRefused(i18n.KeyAdminNoticeRefundHasReturn),
 	"refundcancelled": widget.NoticeRefused(i18n.KeyAdminNoticeRefundCancelled),

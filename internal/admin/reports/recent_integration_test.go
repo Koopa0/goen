@@ -3,8 +3,11 @@
 package reports_test
 
 import (
+	"slices"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/stock"
@@ -118,5 +121,69 @@ func TestStore_RecentBestSellersAreTheCurrentWeek(t *testing.T) {
 	}
 	if got, want := recent.BestSellers[0].Units, int64(sales.RecentBestSellers+1); got != want {
 		t.Errorf("the best seller sold %d units, want %d", got, want)
+	}
+}
+
+// TestStore_BestSellersTieBreak: products tied on units and revenue come back
+// by name, then slug, so the dashboard's five are the first five of the
+// report's list and the fifth place does not change between reads.
+//
+// Seven products sell the same units at the same price. They are made, and
+// their slugs run, against the order they must come in, so neither the slug nor
+// the age of a row can stand in for the name. Two share a name, so the slug
+// decides who is fifth.
+func TestStore_BestSellersTieBreak(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool, stock.NewStore(pool))
+	// A week of its own, so no other test's sale joins the tie.
+	now := shopMoment(t, "2022-03-16 15:00:00")
+	placed := shopMoment(t, "2022-03-14 10:00:00")
+
+	unique := "tie-" + uuid.NewString()[:8] + "-"
+	order := []struct{ name, slug string }{
+		{"TieA", unique + "g"},
+		{"TieB", unique + "f"},
+		{"TieC", unique + "e"},
+		{"TieD", unique + "d"},
+		{"TieE", unique + "b"},
+		{"TieE", unique + "c"},
+		{"TieF", unique + "a"},
+	}
+	for _, seller := range slices.Backward(order) {
+		variantID, sku := newVariant(t, 20, 0)
+		orderOnVariant(t, variantID, sku, 2, &placed)
+		// After the order: a line's name must be the name its product had.
+		if _, err := pool.Exec(ctx, `
+			UPDATE products SET name = $2, slug = $3
+			WHERE id = (SELECT product_id FROM product_variants WHERE sku = $1)`,
+			sku, seller.name, seller.slug); err != nil {
+			t.Fatalf("name %s: %v", sku, err)
+		}
+	}
+	wantSlugs := make([]string, 0, len(order))
+	for _, seller := range order {
+		wantSlugs = append(wantSlugs, seller.slug)
+	}
+	slugsOf := func(sellers []sales.BestSeller) []string {
+		slugs := make([]string, 0, len(sellers))
+		for _, seller := range sellers {
+			slugs = append(slugs, seller.Slug)
+		}
+		return slugs
+	}
+
+	recent, err := s.Recent(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("Recent: %v", err)
+	}
+	if got, want := slugsOf(recent.BestSellers), wantSlugs[:sales.RecentBestSellers]; !slices.Equal(got, want) {
+		t.Errorf("Recent best sellers = %v, want %v", got, want)
+	}
+	report, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("ReportAt: %v", err)
+	}
+	if got := slugsOf(report.BestSellers); !slices.Equal(got, wantSlugs) {
+		t.Errorf("ReportAt best sellers = %v, want %v", got, wantSlugs)
 	}
 }

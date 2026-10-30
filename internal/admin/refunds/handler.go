@@ -90,10 +90,8 @@ func refundNotice(err error) (refundOutcome, bool) {
 		return refundOutcome{Query: "?refundpending=1", Level: slog.LevelWarn}, true
 	case db.IsConstraint(err, "orders_cancel_invoice_resolved"):
 		return refundOutcome{Query: "?cancelinvoice=1", Level: slog.LevelWarn}, true
-	case errors.Is(err, ErrCancellationIncomplete):
-		return refundOutcome{Query: "?cancelretry=1", Level: slog.LevelError}, true
 	case errors.Is(err, refund.ErrIncomplete):
-		return refundOutcome{Query: "?refundretry=1", Level: slog.LevelError}, true
+		return incompleteOutcome(err), true
 	case errors.Is(err, ErrShipped):
 		return refundOutcome{Query: "?refundshipped=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrHasReturn):
@@ -120,6 +118,19 @@ func refundNotice(err error) (refundOutcome, bool) {
 		return refundOutcome{Query: "?refundunsure=1", Level: slog.LevelError}, true
 	}
 	return refundOutcome{}, false
+}
+
+// incompleteOutcome is how far an approved refund got: the order's cancellation
+// is what is left, or a closing step of a payout whose money went back, or the
+// payout itself. Only the last may send staff to the provider.
+func incompleteOutcome(err error) refundOutcome {
+	switch {
+	case errors.Is(err, ErrCancellationIncomplete):
+		return refundOutcome{Query: "?cancelretry=1", Level: slog.LevelError}
+	case errors.Is(err, refund.ErrFollowUpIncomplete):
+		return refundOutcome{Query: "?refundfollowup=1", Level: slog.LevelError}
+	}
+	return refundOutcome{Query: "?refundretry=1", Level: slog.LevelError}
 }
 
 func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Request, number string) bool {

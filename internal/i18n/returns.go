@@ -302,6 +302,11 @@ var (
 		En:     "This return is approved, but its money has not gone back. Sending it again uses the same refund key, so it cannot pay twice.",
 	})
 
+	KeyAdminRetPayoutFollowUp = key("admin.ret.payoutfollowup", Message{
+		ZhHant: "這筆退貨已同意，款項已退回，只差最後一步（記錄退款或收回點數）。重新送出只會補完這一步，不會再退一次款。",
+		En:     "This return is approved and its money has gone back; only the last step (recording the refund or taking back the points) is left. Sending it again finishes that step and does not refund again.",
+	})
+
 	KeyAdminRetPayoutStranded = key("admin.ret.payoutstranded", Message{
 		ZhHant: "付款服務已明確拒絕這筆退款，無法從這裡重送。請在 Stripe 手動退款，並查看系統健康頁。",
 		En:     "The provider refused this refund outright, so it cannot be re-sent here. Refund it manually in Stripe and check the health page.",
@@ -356,11 +361,23 @@ var (
 		En:     "This return is approved, but the refund did not complete. Check the Stripe dashboard, then press “Send the refund again” on its row. The approval stands.",
 	})
 
+	// The money is back and only the refunded event or the points clawback is
+	// missing, so this notice must not send staff to Stripe for a second refund.
+	KeyAdminNoticeReturnFollowUp = key("admin.notice.returnfollowup", Message{
+		ZhHant: "這筆退貨已同意，退款也已完成，但最後一步（記錄退款或收回點數）沒有做完。請按退貨列上的「重新退款」完成；不需要重新同意，也不要到 Stripe 重複退款。",
+		En:     "This return is approved and the refund went through, but the last step (recording the refund or taking back the points) did not finish. Press “Send the refund again” on its row to finish it. The approval stands; do not refund it again in Stripe.",
+	})
+
 	// The order page's own sentence for a refund before shipment: Resume on
 	// that page is the retry, and the returns queue only links back to it.
 	KeyAdminNoticeRefundRetry = key("admin.notice.refundretry", Message{
 		ZhHant: "退款沒有完成。請到 Stripe 後台確認這筆款項，再按「繼續退款」。",
 		En:     "The refund did not complete. Check the payment in the Stripe dashboard, then press “Resume the refund”.",
+	})
+
+	KeyAdminNoticeRefundFollowUp = key("admin.notice.refundfollowup", Message{
+		ZhHant: "退款已完成，但最後一步（記錄退款或收回點數）沒有做完。請按「繼續退款」完成；不要到 Stripe 重複退款。",
+		En:     "The refund went through, but the last step (recording the refund or taking back the points) did not finish. Press “Resume the refund” to finish it; do not refund it again in Stripe.",
 	})
 
 	KeyAdminNoticeCancelRetry = key("admin.notice.cancelretry", Message{

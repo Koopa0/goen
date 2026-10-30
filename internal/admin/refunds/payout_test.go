@@ -1,12 +1,16 @@
 package refunds
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/payment/refund"
 )
@@ -73,6 +77,9 @@ func TestReturnPayoutSplitEvent(t *testing.T) {
 			}
 			if p.Owed != tt.wantOutstanding {
 				t.Errorf("Owed = %t, want %t", p.Owed, tt.wantOutstanding)
+			}
+			if p.MoneySettled != tt.wantSettled {
+				t.Errorf("Payout.MoneySettled = %t, want %t", p.MoneySettled, tt.wantSettled)
 			}
 		})
 	}
@@ -141,6 +148,55 @@ func TestReturnPayoutDiagnosticRouting(t *testing.T) {
 				if !strings.Contains(strings.ToLower(p.Unfit.Error()), figure) {
 					t.Errorf("returnPayout() Unfit = %q, want figure %q", p.Unfit, figure)
 				}
+			}
+		})
+	}
+}
+
+var errBrokenDB = errors.New("connection reset")
+
+// brokenDB is a database on which every statement fails.
+type brokenDB struct{}
+
+func (brokenDB) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, errBrokenDB
+}
+
+func (brokenDB) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, errBrokenDB
+}
+
+func (brokenDB) QueryRow(context.Context, string, ...any) pgx.Row { return brokenRow{} }
+
+type brokenRow struct{}
+
+func (brokenRow) Scan(...any) error { return errBrokenDB }
+
+// TestStore_PayOutstandingFollowUp: a step that fails once every source has
+// settled is a closing step of a refund that went through; a source that has not
+// settled stays a payout that did not complete.
+func TestStore_PayOutstandingFollowUp(t *testing.T) {
+	t.Parallel()
+	s := &Store{q: db.New(brokenDB{})}
+	row := &db.ReturnForDecisionRow{ID: uuid.New(), RefundableCents: 50000}
+	for _, tt := range []struct {
+		name         string
+		position     returnPayoutPosition
+		wantFollowUp bool
+	}{
+		{"refunded event missing", returnPayoutPosition{MoneySettled: true, EventOutstanding: true}, true},
+		{"points clawback missing", returnPayoutPosition{MoneySettled: true, PointsOutstanding: true}, true},
+		{"credit half not posted", returnPayoutPosition{Outstanding: refundSplit{Credit: 50000}}, false},
+		{"card half not refunded", returnPayoutPosition{Outstanding: refundSplit{Card: 50000}}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			worked, err := s.payOutstanding(t.Context(), row, tt.position, uuid.NullUUID{})
+			if !worked || !errors.Is(err, refund.ErrIncomplete) {
+				t.Fatalf("payOutstanding() = %t, %v, want work done and refund.ErrIncomplete", worked, err)
+			}
+			if got := errors.Is(err, refund.ErrFollowUpIncomplete); got != tt.wantFollowUp {
+				t.Errorf("payOutstanding() error is ErrFollowUpIncomplete = %t, want %t: %v", got, tt.wantFollowUp, err)
 			}
 		})
 	}
