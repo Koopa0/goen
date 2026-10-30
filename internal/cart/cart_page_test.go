@@ -2,6 +2,7 @@ package cart
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -453,6 +454,98 @@ func TestPageShippingRowFreeDelivery(t *testing.T) {
 		}
 		if len(tt.zones) == 0 && (strings.Contains(markup, "另計") || strings.Contains(markup, " extra)")) {
 			t.Errorf("%s: summary names a surcharge zone where there is none: %s", tt.name, markup)
+		}
+	}
+}
+
+// TestPageReorderLeftOut holds that a buy-again names each line it left out and
+// why, links a product only while it is listed, and draws no list for a browser
+// that was given no names.
+func TestPageReorderLeftOut(t *testing.T) {
+	t.Parallel()
+	left := []SkippedLine{
+		{Name: "Teapot", Label: "Blue", Reason: SkipSoldOut, Slug: "teapot"},
+		{Name: "Old kettle", Reason: SkipGone},
+	}
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale)
+			render := func(left []SkippedLine) *html.Node {
+				body := renderComponent(t, ctx, Page(Meta(ctx), View{ReorderAdded: 1, ReorderSkipped: 2, ReorderLeftOut: left}))
+				doc, err := html.Parse(strings.NewReader(body))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return doc
+			}
+
+			if list := elementByClass(render(nil), "ul", "goen-cart__leftout"); list != nil {
+				t.Error("a page given no names draws a list of them")
+			}
+			list := elementByClass(render(left), "ul", "goen-cart__leftout")
+			if list == nil {
+				t.Fatal("the page lists none of the left-out lines")
+			}
+			type row struct {
+				Parts []string
+				Href  string
+			}
+			var got []row
+			for li := list.FirstChild; li != nil; li = li.NextSibling {
+				if li.Type != html.ElementNode {
+					continue
+				}
+				var r row
+				for part := li.FirstChild; part != nil; part = part.NextSibling {
+					if part.Type != html.ElementNode {
+						continue
+					}
+					r.Parts = append(r.Parts, strings.Join(strings.Fields(text(part)), " "))
+					if part.Data == "a" {
+						r.Href = attr(part, "href")
+					}
+				}
+				got = append(got, r)
+			}
+			want := []row{
+				{Parts: []string{"Teapot", "Blue", i18n.T(ctx, i18n.KeySoldOut)}, Href: "/p/teapot"},
+				{Parts: []string{"Old kettle", i18n.T(ctx, i18n.KeyReorderGone)}},
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("left-out lines (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// elementByClass is the first element named tag whose class list holds class.
+func elementByClass(root *html.Node, tag, class string) *html.Node {
+	for n := range root.Descendants() {
+		if n.Type == html.ElementNode && n.Data == tag && slices.Contains(strings.Fields(attr(n, "class")), class) {
+			return n
+		}
+	}
+	return nil
+}
+
+// TestView_ReorderTextAgrees holds that the partial-reorder sentence agrees in
+// number with both counts, which it names in one breath.
+func TestView_ReorderTextAgrees(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, c := range []struct{ added, skipped int32 }{{1, 1}, {1, 2}, {2, 1}, {2, 2}} {
+		got := View{ReorderAdded: c.added, ReorderSkipped: c.skipped}.ReorderText(ctx)
+		for _, n := range []int32{c.added, c.skipped} {
+			wrong := []string{" item ", " is "}
+			if n == 1 {
+				wrong = []string{" items", " are "}
+			}
+			for _, w := range wrong {
+				if strings.Contains(got, fmt.Sprintf("%d%s", n, w)) {
+					t.Errorf("ReorderText(added %d, skipped %d) = %q, which says %d%q", c.added, c.skipped, got, n, w)
+				}
+			}
 		}
 	}
 }

@@ -6223,6 +6223,33 @@ input.goen-check {
   display: contents;
 }
 
+/* The lines a buy-again left out, one row each. A long product name wraps inside
+   its row, so the page does not widen at 320px or at 200% text. */
+.goen-cart__leftout {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-cart__leftout li {
+  align-items: baseline;
+  column-gap: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A product still listed links, in the sheet's link colour and underline, at the size
+   and weight of the unlinked name; one that is not stays plain ink, so a row that
+   leads somewhere looks different from one that does not. */
+.goen-cart__leftout a {
+  font-size: 0.9375rem;
+  font-weight: var(--fw-medium);
+}
+
 /* A line in the cart is a grid, so the money and the controls can sit under
    the name at 375 without the name being squeezed to a word a row. The
    thumbnail spans both rows. */
@@ -6519,7 +6546,8 @@ input.goen-check {
 }
 
 /* An empty page says so under its own heading, on the heading's edge: a sentence, a
-   line saying what to do, and at most one way on. No picture: it repeated the sentence.
+   line saying what to do, and one way on; the empty cart adds the wishlist under it for
+   a customer who has saved products. No picture: it repeated the sentence.
    The browse screens reach this rule by descent because their box keeps the `ui-empty`
    spelling that compare_page_test and check-layout read. base.css sets the same
    properties on `.ui-empty` from a sheet the document links earlier, so every one of
@@ -6582,6 +6610,11 @@ input.goen-check {
 .ui-empty > .goen-btn,
 .goen-empty__links {
   margin-top: 1rem;
+}
+
+/* A second way on sits close under the first, not a paragraph away from it. */
+.goen-empty > .goen-btn + .goen-btn {
+  margin-top: 0;
 }
 
 .goen-checkout__main,

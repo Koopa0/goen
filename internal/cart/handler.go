@@ -33,6 +33,9 @@ type Handler struct {
 	// storeMap is nil or disabled on a deployment with no carrier, where no
 	// delivery choice is pickup.
 	storeMap *storemap.Client
+	// hasSaved is nil where the deployment wires no wishlist, and the empty cart
+	// then offers none.
+	hasSaved func(ctx context.Context, userID string) (bool, error)
 }
 
 // NewHandler reads a nil or disabled storeMap as no carrier, so no delivery
@@ -42,6 +45,14 @@ func NewHandler(store *Store, grants *access.Store, log *slog.Logger, secure boo
 		panic("cart: NewHandler requires a store, an access check and a logger")
 	}
 	return &Handler{store: store, access: grants, log: log, secure: secure, storeMap: storeMap}
+}
+
+// OfferWishlist names how the empty cart learns that the signed-in customer has
+// saved products still listed: package wishlist answers it, and cart and
+// wishlist import neither the other. It must be called before the handler
+// serves.
+func (h *Handler) OfferWishlist(hasSaved func(ctx context.Context, userID string) (bool, error)) {
+	h.hasSaved = hasSaved
 }
 
 // Routes registers the basket and reordering a past order into the basket.
@@ -94,7 +105,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !found {
-		view := View{Notice: cartPageNotice(r), ContinueURL: cartContinuation(r)}
+		view := View{Notice: cartPageNotice(r), ContinueURL: cartContinuation(r), SavedProducts: h.hasSavedProducts(r)}
 		respond.Component(w, r, h.log, http.StatusOK, Page(Meta(r.Context()), view))
 		return
 	}
@@ -111,7 +122,9 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		view.FreeDelivery = freeDeliveryFor(choices, view.SubtotalCents)
 		view.NoDelivery = len(choices) == 0
 	}
+	view.SavedProducts = view.Empty() && h.hasSavedProducts(r)
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
+	view.ReorderLeftOut = h.reorderLeftOut(r, view.ReorderSkipped)
 	view.ReorderAdjusted = view.FromReorder() && r.URL.Query().Get("qty") == "adjusted"
 	if notice := cartPageNotice(r); notice.Text != "" && !view.ReorderAdjusted {
 		view.Notice = notice
@@ -139,11 +152,44 @@ func cartPageNotice(r *http.Request) widget.Result {
 
 // reorderOutcome renders no notice for anything that will not parse, so a
 // hand-edited URL cannot tell somebody their cart holds things it does not.
-func reorderOutcome(r *http.Request) (added, skipped int) {
+func reorderOutcome(r *http.Request) (added, skipped int32) {
 	q := r.URL.Query()
-	added, _ = strconv.Atoi(q.Get("added"))     //nolint:errcheck // unparseable is zero, which renders nothing
-	skipped, _ = strconv.Atoi(q.Get("skipped")) //nolint:errcheck // same
-	return max(added, 0), max(skipped, 0)
+	return reorderCount(q.Get("added")), reorderCount(q.Get("skipped"))
+}
+
+func reorderCount(s string) int32 {
+	n, _ := strconv.ParseInt(s, 10, 32) //nolint:errcheck // unparseable is zero, which renders nothing
+	return int32(max(n, 0))
+}
+
+// reorderLeftOut names the lines a buy-again left out to a browser that may see
+// the order, by the check the reorder POST makes. Any other browser gets the
+// counts and no names, so a link carrying somebody else's order number shows
+// nothing of it.
+func (h *Handler) reorderLeftOut(r *http.Request, skipped int32) []SkippedLine {
+	number := r.URL.Query().Get("reorder")
+	if number == "" || skipped == 0 || !h.allows(r, number) {
+		return nil
+	}
+	lines, err := h.store.SkippedOnReorder(r.Context(), number)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read the lines a reorder left out", "error", err, "order", number)
+		return nil
+	}
+	return lines
+}
+
+func (h *Handler) hasSavedProducts(r *http.Request) bool {
+	u, ok := user.FromContext(r.Context())
+	if !ok || h.hasSaved == nil {
+		return false
+	}
+	has, err := h.hasSaved(r.Context(), u.ID)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read the wishlist for the empty cart", "error", err)
+		return false
+	}
+	return has
 }
 
 func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
@@ -255,10 +301,15 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Counts, never product names: a query string is logged.
+	// Counts, never product names: a query string is logged. The order number
+	// goes along only to let the cart page name what was left out, to a browser
+	// that may see the order.
 	outcome := url.Values{
 		"added":   {strconv.Itoa(result.Added)},
 		"skipped": {strconv.Itoa(len(result.Skipped))},
+	}
+	if len(result.Skipped) > 0 {
+		outcome.Set("reorder", number)
 	}
 	if result.Adjusted {
 		outcome.Set("qty", "adjusted")

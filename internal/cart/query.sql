@@ -205,11 +205,14 @@ ORDER BY sm.id, v.effective_at DESC;
 
 -- An order's lines as a REORDER sees them. LEFT JOIN and not JOIN: variant_id is
 -- nullable so a line survives its variant being deleted, and dropping those rows
--- would make the page say it added everything.
+-- would make the page say it added everything. A left-out line links to its
+-- product only while the product is listed, even when its variant is not.
 -- name: ReorderLines :many
 SELECT ol.variant_id, ol.product_name, ol.variant_label, ol.quantity,
        coalesce(pv.is_active AND p.status = 'active', false)::boolean AS sellable,
-       coalesce(pv.stock_quantity - pv.safety_stock, 0)::integer AS available
+       coalesce(pv.stock_quantity - pv.safety_stock, 0)::integer AS available,
+       coalesce(p.status = 'active', false)::boolean AS listed,
+       coalesce(p.slug, '')::text AS product_slug
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 LEFT JOIN product_variants pv ON pv.id = ol.variant_id

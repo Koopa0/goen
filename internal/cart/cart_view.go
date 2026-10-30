@@ -18,14 +18,19 @@ type View struct {
 	ItemCount       int64
 	MixedTaxTypes   bool
 	ReorderAdjusted bool
+	NoDelivery      bool
+	// SavedProducts is whether the signed-in customer has a wishlist worth opening.
+	SavedProducts bool
 
-	ReorderAdded   int
-	ReorderSkipped int
+	ReorderAdded   int32
+	ReorderSkipped int32
+	// ReorderLeftOut names the lines behind ReorderSkipped; it is empty for a browser
+	// that may not see the order it came from.
+	ReorderLeftOut []SkippedLine
 	Notice         widget.Result
 	ContinueURL    string
 
 	FreeDelivery FreeDelivery
-	NoDelivery   bool
 
 	// PayStartMinutes is how long the customer has, from placing the order, to start paying.
 	PayStartMinutes int64
@@ -134,6 +139,14 @@ func (v View) ReorderText(ctx context.Context) string {
 	default:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderPartial), v.ReorderAdded, v.ReorderSkipped)
 	}
+}
+
+// ReasonText is the word beside a line a reorder left out.
+func (l SkippedLine) ReasonText(ctx context.Context) string {
+	if l.Reason == SkipSoldOut {
+		return i18n.T(ctx, i18n.KeySoldOut)
+	}
+	return i18n.T(ctx, i18n.KeyReorderGone)
 }
 
 func Meta(ctx context.Context) frame.Page {

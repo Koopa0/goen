@@ -15865,7 +15865,9 @@ func (q *Queries) ReopenMessage(ctx context.Context, id uuid.UUID) (int64, error
 const reorderLines = `-- name: ReorderLines :many
 SELECT ol.variant_id, ol.product_name, ol.variant_label, ol.quantity,
        coalesce(pv.is_active AND p.status = 'active', false)::boolean AS sellable,
-       coalesce(pv.stock_quantity - pv.safety_stock, 0)::integer AS available
+       coalesce(pv.stock_quantity - pv.safety_stock, 0)::integer AS available,
+       coalesce(p.status = 'active', false)::boolean AS listed,
+       coalesce(p.slug, '')::text AS product_slug
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 LEFT JOIN product_variants pv ON pv.id = ol.variant_id
@@ -15881,11 +15883,14 @@ type ReorderLinesRow struct {
 	Quantity     int32
 	Sellable     bool
 	Available    int32
+	Listed       bool
+	ProductSlug  string
 }
 
 // An order's lines as a REORDER sees them. LEFT JOIN and not JOIN: variant_id is
 // nullable so a line survives its variant being deleted, and dropping those rows
-// would make the page say it added everything.
+// would make the page say it added everything. A left-out line links to its
+// product only while the product is listed, even when its variant is not.
 func (q *Queries) ReorderLines(ctx context.Context, orderNumber string) ([]ReorderLinesRow, error) {
 	rows, err := q.db.Query(ctx, reorderLines, orderNumber)
 	if err != nil {
@@ -15902,6 +15907,8 @@ func (q *Queries) ReorderLines(ctx context.Context, orderNumber string) ([]Reord
 			&i.Quantity,
 			&i.Sellable,
 			&i.Available,
+			&i.Listed,
+			&i.ProductSlug,
 		); err != nil {
 			return nil, err
 		}
@@ -20301,6 +20308,21 @@ func (q *Queries) VariantStockByDay(ctx context.Context, arg VariantStockByDayPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const wishlistAnyListed = `-- name: WishlistAnyListed :one
+SELECT EXISTS (
+    SELECT 1 FROM wishlist_items w JOIN products p ON p.id = w.product_id
+    WHERE w.user_id = $1 AND p.status = 'active'
+)
+`
+
+// Whether the customer has a saved product the wishlist page would show.
+func (q *Queries) WishlistAnyListed(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, wishlistAnyListed, userID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const wishlistHas = `-- name: WishlistHas :one
