@@ -23,7 +23,6 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/uitest"
-	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
@@ -532,36 +531,6 @@ func TestPasswordRefusalNoFormatVerb(t *testing.T) {
 	short := formtext.FieldMessages(ctx, creds.ValidateRegistration())["password"]
 	if !strings.Contains(short, strconv.Itoa(MinPasswordRunes)) {
 		t.Errorf("the too-short message is %q and does not state the minimum", short)
-	}
-}
-
-// TestNoticeEraseOpenReturn: Notice explains that an open return blocks erasure
-// when the account page is opened with erase=return.
-func TestNoticeEraseOpenReturn(t *testing.T) {
-	t.Parallel()
-
-	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		ctx := i18n.WithLocale(t.Context(), locale)
-		r := httptest.NewRequestWithContext(ctx, http.MethodGet,
-			"/account?erase=return", http.NoBody)
-		if got, want := Notice(r), (widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(ctx, i18n.KeyEraseOpenReturn)}); got != want {
-			t.Errorf("%s open-return erasure notice = %+v, want %+v", locale, got, want)
-		}
-	}
-}
-
-// TestNoticeEraseLastAdmin: Notice explains that the last administrator cannot
-// be erased when the account page is opened with erase=admin.
-func TestNoticeEraseLastAdmin(t *testing.T) {
-	t.Parallel()
-
-	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		ctx := i18n.WithLocale(t.Context(), locale)
-		r := httptest.NewRequestWithContext(ctx, http.MethodGet,
-			"/account?erase=admin", http.NoBody)
-		if got, want := Notice(r), (widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(ctx, i18n.KeyEraseLastAdmin)}); got != want {
-			t.Errorf("%s last-admin erasure notice = %+v, want %+v", locale, got, want)
-		}
 	}
 }
 

@@ -351,8 +351,8 @@ func TestNewRouterStepUpNoFactor(t *testing.T) {
 }
 
 // TestNewRouterStepUpLastAdmin: a verified sole admin who erases the account is
-// sent to /account?erase=admin and the account remains: the database's
-// last-admin rule still applies after step-up.
+// answered 422 on the erase section of the account page and the account
+// remains: the database's last-admin rule still applies after step-up.
 //
 // The last-admin protection is the database's, and a verified session must
 // still meet it: step-up opens the door, it does not widen what the door may
@@ -365,8 +365,8 @@ func TestNewRouterStepUpLastAdmin(t *testing.T) {
 	w.verify(t, u, secret)
 
 	res := w.do(t, http.MethodPost, "/account/erase", u.cookie, url.Values{"confirm": {u.email}})
-	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/account?erase=admin" {
-		t.Errorf("erase of the only admin = %d %q, want 303 /account?erase=admin", res.Code, res.Header().Get("Location"))
+	if res.Code != http.StatusUnprocessableEntity || !strings.Contains(res.Body.String(), `id="erase-refusal"`) {
+		t.Errorf("erase of the only admin = %d, want 422 saying so in the erase section of the account page", res.Code)
 	}
 	if got := count(t, w, `SELECT count(*) FROM users WHERE id = $1`, u.id); got != 1 {
 		t.Errorf("the only admin has %d rows, want 1", got)

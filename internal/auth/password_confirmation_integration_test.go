@@ -53,23 +53,26 @@ func TestStore_ConfirmPasswordNoSignIn(t *testing.T) {
 // sign-in.
 func TestHandler_ChangeFormsNoSignIn(t *testing.T) {
 	tests := []struct {
-		name     string
-		path     string
-		values   url.Values
+		name   string
+		path   string
+		values url.Values
+		// location is where an accepted form sends the customer; a refused one
+		// answers 422 on the account page and sends nowhere.
 		location string
+		status   int
 	}{
 		{name: "password change", path: "/account/password", values: url.Values{
 			"current": {"a sufficiently long password"}, "password": {"a different long password"}, "confirm": {"a different long password"},
-		}, location: "/signin?changed=1"},
+		}, location: "/signin?changed=1", status: http.StatusSeeOther},
 		{name: "email change", path: "/account/email", values: url.Values{
 			"current": {"a sufficiently long password"}, "email": {"new-" + uuid.NewString() + "@example.com"},
-		}, location: "/account?address=n%2A%2A%2A%40example.com&email=sent"},
+		}, location: "/account?address=n%2A%2A%2A%40example.com&email=sent#account-notice", status: http.StatusSeeOther},
 		{name: "refused new password", path: "/account/password", values: url.Values{
 			"current": {"a sufficiently long password"}, "password": {"short"}, "confirm": {"short"},
-		}, location: "/account?password=invalid"},
+		}, status: http.StatusUnprocessableEntity},
 		{name: "refused new email", path: "/account/email", values: url.Values{
 			"current": {"a sufficiently long password"}, "email": {"not-an-email"},
-		}, location: "/account?email=invalid"},
+		}, status: http.StatusUnprocessableEntity},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -85,7 +88,7 @@ func TestHandler_ChangeFormsNoSignIn(t *testing.T) {
 			cookie := sessionCookie(t, cookieResponse)
 			before := time.Date(2001, time.February, 3, 4, 5, 6, 0, time.UTC)
 			setLastLogin(t, u.ID, before)
-			h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
+			h := refuseOnAccountPage(auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil), pool)
 			mux := http.NewServeMux()
 			mux.HandleFunc("POST /account/password", h.RequireUser(h.ChangePassword))
 			mux.HandleFunc("POST /account/email", h.RequireUser(h.ChangeEmail))
@@ -93,8 +96,8 @@ func TestHandler_ChangeFormsNoSignIn(t *testing.T) {
 			req.AddCookie(cookie)
 			res := httptest.NewRecorder()
 			h.Authenticate(mux).ServeHTTP(res, req)
-			if res.Code != http.StatusSeeOther || res.Header().Get("Location") != tt.location {
-				t.Fatalf("%s answered %d to %q, want 303 to %q", tt.name, res.Code, res.Header().Get("Location"), tt.location)
+			if res.Code != tt.status || res.Header().Get("Location") != tt.location {
+				t.Fatalf("%s answered %d to %q, want %d to %q", tt.name, res.Code, res.Header().Get("Location"), tt.status, tt.location)
 			}
 			wantLastLogin(t, u.ID, before, tt.name)
 		})

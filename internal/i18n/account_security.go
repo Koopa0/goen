@@ -83,11 +83,6 @@ var (
 		En:     "That is not your current password.",
 	})
 
-	KeyNewPasswordRefused = key("account.notice.password.new", Message{
-		ZhHant: "新密碼不符合規則，或兩次輸入不一致。",
-		En:     "The new password does not meet the rules, or the two entries differ.",
-	})
-
 	KeyEraseNeedsEmail = key("account.notice.erase", Message{
 		ZhHant: "請輸入帳號的電子郵件以確認刪除。",
 		En:     "Type the account's email address to confirm.",
@@ -96,6 +91,11 @@ var (
 	KeyEraseOpenReturn = key("account.notice.erase.return", Message{
 		ZhHant: "這個帳號仍有尚未完成的購物金退貨。請等待退貨完成或聯絡客服後再刪除帳號。",
 		En:     "This account has an unfinished return involving store credit. Finish it or contact support before deleting the account.",
+	})
+
+	KeyEraseOpenReturnNamed = key("account.notice.erase.return.named", Message{
+		ZhHant: "你有一筆退貨還在處理（%s），完成後才能刪除帳號。",
+		En:     "A return on %s is still being processed. You can delete your account once it's finished.",
 	})
 
 	KeyDemoAccountFixed = key("account.notice.demo", Message{

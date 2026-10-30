@@ -40,6 +40,25 @@ LIMIT @row_limit::integer;
 SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint AS balance_cents;
 
+-- The account's own orders that have a return still being processed: one nobody
+-- has decided, or an approved one whose refund has not settled, which is the
+-- opposite of what the order history counts as returned (OrderReturns). Two rows
+-- are enough to tell one order from several.
+-- name: OpenReturnOrders :many
+SELECT o.order_number
+FROM orders o
+WHERE o.user_id = @user_id
+  AND EXISTS (
+      SELECT 1 FROM return_requests rr
+      WHERE rr.order_id = o.id
+        AND (rr.status = 'requested'
+             OR (rr.status = 'approved'
+                 AND rr.goods_refund_cents + rr.shipping_refund_cents > 0
+                 AND NOT EXISTS (SELECT 1 FROM order_events e
+                                 WHERE e.return_request_id = rr.id AND e.kind = 'refunded'))))
+ORDER BY o.placed_at, o.id
+LIMIT 2;
+
 -- name: AddressesForUser :many
 SELECT id, label, recipient_name, phone, postal_code, city, district, street, is_default
 FROM addresses WHERE user_id = $1

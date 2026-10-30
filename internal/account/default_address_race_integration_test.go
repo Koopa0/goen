@@ -126,13 +126,13 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind addressWrite) {
 	if err := firstBlock.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	assertDefaultAddressSaved(t, ctx, firstDone)
+	assertDefaultAddressSaved(t, ctx, firstDone, firstKind)
 	if secondBlock != nil {
 		if err := secondBlock.Commit(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
-	assertDefaultAddressSaved(t, ctx, secondDone)
+	assertDefaultAddressSaved(t, ctx, secondDone, secondKind)
 
 	type savedAddress struct {
 		Label   string
@@ -221,12 +221,18 @@ func waitForDefaultAddressBlock(t *testing.T, ctx context.Context, application s
 	}
 }
 
-func assertDefaultAddressSaved(t *testing.T, ctx context.Context, done <-chan *httptest.ResponseRecorder) {
+func assertDefaultAddressSaved(t *testing.T, ctx context.Context, done <-chan *httptest.ResponseRecorder, kind addressWrite) {
 	t.Helper()
+	// An addition posts to the address section and lands there; a selection is
+	// a button beside the list and lands where it was.
+	want := "/account?saved=1"
+	if kind == addressAddition {
+		want += "#addresses-heading"
+	}
 	select {
 	case response := <-done:
-		if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/account?saved=1" {
-			t.Errorf("address write = %d %q, want 303 /account?saved=1; body %s", response.Code, response.Header().Get("Location"), response.Body.String())
+		if response.Code != http.StatusSeeOther || response.Header().Get("Location") != want {
+			t.Errorf("address write = %d %q, want 303 %s; body %s", response.Code, response.Header().Get("Location"), want, response.Body.String())
 		}
 	case <-ctx.Done():
 		t.Fatalf("address writer did not finish: %v", ctx.Err())

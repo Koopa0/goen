@@ -64,7 +64,7 @@ type Handler struct {
 	stepUp func(*http.Request) (bool, error)
 	// refuseOnAccountPage answers a refused request with the account page. See
 	// [Handler.RefuseOnAccountPage].
-	refuseOnAccountPage func(w http.ResponseWriter, r *http.Request, notice string)
+	refuseOnAccountPage func(w http.ResponseWriter, r *http.Request, refusal AccountRefusal)
 
 	// letterLimit bounds the letters one address is sent by each flow that
 	// mails the address it is given, keyed by the flow and the address:
@@ -177,10 +177,11 @@ func (h *Handler) RequireStepUpFromStaff(stepUp func(*http.Request) (bool, error
 }
 
 // RefuseOnAccountPage names the page a refused request from the account page
-// is answered with: package account renders it, with the notice saying why and
-// status 422, and auth may not import account. It must be called before the
+// is answered with: package account renders it at status 422, with the
+// refusal's section open, its messages under their controls and what was typed
+// put back, and auth may not import account. It must be called before the
 // handler serves.
-func (h *Handler) RefuseOnAccountPage(refuse func(w http.ResponseWriter, r *http.Request, notice string)) {
+func (h *Handler) RefuseOnAccountPage(refuse func(w http.ResponseWriter, r *http.Request, refusal AccountRefusal)) {
 	h.refuseOnAccountPage = refuse
 }
 
@@ -209,11 +210,11 @@ func (h *Handler) refuseUnverifiedStaff(w http.ResponseWriter, r *http.Request, 
 	return true
 }
 
-func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u user.User) bool {
+func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u user.User, form AccountForm) bool {
 	if !h.demo.holds(u.Email) {
 		return false
 	}
-	http.Redirect(w, r, "/account?demo=fixed", http.StatusSeeOther)
+	h.refuseOnAccountPage(w, r, AccountRefusal{Form: form, Notice: i18n.T(r.Context(), i18n.KeyDemoAccountFixed)})
 	return true
 }
 
@@ -705,28 +706,12 @@ func Notice(r *http.Request) widget.Result {
 		return widget.Result{Outcome: widget.OutcomeDone, Text: text}
 	}
 	switch {
-	case q.Get("password") == "wrong":
-		return refused(i18n.KeyWrongCurrentPassword)
-	case q.Get("password") == "invalid":
-		return refused(i18n.KeyNewPasswordRefused)
-	case q.Get("erase") == "confirm":
-		return refused(i18n.KeyEraseNeedsEmail)
-	case q.Get("erase") == "return":
-		return refused(i18n.KeyEraseOpenReturn)
-	case q.Get("erase") == "admin":
-		return refused(i18n.KeyEraseLastAdmin)
 	case q.Get("email") == "sent":
 		return done(emailSentNotice(ctx, q))
-	case q.Get("email") == "invalid":
-		return refused(i18n.KeyEmailInvalidNotice)
-	case q.Get("email") == "staff":
-		return refused(i18n.KeyEmailStaffFixed)
 	case q.Get("unlinked") == "1":
 		return done(i18n.T(ctx, i18n.KeyGoogleUnlinked))
 	case q.Get("lastmethod") == "1":
 		return refused(i18n.KeyGoogleLastMethod)
-	case q.Get("demo") == "fixed":
-		return refused(i18n.KeyDemoAccountFixed)
 	}
 	return otherDevicesNotice(r)
 }
@@ -925,7 +910,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	if h.refuseDemoChange(w, r, u) || h.refuseUnverifiedStaff(w, r, u) {
+	if h.refuseDemoChange(w, r, u, PasswordForm) || h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
 	if err := formtext.ParseForm(w, r); err != nil {
@@ -933,20 +918,26 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	current := r.PostFormValue("current")
-	if err := h.store.ConfirmPassword(r.Context(), u.Email, current); err != nil {
+	// Every refused control is named at once, so a wrong current password does
+	// not hide a new password that also fails.
+	var refusals []formtext.FieldRefusal
+	if err := h.store.ConfirmPassword(r.Context(), u.Email, r.PostFormValue("current")); err != nil {
 		if !errors.Is(err, ErrBadCredentials) {
 			h.log.ErrorContext(r.Context(), "confirm password change", "error", err)
 			h.serverError(w, r)
 			return
 		}
-		http.Redirect(w, r, "/account?password=wrong", http.StatusSeeOther)
-		return
+		refusals = append(refusals, formtext.FieldRefusal{Field: "current", MessageKey: i18n.KeyWrongCurrentPassword})
 	}
 
 	next := r.PostFormValue("password")
-	if PasswordError(next) != "" || next != r.PostFormValue("confirm") {
-		http.Redirect(w, r, "/account?password=invalid", http.StatusSeeOther)
+	if refusal, refused := PasswordRefusal("password", next); refused {
+		refusals = append(refusals, refusal)
+	} else if next != r.PostFormValue("confirm") {
+		refusals = append(refusals, formtext.FieldRefusal{Field: "confirm", MessageKey: i18n.KeyPasswordsDiffer})
+	}
+	if len(refusals) > 0 {
+		h.refuseOnAccountPage(w, r, AccountRefusal{Form: PasswordForm, Errors: formtext.FieldMessages(r.Context(), refusals)})
 		return
 	}
 
@@ -966,7 +957,7 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Before the recency check, which would end the session rather than refuse.
-	if h.refuseDemoChange(w, r, u) || h.refuseUnverifiedStaff(w, r, u) {
+	if h.refuseDemoChange(w, r, u, EraseForm) || h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
 	if err := formtext.ParseForm(w, r); err != nil {
@@ -991,16 +982,22 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin?next=%2Faccount&reauth=erase", http.StatusSeeOther)
 		return
 	}
-	if r.PostFormValue("confirm") != u.Email {
-		http.Redirect(w, r, "/account?erase=confirm", http.StatusSeeOther)
+	if typed := r.PostFormValue("confirm"); typed != u.Email {
+		h.refuseOnAccountPage(w, r, AccountRefusal{
+			Form:   EraseForm,
+			Errors: map[string]string{"confirm": i18n.T(r.Context(), i18n.KeyEraseNeedsEmail)},
+			Values: map[string]string{"confirm": typed},
+		})
 		return
 	}
 	switch err := h.store.Erase(r.Context(), u.ID); {
 	case errors.Is(err, ErrOpenReturn):
-		http.Redirect(w, r, "/account?erase=return", http.StatusSeeOther)
+		h.refuseOnAccountPage(w, r, AccountRefusal{
+			Form: EraseForm, Notice: i18n.T(r.Context(), i18n.KeyEraseOpenReturn), OpenReturn: true,
+		})
 		return
 	case errors.Is(err, ErrLastAdmin):
-		http.Redirect(w, r, "/account?erase=admin", http.StatusSeeOther)
+		h.refuseOnAccountPage(w, r, AccountRefusal{Form: EraseForm, Notice: i18n.T(r.Context(), i18n.KeyEraseLastAdmin)})
 		return
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "erase account", "error", err)
@@ -1017,11 +1014,11 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	if h.refuseDemoChange(w, r, u) {
+	if h.refuseDemoChange(w, r, u, EmailForm) {
 		return
 	}
 	if u.IsStaff() {
-		http.Redirect(w, r, "/account?email=staff", http.StatusSeeOther)
+		h.refuseOnAccountPage(w, r, AccountRefusal{Form: EmailForm, Notice: i18n.T(r.Context(), i18n.KeyEmailStaffFixed)})
 		return
 	}
 	if err := formtext.ParseForm(w, r); err != nil {
@@ -1029,19 +1026,26 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var refusals []formtext.FieldRefusal
 	if err := h.store.ConfirmPassword(r.Context(), u.Email, r.PostFormValue("current")); err != nil {
 		if !errors.Is(err, ErrBadCredentials) {
 			h.log.ErrorContext(r.Context(), "confirm email change", "error", err)
 			h.serverError(w, r)
 			return
 		}
-		http.Redirect(w, r, "/account?password=wrong", http.StatusSeeOther)
-		return
+		refusals = append(refusals, formtext.FieldRefusal{Field: "current", MessageKey: i18n.KeyWrongCurrentPassword})
 	}
 
 	addr := r.PostFormValue("email")
-	if EmailError(addr) != "" {
-		http.Redirect(w, r, "/account?email=invalid", http.StatusSeeOther)
+	if k := EmailError(addr); k != "" {
+		refusals = append(refusals, formtext.FieldRefusal{Field: "email", MessageKey: k})
+	}
+	if len(refusals) > 0 {
+		h.refuseOnAccountPage(w, r, AccountRefusal{
+			Form:   EmailForm,
+			Errors: formtext.FieldMessages(r.Context(), refusals),
+			Values: map[string]string{"email": addr},
+		})
 		return
 	}
 	// After validation, so only an address the rules accept becomes a key.
@@ -1059,7 +1063,9 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	http.Redirect(w, r, "/account?"+url.Values{"email": {"sent"}, "address": {email.Mask(addr)}}.Encode(), http.StatusSeeOther)
+	// The form posts to its section, which a redirect without a fragment keeps;
+	// the sentence it sends back is at the top.
+	http.Redirect(w, r, "/account?"+url.Values{"email": {"sent"}, "address": {email.Mask(addr)}}.Encode()+"#account-notice", http.StatusSeeOther)
 }
 
 func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
@@ -1068,7 +1074,7 @@ func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	if h.refuseDemoChange(w, r, u) {
+	if h.refuseDemoChange(w, r, u, EmailForm) {
 		return
 	}
 	if retryAfter, ok := h.accountMailLimit.Allow("account:" + u.ID); !ok {
@@ -1080,7 +1086,7 @@ func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	http.Redirect(w, r, "/account?"+url.Values{"email": {"sent"}, "address": {email.Mask(u.Email)}}.Encode(), http.StatusSeeOther)
+	http.Redirect(w, r, "/account?"+url.Values{"email": {"sent"}, "address": {email.Mask(u.Email)}}.Encode()+"#account-notice", http.StatusSeeOther)
 }
 
 func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {

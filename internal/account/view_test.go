@@ -221,7 +221,7 @@ func renderedAddressBookControls(t *testing.T) map[string]map[string]string {
 
 	controls := map[string]map[string]string{}
 	html := renderToString(t, Account(Meta(t.Context()), &View{}))
-	form := formWithAction(t, html, "/account/addresses")
+	form := formWithAction(t, html, "/account/addresses#addresses-heading")
 	for _, tag := range formControlPattern.FindAllString(form, -1) {
 		attributes := quotedAttributes(tag)
 		if !isTextEntryControl(attributes) {

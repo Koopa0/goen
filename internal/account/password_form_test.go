@@ -33,7 +33,7 @@ func TestAccountPasswordFormNamesAccount(t *testing.T) {
 				t.Fatal(err)
 			}
 			form := findDescendant(doc, func(n *html.Node) bool {
-				return n.Type == html.ElementNode && n.Data == "form" && attrValue(n, "action") == "/account/password"
+				return n.Type == html.ElementNode && n.Data == "form" && attrValue(n, "action") == "/account/password#password-heading"
 			})
 			if form == nil {
 				t.Fatal("account page has no change-password form")

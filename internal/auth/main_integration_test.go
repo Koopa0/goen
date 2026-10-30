@@ -426,3 +426,10 @@ func accountRecoveryState(t *testing.T, userID string) string {
 func accountPage(p *pgxpool.Pool) *account.Handler {
 	return account.NewHandler(account.NewStore(p), slog.New(slog.DiscardHandler), false, false)
 }
+
+// refuseOnAccountPage wires h as cmd/goen does: a refused request is answered
+// with the account page on p.
+func refuseOnAccountPage(h *auth.Handler, p *pgxpool.Pool) *auth.Handler {
+	h.RefuseOnAccountPage(accountPage(p).Refuse)
+	return h
+}

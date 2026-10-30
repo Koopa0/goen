@@ -83,11 +83,11 @@ func (h *Handler) RequestPasswordSetup(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	if h.refuseDemoChange(w, r, u) {
+	if h.refuseDemoChange(w, r, u, PasswordForm) {
 		return
 	}
 	if EmailError(email.Clean(u.Email)) != "" {
-		h.refuseOnAccountPage(w, r, i18n.T(r.Context(), i18n.KeyEmailInvalidNotice))
+		h.refuseOnAccountPage(w, r, AccountRefusal{Form: PasswordForm, Notice: i18n.T(r.Context(), i18n.KeyEmailInvalidNotice)})
 		return
 	}
 	if err := h.requestResetLink(r.Context(), u.Email); err != nil {
