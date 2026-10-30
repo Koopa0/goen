@@ -75,6 +75,14 @@ type View struct {
 	PickupStoreAddr string
 	// PickupRefused: a store arrived that this browser cannot vouch for; the page echoes none of it.
 	PickupRefused bool
+	// Partial is an answer htmx swaps into a page already showing. Nothing in it takes
+	// focus: the control the shopper just changed has it.
+	Partial bool
+	// PostalNote is set on a refused form whose postcode covers none of the city and district
+	// typed with it. It refuses nothing.
+	PostalNote string
+	// SignedIn is false for a guest, who is offered signing in.
+	SignedIn bool
 }
 
 func (v *View) HasShipping() bool { return len(v.Shipping) > 0 }
@@ -87,11 +95,15 @@ const PickupStartAction = "/checkout/pickup/start"
 // a page and not on a POST.
 const PickupMapPath = "/checkout/pickup/map"
 
+// storeButtonID is the store button's id, where a refused store is linked.
+const storeButtonID = "pickup_store"
+
 // formnovalidate: a shopper who has not typed an email yet must still be able to
 // choose a store; nothing is placed by this submit. The button carries the store
 // refusal because the store is chosen through the picker, not typed.
 func checkoutStoreButtonAttrs(invalid string, refused bool) templ.Attributes {
 	attrs := templ.Attributes{
+		"id":         storeButtonID,
 		"formaction": PickupStartAction, "formmethod": "post", "formnovalidate": true,
 		"aria-invalid": invalid,
 	}
@@ -253,6 +265,26 @@ func (v *View) Err(field string) string { return v.Errors[field] }
 
 func (v *View) HasErr(field string) bool { return v.Errors[field] != "" }
 
+// NoteFor is the note under a field that is not a refusal: only the postcode has one.
+func (v *View) NoteFor(field string) string {
+	if field == "postal_code" {
+		return v.PostalNote
+	}
+	return ""
+}
+
+// describedBy names what a screen reader reads with a field: the sentence under it, then its note.
+func describedBy(field string, sentence, note bool) string {
+	var ids []string
+	if sentence {
+		ids = append(ids, field+"-error")
+	}
+	if note {
+		ids = append(ids, field+"-note")
+	}
+	return strings.Join(ids, " ")
+}
+
 func (v *View) Invalid(field string) string {
 	if v.HasErr(field) {
 		return "true"
@@ -260,10 +292,59 @@ func (v *View) Invalid(field string) string {
 	return "false"
 }
 
-func (v *View) AnyErrors() bool { return len(v.Errors) > 0 }
+// RefusedField is a link in the refusal summary: where the field is and what it is called.
+type RefusedField struct{ ID, Label string }
 
-// OnlyCouponRefused lets the banner name the code instead of sending the shopper
-// through the fields to find it.
+// refusedFields are the controls a refused checkout can name, in the order the page shows
+// them, with the id a link to each goes to. A group of radios has no control of its own and
+// is reached through the card holding it; the pickup store's own control is the store button,
+// and the two keys typed into no control, which only a forged post reaches, go to the chooser.
+// The discount code is not here: a code refused is reported under its field alone.
+var refusedFields = []struct {
+	key, id string
+	label   i18n.Key
+}{
+	{"shipping", "shipping", i18n.KeySectionShipping},
+	{"address", "address-book", i18n.KeyChooseSavedAddress},
+	{"email", "email", i18n.KeyFieldEmail},
+	{"name", "name", i18n.KeyFieldName},
+	{"phone", "phone", i18n.KeyFieldPhone},
+	{"pickup_chain", "pickup_chain", i18n.KeyFieldPickupChain},
+	{"pickup_store", storeButtonID, i18n.KeyPickupChooseStore},
+	{"pickup_store_code", "pickup_chain", i18n.KeyFieldStoreCode},
+	{"pickup_store_name", "pickup_chain", i18n.KeyFieldStoreName},
+	{"postal_code", "postal_code", i18n.KeyFieldPostalCode},
+	{"city", "city", i18n.KeyFieldCity},
+	{"district", "district", i18n.KeyFieldDistrict},
+	{"street", "street", i18n.KeyFieldStreet},
+	{"note", "note", i18n.KeyFieldNote},
+	{"invoice_type", "invoice", i18n.KeySectionInvoice},
+	{"invoice_carrier", "invoice_carrier", i18n.KeyFieldMobileBarcode},
+	{"invoice_donation_code", "invoice_donation_code", i18n.KeyFieldDonationCode},
+	{"invoice_company_name", "invoice_company_name", i18n.KeyFieldCompanyName},
+	{"invoice_tax_id", "invoice_tax_id", i18n.KeyFieldTaxID},
+}
+
+// RefusedFields is what the refusal summary links to, one entry per refused field. The store
+// button exists only where the carrier's map is offered; elsewhere a refused store is linked to
+// the chooser, so no link goes to an id the page lacks.
+func (v *View) RefusedFields(ctx context.Context) []RefusedField {
+	var out []RefusedField
+	for _, f := range refusedFields {
+		if !v.HasErr(f.key) {
+			continue
+		}
+		id := f.id
+		if id == storeButtonID && !v.OffersTheStoreMap() {
+			id = "pickup_chain"
+		}
+		out = append(out, RefusedField{ID: id, Label: i18n.T(ctx, f.label)})
+	}
+	return out
+}
+
+// OnlyCouponRefused says the code is the form's only refusal, so there is no summary to
+// take focus and the code's own field does.
 func (v *View) OnlyCouponRefused() bool {
 	return len(v.Errors) == 1 && v.HasErr("coupon")
 }
@@ -393,19 +474,11 @@ func (i InvoiceView) Chosen() invoice.Preference {
 	return i.Type
 }
 
-// NeedsMobileBarcode and NeedsTaxID decide which half of the form exists:
-// rendering both would leave required promising something the server will not demand.
-func (i InvoiceView) NeedsMobileBarcode() bool { return i.Chosen().NeedsMobileBarcode() }
-
-func (i InvoiceView) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
-
 func (v *View) HasCoupon() bool {
 	return v.CouponApplied != "" && (v.CouponDiscountCents > 0 || v.CouponFreeShipping)
 }
 
 func (v *View) CouponDiscount() string { return "-" + twd(v.CouponDiscountCents) }
-
-func (i InvoiceView) NeedsDonationCode() bool { return i.Chosen() == invoice.PreferenceDonate }
 
 // summaryRow is a row of the totals that the notice for a changed quote can name and mark.
 type summaryRow uint8

@@ -5,7 +5,6 @@ package buyer_test
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,18 +14,17 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestHandler_CancelOrderMayTakeMoney: CancelOrder refuses with 422 and the
-// existing refusal message an order whose payment may still take money
-// (requires_payment, requires_action, processing, requires_reconciliation or an
-// unreconciled webhook event), and leaves the order, its hold, events, notices
-// and stock unchanged.
+// existing refusal message an order whose payment may be taking money
+// (requires_action, processing, requires_reconciliation or an unreconciled
+// webhook event), and leaves the order, its hold, events, notices and stock
+// unchanged. An open Checkout Session is not among them: it is expired first.
 func TestHandler_CancelOrderMayTakeMoney(t *testing.T) {
-	for _, status := range []string{"requires_payment", "requires_action", "processing", "requires_reconciliation", "unreconciled_event"} {
+	for _, status := range []string{"requires_action", "processing", "requires_reconciliation", "unreconciled_event"} {
 		t.Run(status, func(t *testing.T) {
 			ctx := t.Context()
 			variant := ordertest.FreshVariant(t, pool, "cancel-payment-guard")
@@ -56,8 +54,8 @@ func TestHandler_CancelOrderMayTakeMoney(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			appPool := storeRolePool(t)
-			h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
+			stripeAPI, gateway := newCheckoutStripe(t)
+			h := handlerWithSessionExpirer(t, gateway)
 			before := ordertest.StockOf(t, pool, variant)
 			for _, locale := range i18n.Locales() {
 				localized := i18n.WithLocale(ctx, locale)
@@ -69,6 +67,9 @@ func TestHandler_CancelOrderMayTakeMoney(t *testing.T) {
 				if res.Code != http.StatusUnprocessableEntity || res.Header().Get("Location") != "" || !strings.Contains(res.Body.String(), i18n.T(localized, i18n.KeyCancelRefusedBody)) {
 					t.Errorf("%s cancellation = %d %s, want 422 with existing refusal", locale.Tag(), res.Code, res.Header().Get("Location"))
 				}
+			}
+			if n := stripeAPI.requested(); n != 0 {
+				t.Errorf("Stripe received %d requests, want none: no Checkout Session is open", n)
 			}
 			if f := factsOf(t, number); f.status != "pending" || f.heldHolds != 1 || f.events != 0 || f.notices != 0 || f.reversals != 0 {
 				t.Errorf("refused cancellation changed order or effects: %+v", f)
@@ -82,7 +83,7 @@ func TestHandler_CancelOrderMayTakeMoney(t *testing.T) {
 
 // TestStore_CancelOrderBehindPaymentOpen: a cancellation waiting on the order
 // lock rereads the payment once a concurrent open_payment commits, answers
-// ErrNotCancellable and leaves the order pending with its hold.
+// that a checkout is open and leaves the order pending with its hold.
 func TestStore_CancelOrderBehindPaymentOpen(t *testing.T) {
 	ctx := t.Context()
 	orderID := ordertest.HeldOrder(t, pool, ordertest.FreshVariant(t, pool, "cancel-payment-lock"), -10*time.Minute, false)
@@ -105,8 +106,8 @@ func TestStore_CancelOrderBehindPaymentOpen(t *testing.T) {
 	if err := opener.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := <-done; !errors.Is(err, buyer.ErrNotCancellable) {
-		t.Errorf("cancellation behind payment open = %v, want ErrNotCancellable", err)
+	if _, ok := errors.AsType[*buyer.CheckoutOpenError](<-done); !ok {
+		t.Error("cancellation behind payment open did not answer that a checkout is open")
 	}
 	if f := factsOf(t, number); f.status != "pending" || f.heldHolds != 1 || f.events != 0 || f.notices != 0 {
 		t.Errorf("payment committed during wait did not protect order: %+v", f)

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
@@ -55,14 +56,15 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 		DeliveryTo:    to.Line(),
 		SubtotalCents: o.SubtotalCents,
 		ShippingCents: o.ShippingCents,
-		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason,
-		TotalCents:  o.TotalCents,
-		CreditCents: o.CreditCents,
-		PlacedAt:    o.PlacedAt,
-		Now:         now,
-		HoldFrom:    hold.HeldFrom,
-		HoldUntil:   hold.HeldUntil,
-		Pickup:      o.PickupChain != "",
+		DiscountCents: o.DiscountCents,
+		Coupon:        coupon.Redeemed{Code: o.CouponCode, Description: o.CouponDescription, Kind: coupon.Kind(o.CouponKind)},
+		TotalCents:    o.TotalCents,
+		CreditCents:   o.CreditCents,
+		PlacedAt:      o.PlacedAt,
+		Now:           now,
+		HoldFrom:      hold.HeldFrom,
+		HoldUntil:     hold.HeldUntil,
+		Pickup:        o.PickupChain != "",
 	}
 	ids := make([]uuid.UUID, 0, len(lines))
 	byID := make(map[uuid.UUID]OrderLine, len(lines))
@@ -93,6 +95,9 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 		})
 	}
 
+	if view.PaidByCredit() {
+		view.Timeline = withCreditPayment(view.Timeline, o.PlacedAt)
+	}
 	if view.Invoice, err = s.orderInvoice(ctx, o.ID, now); err != nil {
 		return OrderView{}, err
 	}
@@ -102,7 +107,23 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 	if view.Returned, err = s.orderReturned(ctx, o.ID); err != nil {
 		return OrderView{}, err
 	}
+	if view.OpenReturn, view.HasReturn, err = s.orderReturnRequests(ctx, o.ID); err != nil {
+		return OrderView{}, err
+	}
 	return view, nil
+}
+
+// orderReturnRequests reads the two facts the page's return link needs, through the queries the return page and its
+// POST use, so the link offered and the request accepted cannot disagree about an open request.
+func (s *Store) orderReturnRequests(ctx context.Context, orderID uuid.UUID) (open, filed bool, err error) {
+	if open, err = s.q.HasOpenReturn(ctx, orderID); err != nil {
+		return false, false, fmt.Errorf("read open returns: %w", err)
+	}
+	requests, err := s.q.ReturnsForOrder(ctx, orderID)
+	if err != nil {
+		return false, false, fmt.Errorf("read returns: %w", err)
+	}
+	return open, len(requests) > 0, nil
 }
 
 func (s *Store) orderParcels(

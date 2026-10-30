@@ -105,3 +105,44 @@ func TestHandler_UpdateSave(t *testing.T) {
 		t.Errorf("the wishlist holds %d products after saving one, want 1", len(tiles))
 	}
 }
+
+// TestStore_HasListed holds that the empty cart offers the wishlist only when
+// the page would show something: a saved product that is no longer listed is
+// not a reason to open it.
+func TestStore_HasListed(t *testing.T) {
+	ctx := t.Context()
+	s := wishlist.NewStore(pool)
+	u := register(t, "wish-has-"+uuid.NewString()+"@example.com")
+	has := func() bool {
+		t.Helper()
+		got, err := s.HasListed(ctx, u.ID)
+		if err != nil {
+			t.Fatalf("HasListed: %v", err)
+		}
+		return got
+	}
+
+	if has() {
+		t.Fatal("a customer who saved nothing has a wishlist to open")
+	}
+	variant := ownVariant(t, "wishhas")
+	var slug string
+	if err := pool.QueryRow(ctx,
+		`SELECT p.slug FROM products p JOIN product_variants v ON v.product_id = p.id WHERE v.id = $1`,
+		variant).Scan(&slug); err != nil {
+		t.Fatalf("read the fixture product: %v", err)
+	}
+	if err := s.Save(ctx, u.ID, slug); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if !has() {
+		t.Error("a customer with a saved, listed product has no wishlist to open")
+	}
+
+	if _, err := pool.Exec(ctx, `UPDATE products SET status = 'draft', published_at = NULL WHERE slug = $1`, slug); err != nil {
+		t.Fatalf("unlist the product: %v", err)
+	}
+	if has() {
+		t.Error("a saved product that is no longer listed counts as a wishlist")
+	}
+}

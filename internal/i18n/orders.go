@@ -175,6 +175,9 @@ var (
 
 	KeyEventPlaced = key("order.event.placed", Message{ZhHant: "送出訂單", En: "Order placed"})
 
+	// The note of the paid entry of an order store credit paid in full, which has no payment to date it by.
+	KeyEventPaidByCredit = key("order.event.paid.credit", Message{ZhHant: "以購物金付款", En: "Paid with store credit"})
+
 	KeyEventPicking = key("order.event.picking", Message{ZhHant: "開始備貨", En: "Packing started"})
 
 	KeyEventShipped = key("order.event.shipped", Message{ZhHant: "出貨", En: "Dispatched"})
@@ -195,6 +198,19 @@ var (
 	KeyOrderGrandTotal = key("order.grandtotal", Message{ZhHant: "總計", En: "Total"})
 
 	KeyOrderReturn = key("order.return", Message{ZhHant: "申請退貨", En: "Request a return"})
+
+	// A return can be requested from shipment, while the days count from receipt; the number is the database's.
+	KeyOrderReturnAfterDelivery = countKey("order.return.afterdelivery",
+		"收到商品後 %d 天內可以申請退貨。",
+		"You can request a return within %d day of receiving the goods.",
+		"You can request a return within %d days of receiving the goods.")
+
+	KeyOrderReturnView = key("order.return.view", Message{ZhHant: "查看退貨申請", En: "View the return request"})
+
+	KeyOrderReturnOpen = key("order.return.open", Message{
+		ZhHant: "退貨申請已送出，等待審核。",
+		En:     "Your return request is sent and awaiting review.",
+	})
 
 	KeyOrderMeta = key("order.meta", Message{ZhHant: "訂單 %s", En: "Order %s"})
 
@@ -252,6 +268,13 @@ var (
 		ZhHant: "已經付款或已經開始出貨的訂單不能自行取消。需要更動請聯絡我們。",
 		En: "An order that has been paid for or started shipping cannot be cancelled here. " +
 			"Get in touch and we will sort it out.",
+	})
+
+	// The argument is the hold's end in KeyPayReservedNote's words, or nothing.
+	KeyCancelCheckoutOpenBody = key("order.cancel.checkout.body", Message{
+		ZhHant: "這筆訂單可能還有一筆付款正在進行中，所以現在還不能取消。付款有結果後再試一次。%s",
+		En: "A payment for this order may still be in progress, so it cannot be cancelled yet. " +
+			"Try again once the payment has settled. %s",
 	})
 
 	KeyFindOrderTitle = key("order.find.title", Message{

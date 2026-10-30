@@ -10,13 +10,14 @@ import (
 
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/checkout/checkouttest"
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_OrderDiscountReason: Store.Order says why an order
-// placed through checkout was discounted: the coupon's code and its
-// description.
+// placed through checkout was discounted: the coupon's code, its
+// description and its kind.
 func TestStore_OrderDiscountReason(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
@@ -41,11 +42,8 @@ func TestStore_OrderDiscountReason(t *testing.T) {
 	if view.DiscountCents != 20000 {
 		t.Fatalf("discount is %d, want 20000", view.DiscountCents)
 	}
-	if !strings.Contains(view.DiscountReason, code) {
-		t.Errorf("the order does not say which coupon: %q", view.DiscountReason)
-	}
-	if !strings.Contains(view.DiscountReason, "滿額折抵") {
-		t.Errorf("the order does not say what the coupon was for: %q", view.DiscountReason)
+	if want := (coupon.Redeemed{Code: code, Description: "滿額折抵", Kind: coupon.Amount}); view.Coupon != want {
+		t.Errorf("Coupon = %+v, want %+v", view.Coupon, want)
 	}
 }
 
@@ -60,7 +58,7 @@ func TestStore_OrderNoDiscountReason(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Order: %v", err)
 	}
-	if view.DiscountReason != "" {
-		t.Errorf("an order with no coupon reports %q, want empty", view.DiscountReason)
+	if view.Coupon.Used() {
+		t.Errorf("an order with no coupon reports %+v, want none", view.Coupon)
 	}
 }

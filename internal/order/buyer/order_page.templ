@@ -3,7 +3,6 @@ package buyer
 import (
 	"fmt"
 
-	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -63,6 +62,14 @@ templ Order(p frame.Page, v *OrderView) {
 					{ i18n.T(ctx, i18n.KeyOrderUnpaid) }
 				}
 			}
+			if v.OpenReturn {
+				@widget.Notice(widget.NoticeProps{
+					Intent: widget.IntentAccent,
+					ID:     "order-return-open",
+				}) {
+					{ i18n.T(ctx, i18n.KeyOrderReturnOpen) }
+				}
+			}
 			<div class="goen-order__layout">
 				<div class="goen-order__panels">
 					if v.Returned != nil {
@@ -100,7 +107,7 @@ templ Order(p frame.Page, v *OrderView) {
 											<p class="goen-order__steplabel">{ i18n.T(ctx, e.LabelKey()) }</p>
 											<p class="goen-order__meta"><time datetime={ e.Datetime() }>{ e.Stamp(ctx) }</time></p>
 											if e.ShowsNote() {
-												<p class="goen-order__meta">{ e.Note }</p>
+												<p class="goen-order__meta">{ e.NoteText(ctx) }</p>
 											}
 										</div>
 									</li>
@@ -153,9 +160,9 @@ templ Order(p frame.Page, v *OrderView) {
 							<dt>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippingFee), v.ShippingName) }</dt>
 							<dd class="goen-summary__value">{ v.Shipping(ctx) }</dd>
 						</div>
-						if v.Discounted() {
+						if v.ListsDiscount() {
 							<div class="goen-summary__row">
-								<dt>{ coupon.DiscountLabel(ctx, v.DiscountReason) }</dt>
+								<dt>{ v.Coupon.Label(ctx) }</dt>
 								<dd class="goen-summary__value">{ v.Discount() }</dd>
 							</div>
 						}
@@ -233,6 +240,16 @@ templ Order(p frame.Page, v *OrderView) {
 								Block:       true,
 							}, templ.SafeURL("/orders/"+v.Number+"/return")) {
 								{ i18n.T(ctx, i18n.KeyOrderReturn) }
+							}
+							if note := v.ReturnAfterDelivery(ctx); note != "" {
+								<p class="goen-order__meta">{ note }</p>
+							}
+						} else if v.ViewsReturn() {
+							@widget.ButtonLink(widget.ButtonProps{
+								ButtonStyle: widget.ButtonStyleOutline,
+								Block:       true,
+							}, templ.SafeURL("/orders/"+v.Number+"/return")) {
+								{ i18n.T(ctx, i18n.KeyOrderReturnView) }
 							}
 						}
 						@widget.ButtonLink(widget.ButtonProps{

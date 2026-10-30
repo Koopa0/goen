@@ -1,9 +1,10 @@
 package checkout
 
 import (
-	"html"
 	"strings"
 	"testing"
+
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
@@ -11,32 +12,27 @@ import (
 )
 
 // TestPageCompanyInvoiceStored: Page shows the note saying where a company
-// invoice is stored when the company type is chosen, and not when the
-// mobile-barcode type is, in each locale.
+// invoice is stored inside the company card and in no other, in each locale.
 func TestPageCompanyInvoiceStored(t *testing.T) {
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
-		view := func(typ string) string {
-			v := View{
-				Cart:           cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
-				Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "home"}},
-				Chosen:         "ship-1",
-				Invoice:        InvoiceView{Type: invoice.Preference(typ)},
-				InvoiceChoices: []InvoiceChoice{{Value: "company", Label: "company"}, {Value: "mobile_carrier", Label: "mobile"}},
-			}
-			var b strings.Builder
-			if err := Page(Meta(ctx), &v).Render(ctx, &b); err != nil {
-				t.Fatal(err)
-			}
-			return b.String()
+		v := View{
+			Cart:           cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
+			Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "home"}},
+			Chosen:         "ship-1",
+			InvoiceChoices: invoiceChoices(ctx),
 		}
-		want := html.EscapeString(i18n.T(ctx, i18n.KeyInvoiceCompanyStored))
-		if !strings.Contains(view("company"), want) {
-			t.Errorf("%v: the company invoice choice does not say where the invoice is stored", loc)
+		doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Page(Meta(ctx), &v))))
+		if err != nil {
+			t.Fatal(err)
 		}
-		if strings.Contains(view("mobile_carrier"), want) {
-			t.Errorf("%v: the mobile-barcode choice shows the company-invoice storage note", loc)
+		want := i18n.T(ctx, i18n.KeyInvoiceCompanyStored)
+		for _, kind := range invoice.OfferedPreferences() {
+			got := strings.Contains(nodeText(invoiceCard(t, doc, kind)), want)
+			if got != (kind == invoice.PreferenceCompany) {
+				t.Errorf("%v: the %s card shows where a company invoice is stored = %v", loc, kind, got)
+			}
 		}
 	}
 }

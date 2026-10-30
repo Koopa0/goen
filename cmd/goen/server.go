@@ -271,20 +271,24 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	signups := newsletter.NewHandler(newsletter.NewStore(pool), signupLimit, log)
 	cover := warranty.NewHandler(warranty.NewStore(pool), log)
 	points := loyalty.NewHandler(loyalty.NewStore(pool), log)
-	saved := wishlist.NewHandler(wishlist.NewStore(pool), log)
+	savedStore := wishlist.NewStore(pool)
+	saved := wishlist.NewHandler(savedStore, log)
+	basket.OfferWishlist(savedStore.HasListed)
 	// Every checkout submission looks up the coupon it carries, and a chooser
 	// change is a submission too, so a whole checkout is a dozen posts at most.
 	// checkout.Handler bounds the wrong codes themselves; this bounds the rest.
 	checkoutLimit := ratelimit.New(ratelimit.Config{
 		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
 	})
-	till := payment.NewHandler(payment.NewStore(pool), gateway, orderAccess, log)
+	payments := payment.NewStore(pool)
+	till := payment.NewHandler(payments, gateway, orderAccess, log)
 	// Half of the order-lookup credential is a guessable order number, so
 	// unlimited asking makes the endpoint an oracle for the other half.
 	findLimit := ratelimit.New(ratelimit.Config{
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
-	buyerOrders := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log, findLimit, checkouts.TakesPayment())
+	buyerOrders := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log, findLimit, checkouts.TakesPayment()).
+		WithSessionExpirer(payment.NewSessionExpirer(payments, gateway))
 
 	homePage.Routes(mux)
 	images.Routes(mux)

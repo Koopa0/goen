@@ -44,7 +44,7 @@ func TestPageExamplesOutsideInputs(t *testing.T) {
 					fields    map[string]string
 				}{
 					{"coupon", Page(frame.Page{}, &View{CouponCode: typed, Errors: errors("coupon")}), map[string]string{"coupon": coupon}},
-					{"mobile barcode", Page(frame.Page{}, &View{Invoice: InvoiceView{Type: invoice.PreferenceMobile, MobileBarcode: typed}, Errors: errors("invoice_carrier")}), map[string]string{"invoice_carrier": "/ABC+123"}},
+					{"mobile barcode", Page(frame.Page{}, &View{Invoice: InvoiceView{Type: invoice.PreferenceMobile, MobileBarcode: typed}, InvoiceChoices: invoiceChoices(ctx), Errors: errors("invoice_carrier")}), map[string]string{"invoice_carrier": "/ABC+123"}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)

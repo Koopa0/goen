@@ -571,11 +571,12 @@ func TestHandler_PlaceOrderForgedPickup(t *testing.T) {
 				if strings.Contains(body, "攻擊者的門市") {
 					t.Error("the refusal echoes the forged store")
 				}
-				// Without a map the method is not offered, so the refusal is of
-				// the method itself; with one, of the chain or the store.
+				// Without a map the method is not offered, so the one that is, home
+				// delivery, stands in for it and the refusal is of the address it
+				// asks for; with a map, of the chain or the store.
 				want := forged.field
 				if !storeMap.Enabled() {
-					want = "shipping"
+					want = "postal_code"
 				}
 				if !strings.Contains(body, `id="`+want+`-error"`) {
 					t.Errorf("the refusal must show the %s error", want)
@@ -749,6 +750,48 @@ func TestHandler_PickupStartKeepsTyped(t *testing.T) {
 	plain, _ := openTheCheckout(t, h, token, "")
 	if got, _ := inputValue(plain, "phone"); got != "" {
 		t.Errorf("a plain visit to the checkout restored the phone %q", got)
+	}
+}
+
+// TestHandler_PickupStartKeepsChosenInvoice: The draft the start keeps holds the
+// chosen invoice type's fields and none the shopper typed under another type.
+// Every type's fields are in the form, so a barcode typed and then given up for
+// a company invoice posts beside the tax ID, and the draft is personal data kept
+// for the trip to the map and for nothing else.
+func TestHandler_PickupStartKeepsChosenInvoice(t *testing.T) {
+	s := checkout.NewStore(pool)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t), nil)
+	token, shipping := aPickupCart(t, s, "map-draft-invoice")
+	cartID, err := s.Carts().ByToken(t.Context(), token, uuid.NullUUID{})
+	if err != nil {
+		t.Fatalf("find the cart: %v", err)
+	}
+
+	fields := aTypedStart(shipping, "")
+	fields.Set("invoice_type", "company")
+	fields.Set("invoice_company_name", "買受股份有限公司")
+	fields.Set("invoice_tax_id", "04595252")
+	fields.Set("invoice_donation_code", "00123")
+	if _, _, status := startPickup(t, h, token, fields); status != http.StatusOK {
+		t.Fatalf("the start = %d, want 200", status)
+	}
+
+	var draft map[string]string
+	if err := pool.QueryRow(t.Context(),
+		`SELECT checkout_draft FROM carts WHERE id = $1`, cartID).Scan(&draft); err != nil {
+		t.Fatalf("read the draft: %v", err)
+	}
+	for field, want := range map[string]string{
+		"invoice_type": "company", "invoice_company_name": "買受股份有限公司", "invoice_tax_id": "04595252",
+	} {
+		if draft[field] != want {
+			t.Errorf("the draft's %s = %q, want %q", field, draft[field], want)
+		}
+	}
+	for _, other := range []string{"invoice_carrier", "invoice_donation_code"} {
+		if held, ok := draft[other]; ok {
+			t.Errorf("the draft keeps %s = %q, typed under an invoice type that was not chosen", other, held)
+		}
 	}
 }
 

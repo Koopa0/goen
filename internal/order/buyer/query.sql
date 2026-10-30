@@ -76,14 +76,52 @@ WHERE orders.id = $1
         AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
   );
 
+-- Whether an open Checkout Session is all that stopped CancelOrderByCustomer,
+-- read under the same order lock once that UPDATE changed no row. It repeats the
+-- UPDATE's conditions, less the one it asks about, so the customer's refusal can
+-- say a payment may be on its way; a condition added to that UPDATE belongs here
+-- too, or an order held back by it would have its session expired for nothing.
+-- TestStore_CancelOrderRefusal pins the requires_reconciliation and unreconciled
+-- event conditions. payments_one_active_per_order keeps requires_action and
+-- processing from sitting beside an open session, so no test can tell those two
+-- apart.
+-- name: OnlyCheckoutBlocksCancel :one
+SELECT EXISTS (
+    SELECT 1
+    FROM orders o
+    WHERE o.id = $1
+      AND o.fulfillment_status = 'pending'
+      AND NOT order_is_committed(o.id)
+      AND EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.order_id = o.id AND p.status = 'requires_payment'
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.order_id = o.id
+            AND p.status IN ('requires_action', 'processing', 'requires_reconciliation')
+      )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM payment_webhook_events e
+          JOIN payments p
+            ON p.provider = e.provider AND p.provider_ref = e.object_ref
+          WHERE p.order_id = o.id
+            AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+      )
+);
+
 -- name: OrderSummaryByNumber :one
 SELECT o.id, o.order_number, o.fulfillment_status,
        o.shipping_cents, o.discount_cents,
        -- WHICH discount, joined rather than snapshotted: coupons.code is never
-       -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
-       coalesce((SELECT c.code || ' · ' || c.description
-                 FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
-                 WHERE cr.order_id = o.id), '')::text AS discount_reason,
+       -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it,
+       -- and coupon_redemptions_order_key keeps it to one row. discount_reason is
+       -- the line the order email prints; the pages name the coupon from its parts.
+       coalesce(cp.code || ' · ' || cp.description, '')::text AS discount_reason,
+       coalesce(cp.code, '')::text AS coupon_code,
+       coalesce(cp.description, '')::text AS coupon_description,
+       coalesce(cp.kind, '')::text AS coupon_kind,
        -- The version the order was priced from, which is append-only, so an
        -- English name is read without rewriting what the order chose.
        localized_name(sv.name, sv.name_en, @locale::text) AS shipping_method_name,
@@ -112,6 +150,8 @@ FROM orders o
 JOIN order_totals t ON t.order_id = o.id
 JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
+LEFT JOIN coupon_redemptions cr ON cr.order_id = o.id
+LEFT JOIN coupons cp ON cp.id = cr.coupon_id
 WHERE o.order_number = @number;
 
 -- The customer's order page: each line with its photograph and its warranty promise.

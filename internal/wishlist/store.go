@@ -72,6 +72,20 @@ func (s *Store) Items(ctx context.Context, userID string) ([]Item, error) {
 	return out, nil
 }
 
+// HasListed is whether the customer has a saved product the wishlist page would
+// show.
+func (s *Store) HasListed(ctx context.Context, userID string) (bool, error) {
+	id, err := uuid.Parse(userID)
+	if err != nil {
+		return false, fmt.Errorf("parse user id: %w", err)
+	}
+	has, err := s.q.WishlistAnyListed(ctx, id)
+	if err != nil {
+		return false, fmt.Errorf("read whether the wishlist has products: %w", err)
+	}
+	return has, nil
+}
+
 func (s *Store) Save(ctx context.Context, userID, slug string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {

@@ -35,6 +35,9 @@ var (
 	// order's stock was returned to sale. It cannot become a fulfilled local
 	// capture; staff must refund it at Stripe and then release reconciliation.
 	ErrReleasedStockRequiresRefund = errors.New("payment: released stock requires a provider refund")
+	// ErrStillPayable means a Checkout Session of the order was not confirmed
+	// expired at Stripe, so a customer may yet pay it.
+	ErrStillPayable = errors.New("payment: a checkout session may still take money")
 	// ErrOrderCancelled is money arriving for an order somebody called off while
 	// the Checkout Session was still open at Stripe. It is terminal.
 	ErrOrderCancelled = errors.New("payment: the order was cancelled before the money arrived")

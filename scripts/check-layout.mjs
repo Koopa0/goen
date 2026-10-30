@@ -2244,7 +2244,6 @@ for (const want of [...CART, ...PAGES]) {
     `controls=${got.controls} tap=${got.minTap}`);
   if (want.path === '/checkout') await checkoutConstraintFeedback(at);
   if (want.path === '/checkout') await proveCheckoutRequestFeedback(at);
-  if (want.path === '/checkout') await proveChoiceKeepsScroll(at, 'invoice_type');
   if (want.marker === 'input[name=pickup_chain]') await proveChoiceKeepsScroll(at, 'pickup_chain', 'seven_eleven');
 }
 

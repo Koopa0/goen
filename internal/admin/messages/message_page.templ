@@ -46,7 +46,7 @@ templ Messages(p frame.Page, v View) {
 										{ m.Waiting(ctx) }
 									}
 								} else {
-									@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
+									@widget.Badge(widget.BadgeProps{Intent: widget.IntentStaffTurn}) {
 										{ m.Waiting(ctx) }
 									}
 									if m.Overdue() {

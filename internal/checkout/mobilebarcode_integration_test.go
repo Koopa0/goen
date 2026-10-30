@@ -113,7 +113,7 @@ func TestHandler_PlaceOrderBarcodeMissing(t *testing.T) {
 	if w.Code != http.StatusUnprocessableEntity || ecpay.Calls(checkBarcodePath) != 1 || ecpay.LastBarcode() != "/ABC+123" {
 		t.Fatalf("missing barcode: status=%d calls=%d barcode=%q", w.Code, ecpay.Calls(checkBarcodePath), ecpay.LastBarcode())
 	}
-	for _, want := range []string{i18n.T(t.Context(), i18n.KeyMobileBarcodeMissing), `id="invoice_carrier"`, `aria-describedby="invoice_carrier-example invoice_carrier-error"`, `aria-invalid="true"`, "carrier@example.com", "please ring", "松仁路 200 號", " /abc+123 ", attempt.form.Get("idempotency")} {
+	for _, want := range []string{i18n.T(t.Context(), i18n.KeyMobileBarcodeMissing), `id="invoice_carrier"`, `aria-describedby="invoice_carrier-format invoice_carrier-example invoice_carrier-error"`, `aria-invalid="true"`, "carrier@example.com", "please ring", "松仁路 200 號", " /abc+123 ", attempt.form.Get("idempotency")} {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Errorf("refusal lost %q", want)
 		}
@@ -163,7 +163,7 @@ func TestHandler_PlaceOrderBarcodeAfterValidation(t *testing.T) {
 			case "other field":
 				attempt.form.Set("email", "bad")
 			case "chooser":
-				attempt.form.Set("update", "invoice")
+				attempt.form.Set("update", "shipping")
 			}
 			w := attempt.post(t)
 			if calls := ecpay.Calls(checkBarcodePath); calls != 0 || (w.Code != http.StatusOK && w.Code != http.StatusUnprocessableEntity) {

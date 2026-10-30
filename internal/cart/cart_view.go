@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
+	"github.com/koopa0/goen/internal/user"
 )
 
 type View struct {
@@ -18,14 +19,21 @@ type View struct {
 	ItemCount       int64
 	MixedTaxTypes   bool
 	ReorderAdjusted bool
+	NoDelivery      bool
+	// CheckoutEmpty is set only on a cart with no lines, which /checkout turned away.
+	CheckoutEmpty bool
+	// SavedProducts is whether the signed-in customer has a wishlist worth opening.
+	SavedProducts bool
 
-	ReorderAdded   int
-	ReorderSkipped int
+	ReorderAdded   int32
+	ReorderSkipped int32
+	// ReorderLeftOut names the lines behind ReorderSkipped; it is empty for a browser
+	// that may not see the order it came from.
+	ReorderLeftOut []SkippedLine
 	Notice         widget.Result
 	ContinueURL    string
 
 	FreeDelivery FreeDelivery
-	NoDelivery   bool
 
 	// PayStartMinutes is how long the customer has, from placing the order, to start paying.
 	PayStartMinutes int64
@@ -105,6 +113,15 @@ func (v View) HasSoldOut() bool {
 
 func (v View) HasNotice() bool { return v.Notice.Text != "" }
 
+// ordersLink is the way on for somebody who came back to /checkout after placing an order:
+// the account's orders for a signed-in reader, the order lookup for a guest.
+func ordersLink(ctx context.Context) (href string, label i18n.Key) {
+	if _, ok := user.FromContext(ctx); ok {
+		return "/account#orders-heading", i18n.KeyContactMyOrders
+	}
+	return "/orders/find", i18n.KeyFindOrderTitle
+}
+
 // PayStartNote is the line under the checkout button that says when the stock is held and how long the customer has to start paying.
 func (v View) PayStartNote(ctx context.Context) string {
 	return i18n.Count(ctx, i18n.KeyCartPayStart, v.PayStartMinutes, strconv.FormatInt(v.PayStartMinutes, 10))
@@ -134,6 +151,14 @@ func (v View) ReorderText(ctx context.Context) string {
 	default:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderPartial), v.ReorderAdded, v.ReorderSkipped)
 	}
+}
+
+// ReasonText is the word beside a line a reorder left out.
+func (l SkippedLine) ReasonText(ctx context.Context) string {
+	if l.Reason == SkipSoldOut {
+		return i18n.T(ctx, i18n.KeySoldOut)
+	}
+	return i18n.T(ctx, i18n.KeyReorderGone)
 }
 
 func Meta(ctx context.Context) frame.Page {

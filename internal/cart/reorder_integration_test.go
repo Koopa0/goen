@@ -9,15 +9,18 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/ordertest"
 )
@@ -334,5 +337,137 @@ func TestHandler_ReorderItemsStranger(t *testing.T) {
 	}
 	if got := ok.Header().Get("Location"); !strings.Contains(got, "added=1") {
 		t.Errorf("the redirect is %q, want it to report one line added", got)
+	}
+}
+
+// slugOf is the slug of the product a variant belongs to; the fixtures name a
+// product by its slug.
+func slugOf(t *testing.T, vid uuid.UUID) string {
+	t.Helper()
+	var slug string
+	if err := pool.QueryRow(t.Context(),
+		`SELECT p.slug FROM products p JOIN product_variants v ON v.product_id = p.id WHERE v.id = $1`,
+		vid).Scan(&slug); err != nil {
+		t.Fatalf("read the slug of %s: %v", vid, err)
+	}
+	return slug
+}
+
+// unlist takes the variant's product off sale.
+func unlist(t *testing.T, vid uuid.UUID) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), `
+		UPDATE products SET status = 'draft', published_at = NULL
+		WHERE id = (SELECT product_id FROM product_variants WHERE id = $1)`, vid); err != nil {
+		t.Fatalf("unlist %s: %v", vid, err)
+	}
+}
+
+// TestStore_SkippedOnReorder holds that the lines a buy-again would leave out
+// come back with the reason, and with a product page only while the product is
+// still listed, whatever has become of the variant.
+func TestStore_SkippedOnReorder(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	live, retired, empty := ordertest.ThreeVariants(t, pool, "skipped-fixture")
+	unlisted := ordertest.FreshVariant(t, pool, "skipped-unlisted")
+	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{live: 2, retired: 1, empty: 1, unlisted: 1})
+
+	if _, err := pool.Exec(ctx, `UPDATE product_variants SET is_active = false WHERE id = $1`, retired); err != nil {
+		t.Fatalf("retire: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE order_lines SET variant_label = 'Red' WHERE variant_id = $1`, retired); err != nil {
+		t.Fatalf("label the retired line: %v", err)
+	}
+	emptyTheShelfFor(t, empty)
+	unlist(t, unlisted)
+
+	got, err := s.SkippedOnReorder(ctx, number)
+	if err != nil {
+		t.Fatalf("SkippedOnReorder: %v", err)
+	}
+	shared, alone := slugOf(t, live), slugOf(t, unlisted)
+	want := []cart.SkippedLine{
+		{Name: shared, Label: "Red", Reason: cart.SkipGone, Slug: shared},
+		{Name: shared, Reason: cart.SkipSoldOut, Slug: shared},
+		{Name: alone, Reason: cart.SkipGone},
+	}
+	order := func(a, b cart.SkippedLine) int {
+		return strings.Compare(a.Name+string(a.Reason), b.Name+string(b.Reason))
+	}
+	slices.SortFunc(got, order)
+	slices.SortFunc(want, order)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("SkippedOnReorder (-want +got):\n%s", diff)
+	}
+}
+
+// TestHandler_PageReorderLeftOut holds that after a buy-again the cart page
+// names what was left out to the browser that may see the order, and gives any
+// other browser the counts and no names.
+func TestHandler_PageReorderLeftOut(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			s := cart.NewStore(storeRolePool(t))
+			live := ordertest.FreshVariant(t, pool, "leftout-live")
+			soldOut := ordertest.FreshVariant(t, pool, "leftout-soldout")
+			unlisted := ordertest.FreshVariant(t, pool, "leftout-unlisted")
+			number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{live: 1, soldOut: 1, unlisted: 1})
+			emptyTheShelfFor(t, soldOut)
+			unlist(t, unlisted)
+
+			_, token := newCartSession(t, s)
+			cartCookie := &http.Cookie{Name: "goen_cart", Value: token} //nolint:gosec // G124: fixture browser cart cookie.
+			h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
+
+			reorder := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/reorder", http.NoBody)
+			reorder.SetPathValue("number", number)
+			reorder.AddCookie(placedCookie(t, number))
+			reorder.AddCookie(cartCookie)
+			redirect := httptest.NewRecorder()
+			h.ReorderItems(redirect, reorder)
+			location := redirect.Header().Get("Location")
+			if redirect.Code != http.StatusSeeOther || !strings.Contains(location, "reorder="+number) {
+				t.Fatalf("reorder answered %d to %q, want a redirect carrying reorder=%s", redirect.Code, location, number)
+			}
+
+			page := func(cookies ...*http.Cookie) string {
+				r := httptest.NewRequestWithContext(ctx, http.MethodGet, location, http.NoBody)
+				for _, c := range cookies {
+					r.AddCookie(c)
+				}
+				w := httptest.NewRecorder()
+				h.Page(w, r)
+				if w.Code != http.StatusOK {
+					t.Fatalf("cart page answered %d", w.Code)
+				}
+				return w.Body.String()
+			}
+
+			soldOutSlug, unlistedSlug := slugOf(t, soldOut), slugOf(t, unlisted)
+			owner := page(cartCookie, placedCookie(t, number))
+			for _, want := range []string{
+				`href="/p/` + soldOutSlug + `"`, i18n.T(ctx, i18n.KeySoldOut),
+				">" + unlistedSlug + "<", i18n.T(ctx, i18n.KeyReorderGone),
+			} {
+				if !strings.Contains(owner, want) {
+					t.Errorf("the browser that placed the order is not shown %q", want)
+				}
+			}
+			if strings.Contains(owner, `/p/`+unlistedSlug) {
+				t.Error("a product that is no longer listed is linked")
+			}
+
+			stranger := page(cartCookie)
+			for _, name := range []string{soldOutSlug, unlistedSlug} {
+				if strings.Contains(stranger, name) {
+					t.Errorf("a browser with no access to the order is shown %q", name)
+				}
+			}
+			if want := fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderPartial), 1, 2); !strings.Contains(stranger, want) {
+				t.Errorf("a browser with no access to the order is not shown the counts %q", want)
+			}
+		})
 	}
 }

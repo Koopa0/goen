@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 )
@@ -21,16 +22,16 @@ func TestPayDeliveryAndDiscountApart(t *testing.T) {
 		Lines: []PayLine{
 			{Name: "Nimbus", UnitCents: 100000, Quantity: 1},
 		},
-		Enabled:        true,
-		ShippingName:   "宅配到府",
-		ShippingCents:  8000,
-		DiscountCents:  10000,
-		DiscountReason: "ACCEPT100 · 驗收折扣",
+		Enabled:       true,
+		ShippingName:  "宅配到府",
+		ShippingCents: 8000,
+		DiscountCents: 10000,
+		Coupon:        coupon.Redeemed{Code: "ACCEPT100", Description: "驗收折扣", Kind: coupon.Amount},
 	}
 	html := renderToString(t, Pay(frame.Page{Title: "Pay"}, view))
 	for _, want := range []string{
 		"<dt>運費（宅配到府）</dt>", ">NT$80<",
-		"<dt>折扣（ACCEPT100 · 驗收折扣）</dt>", ">-NT$100<",
+		"<dt>折扣碼 ACCEPT100（驗收折扣）</dt>", ">-NT$100<",
 		">NT$980<",
 	} {
 		if !strings.Contains(html, want) {
@@ -39,6 +40,25 @@ func TestPayDeliveryAndDiscountApart(t *testing.T) {
 	}
 	if strings.Contains(html, "-NT$20<") {
 		t.Error("the pay page nets the coupon against delivery")
+	}
+}
+
+// TestPayFreeDeliveryCodeListed: the pay page lists a free-delivery code at nothing, as
+// the order page does, since both read one query and must not list different rows.
+func TestPayFreeDeliveryCodeListed(t *testing.T) {
+	t.Parallel()
+
+	view := PayView{
+		Number: "GOEN-PAY", TotalCents: 100000, ShippingName: "宅配到府",
+		Lines:  []PayLine{{Name: "Nimbus", UnitCents: 100000, Quantity: 1}},
+		Coupon: coupon.Redeemed{Code: "FREESHIP", Description: "免運活動", Kind: coupon.FreeShipping},
+	}
+	html := renderToString(t, Pay(frame.Page{Title: "Pay"}, view))
+	if !strings.Contains(html, "<dt>折扣碼 FREESHIP：免運</dt>") {
+		t.Error("the pay page does not list the free-delivery code")
+	}
+	if strings.Contains(html, "-NT$0") {
+		t.Error("the pay page draws the free-delivery code as a deduction of nothing")
 	}
 }
 

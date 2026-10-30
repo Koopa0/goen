@@ -48,7 +48,7 @@ templ Questions(p frame.Page, v View) {
 									<a href={ templ.SafeURL(q.ProductHref()) }>{ q.ProductName }</a>
 								</p>
 								if q.Waiting() {
-									@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
+									@widget.Badge(widget.BadgeProps{Intent: widget.IntentStaffTurn}) {
 										{ q.State(ctx) }
 									}
 								} else {

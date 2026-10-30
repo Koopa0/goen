@@ -96,9 +96,23 @@ func (h *Handler) Routes(mux *http.ServeMux, submissions *ratelimit.Limiter) {
 // TakesPayment holds where a payment key is configured.
 func (h *Handler) TakesPayment() bool { return h.payments.Enabled() }
 
+// backToCart sends a visitor whose cart cannot check out to the cart page. The page says why a
+// sold-out line or a mix of tax types blocks it; only an empty cart needs the reason sent along.
+func backToCart(w http.ResponseWriter, r *http.Request, empty bool) {
+	to := "/cart"
+	if empty {
+		to = cart.CheckoutEmptyPath
+	}
+	http.Redirect(w, r, to, http.StatusSeeOther)
+}
+
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	cartID, ok := h.carts.Require(w, r)
+	cartID, found, ok := h.carts.Find(w, r)
 	if !ok {
+		return
+	}
+	if !found {
+		backToCart(w, r, true)
 		return
 	}
 	view, err := h.checkoutView(r.Context(), cartID, ownerOf(r))
@@ -110,7 +124,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	// A cart that cannot be supplied must not reach this form: the order would
 	// fail at the inventory hold, after an address was typed.
 	if !view.Cart.CanCheckout() {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+		backToCart(w, r, view.Cart.Empty())
 		return
 	}
 	// A store returning from the carrier's map arrives on a cross-site POST
@@ -136,9 +150,8 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		view.Chosen = chosen.Ship
 	}
 	view.Destination = destinationOf(view.Shipping, view.Chosen)
-	// The 發票 choice travels the same way: it decides which field the form asks
-	// for, so a chooser only a script could act on would leave the two
-	// disagreeing.
+	// The 發票 choice can be named in the URL too, so a link opens the form with
+	// that card chosen.
 	if kind := invoice.Preference(chosen.Invoice); kind.Known() {
 		view.Invoice.Type = kind
 	}
@@ -320,6 +333,10 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 	guess.settle(submission.couponMissed)
 	view, addr, inv := &submission.view, &submission.address, &submission.invoice
 
+	// Every invoice type's fields are in the page, so the form carries what was typed under
+	// the types not chosen. The draft is personal data and keeps the chosen type's only; the
+	// refusals are for a placement, not for a trip to the map.
+	inv.Validate()
 	draft := checkoutDraft{
 		Email: addr.Email, Name: addr.RecipientName, Phone: addr.Phone,
 		PostalCode: addr.PostalCode, City: addr.City, District: addr.District, Street: addr.Street,
@@ -523,6 +540,10 @@ func (h *Handler) renderCheckout(
 		view.Destination = ""
 	}
 	h.offerTheStoreMap(w, r, view)
+	view.Partial = respond.IsHTMX(r)
+	if status == http.StatusUnprocessableEntity {
+		view.PostalNote = postalMismatchNote(r.Context(), view.Address)
+	}
 	respond.Component(w, r, h.log, status, Page(Meta(r.Context()), view))
 }
 
@@ -623,9 +644,9 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	guess.settle(submission.couponMissed)
 
-	// A CHOOSER CHANGE, not an order: the delivery method, saved address and 發票
-	// type each decide which fields the form asks for, so it re-renders with
-	// the submitted values and validates nothing.
+	// A CHOOSER CHANGE, not an order: the delivery method and the saved address
+	// each decide which fields the form asks for, so it re-renders with the
+	// submitted values and validates nothing.
 	if r.PostFormValue("update") != "" {
 		h.renderCheckout(w, r, http.StatusOK, &submission.view)
 		return
@@ -762,7 +783,7 @@ func (h *Handler) checkoutSubmission(
 		PickupChain: addr.PickupChain, PickupStoreCode: addr.PickupStoreCode,
 		PickupStoreName: addr.PickupStoreName, Note: addr.Note,
 	}
-	view.Chosen = r.PostFormValue("shipping")
+	view.Chosen = chosenShipping(view.Shipping, r.PostFormValue("shipping"))
 	to := destinationOf(view.Shipping, view.Chosen)
 	view.Destination = to
 	addr.To = to
@@ -1284,6 +1305,16 @@ func fillFromBook(view *View, addr *delivery.Details, wanted string) {
 	addr.District, addr.Street = chosen.District, chosen.Street
 }
 
+// chosenShipping is the method the form named, except that a shop offering one has
+// nothing to choose: the form is answered with it, as the page was first shown, rather
+// than refused for naming a method the shop has since replaced or no method at all.
+func chosenShipping(choices []cart.ShippingChoice, posted string) string {
+	if len(choices) == 1 {
+		return choices[0].VersionID
+	}
+	return posted
+}
+
 // destinationOf reads the choices the server built, not the form.
 func destinationOf(choices []cart.ShippingChoice, versionID string) shipping.Destination {
 	for i := range choices {
@@ -1331,6 +1362,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	}
 	view.AvailableCreditCents = balance
 	if u, ok := user.FromContext(ctx); ok {
+		view.SignedIn = true
 		view.Profile = Profile{Email: u.Email, Name: name, Phone: phone}
 	}
 	if len(choices) > 0 {

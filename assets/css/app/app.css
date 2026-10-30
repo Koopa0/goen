@@ -6223,6 +6223,33 @@ input.goen-check {
   display: contents;
 }
 
+/* The lines a buy-again left out, one row each. A long product name wraps inside
+   its row, so the page does not widen at 320px or at 200% text. */
+.goen-cart__leftout {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-cart__leftout li {
+  align-items: baseline;
+  column-gap: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A product still listed links, in the sheet's link colour and underline, at the size
+   and weight of the unlinked name; one that is not stays plain ink, so a row that
+   leads somewhere looks different from one that does not. */
+.goen-cart__leftout a {
+  font-size: 0.9375rem;
+  font-weight: var(--fw-medium);
+}
+
 /* A line in the cart is a grid, so the money and the controls can sit under
    the name at 375 without the name being squeezed to a word a row. The
    thumbnail spans both rows. */
@@ -6519,7 +6546,8 @@ input.goen-check {
 }
 
 /* An empty page says so under its own heading, on the heading's edge: a sentence, a
-   line saying what to do, and at most one way on. No picture: it repeated the sentence.
+   line saying what to do, and one way on; the empty cart adds the wishlist under it for
+   a customer who has saved products. No picture: it repeated the sentence.
    The browse screens reach this rule by descent because their box keeps the `ui-empty`
    spelling that compare_page_test and check-layout read. base.css sets the same
    properties on `.ui-empty` from a sheet the document links earlier, so every one of
@@ -6584,6 +6612,11 @@ input.goen-check {
   margin-top: 1rem;
 }
 
+/* A second way on sits close under the first, not a paragraph away from it. */
+.goen-empty > .goen-btn + .goen-btn {
+  margin-top: 0;
+}
+
 .goen-checkout__main,
 .goen-order__panels {
   display: flex;
@@ -6610,6 +6643,18 @@ input.goen-check {
   border: 1px solid transparent;
   border-radius: 16px;
   padding: 1.5rem 20px;
+}
+
+/* The refusal summary: the count, then a link to each refused field. */
+.goen-checkout__refusedlead {
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.goen-checkout__refused {
+  list-style: none;
+  margin: 0.375rem 0 0;
+  padding: 0;
 }
 
 /* One option in a chooser. The card is the tap target, so the height minimum
@@ -6707,6 +6752,36 @@ input.goen-check {
     flex-basis: 100%;
     text-align: end;
   }
+}
+
+/* An option that asks for something of its own keeps it in its card: the fields
+   hang from the card's name and open under the chosen option only, as one
+   card, the panel taking the edge, tint and bottom corners the name gives up.
+   Both are written for :has, so a browser without it shows every option's
+   fields plain, under its name, and the server ignores the ones not chosen. */
+.goen-checkout__optionfields {
+  margin-top: 0.75rem;
+}
+
+.goen-checkout__option:has(input[type=radio]:checked) > .goen-checkout__optionfields {
+  background: var(--accent-faint);
+  border: 2px solid var(--accent);
+  border-block-start: 0;
+  border-end-end-radius: 12px;
+  border-end-start-radius: 12px;
+  margin-top: 0;
+  padding: 0.5rem 15px 1rem;
+}
+
+.goen-checkout__option:has(input[type=radio]:checked) > .goen-checkout__ship:has(+ .goen-checkout__optionfields) {
+  border-block-end: 0;
+  border-end-end-radius: 0;
+  border-end-start-radius: 0;
+  padding-block-end: 0.5rem;
+}
+
+.goen-checkout__option:not(:has(input[type=radio]:checked)) > .goen-checkout__optionfields {
+  display: none;
 }
 
 /* The row the 更新 button sits in. Right-aligned and quiet: it is a step inside

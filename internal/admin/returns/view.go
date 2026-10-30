@@ -92,14 +92,15 @@ func (r *Return) AwaitingGoods() bool {
 
 // standing is a return's status as the queue shows it: the word and the colour
 // group from one switch, so they cannot disagree. An empty key means the word the
-// store gave StatusText. An open request, an approval the staff can close or whose
-// money is owed needs the staff; a payout that must be repaired is an error; an
-// approval still coming back is in progress; a refund before shipment is a
+// store gave StatusText. An open request or an approval the staff can close is
+// the staff's turn; a refund to send again is a payout the approval started and
+// did not finish, so it is warn, and a payout that must be repaired is an error;
+// an approval still coming back is in progress; a refund before shipment is a
 // cancellation, grey like a cancelled order.
 func (r *Return) standing() (i18n.Key, widget.Intent) {
 	switch r.Status {
 	case returns.StatusRequested:
-		return "", widget.IntentWarn
+		return "", widget.IntentStaffTurn
 	case returns.StatusApproved:
 		switch {
 		case r.PayoutStranded():
@@ -107,7 +108,7 @@ func (r *Return) standing() (i18n.Key, widget.Intent) {
 		case r.CanRetryPayout():
 			return i18n.KeyAdminReturnRefundToResend, widget.IntentWarn
 		case r.CanComplete():
-			return i18n.KeyAdminReturnReadyToClose, widget.IntentWarn
+			return i18n.KeyAdminReturnReadyToClose, widget.IntentStaffTurn
 		default:
 			return i18n.KeyAdminReturnOnItsWay, widget.IntentProgress
 		}
