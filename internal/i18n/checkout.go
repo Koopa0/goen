@@ -57,6 +57,14 @@ var (
 
 	KeyFieldPostalCode = key("field.postal", Message{ZhHant: "郵遞區號", En: "Postcode"})
 
+	// A note under the postcode, never a refusal: the table behind it can lag the post office.
+	// The first %s is the three digits, the second the districts they cover (the postcode is in one of them),
+	// the third the city and district typed.
+	KeyCheckoutPostalMismatch = key("checkout.postal.mismatch", Message{
+		ZhHant: "%s 是%s，與%s不符。",
+		En:     "Postcode %s is in %s, which does not match %s.",
+	})
+
 	KeyFieldCity = key("field.city", Message{ZhHant: "縣市", En: "City or county"})
 
 	KeyFieldDistrict = key("field.district", Message{ZhHant: "鄉鎮市區", En: "District"})

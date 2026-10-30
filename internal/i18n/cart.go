@@ -52,6 +52,12 @@ var (
 		En:     "Some item quantities were reduced to match available stock.",
 	})
 
+	// Opens the cart that /checkout sent a visitor back to because it holds nothing.
+	KeyCartCheckoutEmpty = key("cart.checkout.empty", Message{
+		ZhHant: "購物車是空的，結帳無法繼續。",
+		En:     "Your cart is empty, so checkout cannot continue.",
+	})
+
 	KeyOnlyLeft = key("cart.onlyleft", Message{ZhHant: "僅剩 %s 件", En: "Only %s left"})
 
 	KeyQuantity = key("cart.qty", Message{ZhHant: "數量", En: "Quantity"})

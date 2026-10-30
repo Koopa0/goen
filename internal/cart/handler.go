@@ -99,13 +99,29 @@ func freeDeliveryFor(choices []ShippingChoice, subtotalCents int64) FreeDelivery
 	return FreeDelivery{Kind: FreeDeliveryShort, ShortfallCents: allFreeAt - subtotalCents, ThresholdCents: allFreeAt}
 }
 
+// CheckoutEmptyPath is where /checkout sends a visitor whose cart holds nothing.
+// Only that cause carries it: a sold-out line or a mix of tax types is already
+// said on the cart page itself.
+const CheckoutEmptyPath = "/cart?notice=" + checkoutEmptyNotice
+
+const checkoutEmptyNotice = "empty"
+
+// turnedAwayEmpty is read only against a cart that is empty, so a hand-edited
+// URL cannot tell somebody their cart holds nothing when it holds something.
+func turnedAwayEmpty(r *http.Request) bool {
+	return r.URL.Query().Get("notice") == checkoutEmptyNotice
+}
+
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	cartID, found, ok := h.requestCart(w, r)
+	cartID, found, ok := h.Find(w, r)
 	if !ok {
 		return
 	}
 	if !found {
-		view := View{Notice: cartPageNotice(r), ContinueURL: cartContinuation(r), SavedProducts: h.hasSavedProducts(r)}
+		view := View{
+			Notice: cartPageNotice(r), ContinueURL: cartContinuation(r), SavedProducts: h.hasSavedProducts(r),
+			CheckoutEmpty: turnedAwayEmpty(r),
+		}
 		respond.Component(w, r, h.log, http.StatusOK, Page(Meta(r.Context()), view))
 		return
 	}
@@ -123,6 +139,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		view.NoDelivery = len(choices) == 0
 	}
 	view.SavedProducts = view.Empty() && h.hasSavedProducts(r)
+	view.CheckoutEmpty = view.Empty() && turnedAwayEmpty(r)
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
 	view.ReorderLeftOut = h.reorderLeftOut(r, view.ReorderSkipped)
 	view.ReorderAdjusted = view.FromReorder() && r.URL.Query().Get("qty") == "adjusted"
@@ -360,7 +377,10 @@ func (h *Handler) existingCart(r *http.Request) (uuid.UUID, bool, error) {
 	return id, ok, err
 }
 
-func (h *Handler) requestCart(w http.ResponseWriter, r *http.Request) (id uuid.UUID, found, ok bool) {
+// Find is the request's cart, if it has one. Unlike Require it answers nothing
+// for a visitor without one, so the caller can say why in its own words; ok is
+// false once an error has been answered.
+func (h *Handler) Find(w http.ResponseWriter, r *http.Request) (id uuid.UUID, found, ok bool) {
 	id, found, err := h.existingCart(r)
 	if err == nil {
 		return id, found, true
@@ -377,7 +397,7 @@ func (h *Handler) requestCart(w http.ResponseWriter, r *http.Request) (id uuid.U
 // a failed lookup it answers the error page; either way it reports false and
 // the request is answered.
 func (h *Handler) Require(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	id, found, ok := h.requestCart(w, r)
+	id, found, ok := h.Find(w, r)
 	if !ok {
 		return uuid.Nil, false
 	}

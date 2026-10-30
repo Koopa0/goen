@@ -78,6 +78,11 @@ type View struct {
 	// Partial is an answer htmx swaps into a page already showing. Nothing in it takes
 	// focus: the control the shopper just changed has it.
 	Partial bool
+	// PostalNote is set on a refused form whose postcode covers none of the city and district
+	// typed with it. It refuses nothing.
+	PostalNote string
+	// SignedIn is false for a guest, who is offered signing in.
+	SignedIn bool
 }
 
 func (v *View) HasShipping() bool { return len(v.Shipping) > 0 }
@@ -259,6 +264,26 @@ func Meta(ctx context.Context) frame.Page {
 func (v *View) Err(field string) string { return v.Errors[field] }
 
 func (v *View) HasErr(field string) bool { return v.Errors[field] != "" }
+
+// NoteFor is the note under a field that is not a refusal: only the postcode has one.
+func (v *View) NoteFor(field string) string {
+	if field == "postal_code" {
+		return v.PostalNote
+	}
+	return ""
+}
+
+// describedBy names what a screen reader reads with a field: the sentence under it, then its note.
+func describedBy(field string, sentence, note bool) string {
+	var ids []string
+	if sentence {
+		ids = append(ids, field+"-error")
+	}
+	if note {
+		ids = append(ids, field+"-note")
+	}
+	return strings.Join(ids, " ")
+}
 
 func (v *View) Invalid(field string) string {
 	if v.HasErr(field) {

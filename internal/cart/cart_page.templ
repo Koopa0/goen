@@ -46,6 +46,13 @@ templ Page(p frame.Page, v View) {
 						}
 					}
 				}
+				if v.CheckoutEmpty {
+					{{ href, label := ordersLink(ctx) }}
+					@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn, ID: "cart-checkout-empty"}) {
+						{ i18n.T(ctx, i18n.KeyCartCheckoutEmpty) }
+						<a href={ templ.URL(href) }>{ i18n.T(ctx, label) }</a>
+					}
+				}
 				if v.FromReorder() {
 					@widget.Notice(widget.NoticeProps{Intent: v.ReorderOutcome().Intent()}) {
 						{ v.ReorderText(ctx) }

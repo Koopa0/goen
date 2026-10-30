@@ -121,6 +121,12 @@ templ Page(p frame.Page, v *View) {
 							Attrs: templ.Attributes{"id": "address"},
 						}) {
 							<h2 class="goen-checkout__heading" id="recipient-heading">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
+							if !v.SignedIn {
+								<p class="goen-checkout__note" id="checkout-signin">
+									{ i18n.T(ctx, i18n.KeyHaveAccount) }
+									<a href="/signin?next=/checkout">{ i18n.T(ctx, i18n.KeySignIn) }</a>
+								</p>
+							}
 							if v.OffersTheProfile() {
 								// Fills the name and phone from the account, all it knows of a recipient. With
 								// scripting the page's script does it from the data below; without, the button
@@ -680,14 +686,17 @@ templ field(name, label, kind, value string, v *View) {
 			if v.HasErr(name) {
 				aria-invalid="true"
 			}
-			if v.HasErr(name) || hints.Constrained() {
-				aria-describedby={ name + "-error" }
+			if described := describedBy(name, v.HasErr(name) || hints.Constrained(), v.NoteFor(name) != ""); described != "" {
+				aria-describedby={ described }
 			}
 		/>
 		if v.HasErr(name) {
 			<p class="ui-error-text" id={ name + "-error" }>{ v.Err(name) }</p>
 		} else if hints.Constrained() {
 			<p class="ui-error-text goen-field__constraint" id={ name + "-error" }>{ hints.ConstraintText(ctx) }</p>
+		}
+		if note := v.NoteFor(name); note != "" {
+			<p class="goen-checkout__hint" id={ name + "-note" }>{ note }</p>
 		}
 	</div>
 }

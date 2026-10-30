@@ -96,9 +96,23 @@ func (h *Handler) Routes(mux *http.ServeMux, submissions *ratelimit.Limiter) {
 // TakesPayment holds where a payment key is configured.
 func (h *Handler) TakesPayment() bool { return h.payments.Enabled() }
 
+// backToCart sends a visitor whose cart cannot check out to the cart page. The page says why a
+// sold-out line or a mix of tax types blocks it; only an empty cart needs the reason sent along.
+func backToCart(w http.ResponseWriter, r *http.Request, empty bool) {
+	to := "/cart"
+	if empty {
+		to = cart.CheckoutEmptyPath
+	}
+	http.Redirect(w, r, to, http.StatusSeeOther)
+}
+
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	cartID, ok := h.carts.Require(w, r)
+	cartID, found, ok := h.carts.Find(w, r)
 	if !ok {
+		return
+	}
+	if !found {
+		backToCart(w, r, true)
 		return
 	}
 	view, err := h.checkoutView(r.Context(), cartID, ownerOf(r))
@@ -110,7 +124,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	// A cart that cannot be supplied must not reach this form: the order would
 	// fail at the inventory hold, after an address was typed.
 	if !view.Cart.CanCheckout() {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+		backToCart(w, r, view.Cart.Empty())
 		return
 	}
 	// A store returning from the carrier's map arrives on a cross-site POST
@@ -527,6 +541,9 @@ func (h *Handler) renderCheckout(
 	}
 	h.offerTheStoreMap(w, r, view)
 	view.Partial = respond.IsHTMX(r)
+	if status == http.StatusUnprocessableEntity {
+		view.PostalNote = postalMismatchNote(r.Context(), view.Address)
+	}
 	respond.Component(w, r, h.log, status, Page(Meta(r.Context()), view))
 }
 
@@ -1345,6 +1362,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	}
 	view.AvailableCreditCents = balance
 	if u, ok := user.FromContext(ctx); ok {
+		view.SignedIn = true
 		view.Profile = Profile{Email: u.Email, Name: name, Phone: phone}
 	}
 	if len(choices) > 0 {
