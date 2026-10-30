@@ -526,6 +526,7 @@ func (h *Handler) renderCheckout(
 		view.Destination = ""
 	}
 	h.offerTheStoreMap(w, r, view)
+	view.Partial = respond.IsHTMX(r)
 	respond.Component(w, r, h.log, status, Page(Meta(r.Context()), view))
 }
 
@@ -765,7 +766,7 @@ func (h *Handler) checkoutSubmission(
 		PickupChain: addr.PickupChain, PickupStoreCode: addr.PickupStoreCode,
 		PickupStoreName: addr.PickupStoreName, Note: addr.Note,
 	}
-	view.Chosen = r.PostFormValue("shipping")
+	view.Chosen = chosenShipping(view.Shipping, r.PostFormValue("shipping"))
 	to := destinationOf(view.Shipping, view.Chosen)
 	view.Destination = to
 	addr.To = to
@@ -1285,6 +1286,16 @@ func fillFromBook(view *View, addr *delivery.Details, wanted string) {
 	addr.RecipientName, addr.Phone = chosen.Name, chosen.Phone
 	addr.PostalCode, addr.City = chosen.PostalCode, chosen.City
 	addr.District, addr.Street = chosen.District, chosen.Street
+}
+
+// chosenShipping is the method the form named, except that a shop offering one has
+// nothing to choose: the form is answered with it, as the page was first shown, rather
+// than refused for naming a method the shop has since replaced or no method at all.
+func chosenShipping(choices []cart.ShippingChoice, posted string) string {
+	if len(choices) == 1 {
+		return choices[0].VersionID
+	}
+	return posted
 }
 
 // destinationOf reads the choices the server built, not the form.

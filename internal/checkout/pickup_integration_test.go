@@ -571,11 +571,12 @@ func TestHandler_PlaceOrderForgedPickup(t *testing.T) {
 				if strings.Contains(body, "攻擊者的門市") {
 					t.Error("the refusal echoes the forged store")
 				}
-				// Without a map the method is not offered, so the refusal is of
-				// the method itself; with one, of the chain or the store.
+				// Without a map the method is not offered, so the one that is, home
+				// delivery, stands in for it and the refusal is of the address it
+				// asks for; with a map, of the chain or the store.
 				want := forged.field
 				if !storeMap.Enabled() {
-					want = "shipping"
+					want = "postal_code"
 				}
 				if !strings.Contains(body, `id="`+want+`-error"`) {
 					t.Errorf("the refusal must show the %s error", want)

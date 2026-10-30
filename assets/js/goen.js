@@ -797,19 +797,6 @@
   fieldRules();
 
   /*
-   * The checkout form carries no native validation: a submit always reaches the
-   * server, which answers every refused field with its own message, in the order
-   * of the form. The page it answers with takes the shopper to the first of them.
-   */
-  function focusRefused() {
-    document
-      .querySelector('form[data-focus-refused] :is(input, select, textarea, button)[aria-invalid="true"]')
-      ?.focus();
-  }
-
-  focusRefused();
-
-  /*
    * A coupon request the server refused (the limiter's 429) or that never
    * arrived swaps nothing, so the reason is written into the coupon's live
    * region from the sentences the button carries. The typed code stays.
