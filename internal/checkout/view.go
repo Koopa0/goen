@@ -491,10 +491,11 @@ func shownFrom(r *http.Request) (figures [len(shownRows)]int64, ok bool) {
 // noteQuoteChanged words a refusal for a changed quote. Each row whose figure differs from
 // the one the form showed is named with both figures. When none does (a new rate version at
 // the same price changes the quote without moving an amount), or the form did not say what it
-// showed, or another notice already stands, the general sentence speaks instead.
+// showed, or another notice already stands, or no method can deliver the order (its figures
+// would read as free delivery and a lower total), the general sentence speaks instead.
 func (v *View) noteQuoteChanged(ctx context.Context, r *http.Request) {
 	v.Moved = nil
-	if shown, ok := shownFrom(r); ok && v.Repriced == "" {
+	if shown, ok := shownFrom(r); ok && v.Repriced == "" && v.HasShipping() {
 		for i, f := range shownRows {
 			now := v.figure(f.row)
 			if now == shown[i] {

@@ -261,6 +261,17 @@ func TestView_NoteQuoteChanged(t *testing.T) {
 		}
 	})
 
+	t.Run("no method delivers", func(t *testing.T) {
+		t.Parallel()
+		// Shown at NT$300; every method has gone, so delivery and the total now read lower.
+		v := islandView(10000)
+		v.Shipping, v.Chosen, v.QuotedShippingCents = nil, "", 0
+		v.noteQuoteChanged(ctx, postedFigures(t, map[string]string{"shown_shipping": "30000", "shown_total": "130000"}))
+		if len(v.Moved) != 0 || v.Repriced != general {
+			t.Errorf("moved = %v, repriced = %q, want the general sentence and no row reading as free delivery", v.Moved, v.Repriced)
+		}
+	})
+
 	t.Run("another notice stands", func(t *testing.T) {
 		t.Parallel()
 		v := islandView(10000)
