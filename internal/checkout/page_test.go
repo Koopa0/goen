@@ -838,55 +838,33 @@ func TestPageCouponSwap(t *testing.T) {
 	}
 }
 
-// TestPageCouponRefusalBanner: Page's banner names a coupon refusal when the
-// code is the form's only problem, and keeps the general banner for any other
-// refusal. It holds that a form whose only problem is the code does not send
-// the shopper through the fields, while any other refusal keeps the general
-// banner.
-func TestPageCouponRefusalBanner(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	general := i18n.T(ctx, i18n.KeyCheckoutHasErrors)
-
-	only := couponTestView()
-	only.Errors = map[string]string{"coupon": "找不到這組折扣碼。"}
-	markup := renderToString(t, Page(Meta(ctx), &only))
-	if !strings.Contains(markup, "折扣碼無法套用：找不到這組折扣碼。") || strings.Contains(markup, general) {
-		t.Error("the banner does not name the coupon refusal")
-	}
-
-	both := couponTestView()
-	both.Errors = map[string]string{"coupon": "找不到這組折扣碼。", "phone": "請填寫聯絡電話"}
-	markup = renderToString(t, Page(Meta(ctx), &both))
-	if !strings.Contains(markup, general) {
-		t.Error("a form with other refusals lost the general banner")
-	}
-}
-
 // TestPageFormNovalidateFocus: Page leaves every field to the server to refuse
-// (novalidate), and a refused page asks the script to move focus to its first
-// refusal. It holds that no field is refused by the browser before the server
-// has answered for all of them, and that a refused page says so for the script
-// that moves focus.
+// (novalidate), and a refused page lands on its refusal summary without a script:
+// the alert asks for focus and the form asks the script for nothing. It holds that
+// no field is refused by the browser before the server has answered for all of
+// them, and that a script does not carry focus past the summary to the first
+// refused control.
 func TestPageFormNovalidateFocus(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	fresh := couponTestView()
 	markup := renderToString(t, Page(Meta(ctx), &fresh))
-	form := tagCarrying(t, markup, `id="checkout-form"`)
-	if !strings.Contains(form, "novalidate") {
+	if !strings.Contains(tagCarrying(t, markup, `id="checkout-form"`), "novalidate") {
 		t.Error("the browser can block a submit with its own bubble for one field and not the others")
 	}
-	if strings.Contains(form, "data-focus-refused") {
-		t.Error("a form nobody has submitted asks for focus on a refusal")
+	if strings.Contains(markup, "autofocus") {
+		t.Error("a form nobody has submitted asks for focus")
 	}
 
 	refused := couponTestView()
 	refused.Errors = map[string]string{"phone": "請填寫聯絡電話"}
 	markup = renderToString(t, Page(Meta(ctx), &refused))
-	if !strings.Contains(tagCarrying(t, markup, `id="checkout-form"`), "data-focus-refused") {
-		t.Error("a refused form does not ask for focus on its first refusal")
+	if !strings.Contains(tagCarrying(t, markup, `id="checkout-refusal"`), "autofocus") {
+		t.Error("a refused form does not ask for focus on its refusal summary")
+	}
+	if strings.Contains(markup, "data-focus-refused") {
+		t.Error("the form asks a script to move focus past the refusal summary")
 	}
 
 	src, err := os.ReadFile(filepath.Join("..", "..", "assets", "js", "goen.js"))
@@ -896,7 +874,7 @@ func TestPageFormNovalidateFocus(t *testing.T) {
 	if !strings.Contains(string(src), `button.dataset.busy`) || !strings.Contains(string(src), `[data-coupon-apply]`) {
 		t.Error("the script does not show a refused or failed coupon request in the coupon's message region")
 	}
-	if !strings.Contains(string(src), `form[data-focus-refused] :is(input, select, textarea, button)[aria-invalid="true"]`) {
-		t.Error("the script does not focus the first refused control of a refused checkout")
+	if strings.Contains(string(src), `data-focus-refused`) {
+		t.Error("the script still moves focus to the first refused control, past the refusal summary")
 	}
 }

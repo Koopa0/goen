@@ -9,16 +9,8 @@ var (
 		En:     "Fill in the delivery details, then place the order.",
 	})
 
-	KeyCheckoutHasErrors = key("checkout.errors", Message{
-		ZhHant: "有欄位需要修正，請看下方標示。",
-		En:     "Some fields need fixing — see the notes below.",
-	})
-
-	// %s is the reason the code was refused.
-	KeyCheckoutCouponRefused = key("checkout.errors.coupon", Message{
-		ZhHant: "折扣碼無法套用：%s",
-		En:     "The discount code was not applied: %s",
-	})
+	// Heads the list of links to the refused fields; each field keeps its own sentence.
+	KeyCheckoutFixFields = countKey("checkout.errors", "請修正 %d 個欄位", "Fix %d field", "Fix %d fields")
 
 	KeySectionShipping = key("checkout.section.shipping", Message{ZhHant: "配送方式", En: "Delivery method"})
 

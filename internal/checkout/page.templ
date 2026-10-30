@@ -25,7 +25,6 @@ templ Page(p frame.Page, v *View) {
 					method="post"
 					action="/checkout"
 					novalidate
-					data-focus-refused?={ v.AnyErrors() }
 				>
 					// The form's DEFAULT button: HTML makes the first submit button in tree order the
 					// one Enter activates, and the chooser's 更新 buttons sit above the real one. Inert
@@ -50,17 +49,8 @@ templ Page(p frame.Page, v *View) {
 						}
 					</div>
 					<div class="goen-checkout__main">
-						if v.AnyErrors() {
-							@widget.Notice(widget.NoticeProps{
-								Intent: widget.IntentDanger,
-								Class:  "ui-alert--error",
-							}) {
-								if v.OnlyCouponRefused() {
-									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCheckoutCouponRefused), v.Err("coupon")) }
-								} else {
-									{ i18n.T(ctx, i18n.KeyCheckoutHasErrors) }
-								}
-							}
+						if fields := v.RefusedFields(ctx); len(fields) > 0 {
+							@refusalSummary(fields, !v.Partial)
 						}
 						@widget.Card(widget.CardProps{
 							Class: "goen-checkout__section",
@@ -399,6 +389,7 @@ templ Page(p frame.Page, v *View) {
 									name="coupon"
 									maxlength="32"
 									autocomplete="off"
+									autofocus?={ v.OnlyCouponRefused() && !v.Partial }
 									value={ v.CouponCode }
 									aria-invalid={ v.Invalid("coupon") }
 									if v.HasErr("coupon") {
@@ -440,6 +431,27 @@ templ Page(p frame.Page, v *View) {
 			</div>
 		</div>
 	}
+}
+
+// The one alert of a refused form. It takes focus when the page opens, with no script, so a
+// screen reader starts at it and Tab reaches the first link; each link goes to the field it
+// names, and the field keeps its own sentence. An answer htmx swaps in does not ask for focus:
+// htmx would move it from the control the shopper is using.
+templ refusalSummary(fields []RefusedField, focus bool) {
+	<div
+		class="goen-notice goen-notice--danger ui-alert ui-alert--error"
+		id="checkout-refusal"
+		role="alert"
+		tabindex="-1"
+		autofocus?={ focus }
+	>
+		<p class="goen-checkout__refusedlead">{ i18n.Count(ctx, i18n.KeyCheckoutFixFields, int64(len(fields)), len(fields)) }</p>
+		<ul class="goen-checkout__refused" role="list">
+			for _, f := range fields {
+				<li><a href={ templ.URL("#" + f.ID) }>{ f.Label }</a></li>
+			}
+		</ul>
+	</div>
 }
 
 // movedMark says in a word, not a colour, that a row's figure is not the one the

@@ -13,9 +13,9 @@ import (
 )
 
 // TestHandler_PlaceOrderApplyBlankForm: Applying a wrong code on a blank form
-// refuses only the code: the coupon field is marked and the banner names the
-// code instead of sending the shopper through the fields. The shopper pressed
-// 套用 before typing an address, so nothing but the code may be refused.
+// refuses only the code: the coupon field is marked and says why, and no alert
+// sends the shopper through the fields. The shopper pressed 套用 before typing
+// an address, so nothing but the code may be refused.
 func TestHandler_PlaceOrderApplyBlankForm(t *testing.T) {
 	g := newCouponGuesses(t, "coupon-blank")
 	form := url.Values{"coupon": {"NOPE123"}, "update": {"coupon"}, "shipping": {g.ship.String()}}
@@ -35,8 +35,11 @@ func TestHandler_PlaceOrderApplyBlankForm(t *testing.T) {
 	if !strings.Contains(body, `id="coupon-error"`) || !strings.Contains(body, unknown) {
 		t.Error("the refused code is not shown beside the coupon field")
 	}
-	if strings.Contains(body, i18n.T(t.Context(), i18n.KeyCheckoutHasErrors)) {
-		t.Error("the banner sends the shopper through the fields instead of naming the code")
+	if strings.Contains(body, `id="checkout-refusal"`) {
+		t.Error("an alert sends the shopper through the fields for a refused code")
+	}
+	if n := strings.Count(body, unknown); n != 1 {
+		t.Errorf("the refused code's sentence is on the page %d times, want once", n)
 	}
 	if n := strings.Count(body, `aria-invalid="true"`); n != 1 {
 		t.Errorf("%d controls are marked refused, want the coupon field alone", n)
