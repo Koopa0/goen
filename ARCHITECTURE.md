@@ -71,6 +71,8 @@ A database failure rolls back the claim and its effects and answers `500`, so St
 
 Stripe sends only the events its endpoint subscribes to; [.env.example](.env.example) names them. When a lapsed order's `checkout.session.expired` never arrives, a worker asks Stripe about the session and records the answer as the pay route does; the expiry sweeper then cancels the order and returns its store credit and coupon. See [lapsed sessions][payment-lapsed].
 
+A customer who cancels an unpaid order while its Checkout Session is open has the session expired at Stripe first, outside the cancellation's transaction. The order is cancelled only once Stripe confirms every session expired and the payment row is cancelled as `checkout.session.expired` would; a session that completed, that Stripe will not expire or cannot be asked about leaves the order as it was, and the refusal says a payment may be in progress. See [customer cancellation][customer-cancel] and [session expiry][payment-sessions].
+
 ### Recovering a complete session
 
 A complete session can leave a payment in `requires_reconciliation` with no webhook alarm for that reference. Staff check Stripe and use `ReconcileCompletePayment`:
@@ -296,6 +298,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [payment-store]: internal/payment/store.go
 [payment-handler]: internal/payment/handler.go
 [payment-lapsed]: internal/payment/lapsed.go
+[payment-sessions]: internal/payment/sessions.go
 [stripe]: internal/payment/stripe.go
 [order]: internal/order
 [orders]: internal/admin/orders

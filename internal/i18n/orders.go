@@ -270,6 +270,13 @@ var (
 			"Get in touch and we will sort it out.",
 	})
 
+	// The argument is the hold's end in KeyPayReservedNote's words, or nothing.
+	KeyCancelCheckoutOpenBody = key("order.cancel.checkout.body", Message{
+		ZhHant: "這筆訂單可能還有一筆付款正在進行中，所以現在還不能取消。付款有結果後再試一次。%s",
+		En: "A payment for this order may still be in progress, so it cannot be cancelled yet. " +
+			"Try again once the payment has settled. %s",
+	})
+
 	KeyFindOrderTitle = key("order.find.title", Message{
 		ZhHant: "查詢訂單",
 		En:     "Find your order",
