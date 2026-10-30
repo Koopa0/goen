@@ -29,7 +29,7 @@ func TestHandler_DeliverShipmentLaterParcel(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	role := admintest.AdminRolePool(t, pool)
-	store := admintest.OrderStore(role, admintest.HealthyGateway(t), nil, nil)
+	store := admintest.OrderStore(role, admintest.HealthyGateway(t), nil)
 	mux := http.NewServeMux()
 	admintest.OrderDesk(store).Routes(mux, admintest.BackOffice)
 

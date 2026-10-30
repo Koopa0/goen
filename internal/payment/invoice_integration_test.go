@@ -76,7 +76,7 @@ func TestCompleteFundingQueuesNoInvoice(t *testing.T) {
 	spendCreditOnOrder(t, orderID, -cents)
 
 	staff, actor := staffContext(t)
-	backOffice := admintest.OrderStore(adminRolePool(t), disabledGateway(t), nil, nil)
+	backOffice := admintest.OrderStore(adminRolePool(t), disabledGateway(t), nil)
 	if _, err := backOffice.Advance(staff, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("admin-role advance to picking: %v", err)
 	}

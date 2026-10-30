@@ -30,7 +30,7 @@ func TestHandler_IssueInvoiceZeroGross(t *testing.T) {
 	}
 	adminPool := admintest.AdminRolePool(t, pool)
 	writer := issuer.NewStore(adminPool, gateway)
-	store := admintest.OrderStore(adminPool, admintest.HealthyGateway(t), writer, writer)
+	store := admintest.OrderStore(adminPool, admintest.HealthyGateway(t), writer)
 	mux := http.NewServeMux()
 	admintest.OrderDesk(store).Routes(mux, admintest.BackOffice)
 	for range 2 {
@@ -41,7 +41,7 @@ func TestHandler_IssueInvoiceZeroGross(t *testing.T) {
 			t.Errorf("zero-gross Issue = %d %q, want 303 refused notice", res.Code, res.Header().Get("Location"))
 		}
 	}
-	view, err := admintest.OrderStore(adminPool, admintest.HealthyGateway(t), writer, writer).Order(ctx, number)
+	view, err := admintest.OrderStore(adminPool, admintest.HealthyGateway(t), writer).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("Order: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestHandler_IssueInvoiceZeroGross(t *testing.T) {
 		t.Errorf("zero-gross order has %d invoice operations, want 0", operations)
 	}
 	creditNumber, _ := admintest.PlaceOrderPaidByCredit(t, pool, 0)
-	credit, err := admintest.OrderStore(adminPool, admintest.HealthyGateway(t), writer, writer).Order(ctx, creditNumber)
+	credit, err := admintest.OrderStore(adminPool, admintest.HealthyGateway(t), writer).Order(ctx, creditNumber)
 	if err != nil {
 		t.Fatalf("read credit-funded order: %v", err)
 	}

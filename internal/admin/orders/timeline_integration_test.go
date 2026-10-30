@@ -31,7 +31,7 @@ func TestStore_OrderTimelineSources(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, staff).Scan(&staffAddress); err != nil {
 		t.Fatalf("read the staff member's address: %v", err)
 	}
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	q := db.New(pool)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	var orderID uuid.UUID
@@ -139,7 +139,7 @@ func TestStore_OrderTimelineSources(t *testing.T) {
 		{Label: i18n.KeyStatusPicking, ActorKind: orders.ActorStaff, Actor: staffAddress},
 		{Label: i18n.KeyAuditInvoiceAllowance, Status: i18n.KeyAdminTimelineInvoiceAwaitingBuyer,
 			ActorKind: orders.ActorStaff, Actor: staffAddress},
-		// The store has no invoice writer, so nothing will send the void.
+		// The store has no 加值中心, so nothing will send the void.
 		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoiceNotSent, ActorKind: orders.ActorSystem},
 		{Label: i18n.KeyAdminTimelineMailShipped, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: orders.ActorSystem},
 		{Label: i18n.KeyAdminTimelineMailTerminal, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: orders.ActorSystem},
@@ -147,7 +147,7 @@ func TestStore_OrderTimelineSources(t *testing.T) {
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Order(%s).Timeline mismatch (-want +got):\n%s", number, diff)
 	}
-	enabled, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, admintest.DisabledInvoiceWriter{}).Order(ctx, number)
+	enabled, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), admintest.EnabledInvoices(t, pool)).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("Order(%s) with e-invoicing on: %v", number, err)
 	}
@@ -170,7 +170,7 @@ func TestStore_OrderTimelineSources(t *testing.T) {
 // time of creation.
 func TestStore_OrderTimelineDelivered(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	if err := outbox.Enqueue(ctx, db.New(pool), outbox.TopicOrderPaid, number,
 		&outbox.OrderPaid{OrderNumber: number, Email: "x@example.com"}); err != nil {
@@ -242,14 +242,14 @@ func TestStore_OrderIssueNotInProgress(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name   string
-		writer orders.InvoiceWriter
-		want   i18n.Key
+		name     string
+		invoices *issuer.Store
+		want     i18n.Key
 	}{
 		{"e-invoicing off", nil, i18n.KeyAdminTimelineInvoiceNotSent},
-		{"e-invoicing on", admintest.DisabledInvoiceWriter{}, i18n.KeyAdminTimelineInvoicePending},
+		{"e-invoicing on", admintest.EnabledInvoices(t, pool), i18n.KeyAdminTimelineInvoicePending},
 	} {
-		view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, tc.writer).Order(ctx, number)
+		view, err := admintest.OrderStore(pool, admintest.HealthyGateway(t), tc.invoices).Order(ctx, number)
 		if err != nil {
 			t.Fatalf("%s: read the order: %v", tc.name, err)
 		}
@@ -269,7 +269,7 @@ func TestStore_OrderIssueNotInProgress(t *testing.T) {
 // invoice provider's refusal codes.
 func TestStore_OrderTimelineRefusedCodes(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	for _, tc := range []struct {
 		name      string
 		kind      string

@@ -1,13 +1,13 @@
 package orders
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
@@ -15,37 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/requestid"
 )
-
-type stubInvoiceWriter struct {
-	issueErr     error
-	voidErr      error
-	allowanceErr error
-}
-
-func (s stubInvoiceWriter) Issue(context.Context, string) (invoice.Document, error) {
-	if s.issueErr != nil {
-		return invoice.Document{}, s.issueErr
-	}
-	return invoice.Document{}, issuer.ErrDisabled
-}
-
-func (s stubInvoiceWriter) Void(context.Context, string, string) error {
-	return s.voidErr
-}
-
-func (s stubInvoiceWriter) FileAllowance(
-	context.Context, string, uuid.UUID,
-) (invoice.Document, error) {
-	if s.allowanceErr != nil {
-		return invoice.Document{}, s.allowanceErr
-	}
-	return invoice.Document{}, issuer.ErrDisabled
-}
 
 const invoiceNoticeOrder = "GO-260901-000001"
 
@@ -58,268 +31,125 @@ func invoiceNoticeContext(t *testing.T) context.Context {
 	return i18n.WithLocale(ctx, i18n.ZhHant)
 }
 
-func invoiceNoticeHandler(writer InvoiceWriter) *Handler {
-	return &Handler{
-		store: &Store{invoiceWriter: writer},
-		log:   slog.New(slog.DiscardHandler),
-	}
-}
-
-func postVoid(t *testing.T, h *Handler, reason string) *httptest.ResponseRecorder {
-	t.Helper()
-	form := url.Values{"reason": {reason}}
-	req := httptest.NewRequestWithContext(invoiceNoticeContext(t), http.MethodPost,
-		"/admin/orders/"+invoiceNoticeOrder+"/invoice/void",
-		strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetPathValue("number", invoiceNoticeOrder)
-	res := httptest.NewRecorder()
-	h.VoidInvoice(res, req)
-	return res
-}
-
-func postAllowance(t *testing.T, h *Handler) *httptest.ResponseRecorder {
-	t.Helper()
-	form := url.Values{"operation_id": {uuid.NewString()}}
-	req := httptest.NewRequestWithContext(invoiceNoticeContext(t), http.MethodPost,
-		"/admin/orders/"+invoiceNoticeOrder+"/invoice/allowance",
-		strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetPathValue("number", invoiceNoticeOrder)
-	res := httptest.NewRecorder()
-	h.FileAllowance(res, req)
-	return res
-}
-
-// TestHandler_VoidInvoiceClaimErrors: void claim errors are not a 500.
-func TestHandler_VoidInvoiceClaimErrors(t *testing.T) {
+// TestHandler_answerInvoice: what an invoice press returns picks the order
+// page's notice, and an error no notice describes is a 500. The notices these
+// redirects name are the order page's, and the root suite checks their words;
+// the integration suite drives the same presses against a real issuer store.
+func TestHandler_answerInvoice(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name string
-		err  error
-		want string
-	}{
-		{name: "blank reason", err: issuer.ErrReason, want: "?voidreason=1"},
-		{name: "already voided", err: issuer.ErrNotFound, want: "?noinvoice=1"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			res := postVoid(t, invoiceNoticeHandler(stubInvoiceWriter{voidErr: tt.err}), "")
-			if res.Code != http.StatusSeeOther {
-				t.Fatalf("Void = %d, want 303; body %q", res.Code, res.Body.String())
-			}
-			got := res.Header().Get("Location")
-			if !strings.HasSuffix(got, tt.want) {
-				t.Fatalf("Location = %q, want suffix %q", got, tt.want)
-			}
-		})
-	}
-}
-
-// TestHandler_VoidInvoiceUnmappedClaim: an unmapped void claim error answers
-// 500.
-func TestHandler_VoidInvoiceUnmappedClaim(t *testing.T) {
-	t.Parallel()
-
-	res := postVoid(t, invoiceNoticeHandler(stubInvoiceWriter{
-		voidErr: fmt.Errorf("claim the void of AB12345678: %w", errors.New("wrapped only")),
-	}), "資料錯誤")
-	if res.Code != http.StatusInternalServerError {
-		t.Fatalf("unmapped claim = %d Location %q, want 500 without a notice",
-			res.Code, res.Header().Get("Location"))
-	}
-}
-
-// TestHandler_VoidInvoiceRefusal: a provider refusal of a void or an allowance
-// does not blame tax IDs. The notices these redirects name are the order
-// page's, and the root suite checks their words.
-func TestHandler_VoidInvoiceRefusal(t *testing.T) {
-	t.Parallel()
-
-	voidRes := postVoid(t, invoiceNoticeHandler(stubInvoiceWriter{voidErr: issuer.ErrRejected}), "資料錯誤")
-	if voidRes.Code != http.StatusSeeOther ||
-		!strings.HasSuffix(voidRes.Header().Get("Location"), "?voidfailed=1") {
-		t.Fatalf("Void provider refusal = %d %q, want 303 ?voidfailed=1",
-			voidRes.Code, voidRes.Header().Get("Location"))
-	}
-
-	allowRes := postAllowance(t, invoiceNoticeHandler(stubInvoiceWriter{allowanceErr: issuer.ErrRejected}))
-	if allowRes.Code != http.StatusSeeOther ||
-		!strings.HasSuffix(allowRes.Header().Get("Location"), "?allowfailed=1") {
-		t.Fatalf("Allowance provider refusal = %d %q, want 303 ?allowfailed=1",
-			allowRes.Code, allowRes.Header().Get("Location"))
-	}
-}
-
-// TestHandler_FileAllowanceSentToBuyer: an allowance sent to the buyer says so.
-// An allowance ECPay e-mailed to the buyer is still pending, and the notice
-// says what happens next rather than that the result is unknown.
-func TestHandler_FileAllowanceSentToBuyer(t *testing.T) {
-	t.Parallel()
-
-	sent := fmt.Errorf("%w: allowance_awaiting_buyer: %w", issuer.ErrPending, issuer.ErrAwaitingBuyer)
-	res := postAllowance(t, invoiceNoticeHandler(stubInvoiceWriter{allowanceErr: sent}))
-	if res.Code != http.StatusSeeOther || !strings.HasSuffix(res.Header().Get("Location"), "?allowsent=1") {
-		t.Fatalf("Allowance e-mailed to the buyer = %d %q, want 303 ?allowsent=1",
-			res.Code, res.Header().Get("Location"))
-	}
-}
-
-// TestHandler_IssueInvoiceUnconfigured: an unconfigured issuer has its own
-// notice on the issue, void and allowance forms.
-func TestHandler_IssueInvoiceUnconfigured(t *testing.T) {
-	t.Parallel()
-
-	// Store.VoidInvoice / FileAllowance return ErrInvoiceRefused when the writer is gone: a stale POST
-	// after the issuer was disabled, or a shop that never had one. ECPay is not
-	// called.
-	unconfigured := &Handler{
-		store: &Store{},
-		log:   slog.New(slog.DiscardHandler),
-	}
-	voidRes := postVoid(t, unconfigured, "資料錯誤")
-	if voidRes.Code != http.StatusSeeOther ||
-		!strings.HasSuffix(voidRes.Header().Get("Location"), "?refused=1") {
-		t.Fatalf("Void unconfigured issuer = %d %q, want 303 ?refused=1",
-			voidRes.Code, voidRes.Header().Get("Location"))
-	}
-
-	allowRes := postAllowance(t, unconfigured)
-	if allowRes.Code != http.StatusSeeOther ||
-		!strings.HasSuffix(allowRes.Header().Get("Location"), "?refused=1") {
-		t.Fatalf("Allowance unconfigured issuer = %d %q, want 303 ?refused=1",
-			allowRes.Code, allowRes.Header().Get("Location"))
-	}
-
-	disabled := invoiceNoticeHandler(stubInvoiceWriter{
-		voidErr: issuer.ErrDisabled, allowanceErr: issuer.ErrDisabled,
-	})
-	issueReq := httptest.NewRequestWithContext(invoiceNoticeContext(t), http.MethodPost,
-		"/admin/orders/"+invoiceNoticeOrder+"/invoice", http.NoBody)
-	issueReq.SetPathValue("number", invoiceNoticeOrder)
-	issueDisabled := httptest.NewRecorder()
-	disabled.IssueInvoice(issueDisabled, issueReq)
-	if issueDisabled.Code != http.StatusSeeOther ||
-		!strings.HasSuffix(issueDisabled.Header().Get("Location"), "?invoicingoff=1") {
-		t.Fatalf("Issue disabled issuer = %d %q, want 303 ?invoicingoff=1",
-			issueDisabled.Code, issueDisabled.Header().Get("Location"))
-	}
-	voidDisabled := postVoid(t, disabled, "資料錯誤")
-	if voidDisabled.Code != http.StatusSeeOther ||
-		!strings.HasSuffix(voidDisabled.Header().Get("Location"), "?invoicingoff=1") {
-		t.Fatalf("Void disabled issuer = %d %q, want 303 ?invoicingoff=1",
-			voidDisabled.Code, voidDisabled.Header().Get("Location"))
-	}
-	allowDisabled := postAllowance(t, disabled)
-	if allowDisabled.Code != http.StatusSeeOther ||
-		!strings.HasSuffix(allowDisabled.Header().Get("Location"), "?invoicingoff=1") {
-		t.Fatalf("Allowance disabled issuer = %d %q, want 303 ?invoicingoff=1",
-			allowDisabled.Code, allowDisabled.Header().Get("Location"))
-	}
-}
-
-type recordingInvoiceWriter struct {
-	orders     []string
-	operations []uuid.UUID
-}
-
-func (*recordingInvoiceWriter) Issue(context.Context, string) (invoice.Document, error) {
-	return invoice.Document{}, issuer.ErrDisabled
-}
-
-func (*recordingInvoiceWriter) Void(context.Context, string, string) error {
-	return issuer.ErrDisabled
-}
-
-func (w *recordingInvoiceWriter) FileAllowance(
-	_ context.Context, orderNumber string, operationID uuid.UUID,
-) (invoice.Document, error) {
-	w.orders = append(w.orders, orderNumber)
-	w.operations = append(w.operations, operationID)
-	return invoice.Document{Kind: "allowance", Number: "2026080715227214"}, nil
-}
-
-// TestHandler_FileAllowanceIgnoresAmount: the allowance POST does not accept a
-// caller-controlled amount.
-func TestHandler_FileAllowanceIgnoresAmount(t *testing.T) {
-	ctx := invoiceNoticeContext(t)
-	writer := &recordingInvoiceWriter{}
-	handler := invoiceNoticeHandler(writer)
-	const number = "GO-260901-000001"
-
-	tests := []struct {
-		name   string
-		amount string
-	}{
-		{name: "amount omitted"},
-		{name: "stale forged amount ignored", amount: "999999999999"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			callsBefore := len(writer.orders)
-			operationID := uuid.New()
-			form := url.Values{"operation_id": {operationID.String()}}
-			if tt.amount != "" {
-				form.Set("amount", tt.amount)
-			}
-			req := httptest.NewRequestWithContext(ctx, http.MethodPost,
-				"/admin/orders/"+number+"/invoice/allowance",
-				strings.NewReader(form.Encode()))
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.SetPathValue("number", number)
-			res := httptest.NewRecorder()
-			handler.FileAllowance(res, req)
-			if res.Code != http.StatusSeeOther ||
-				res.Header().Get("Location") != "/admin/orders/"+number+"?allowed=1" {
-				t.Fatalf("Allowance HTTP = %d %q, want success redirect",
-					res.Code, res.Header().Get("Location"))
-			}
-			if len(writer.orders) != callsBefore+1 || len(writer.operations) != callsBefore+1 {
-				t.Fatalf("writer call counts = orders %d operations %d, want %d",
-					len(writer.orders), len(writer.operations), callsBefore+1)
-			}
-			at := callsBefore
-			if writer.orders[at] != number || writer.operations[at] != operationID {
-				t.Fatalf("writer calls = orders %v operations %v, want %s/%s",
-					writer.orders, writer.operations, number, operationID)
-			}
-		})
-	}
-}
-
-// TestHandler_IssueInvoiceRefusedItems: the claim's own rules are a notice and a
-// missing order a 404; other failures remain errors.
-func TestHandler_IssueInvoiceRefusedItems(t *testing.T) {
-	t.Parallel()
 	claim := func(code, constraint string) error {
 		return fmt.Errorf("claim invoice: %w", &pgconn.PgError{Code: code, ConstraintName: constraint})
 	}
-	refused := "/admin/orders/" + invoiceNoticeOrder + "?refused=1"
-	for _, tc := range []struct {
-		name         string
-		err          error
-		wantStatus   int
-		wantLocation string
+	sentToBuyer := fmt.Errorf("%w: allowance_awaiting_buyer: %w", issuer.ErrPending, issuer.ErrAwaitingBuyer)
+	noProvider := fmt.Errorf("%w: no e-invoice provider is configured", ErrInvoiceRefused)
+	const (
+		issueOp     = "issue invoice"
+		voidOp      = "void invoice"
+		allowanceOp = "file invoice allowance"
+	)
+	tests := []struct {
+		name      string
+		notice    func(error) (invoiceOutcome, bool)
+		operation string
+		err       error
+		want      string // the notice's query, or "" for a 500
+		wantLog   string // what the log carries, or "" for no line
 	}{
-		{"itemisation refused", claim("23514", "invoice_issue_itemisation"), http.StatusSeeOther, refused},
-		{"uncommitted refused", claim("23514", "invoice_issue_committed"), http.StatusSeeOther, refused},
-		{"no such order", issuer.ErrNotFound, http.StatusNotFound, ""},
-		{"other constraint", claim("23514", "invoice_issue_filing_snapshot"), http.StatusInternalServerError, ""},
-		{"other error code", claim("XX000", "invoice_issue_itemisation"), http.StatusInternalServerError, ""},
-		{"other code uncommitted", claim("XX000", "invoice_issue_committed"), http.StatusInternalServerError, ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+		{"issued", issueNotice, issueOp, nil, "?invoiced=1", ""},
+		{"already issued", issueNotice, issueOp, issuer.ErrAlreadyIssued, "?hasinvoice=1", ""},
+		{"issue unconfigured", issueNotice, issueOp, issuer.ErrDisabled, "?invoicingoff=1", ""},
+		{
+			"itemisation refused", issueNotice, issueOp,
+			issueRefusal(claim("23514", "invoice_issue_itemisation")),
+			"?refused=1", `level=WARN msg="invoice refused"`,
+		},
+		{
+			"uncommitted refused", issueNotice, issueOp,
+			issueRefusal(claim("23514", "invoice_issue_committed")),
+			"?refused=1", `level=WARN msg="invoice refused"`,
+		},
+		{"issue without a provider", issueNotice, issueOp, noProvider, "?refused=1", `level=WARN msg="invoice refused"`},
+		{
+			"issue refused by the provider", issueNotice, issueOp, issuer.ErrRejected,
+			"?invoicefailed=1", `level=ERROR msg="the e-invoice provider refused the invoice"`,
+		},
+		{"issue pending", issueNotice, issueOp, issuer.ErrPending, "?invoicepending=1", ""},
+		{
+			"other constraint", issueNotice, issueOp,
+			issueRefusal(claim("23514", "invoice_issue_filing_snapshot")),
+			"", `level=ERROR msg="issue invoice"`,
+		},
+		{
+			"other error code", issueNotice, issueOp,
+			issueRefusal(claim("XX000", "invoice_issue_itemisation")),
+			"", `level=ERROR msg="issue invoice"`,
+		},
+		{
+			"other code uncommitted", issueNotice, issueOp,
+			issueRefusal(claim("XX000", "invoice_issue_committed")),
+			"", `level=ERROR msg="issue invoice"`,
+		},
+
+		{"voided", voidNotice, voidOp, nil, "?voided=1", ""},
+		{"blank reason", voidNotice, voidOp, issuer.ErrReason, "?voidreason=1", ""},
+		{"already voided", voidNotice, voidOp, issuer.ErrNotFound, "?noinvoice=1", ""},
+		{"void pending", voidNotice, voidOp, issuer.ErrPending, "?invoicepending=1", ""},
+		{
+			"void refused by the provider", voidNotice, voidOp, issuer.ErrRejected,
+			"?voidfailed=1", `level=ERROR msg="the e-invoice provider refused the void"`,
+		},
+		{"void unconfigured", voidNotice, voidOp, issuer.ErrDisabled, "?invoicingoff=1", ""},
+		{"void without a provider", voidNotice, voidOp, noProvider, "?refused=1", `level=WARN msg="invoice void refused"`},
+		{
+			"unmapped void claim", voidNotice, voidOp,
+			fmt.Errorf("claim the void of AB12345678: %w", errors.New("wrapped only")),
+			"", `level=ERROR msg="void invoice"`,
+		},
+
+		{"allowed", allowanceNotice, allowanceOp, nil, "?allowed=1", ""},
+		{"no invoice to allow", allowanceNotice, allowanceOp, issuer.ErrNotFound, "?noinvoice=1", ""},
+		{"allowance claimed", allowanceNotice, allowanceOp, issuer.ErrClaimed, "?allowclaimed=1", ""},
+		{"allowance sent to the buyer", allowanceNotice, allowanceOp, sentToBuyer, "?allowsent=1", ""},
+		{"allowance pending", allowanceNotice, allowanceOp, issuer.ErrPending, "?invoicepending=1", ""},
+		{"allowance too much", allowanceNotice, allowanceOp, issuer.ErrTooMuch, "?allowtoomuch=1", ""},
+		{
+			"allowance refused by the provider", allowanceNotice, allowanceOp, issuer.ErrRejected,
+			"?allowfailed=1", `level=ERROR msg="the e-invoice provider refused the allowance"`,
+		},
+		{"allowance unconfigured", allowanceNotice, allowanceOp, issuer.ErrDisabled, "?invoicingoff=1", ""},
+		{
+			"allowance without a provider", allowanceNotice, allowanceOp, noProvider,
+			"?refused=1", `level=WARN msg="invoice allowance refused"`,
+		},
+		{
+			"unmapped allowance claim", allowanceNotice, allowanceOp, errors.New("wrapped only"),
+			"", `level=ERROR msg="file invoice allowance"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			h := invoiceNoticeHandler(stubInvoiceWriter{issueErr: tc.err})
+			var logged bytes.Buffer
+			h := &Handler{log: slog.New(slog.NewTextHandler(&logged, nil))}
 			req := httptest.NewRequestWithContext(invoiceNoticeContext(t), http.MethodPost,
-				"/admin/orders/"+invoiceNoticeOrder+"/invoice", nil)
-			req.SetPathValue("number", invoiceNoticeOrder)
+				"/admin/orders/"+invoiceNoticeOrder+"/invoice", http.NoBody)
 			res := httptest.NewRecorder()
-			h.IssueInvoice(res, req)
-			if res.Code != tc.wantStatus || res.Header().Get("Location") != tc.wantLocation {
-				t.Errorf("Issue(%s) = %d %q, want %d %q", tc.name, res.Code, res.Header().Get("Location"), tc.wantStatus, tc.wantLocation)
+
+			h.answerInvoice(res, req, invoiceNoticeOrder, tt.operation, tt.err, tt.notice)
+
+			if tt.want == "" {
+				if res.Code != http.StatusInternalServerError || res.Header().Get("Location") != "" {
+					t.Errorf("answerInvoice(%v) = %d %q, want 500 without a notice",
+						tt.err, res.Code, res.Header().Get("Location"))
+				}
+			} else if want := "/admin/orders/" + invoiceNoticeOrder + tt.want; res.Code != http.StatusSeeOther ||
+				res.Header().Get("Location") != want {
+				t.Errorf("answerInvoice(%v) = %d %q, want 303 %q",
+					tt.err, res.Code, res.Header().Get("Location"), want)
+			}
+			if got := logged.String(); !strings.Contains(got, tt.wantLog) || tt.wantLog == "" && got != "" {
+				t.Errorf("answerInvoice(%v) logged %q, want %q", tt.err, got, tt.wantLog)
 			}
 		})
 	}

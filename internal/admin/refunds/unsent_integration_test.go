@@ -139,8 +139,9 @@ func stockOf(t *testing.T, variant uuid.UUID) int32 {
 }
 
 // orderDesk is the order desk over the same role and gateway.
-func orderDesk(adminPool *pgxpool.Pool, gateway *payment.Gateway) *orders.Store {
-	return admintest.OrderStore(adminPool, gateway, nil, admintest.DisabledInvoiceWriter{})
+func orderDesk(t *testing.T, adminPool *pgxpool.Pool, gateway *payment.Gateway) *orders.Store {
+	t.Helper()
+	return admintest.OrderStore(adminPool, gateway, admintest.EnabledInvoices(t, adminPool))
 }
 
 // TestStore_RefundUnsentPaysBack: an unsent refund pays back what did not ship.
@@ -221,7 +222,7 @@ func TestStore_RefundUnsentPaysBack(t *testing.T) {
 	}
 
 	// The order owes no parcel now, and completes through the order desk.
-	if _, err := orderDesk(adminPool, gateway).Advance(ctx, o.Number, order.FulfillmentCompleted,
+	if _, err := orderDesk(t, adminPool, gateway).Advance(ctx, o.Number, order.FulfillmentCompleted,
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("complete the order: %v", err)
 	}
@@ -309,7 +310,7 @@ func TestStore_RefundUnsentBounds(t *testing.T) {
 		if err := unpaid.RefundUnsent(ctx, o.Number, unsentRequest(returns.UnsentLost, map[uuid.UUID]int32{o.LineB: 1})); !errors.Is(err, refunds.ErrUnsettled) {
 			t.Fatalf("pending card refund: %v, want ErrUnsettled", err)
 		}
-		desk := orderDesk(adminPool, pending)
+		desk := orderDesk(t, adminPool, pending)
 		view, err := desk.Order(ctx, o.Number)
 		if err != nil {
 			t.Fatalf("read the order page: %v", err)
@@ -360,7 +361,7 @@ func TestStore_RefundUnsentUnsettled(t *testing.T) {
 		t.Fatalf("pending refund %s, B held %d, letters %d, card paid %d; want approved, 2 held, none, none",
 			f.status, f.heldB, f.mails, f.cardPaid)
 	}
-	desk := orderDesk(adminPool, pending)
+	desk := orderDesk(t, adminPool, pending)
 	if _, advanceErr := desk.Advance(ctx, o.Number, order.FulfillmentCompleted, uuid.NullUUID{UUID: staff, Valid: true}); !db.IsConstraint(advanceErr, "orders_finished_when_shipped") {
 		t.Fatalf("completing with the refund unsettled: %v, want orders_finished_when_shipped", advanceErr)
 	}
@@ -509,7 +510,7 @@ func TestStore_RefundUnsentRepeatPress(t *testing.T) {
 func TestStore_OfferUnsent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	adminPool := admintest.AdminRolePool(t, pool)
-	desk := orderDesk(adminPool, admintest.HealthyGateway(t))
+	desk := orderDesk(t, adminPool, admintest.HealthyGateway(t))
 	read := func(t *testing.T, number string) orders.OrderView {
 		t.Helper()
 		view, err := desk.Order(ctx, number)

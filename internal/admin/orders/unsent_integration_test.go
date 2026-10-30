@@ -25,7 +25,7 @@ func TestStore_OrderUnsentRefundedUnits(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
 	pending := admintest.NewStripe(t, admintest.StripeBehaviour{RefundStatus: refund.Pending}).Gateway()
-	desk := admintest.OrderStore(adminPool, pending, nil, admintest.DisabledInvoiceWriter{})
+	desk := admintest.OrderStore(adminPool, pending, admintest.EnabledInvoices(t, adminPool))
 	o := admintest.PartlyShippedOrder(t, owner, admintest.TwoLineOrderTotal)
 
 	owed := func(t *testing.T, want int32) {
@@ -92,7 +92,7 @@ func TestStore_FillParcelSchemaRefusal(t *testing.T) {
 		o.ID, o.VariantB).Scan(&hold); err != nil {
 		t.Fatalf("read B's hold: %v", err)
 	}
-	store := admintest.OrderStore(adminPool, pending, nil, admintest.DisabledInvoiceWriter{})
+	store := admintest.OrderStore(adminPool, pending, admintest.EnabledInvoices(t, adminPool))
 	err := store.FillParcel(ctx, o.ID, shipment, o.LineB, hold, 1)
 	if !errors.Is(err, orders.ErrQuantity) || !db.IsConstraint(err, "shipment_within_purchase") {
 		t.Fatalf("a parcel line for a refunded unit: %v, want the quantity notice from shipment_within_purchase", err)

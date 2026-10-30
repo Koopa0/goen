@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
@@ -49,17 +50,16 @@ type Store struct {
 	pool    *pgxpool.Pool
 	q       *db.Queries
 	refunds Refunds
-	// The invoice writer is nil when no provider is configured; the reader
-	// still shows what was filed.
-	invoiceReader InvoiceReader
-	invoiceWriter InvoiceWriter
+	// invoices files nothing when no provider is configured; it still shows
+	// what was filed.
+	invoices *issuer.Store
 }
 
-func NewStore(pool *pgxpool.Pool, refunds Refunds, invoiceReader InvoiceReader, invoiceWriter InvoiceWriter) *Store {
-	if pool == nil || refunds == nil || invoiceReader == nil {
-		panic("orders: NewStore requires a pool, refunds and an invoice reader")
+func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices *issuer.Store) *Store {
+	if pool == nil || refunds == nil || invoices == nil {
+		panic("orders: NewStore requires a pool, refunds and an invoice store")
 	}
-	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoiceReader: invoiceReader, invoiceWriter: invoiceWriter}
+	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices}
 }
 
 // orderRows reads which of the orders are returned in one query, so a page of the queue costs no more than one.

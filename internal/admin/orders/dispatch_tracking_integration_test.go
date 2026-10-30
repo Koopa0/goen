@@ -20,7 +20,7 @@ import (
 // number is refused on the tracking field.
 func TestHandler_ShipTrackingTaken(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil, nil)
+	s := admintest.OrderStore(pool, admintest.HealthyGateway(t), nil)
 	h := admintest.OrderDesk(s)
 	first, second := shippableOrder(t, "zh-Hant"), shippableOrder(t, "zh-Hant")
 	tracking := "DUP-" + uuid.NewString()[:8]
