@@ -500,9 +500,9 @@ func answerAt(r *http.Request, notice string) string {
 }
 
 // refusedQueue reads what a refused form draws again: the return's own page
-// when the form came from it, else the queue page the action URL names. Without
-// this a return further down the queue loses its error and its drafts to the
-// first page.
+// when the form came from it, else the queue page the action URL names. A form
+// posted from a return's own page draws that return again, wherever the return
+// sits in the queue.
 func (h *Handler) refusedQueue(r *http.Request) (Queue, error) {
 	if id, ok := ownPage(r); ok {
 		return h.store.RequestQueue(r.Context(), id, "")
