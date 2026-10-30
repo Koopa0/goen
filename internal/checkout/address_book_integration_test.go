@@ -248,11 +248,11 @@ func TestHandler_PlaceOrderPickAddress(t *testing.T) {
 	}
 }
 
-// TestHandler_PlaceOrderTypedAddress: Changing another chooser (the invoice
-// type) keeps an address typed by hand instead of filling from the saved book,
+// TestHandler_PlaceOrderTypedAddress: Changing another chooser (the delivery
+// method) keeps an address typed by hand instead of filling from the saved book,
 // and retains the registered buyer fields. It is why 更新 names its chooser.
 // Filling from the book on every re-render would wipe an address somebody had
-// typed by hand the moment they changed their 發票 type.
+// typed by hand the moment they changed their delivery method.
 func TestHandler_PlaceOrderTypedAddress(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
@@ -294,7 +294,7 @@ func TestHandler_PlaceOrderTypedAddress(t *testing.T) {
 		"invoice_type":         {"company"},
 		"invoice_company_name": {"買受股份有限公司"},
 		"invoice_tax_id":       {"04595252"},
-		"update":               {"invoice"},
+		"update":               {"shipping"},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
 		strings.NewReader(form.Encode()))
@@ -308,7 +308,7 @@ func TestHandler_PlaceOrderTypedAddress(t *testing.T) {
 	h.PlaceOrder(res, req)
 
 	if body := res.Body.String(); !strings.Contains(body, "手打的地址 1 號") {
-		t.Error("changing the 發票 type overwrote an address typed by hand with " +
+		t.Error("changing the delivery method overwrote an address typed by hand with " +
 			"the saved one, which is the whole reason 更新 says which chooser it is")
 	}
 	body := res.Body.String()
@@ -316,6 +316,6 @@ func TestHandler_PlaceOrderTypedAddress(t *testing.T) {
 		!strings.Contains(body, `value="買受股份有限公司"`) ||
 		!strings.Contains(body, `name="invoice_tax_id"`) ||
 		!strings.Contains(body, `value="04595252"`) {
-		t.Errorf("changing the invoice choice did not retain the registered buyer fields: %s", body)
+		t.Errorf("changing the delivery method did not retain the registered buyer fields: %s", body)
 	}
 }

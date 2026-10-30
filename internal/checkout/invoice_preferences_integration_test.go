@@ -73,7 +73,7 @@ func TestHandler_PlaceOrderDonationRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
-			form := url.Values{"shipping": {shipVersionFor(t, "home_delivery").String()}, "invoice_type": {tt.kind}, tt.field: {tt.value}, "update": {"invoice"}}
+			form := url.Values{"shipping": {shipVersionFor(t, "home_delivery").String()}, "invoice_type": {tt.kind}, tt.field: {tt.value}, "update": {"shipping"}}
 			for _, refused := range []bool{false, true} {
 				if refused {
 					form.Del("update")
