@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // TestPageEmptyHasNoPicture holds that an empty cart says so in words and
@@ -76,6 +77,75 @@ func TestPageEmptyOffersWishlist(t *testing.T) {
 			}
 			if got := link(with, "/"); got != tt.shopping {
 				t.Errorf("with a wishlist the way on reads %q, want %q", got, tt.shopping)
+			}
+		})
+	}
+}
+
+// TestPageCheckoutEmptyNotice holds that a cart /checkout turned away for holding
+// nothing says so and says checkout cannot continue, then offers the way to an order
+// already placed: the account's orders to a signed-in reader, the order lookup to a
+// guest. A cart that was not turned away says none of it.
+func TestPageCheckoutEmptyNotice(t *testing.T) {
+	t.Parallel()
+	for name, tt := range map[string]struct {
+		locale     i18n.Locale
+		signedIn   bool
+		turnedAway bool
+		sentence   string
+		href       string
+		label      string
+	}{
+		"guest": {
+			locale: i18n.ZhHant, turnedAway: true,
+			sentence: "購物車是空的，結帳無法繼續。", href: "/orders/find", label: "查詢訂單",
+		},
+		"member": {
+			locale: i18n.ZhHant, signedIn: true, turnedAway: true,
+			sentence: "購物車是空的，結帳無法繼續。", href: "/account#orders-heading", label: "我的訂單",
+		},
+		"guest in english": {
+			locale: i18n.En, turnedAway: true,
+			sentence: "Your cart is empty, so checkout cannot continue.", href: "/orders/find", label: "Find your order",
+		},
+		"not turned away": {locale: i18n.ZhHant},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			if tt.signedIn {
+				ctx = user.NewContext(ctx, user.User{ID: "018f0000-0000-7000-8000-000000000001"})
+			}
+			doc, err := nethtml.Parse(strings.NewReader(renderComponent(t, ctx, Page(frame.Page{}, View{CheckoutEmpty: tt.turnedAway}))))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var notice *nethtml.Node
+			for n := range doc.Descendants() {
+				if n.Type == nethtml.ElementNode && attr(n, "id") == "cart-checkout-empty" {
+					notice = n
+				}
+			}
+			if notice == nil {
+				if tt.turnedAway {
+					t.Fatal("the cart says nothing of why checkout cannot continue")
+				}
+				return
+			}
+			if !tt.turnedAway {
+				t.Fatal("a cart that was not turned away says checkout cannot continue")
+			}
+			if got := strings.TrimSpace(text(notice)); !strings.HasPrefix(got, tt.sentence) {
+				t.Errorf("the notice reads %q, want it to begin %q", got, tt.sentence)
+			}
+			var links []string
+			for a := range notice.Descendants() {
+				if a.Type == nethtml.ElementNode && a.Data == "a" {
+					links = append(links, attr(a, "href")+" "+strings.TrimSpace(text(a)))
+				}
+			}
+			if want := tt.href + " " + tt.label; len(links) != 1 || links[0] != want {
+				t.Errorf("the notice links %q, want one link %q", links, want)
 			}
 		})
 	}

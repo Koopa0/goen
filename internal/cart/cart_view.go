@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
+	"github.com/koopa0/goen/internal/user"
 )
 
 type View struct {
@@ -19,6 +20,8 @@ type View struct {
 	MixedTaxTypes   bool
 	ReorderAdjusted bool
 	NoDelivery      bool
+	// CheckoutEmpty is set only on a cart with no lines, which /checkout turned away.
+	CheckoutEmpty bool
 	// SavedProducts is whether the signed-in customer has a wishlist worth opening.
 	SavedProducts bool
 
@@ -109,6 +112,15 @@ func (v View) HasSoldOut() bool {
 }
 
 func (v View) HasNotice() bool { return v.Notice.Text != "" }
+
+// ordersLink is the way on for somebody who came back to /checkout after placing an order:
+// the account's orders for a signed-in reader, the order lookup for a guest.
+func ordersLink(ctx context.Context) (href string, label i18n.Key) {
+	if _, ok := user.FromContext(ctx); ok {
+		return "/account#orders-heading", i18n.KeyContactMyOrders
+	}
+	return "/orders/find", i18n.KeyFindOrderTitle
+}
 
 // PayStartNote is the line under the checkout button that says when the stock is held and how long the customer has to start paying.
 func (v View) PayStartNote(ctx context.Context) string {

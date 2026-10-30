@@ -79,3 +79,45 @@ func TestHandler_PageEmptyWishlist(t *testing.T) {
 		t.Errorf("a cart with items asked the wishlist %d times, want none", asked)
 	}
 }
+
+// TestHandler_PageCheckoutEmpty holds that the cart page says /checkout cannot
+// continue only to a cart that holds nothing, with or without a cart row, and
+// only when /checkout asked for it: a hand-edited URL cannot tell somebody their
+// cart is empty when it holds something.
+func TestHandler_PageCheckoutEmpty(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	basket, token := newCartSession(t, s)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
+	owned := &http.Cookie{Name: "goen_cart", Value: token} //nolint:gosec // G124: fixture browser cart cookie.
+
+	says := func(query string, cookies ...*http.Cookie) bool {
+		t.Helper()
+		r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/cart"+query, http.NoBody)
+		for _, c := range cookies {
+			r.AddCookie(c)
+		}
+		w := httptest.NewRecorder()
+		h.Page(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /cart%s answered %d, want 200", query, w.Code)
+		}
+		return strings.Contains(w.Body.String(), `id="cart-checkout-empty"`)
+	}
+
+	if !says("?notice=empty") {
+		t.Error("a visitor with no cart, turned away from /checkout, is told nothing")
+	}
+	if !says("?notice=empty", owned) {
+		t.Error("a visitor with an empty cart, turned away from /checkout, is told nothing")
+	}
+	if says("", owned) {
+		t.Error("an empty cart says checkout cannot continue though /checkout did not send the visitor")
+	}
+	if err := s.Add(ctx, basket, ordertest.FreshVariant(t, pool, "checkout-empty-line"), 1); err != nil {
+		t.Fatalf("fill the cart: %v", err)
+	}
+	if says("?notice=empty", owned) {
+		t.Error("a cart holding an item is told it is empty by a URL that says so")
+	}
+}
