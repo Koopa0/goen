@@ -91,9 +91,9 @@ func TestReturn_StatusIntentGroups(t *testing.T) {
 		row  Return
 		want widget.Intent
 	}{
-		{"requested", Return{Status: returns.StatusRequested}, widget.IntentWarn},
+		{"requested", Return{Status: returns.StatusRequested}, widget.IntentStaffTurn},
 		{"approved, goods not back", Return{Status: returns.StatusApproved, Lines: waiting}, widget.IntentProgress},
-		{"approved, fully inspected", Return{Status: returns.StatusApproved, Lines: inspected}, widget.IntentWarn},
+		{"approved, fully inspected", Return{Status: returns.StatusApproved, Lines: inspected}, widget.IntentStaffTurn},
 		{"approved, payout outstanding", Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true}, widget.IntentWarn},
 		{"approved, payout stranded", Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, PayoutBlocked: true}, widget.IntentDanger},
 		{"declined", Return{Status: returns.StatusRejected}, widget.IntentNeutral},
@@ -132,9 +132,9 @@ func TestReturnsBadgesFollowGroup(t *testing.T) {
 				word  string
 				class string
 			}{
-				{Return{Status: returns.StatusRequested, StatusText: w[0]}, w[0], "goen-badge goen-badge--warn"},
+				{Return{Status: returns.StatusRequested, StatusText: w[0]}, w[0], "goen-badge goen-badge--staff-turn"},
 				{Return{Status: returns.StatusApproved, Lines: waiting, StatusText: "x1"}, w[1], "goen-badge goen-badge--progress"},
-				{Return{Status: returns.StatusApproved, Lines: inspected, StatusText: "x2"}, w[2], "goen-badge goen-badge--warn"},
+				{Return{Status: returns.StatusApproved, Lines: inspected, StatusText: "x2"}, w[2], "goen-badge goen-badge--staff-turn"},
 				{Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, StatusText: "x3"}, w[3], "goen-badge goen-badge--warn"},
 				{Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, PayoutBlocked: true, StatusText: "x4"}, w[4], "goen-badge goen-badge--danger"},
 				{Return{Status: returns.StatusRejected, StatusText: w[5]}, w[5], "goen-badge"},

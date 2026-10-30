@@ -64,10 +64,10 @@ func (s Size) class() string {
 }
 
 // Intent is what a badge or notice says. Neutral states the fact, accent marks the shop's own offer, warn is a limit the
-// visitor can still act inside or a state waiting on the staff, and danger is a refusal or an absence. Progress, Done and
-// StaffTurn are back-office badge states only, for something under way, something finished and an order waiting for the
-// shop's next step; the storefront stylesheet has no class for them. A return, a question or a message waiting on the
-// staff is warn, not StaffTurn.
+// visitor can still act inside or something late or wrong that the staff should look at, and danger is a refusal or an
+// absence. Progress, Done and StaffTurn are back-office badge states only, for something under way, something finished
+// and something waiting for the shop's next step, such as an order to pack, a return to decide, a question or a message
+// to answer; the storefront stylesheet has no class for them. Only a message that is overdue is warn.
 type Intent string
 
 const (
