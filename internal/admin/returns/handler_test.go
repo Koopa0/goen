@@ -31,8 +31,9 @@ func TestNoticesCoverRedirects(t *testing.T) {
 	for _, kind := range []returns.DecisionKind{returns.DecisionApprove, returns.DecisionException, returns.DecisionReject} {
 		sent[decidedNotice(kind)] = true
 	}
-	if len(sent) == 0 {
-		t.Fatal("no redirect parameter found; the parser stopped matching")
+	// A literal address would escape this check and ignore a return's own page.
+	if literal := regexp.MustCompile(`"/admin/returns\?[^"]*"`).FindString(string(src)); literal != "" {
+		t.Errorf("handler.go redirects to %s; answer through answerAt", literal)
 	}
 	for name := range sent {
 		if _, ok := notices[name]; !ok {
