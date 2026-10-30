@@ -82,6 +82,9 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		view.AtRisk, view.MoreSoldOut = stockrisk.NewRows(listed, now), more
 	}
 	view.Notice = widget.NoticeFrom(r, listNotices)
+	if view.Notice.Text != "" {
+		view.NoticeIn = view.listed(r.URL.Query().Get("in"))
+	}
 	view.Return = stockReturn(r.URL.Query().Get("soldout"), view.Term, r.URL.Query().Get(keyset.Param), "", "")
 	respond.Component(w, r, h.log, http.StatusOK, Variants(VariantsMeta(r.Context()), view))
 }
@@ -307,6 +310,9 @@ func postedFromStockList(r *http.Request) bool {
 	return err == nil && u.Path == "/admin/stock" && u.Host == ""
 }
 
+// stockReturn is the stock list at a filter and page, answering a write made on
+// the row sku. A browser keeps the row's fragment through the 303 but never sends
+// it, so the query names the row too (in), and the list puts the notice under it.
 func stockReturn(soldOut, term, after, notice, sku string) string {
 	q := url.Values{}
 	if soldOut == "1" {
@@ -320,6 +326,9 @@ func stockReturn(soldOut, term, after, notice, sku string) string {
 	}
 	if notice != "" {
 		q.Set(notice, "1")
+	}
+	if sku != "" {
+		q.Set("in", sku)
 	}
 	target := "/admin/stock"
 	if len(q) > 0 {

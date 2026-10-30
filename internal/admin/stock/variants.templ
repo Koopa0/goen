@@ -20,7 +20,9 @@ templ Variants(p frame.Page, v VariantsView) {
 				</p>
 			</div>
 		</div>
-		@widget.Announce(v.Notice)
+		if v.NoticeIn == "" {
+			@widget.Announce(v.Notice)
+		}
 		for _, refusal := range v.Refusals() {
 			@widget.RefusalSummary(refusal)
 		}
@@ -69,7 +71,7 @@ templ Variants(p frame.Page, v VariantsView) {
 				</div>
 			} else if !v.Empty() {
 				<div class="goen-admin__tablewrap">
-					@variantTable(v.Variants, v.Return)
+					@variantTable(v)
 				</div>
 			}
 			@widget.ListPager(v.Bound)
@@ -77,7 +79,7 @@ templ Variants(p frame.Page, v VariantsView) {
 	}
 }
 
-templ variantTable(variants []Variant, back string) {
+templ variantTable(v VariantsView) {
 	<table class="ui-table goen-admin__table goen-admin__stock">
 		<thead>
 			<tr>
@@ -90,7 +92,7 @@ templ variantTable(variants []Variant, back string) {
 			</tr>
 		</thead>
 		<tbody>
-			for _, x := range variants {
+			for _, x := range v.Variants {
 				<tr id={ "row-" + x.SKU } class={ templ.KV("goen-admin__row--low", x.Low()) }>
 					<td>
 						<a href={ templ.SafeURL("/admin/stock/" + x.SKU) }>{ x.SKU }</a>
@@ -119,7 +121,7 @@ templ variantTable(variants []Variant, back string) {
 					</td>
 					<td>
 						<form class="goen-admin__inline" method="post" action="/admin/stock/price">
-							<input type="hidden" name="return" value={ back }/>
+							<input type="hidden" name="return" value={ v.Return }/>
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							<label class="goen-admin__pricefield" for={ "price-" + x.SKU }>
 								<span class="goen-admin__pricelabel">{ i18n.T(ctx, i18n.KeyAdminQueuePrice) }</span>
@@ -144,7 +146,7 @@ templ variantTable(variants []Variant, back string) {
 					</td>
 					<td>
 						<form class="goen-admin__inline" method="post" action="/admin/stock/arrival">
-							<input type="hidden" name="return" value={ back }/>
+							<input type="hidden" name="return" value={ v.Return }/>
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							<label class="goen-sr-only" for={ "arrival-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminVariantArrival) }</label>
 							<input
@@ -166,7 +168,7 @@ templ variantTable(variants []Variant, back string) {
 					</td>
 					<td>
 						<form class="goen-admin__inline" method="post" action={ templ.URL("/admin/stock/receive#row-" + x.SKU) }>
-							<input type="hidden" name="return" value={ back }/>
+							<input type="hidden" name="return" value={ v.Return }/>
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							<input type="hidden" name="idempotency" value={ x.ReceiveKey() }/>
 							<label class="goen-sr-only" for={ "rcv-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminReceiveQty) }</label>
@@ -191,6 +193,13 @@ templ variantTable(variants []Variant, back string) {
 						</form>
 					</td>
 				</tr>
+				if v.NoticeIn == x.SKU {
+					<tr>
+						<td colspan="6">
+							@widget.Announce(v.Notice)
+						</td>
+					</tr>
+				}
 			}
 		</tbody>
 	</table>

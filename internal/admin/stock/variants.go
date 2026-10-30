@@ -48,6 +48,9 @@ type VariantsView struct {
 	SoldOutOnly bool
 	Term        string
 	Notice      widget.Result
+	// NoticeIn is the SKU of the listed row the notice answers, which shows it
+	// under that row; empty shows it at the head of the page.
+	NoticeIn string
 	// ShowCover is set on the desk's opening page only: not on a search, the
 	// sold out filter or a later page of the list.
 	ShowCover   bool
@@ -65,6 +68,18 @@ func (v VariantsView) SoldOutHref() string {
 }
 
 func (v VariantsView) Empty() bool { return len(v.Variants) == 0 }
+
+// listed is sku if the page lists that row. A redirect names the row it came
+// from, but the filter can have dropped it by now (a delivery takes a row off the
+// sold out list), and a notice with no row to sit under stays at the head.
+func (v VariantsView) listed(sku string) string {
+	for i := range v.Variants {
+		if v.Variants[i].SKU == sku {
+			return sku
+		}
+	}
+	return ""
+}
 
 func VariantsMeta(ctx context.Context) frame.Page {
 	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminQueueStock)}
