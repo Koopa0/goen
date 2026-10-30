@@ -3,6 +3,7 @@ package checkout
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,6 +35,9 @@ type View struct {
 	// Repriced is a quote the customer has not seen yet, not an Errors entry: nothing
 	// they typed was wrong. Still a 422, so nobody is charged for an unconfirmed quote.
 	Repriced string
+	// Moved are the summary rows whose figure is not the one the form was showing when it was
+	// refused for a changed quote. Empty means the notice has no row to name and Repriced speaks.
+	Moved []MovedRow
 	// CreditChanged is a notice like Repriced: the customer must see the new figure before submitting again.
 	CreditChanged string
 	ZoneName      string
@@ -160,8 +164,9 @@ func checkoutChoiceSwap(which string) templ.Attributes {
 
 // With scripting, 套用 swaps only the code's field, the totals and the quote; without
 // it the same submit comes back at the coupon field.
-// The hidden quote is swapped too: a stale one would make the next 送出訂單 answer
-// "the checkout changed".
+// The hidden quote and the figures beside it are swapped too: a stale quote would make
+// the next 送出訂單 answer "the checkout changed", and stale figures would name rows
+// that never moved. The moved-rows notice goes with them so it cannot outlive its figures.
 func couponButtonAttrs(ctx context.Context) templ.Attributes {
 	return templ.Attributes{
 		"name":              "update",
@@ -171,7 +176,7 @@ func couponButtonAttrs(ctx context.Context) templ.Attributes {
 		"hx-include":        "#checkout-form",
 		"hx-vals":           `{"update":"coupon"}`,
 		"hx-swap":           "none",
-		"hx-select-oob":     "#coupon,#coupon-message:innerHTML,#summary-totals,#checkout-quote",
+		"hx-select-oob":     "#coupon,#coupon-message:innerHTML,#summary-totals,#summary-moved,#checkout-quote,#checkout-shown",
 		"data-coupon-apply": true,
 		"data-busy":         i18n.T(ctx, i18n.KeyTooManyRequests),
 		"data-failed":       i18n.T(ctx, i18n.KeyCouponUnavailable),
@@ -265,8 +270,6 @@ func (v *View) OnlyCouponRefused() bool {
 
 func (v *View) HasSurcharge() bool { return v.SurchargeCents > 0 }
 
-func (v *View) Surcharge() string { return twd(v.SurchargeCents) }
-
 func (v *View) ShippingFeeCents() int64 {
 	if v.QuotedShippingCents > 0 {
 		return v.QuotedShippingCents
@@ -286,10 +289,38 @@ func (v *View) BaseShippingCents() int64 {
 	return v.ShippingFeeCents() - v.SurchargeCents
 }
 
-func (v *View) ShippingText() string { return twd(v.BaseShippingCents()) }
-
 func (v *View) ShipsFree() bool {
 	return v.CouponFreeShipping || v.BaseShippingCents() == 0
+}
+
+// ShippingRow is the one line that says what delivery costs: free or the base
+// rate, then the zone's surcharge, which a free-delivery code does not waive.
+func (v *View) ShippingRow(ctx context.Context) string {
+	text := twd(v.BaseShippingCents())
+	if v.ShipsFree() {
+		text = i18n.T(ctx, i18n.KeyFreeShipping)
+	}
+	return text + v.zoneExtra(ctx)
+}
+
+// ChoiceFee is a method's price on its card. The chosen method is the one that
+// was quoted for the address, so only its card adds the surcharge the summary states.
+func (v *View) ChoiceFee(ctx context.Context, c cart.ShippingChoice) string {
+	text := c.Fee()
+	if c.Free {
+		text = i18n.T(ctx, i18n.KeyFreeShipping)
+	}
+	if c.VersionID == v.Chosen {
+		text += v.zoneExtra(ctx)
+	}
+	return text
+}
+
+func (v *View) zoneExtra(ctx context.Context) string {
+	if !v.HasSurcharge() {
+		return ""
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingZoneExtra), v.ZoneName, twd(v.SurchargeCents))
 }
 
 // ChargedShippingCents is what PlaceOrder stores: a free-shipping coupon removes
@@ -318,6 +349,13 @@ func (v *View) CreditCents() int64 {
 func (v *View) UsesCredit() bool { return v.CreditCents() > 0 }
 
 func (v *View) Credit() string { return "-" + twd(v.CreditCents()) }
+
+// CreditNote gives the balance, what this order takes of it and what is left,
+// because the summary's negative figure alone does not say how much remains.
+func (v *View) CreditNote(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyCreditRemaining),
+		twd(v.AvailableCreditCents), twd(v.CreditCents()), twd(v.AvailableCreditCents-v.CreditCents()))
+}
 
 func (v *View) TotalCents() int64 { return v.GrossCents() - v.CreditCents() }
 
@@ -368,3 +406,106 @@ func (v *View) HasCoupon() bool {
 func (v *View) CouponDiscount() string { return "-" + twd(v.CouponDiscountCents) }
 
 func (i InvoiceView) NeedsDonationCode() bool { return i.Chosen() == invoice.PreferenceDonate }
+
+// summaryRow is a row of the totals that the notice for a changed quote can name and mark.
+type summaryRow uint8
+
+const (
+	rowSubtotal summaryRow = iota + 1
+	rowShipping
+	rowDiscount
+	rowCredit
+	rowTotal
+)
+
+// shownRows are the figures the form carries back, in the order the summary lists them.
+var shownRows = [...]struct {
+	row   summaryRow
+	field string
+	label i18n.Key
+}{
+	{rowSubtotal, "shown_subtotal", i18n.KeySubtotal},
+	{rowShipping, "shown_shipping", i18n.KeyShippingFee},
+	{rowDiscount, "shown_discount", i18n.KeyDiscount},
+	{rowCredit, "shown_credit", i18n.KeyStoreCredit},
+	{rowTotal, "shown_total", i18n.KeyTotal},
+}
+
+// figure is what the summary now states for a row, as a size and not a sign.
+func (v *View) figure(row summaryRow) int64 {
+	switch row {
+	case rowSubtotal:
+		return v.Cart.SubtotalCents
+	case rowShipping:
+		return v.ChargedShippingCents()
+	case rowDiscount:
+		return v.CouponDiscountCents
+	case rowCredit:
+		return v.CreditCents()
+	default:
+		return v.TotalCents()
+	}
+}
+
+// ShownField is one of the figures the page was showing, posted back so a refusal can
+// say which of them moved. They are not read for anything else: the quote ID alone decides
+// whether a submit is accepted, so a field edited by hand changes only the notice's words.
+type ShownField struct {
+	Name  string
+	Value string
+}
+
+func (v *View) ShownFields() []ShownField {
+	out := make([]ShownField, len(shownRows))
+	for i, r := range shownRows {
+		out[i] = ShownField{Name: r.field, Value: strconv.FormatInt(v.figure(r.row), 10)}
+	}
+	return out
+}
+
+// MovedRow is a summary row whose figure is not the one the shopper was shown.
+type MovedRow struct {
+	row  summaryRow
+	Text string
+}
+
+func (v *View) HasMoved() bool { return len(v.Moved) > 0 }
+
+func (v *View) RowMoved(row summaryRow) bool {
+	return slices.ContainsFunc(v.Moved, func(m MovedRow) bool { return m.row == row })
+}
+
+// shownFrom reads the figures a posted form was showing. ok is false when one is missing
+// or is not an amount, and the refusal then falls back to its general sentence.
+func shownFrom(r *http.Request) (figures [len(shownRows)]int64, ok bool) {
+	for i, f := range shownRows {
+		n, err := strconv.ParseInt(r.PostFormValue(f.field), 10, 64)
+		if err != nil || n < 0 {
+			return figures, false
+		}
+		figures[i] = n
+	}
+	return figures, true
+}
+
+// noteQuoteChanged words a refusal for a changed quote. Each row whose figure differs from
+// the one the form showed is named with both figures. When none does (a new rate version at
+// the same price changes the quote without moving an amount), or the form did not say what it
+// showed, or another notice already stands, or no method can deliver the order (its figures
+// would read as free delivery and a lower total), the general sentence speaks instead.
+func (v *View) noteQuoteChanged(ctx context.Context, r *http.Request) {
+	v.Moved = nil
+	if shown, ok := shownFrom(r); ok && v.Repriced == "" && v.HasShipping() {
+		for i, f := range shownRows {
+			now := v.figure(f.row)
+			if now == shown[i] {
+				continue
+			}
+			v.Moved = append(v.Moved, MovedRow{row: f.row, Text: fmt.Sprintf(
+				i18n.T(ctx, i18n.KeyCheckoutMovedRow), i18n.T(ctx, f.label), twd(shown[i]), twd(now))})
+		}
+	}
+	if len(v.Moved) == 0 {
+		v.Repriced = i18n.T(ctx, i18n.KeyCheckoutChanged)
+	}
+}

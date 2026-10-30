@@ -41,6 +41,13 @@ templ Page(p frame.Page, v *View) {
 					// One fixed-size identity for the lines, prices, delivery, coupon and credit spend.
 					// The server rebuilds it while holding the database locks; it is a witness, not pricing input.
 					<input type="hidden" id="checkout-quote" name="checkout_quote" value={ v.QuoteID }/>
+					// The figures this page shows, so a refusal for a changed quote can name the rows that
+					// moved. Nothing reads them to decide anything; the quote above alone does.
+					<div id="checkout-shown" hidden>
+						for _, f := range v.ShownFields() {
+							<input type="hidden" name={ f.Name } value={ f.Value }/>
+						}
+					</div>
 					<div class="goen-checkout__main">
 						if v.AnyErrors() {
 							@widget.Notice(widget.NoticeProps{
@@ -95,13 +102,7 @@ templ Page(p frame.Page, v *View) {
 													<span class="goen-checkout__shipnote">{ c.Carrier }</span>
 												}
 											</span>
-											<span class="goen-checkout__shipfee">
-												if c.Free {
-													{ i18n.T(ctx, i18n.KeyFreeShipping) }
-												} else {
-													{ c.Fee() }
-												}
-											</span>
+											<span class="goen-checkout__shipfee">{ v.ChoiceFee(ctx, c) }</span>
 										</label>
 									}
 								</div>
@@ -439,43 +440,50 @@ templ Page(p frame.Page, v *View) {
 								</li>
 							}
 						</ul>
+						// Above the rows, so the reader meets what changed before the figures it changed.
+						// Hidden while empty because the panel's gap would leave a blank band.
+						<div id="summary-moved" hidden?={ !v.HasMoved() }>
+							if v.HasMoved() {
+								@widget.NoticeBlock(widget.NoticeProps{Intent: widget.IntentAccent}) {
+									{ i18n.T(ctx, i18n.KeyCheckoutMoved) }
+									<ul class="goen-summary__moved" role="list">
+										for _, m := range v.Moved {
+											<li>{ m.Text }</li>
+										}
+									</ul>
+								}
+							}
+						</div>
 						<dl class="goen-summary" id="summary-totals">
 							<div class="goen-summary__row">
-								<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
+								<dt>{ i18n.T(ctx, i18n.KeySubtotal) } @movedMark(v, rowSubtotal)</dt>
 								<dd class="goen-summary__value">{ v.Cart.Subtotal() }</dd>
 							</div>
 							<div class="goen-summary__row">
-								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) }</dt>
+								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) } @movedMark(v, rowShipping)</dt>
 								<dd class="goen-summary__value">
-									if !v.HasShipping() {
-										{ i18n.T(ctx, i18n.KeyShippingUnavailableShort) }
-									} else if v.ShipsFree() {
-										{ i18n.T(ctx, i18n.KeyFreeShipping) }
+									if v.HasShipping() {
+										{ v.ShippingRow(ctx) }
 									} else {
-										{ v.ShippingText() }
+										{ i18n.T(ctx, i18n.KeyShippingUnavailableShort) }
 									}
 								</dd>
 							</div>
-							if v.HasSurcharge() {
-								<div class="goen-summary__row">
-									<dt>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyZoneSurcharge), v.ZoneName) }</dt>
-									<dd class="goen-summary__value">{ v.Surcharge() }</dd>
-								</div>
-							}
 							if v.HasCoupon() && v.CouponDiscountCents > 0 {
 								<div class="goen-summary__row">
-									<dt>{ coupon.DiscountLabel(ctx, v.CouponApplied) }</dt>
+									<dt>{ coupon.DiscountLabel(ctx, v.CouponApplied) } @movedMark(v, rowDiscount)</dt>
 									<dd class="goen-summary__value">{ v.CouponDiscount() }</dd>
 								</div>
 							}
 							if v.UsesCredit() {
 								<div class="goen-summary__row">
-									<dt>{ i18n.T(ctx, i18n.KeyStoreCredit) }</dt>
+									<dt>{ i18n.T(ctx, i18n.KeyStoreCredit) } @movedMark(v, rowCredit)</dt>
 									<dd class="goen-summary__value">{ v.Credit() }</dd>
+									<dd class="goen-summary__note">{ v.CreditNote(ctx) }</dd>
 								</div>
 							}
 							<div class="goen-summary__row goen-summary__row--total">
-								<dt>{ i18n.T(ctx, i18n.KeyTotal) }</dt>
+								<dt>{ i18n.T(ctx, i18n.KeyTotal) } @movedMark(v, rowTotal)</dt>
 								<dd class="goen-summary__value">{ v.Total() }</dd>
 							</div>
 						</dl>
@@ -530,6 +538,14 @@ templ Page(p frame.Page, v *View) {
 				</form>
 			</div>
 		</div>
+	}
+}
+
+// movedMark says in a word, not a colour, that a row's figure is not the one the
+// shopper was shown.
+templ movedMark(v *View, row summaryRow) {
+	if v.RowMoved(row) {
+		<span class="goen-summary__flag">{ i18n.T(ctx, i18n.KeyCheckoutMovedMark) }</span>
 	}
 }
 

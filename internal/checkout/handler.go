@@ -857,10 +857,11 @@ func (h *Handler) validateCheckoutSubmission(
 		h.serverError(w, r)
 		return checkoutQuoteID{}, false
 	}
-	if shownErr != nil || currentErr != nil || shown != current {
-		submission.view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
+	changed := quoteMoved(shown, current, shownErr, currentErr)
+	if changed {
+		submission.view.noteQuoteChanged(r.Context(), r)
 	}
-	if len(errs) > 0 || submission.view.Repriced != "" {
+	if len(errs) > 0 || changed || submission.view.Repriced != "" {
 		if submission.attemptOK && h.answerPriorCheckout(w, r, cartID, submission.attemptID) {
 			return checkoutQuoteID{}, false
 		}
@@ -869,6 +870,11 @@ func (h *Handler) validateCheckoutSubmission(
 		return checkoutQuoteID{}, false
 	}
 	return shown, true
+}
+
+// quoteMoved says the form was not looking at the quote this request would show.
+func quoteMoved(shown, current checkoutQuoteID, shownErr, currentErr error) bool {
+	return shownErr != nil || currentErr != nil || shown != current
 }
 
 func (h *Handler) answerPlacement(
@@ -957,7 +963,7 @@ func (h *Handler) answerCheckoutChanged(
 	if couponErr, _ := h.resolveCoupon(r, view); couponErr != "" {
 		view.Errors = map[string]string{"coupon": couponErr}
 	}
-	view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
+	view.noteQuoteChanged(r.Context(), r)
 	if err := setCheckoutQuoteID(cartID, view); err != nil {
 		h.log.ErrorContext(r.Context(), "build changed checkout quote", "error", err)
 		h.serverError(w, r)
@@ -1072,6 +1078,7 @@ func (h *Handler) refreshCheckoutState(
 	view.SurchargeCents = 0
 	view.ZoneName = ""
 	view.Repriced = ""
+	view.Moved = nil
 	balance, err := h.store.AvailableCredit(ctx, owner)
 	if err != nil {
 		return fmt.Errorf("read current store credit: %w", err)

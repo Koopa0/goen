@@ -6460,6 +6460,26 @@ input.goen-check {
   margin-left: auto;
 }
 
+/* A line about one row, under its figure: the credit's balance, what is used and what is left. */
+.goen-summary__row .goen-summary__note {
+  flex: 1 1 100%;
+  font-size: var(--fs-13);
+  margin: 0;
+}
+
+/* The word that marks a row the repricing notice names; the notice lists the figures. */
+.goen-summary__flag {
+  color: var(--accent-deep);
+  font-size: var(--fs-13);
+  margin-inline-start: 0.5rem;
+}
+
+.goen-summary__moved {
+  list-style: none;
+  margin: 0.375rem 0 0;
+  padding: 0;
+}
+
 .goen-summary__row--total {
   border-top: 1px solid var(--line-2);
   color: var(--fg);
