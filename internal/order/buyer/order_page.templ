@@ -61,9 +61,6 @@ templ Order(p frame.Page, v *OrderView) {
 					ID:     "order-unpaid",
 				}) {
 					{ i18n.T(ctx, i18n.KeyOrderUnpaid) }
-					if v.PaymentsEnabled {
-						<a href={ templ.SafeURL("/orders/" + v.Number + "/pay") }>{ i18n.T(ctx, i18n.KeyPay) }</a>
-					}
 				}
 			}
 			<div class="goen-order__layout">
@@ -185,12 +182,39 @@ templ Order(p frame.Page, v *OrderView) {
 						}
 					</dl>
 					<div class="goen-summary__actions">
-						<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
-							@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, "submit") {
-								{ i18n.T(ctx, i18n.KeyOrderReorder) }
+						if v.OffersPayment() {
+							if lead, note, ok := v.HoldWindow(ctx); ok {
+								<div>
+									<p class="goen-pay__deadline">{ lead }</p>
+									<p class="goen-pay__hold">{ note }</p>
+								</div>
 							}
-							<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
-						</form>
+							if v.PaymentsEnabled {
+								@widget.ButtonLink(widget.ButtonProps{
+									ButtonStyle: widget.ButtonStylePrimary,
+									Size:        widget.SizeLarge,
+									Block:       true,
+								}, templ.SafeURL("/orders/"+v.Number+"/pay")) {
+									{ i18n.T(ctx, i18n.KeyPay) }
+								}
+							} else {
+								@widget.ButtonLink(widget.ButtonProps{
+									ButtonStyle: widget.ButtonStylePrimary,
+									Size:        widget.SizeLarge,
+									Block:       true,
+								}, "/contact") {
+									{ i18n.T(ctx, i18n.KeyContact) }
+								}
+							}
+						}
+						if !v.AwaitingPayment() {
+							<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, "submit") {
+									{ i18n.T(ctx, i18n.KeyOrderReorder) }
+								}
+								<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
+							</form>
+						}
 						if v.ShowCancel() {
 							<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
 								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, "submit") {

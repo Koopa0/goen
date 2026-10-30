@@ -60,6 +60,7 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 		CreditCents: o.CreditCents,
 		PlacedAt:    o.PlacedAt,
 		Now:         now,
+		HoldFrom:    hold.HeldFrom,
 		HoldUntil:   hold.HeldUntil,
 		Pickup:      o.PickupChain != "",
 	}
