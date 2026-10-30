@@ -8,13 +8,14 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type ForgotView struct {
 	// Sent is true for any address, so accounts cannot be enumerated.
 	Sent    bool
 	Address string
-	Notice  string
+	Notice  widget.Result
 }
 
 func (v ForgotView) SentMessage(ctx context.Context) string {

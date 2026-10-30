@@ -6,12 +6,13 @@ import (
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type CartRecoveryView struct {
 	Welcome  bool
 	Next     string
-	Notice   string
+	Notice   widget.Result
 	Retry    string
 	Contents CartRecoveryContents
 }

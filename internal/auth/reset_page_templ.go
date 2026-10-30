@@ -106,7 +106,7 @@ func Forgot(p frame.Page, v ForgotView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			if v.Notice != "" {
+			if v.Notice.Text != "" {
 				templ_7745c5c3_Var7 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -120,9 +120,9 @@ func Forgot(p frame.Page, v ForgotView) templ.Component {
 					}
 					ctx = templ.InitializeContext(ctx)
 					var templ_7745c5c3_Var8 string
-					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
+					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice.Text)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `auth/reset_page.templ`, Line: 23, Col: 16}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `auth/reset_page.templ`, Line: 23, Col: 21}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -130,7 +130,7 @@ func Forgot(p frame.Page, v ForgotView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: v.Notice.Outcome.Intent()}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
@@ -22,7 +23,7 @@ func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 	}
 	view := ForgotView{Sent: r.URL.Query().Get("sent") == "1", Address: email.ReadMasked(r.URL.Query().Get("address"))}
 	if r.URL.Query().Get("demo") == "fixed" {
-		view.Notice = i18n.T(r.Context(), i18n.KeyDemoPasswordNoReset)
+		view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyDemoPasswordNoReset)}
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Forgot(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyForgotTitle)}, view))
