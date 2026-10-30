@@ -3,6 +3,7 @@ package buyer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
@@ -39,6 +41,9 @@ type Handler struct {
 	// takesPayment is the cart's TakesPayment: false on a deployment with no
 	// Stripe key, where the order page offers no way to pay.
 	takesPayment bool
+	// sessions expires the Checkout Session a cancelled order has open. Without
+	// it a cancellation behind an open session is refused, never made.
+	sessions *payment.SessionExpirer
 }
 
 func NewHandler(s *Store, grants *access.Store, log *slog.Logger, findLimit *ratelimit.Limiter, takesPayment bool) *Handler {
@@ -53,6 +58,15 @@ func NewHandler(s *Store, grants *access.Store, log *slog.Logger, findLimit *rat
 			Every: 12 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,
 		}),
 	}
+}
+
+// WithSessionExpirer lets a customer cancel an order whose Checkout Session is still
+// open: the session is expired at Stripe first, and the order is cancelled only
+// once Stripe has confirmed it.
+func (h *Handler) WithSessionExpirer(e *payment.SessionExpirer) *Handler {
+	c := *h
+	c.sessions = e
+	return &c
 }
 
 // Routes registers finding an order, its page, and the buyer's cancel and
@@ -220,16 +234,19 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.CancelOrder(r.Context(), number)
+	err := h.cancel(r.Context(), number)
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotCancellable):
-		// 422, not a redirect: nothing was written.
+		body := i18n.T(r.Context(), i18n.KeyCancelRefusedBody)
+		if open, ok := errors.AsType[*CheckoutOpenError](err); ok {
+			body = checkoutOpenBody(r.Context(), open)
+		}
+		// 422, not a redirect: the order was not cancelled.
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, frame.Notice(
 			frame.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
-			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), frame.NoticeActions{
+			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle), body, frame.NoticeActions{
 				Primary:   frame.NoticeLink{Href: "/orders/" + url.PathEscape(number), Label: i18n.KeyBackToOrder},
 				Secondary: frame.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
 			}))
@@ -237,6 +254,37 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "cancel order", "error", err)
 		h.tryAgain(w, r)
 	}
+}
+
+// cancel cancels the order. Where only an open Checkout Session stands in the
+// way, the session is expired at Stripe first, outside any transaction, and the
+// cancellation is made again; an order that something else holds back never
+// reaches Stripe.
+func (h *Handler) cancel(ctx context.Context, number string) error {
+	err := h.store.CancelOrder(ctx, number)
+	open, ok := errors.AsType[*CheckoutOpenError](err)
+	if !ok || h.sessions == nil {
+		return err
+	}
+	if expireErr := h.sessions.ExpireOpen(ctx, number); expireErr != nil {
+		if !errors.Is(expireErr, payment.ErrStillPayable) {
+			return expireErr
+		}
+		h.log.WarnContext(ctx, "cancel refused: a checkout session may still take payment",
+			"order", number, "error", expireErr)
+		return open
+	}
+	return h.store.CancelOrder(ctx, number)
+}
+
+// checkoutOpenBody says a payment may be in progress and, while the stock hold
+// still runs, when it ends in the pay page's own words.
+func checkoutOpenBody(ctx context.Context, open *CheckoutOpenError) string {
+	var holdEnd string
+	if open.HoldUntil.After(time.Now()) {
+		holdEnd = fmt.Sprintf(i18n.T(ctx, i18n.KeyPayReservedNote), shoptime.ClockText(open.HoldUntil))
+	}
+	return strings.TrimSpace(fmt.Sprintf(i18n.T(ctx, i18n.KeyCancelCheckoutOpenBody), holdEnd))
 }
 
 func (h *Handler) ReturnPage(w http.ResponseWriter, r *http.Request) {

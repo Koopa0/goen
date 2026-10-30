@@ -11520,6 +11520,49 @@ func (q *Queries) NextEligibilityVersion(ctx context.Context, returnRequestID uu
 	return version, err
 }
 
+const onlyCheckoutBlocksCancel = `-- name: OnlyCheckoutBlocksCancel :one
+SELECT EXISTS (
+    SELECT 1
+    FROM orders o
+    WHERE o.id = $1
+      AND o.fulfillment_status = 'pending'
+      AND NOT order_is_committed(o.id)
+      AND EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.order_id = o.id AND p.status = 'requires_payment'
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.order_id = o.id
+            AND p.status IN ('requires_action', 'processing', 'requires_reconciliation')
+      )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM payment_webhook_events e
+          JOIN payments p
+            ON p.provider = e.provider AND p.provider_ref = e.object_ref
+          WHERE p.order_id = o.id
+            AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+      )
+)
+`
+
+// Whether an open Checkout Session is all that stopped CancelOrderByCustomer,
+// read under the same order lock once that UPDATE changed no row. It repeats the
+// UPDATE's conditions, less the one it asks about, so the customer's refusal can
+// say a payment may be on its way; a condition added to that UPDATE belongs here
+// too, or an order held back by it would have its session expired for nothing.
+// TestStore_CancelOrderRefusal pins the requires_reconciliation and unreconciled
+// event conditions. payments_one_active_per_order keeps requires_action and
+// processing from sitting beside an open session, so no test can tell those two
+// apart.
+func (q *Queries) OnlyCheckoutBlocksCancel(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, onlyCheckoutBlocksCancel, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const openAllowance = `-- name: OpenAllowance :one
 SELECT op.status, coalesce(op.last_error, '')::text AS last_error,
        coalesce(op.last_send_at, op.created_at)::timestamptz AS last_send_at
