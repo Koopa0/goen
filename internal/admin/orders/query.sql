@@ -447,24 +447,17 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
        coalesce(CASE WHEN @locale::text = 'en' THEN sv.name_en ELSE sv.name END,
                 o.shipping_method_name)::text AS shipping_method_name,
        coalesce(o.customer_note, '') AS customer_note,
-       coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
-       coalesce(pd.phone, '') AS phone,
        coalesce(pd.postal_code, '') AS postal_code,
        coalesce(pd.city, '') AS city,
        coalesce(pd.district, '') AS district,
        coalesce(pd.street, '') AS street,
        coalesce(pd.pickup_chain, '') AS pickup_chain,
        coalesce(pd.pickup_store_code, '') AS pickup_store_code,
-       coalesce(pd.pickup_store_name, '') AS pickup_store_name,
-       coalesce(ip.invoice_type, '') AS invoice_type,
-       coalesce(ip.carrier_code, '') AS invoice_mobile_barcode,
-       coalesce(ip.donation_code, '') AS invoice_donation_code,
-       coalesce(ip.tax_id, '') AS invoice_tax_id
+       coalesce(pd.pickup_store_name, '') AS pickup_store_name
 FROM orders o
 LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
 WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
   AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
   AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
@@ -484,10 +477,9 @@ LIMIT @row_limit::integer;
 -- an unsent refund claims. Read the line snapshot even if its catalogue
 -- variant has since been removed.
 -- name: PickingSlipLines :many
-SELECT l.order_id, l.sku, l.product_name, l.variant_label, l.unit_price_cents, l.remaining
+SELECT l.order_id, l.sku, l.product_name, l.variant_label, l.remaining
 FROM (
     SELECT ol.order_id, ol.id, ol.position, ol.sku, ol.product_name, ol.variant_label,
-           ol.unit_price_cents,
            (ol.quantity
             - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                         WHERE sl.order_line_id = ol.id), 0)

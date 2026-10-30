@@ -13180,10 +13180,9 @@ func (q *Queries) PaymentAttemptForOrder(ctx context.Context, arg PaymentAttempt
 }
 
 const pickingSlipLines = `-- name: PickingSlipLines :many
-SELECT l.order_id, l.sku, l.product_name, l.variant_label, l.unit_price_cents, l.remaining
+SELECT l.order_id, l.sku, l.product_name, l.variant_label, l.remaining
 FROM (
     SELECT ol.order_id, ol.id, ol.position, ol.sku, ol.product_name, ol.variant_label,
-           ol.unit_price_cents,
            (ol.quantity
             - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                         WHERE sl.order_line_id = ol.id), 0)
@@ -13199,12 +13198,11 @@ ORDER BY l.order_id, l.position, l.id
 `
 
 type PickingSlipLinesRow struct {
-	OrderID        uuid.UUID
-	SKU            string
-	ProductName    string
-	VariantLabel   pgtype.Text
-	UnitPriceCents int64
-	Remaining      int32
+	OrderID      uuid.UUID
+	SKU          string
+	ProductName  string
+	VariantLabel pgtype.Text
+	Remaining    int32
 }
 
 // ShippableLines uses the same quantity: purchased less dispatched less what
@@ -13224,7 +13222,6 @@ func (q *Queries) PickingSlipLines(ctx context.Context, orderIds []uuid.UUID) ([
 			&i.SKU,
 			&i.ProductName,
 			&i.VariantLabel,
-			&i.UnitPriceCents,
 			&i.Remaining,
 		); err != nil {
 			return nil, err
@@ -13243,24 +13240,17 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
        coalesce(CASE WHEN $1::text = 'en' THEN sv.name_en ELSE sv.name END,
                 o.shipping_method_name)::text AS shipping_method_name,
        coalesce(o.customer_note, '') AS customer_note,
-       coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
-       coalesce(pd.phone, '') AS phone,
        coalesce(pd.postal_code, '') AS postal_code,
        coalesce(pd.city, '') AS city,
        coalesce(pd.district, '') AS district,
        coalesce(pd.street, '') AS street,
        coalesce(pd.pickup_chain, '') AS pickup_chain,
        coalesce(pd.pickup_store_code, '') AS pickup_store_code,
-       coalesce(pd.pickup_store_name, '') AS pickup_store_name,
-       coalesce(ip.invoice_type, '') AS invoice_type,
-       coalesce(ip.carrier_code, '') AS invoice_mobile_barcode,
-       coalesce(ip.donation_code, '') AS invoice_donation_code,
-       coalesce(ip.tax_id, '') AS invoice_tax_id
+       coalesce(pd.pickup_store_name, '') AS pickup_store_name
 FROM orders o
 LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
 WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
   AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
   AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
@@ -13287,26 +13277,20 @@ type PickingSlipsParams struct {
 }
 
 type PickingSlipsRow struct {
-	PageCursor           string
-	ID                   uuid.UUID
-	OrderNumber          string
-	PlacedAt             time.Time
-	ShippingMethodName   string
-	CustomerNote         string
-	Email                string
-	RecipientName        string
-	Phone                string
-	PostalCode           string
-	City                 string
-	District             string
-	Street               string
-	PickupChain          string
-	PickupStoreCode      string
-	PickupStoreName      string
-	InvoiceType          string
-	InvoiceMobileBarcode string
-	InvoiceDonationCode  string
-	InvoiceTaxID         string
+	PageCursor         string
+	ID                 uuid.UUID
+	OrderNumber        string
+	PlacedAt           time.Time
+	ShippingMethodName string
+	CustomerNote       string
+	RecipientName      string
+	PostalCode         string
+	City               string
+	District           string
+	Street             string
+	PickupChain        string
+	PickupStoreCode    string
+	PickupStoreName    string
 }
 
 func (q *Queries) PickingSlips(ctx context.Context, arg PickingSlipsParams) ([]PickingSlipsRow, error) {
@@ -13332,9 +13316,7 @@ func (q *Queries) PickingSlips(ctx context.Context, arg PickingSlipsParams) ([]P
 			&i.PlacedAt,
 			&i.ShippingMethodName,
 			&i.CustomerNote,
-			&i.Email,
 			&i.RecipientName,
-			&i.Phone,
 			&i.PostalCode,
 			&i.City,
 			&i.District,
@@ -13342,10 +13324,6 @@ func (q *Queries) PickingSlips(ctx context.Context, arg PickingSlipsParams) ([]P
 			&i.PickupChain,
 			&i.PickupStoreCode,
 			&i.PickupStoreName,
-			&i.InvoiceType,
-			&i.InvoiceMobileBarcode,
-			&i.InvoiceDonationCode,
-			&i.InvoiceTaxID,
 		); err != nil {
 			return nil, err
 		}

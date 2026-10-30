@@ -59,7 +59,7 @@ func TestPickingSlipsReadOnly(t *testing.T) {
 				t.Errorf("%s: missing %q", locale, want)
 			}
 		}
-		if strings.Count(out, `class="goen-order__line"`) != 2 || strings.Count(out, `class="ui-dl__row"`) != 8 {
+		if strings.Count(out, `class="goen-order__line"`) != 2 || strings.Count(out, `class="ui-dl__row"`) != 4 {
 			t.Errorf("%s: each slip lost its shared items or delivery block", locale)
 		}
 	}

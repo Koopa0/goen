@@ -154,7 +154,8 @@ type OrderView struct {
 	PlacedAt     string
 	ShippingName string
 	Lines        []Line
-	// OutstandingQuantities omits purchased line totals on a remaining-quantity slip.
+	// OutstandingQuantities marks a remaining-quantity slip, which omits the
+	// prices, the email, the phone and the invoice: a slip travels in the parcel.
 	OutstandingQuantities bool
 	SubtotalCents         int64
 	ShippingCents         int64
