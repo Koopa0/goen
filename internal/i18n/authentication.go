@@ -14,7 +14,7 @@ var (
 		En:     "Continue with Google",
 	})
 
-	KeyGoogleOpening = key("auth.google.opening", Message{
+	KeyGoogleSignedIn = key("auth.google.signedin", Message{
 		ZhHant: "登入完成，正在帶你回去…",
 		En:     "Signed in. Taking you back…",
 	})

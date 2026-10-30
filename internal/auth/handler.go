@@ -1349,7 +1349,7 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// began at Google, so the landing page would arrive without it and send the
 	// visitor back to /signin. The page's refresh starts a same-site navigation.
 	w.Header().Set("Cache-Control", "no-store")
-	respond.Component(w, r, h.log, http.StatusOK, GoogleReload(next))
+	respond.Component(w, r, h.log, http.StatusOK, SignedInHandoff(next))
 }
 
 func (h *Handler) googleUnavailable(w http.ResponseWriter, r *http.Request) {

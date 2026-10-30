@@ -161,7 +161,7 @@ func TestHandler_CartAdjustmentCheckout(t *testing.T) {
 					}
 					landing := signed.Header().Get("Location")
 					if mode == "google" {
-						landing = reloadTarget(t, signed)
+						landing = handoffTarget(t, signed)
 					}
 					location, locationErr := url.Parse(landing)
 					if locationErr != nil {

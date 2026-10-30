@@ -19,13 +19,13 @@ import (
 	"github.com/koopa0/goen/internal/auth/google"
 )
 
-// TestHandler_GoogleCallbackReload: a Google sign-in that succeeds answers 200
+// TestHandler_GoogleCallbackSignedInHandoff: a Google sign-in that succeeds answers 200
 // with a page whose refresh and link load the destination chosen before leaving
 // for Google, carries the new session cookie, and is not stored. A 303 would
 // stay inside the navigation that began at Google, where the SameSite=Strict
 // session cookie is withheld and the landing page sends the visitor back to
 // /signin. A sign-in Google or goen refuses still redirects there.
-func TestHandler_GoogleCallbackReload(t *testing.T) {
+func TestHandler_GoogleCallbackSignedInHandoff(t *testing.T) {
 	for _, next := range []string{"/account", "/account/orders", "/p/headphones?variant=blue#buy"} {
 		t.Run("a success headed for "+next, func(t *testing.T) {
 			res := googleCallback(t, next, true)
@@ -41,7 +41,7 @@ func TestHandler_GoogleCallbackReload(t *testing.T) {
 			if got := res.Header().Get("Cache-Control"); got != "no-store" {
 				t.Errorf("Cache-Control = %q, want no-store: the answer sets a session", got)
 			}
-			if got := reloadTarget(t, res); got != next {
+			if got := handoffTarget(t, res); got != next {
 				t.Errorf("the refresh loads %q, want %q", got, next)
 			}
 			if want := `href="` + html.EscapeString(next) + `"`; !strings.Contains(res.Body.String(), want) {
@@ -81,14 +81,14 @@ func googleCallback(t *testing.T, next string, verified bool) *httptest.Response
 		body := `{"access_token":"fixture"}`
 		if r.URL.Path == "/v1/userinfo" {
 			body = fmt.Sprintf(`{"sub":%q,"email":%q,"email_verified":%t,"name":"Fixture"}`,
-				suffix, "reload-"+suffix+"@example.com", verified)
+				suffix, "handoff-"+suffix+"@example.com", verified)
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK, Header: make(http.Header),
 			Body: io.NopCloser(strings.NewReader(body)), Request: r,
 		}, nil
 	})})
-	h := auth.NewHandler(auth.NewStore(accountStorePool(t, "google-callback-reload")), nil, nil,
+	h := auth.NewHandler(auth.NewStore(accountStorePool(t, "google-callback-handoff")), nil, nil,
 		slog.New(slog.DiscardHandler), false, g)
 
 	start := httptest.NewRecorder()
@@ -108,9 +108,9 @@ func googleCallback(t *testing.T, next string, verified bool) *httptest.Response
 	return res
 }
 
-// reloadTarget is where the page's refresh sends the browser, as the browser
+// handoffTarget is where the page's refresh sends the browser, as the browser
 // reads it.
-func reloadTarget(t *testing.T, res *httptest.ResponseRecorder) string {
+func handoffTarget(t *testing.T, res *httptest.ResponseRecorder) string {
 	t.Helper()
 	const marker = `<meta http-equiv="refresh" content="0; url=`
 	_, rest, ok := strings.Cut(res.Body.String(), marker)
