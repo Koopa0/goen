@@ -8,10 +8,10 @@ var (
 		En:     "Nothing caught your eye yet?",
 	})
 
-	KeyCartEmptyLink = key("cart.empty.link", Message{
-		ZhHant: "回首頁看看",
-		En:     "Have a look at the home page",
-	})
+	KeyCartEmptyLink = key("cart.empty.link", Message{ZhHant: "去逛逛", En: "Continue shopping"})
+
+	// KeyCartEmptyWishlist is offered under it to a customer who has saved a listed product.
+	KeyCartEmptyWishlist = key("cart.empty.wishlist", Message{ZhHant: "看看願望清單", En: "See your wishlist"})
 
 	KeyOrderSummary = key("cart.summary", Message{ZhHant: "訂單摘要", En: "Order summary"})
 
@@ -100,8 +100,12 @@ var (
 
 	KeyReorderPartial = key("cart.reorder.partial", Message{
 		ZhHant: "已放回 %d 項，%d 項已下架或缺貨。",
-		En:     "Put %d items back. %d are discontinued or out of stock.",
+		En:     "%d put back in your cart; %d left out as discontinued or out of stock.",
 	})
+
+	// KeyReorderGone is why a line of a past order was left out when its product
+	// or variant is no longer sold; a sold-out line says KeySoldOut.
+	KeyReorderGone = key("cart.reorder.gone", Message{ZhHant: "已下架", En: "Discontinued"})
 
 	KeyCartUnavailable = key("cart.unavailable", Message{
 		ZhHant: "購物車暫時無法使用，請稍後再試。",
