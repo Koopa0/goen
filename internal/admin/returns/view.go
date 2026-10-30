@@ -233,6 +233,9 @@ type View struct {
 
 	Rows   []Return
 	Notice widget.Result
+	// OwnPage is a page for one return, /admin/returns?request={id}: its forms
+	// answer back to it instead of to the queue.
+	OwnPage bool
 	// Errors keys as "{returnID}.{field}" so a 422 can mark one row without
 	// painting every other request on the queue.
 	Errors map[string]string
@@ -344,6 +347,9 @@ type Confirmation struct {
 	AssessmentVersion string
 	Required          bool
 	Retry             bool
+	// OwnPage is a decision asked from the return's own page, which Back and the
+	// final post return to.
+	OwnPage bool
 }
 
 func (v Confirmation) Title(ctx context.Context) string {
@@ -363,3 +369,10 @@ func (v Confirmation) Title(ctx context.Context) string {
 func (v Confirmation) Amount() string { return money.TWD(v.AmountCents) }
 
 func (v Confirmation) Action() string { return "/admin/returns/" + v.ID + "/decide" }
+
+func (v Confirmation) Back() string {
+	if v.OwnPage {
+		return keyset.ScopeURL("/admin/returns", "request", v.ID)
+	}
+	return "/admin/returns"
+}

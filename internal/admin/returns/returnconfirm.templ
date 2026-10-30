@@ -18,6 +18,7 @@ templ ConfirmReturn(p frame.Page, v Confirmation) {
 			<form method="post" action={ templ.SafeURL(v.Action()) } class="goen-admin__form">
 				<input type="hidden" name="decision" value={ v.Decision }/>
 				<input type="hidden" name="assessment_version" value={ v.AssessmentVersion }/>
+				@ownPageField(v.OwnPage)
 				<div class="ui-field">
 					<label class="ui-label" for="return-resolution">
 						{ i18n.T(ctx,i18n.KeyAdminRetResolution) }
@@ -31,7 +32,7 @@ templ ConfirmReturn(p frame.Page, v Confirmation) {
 					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": v.Decision}}, "submit") {
 						{ v.Title(ctx) }
 					}
-					@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "/admin/returns") {
+					@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.Back())) {
 						{ i18n.T(ctx,i18n.KeyAdminRetConfirmBack) }
 					}
 				</div>
