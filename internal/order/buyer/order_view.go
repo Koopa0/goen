@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -44,8 +45,9 @@ type OrderView struct {
 	PlacedAt     time.Time
 	// Now is the moment the page is read; the days left and the grids count from it.
 	Now time.Time
-	// HoldUntil is the earliest stored reservation expiry, zero without rows; Checkout Session expiry is bound to it.
-	HoldUntil time.Time
+	// HoldFrom and HoldUntil are when the first stored reservation was taken and when the earliest stored
+	// reservation expires, zero without rows; Checkout Session expiry is bound to HoldUntil.
+	HoldFrom, HoldUntil time.Time
 	// Pickup is set for an order collected from a store, where delivery reads as collection.
 	Pickup bool
 	// Lines are the lines as bought; Unshipped are the units no parcel carries yet.
@@ -208,6 +210,23 @@ func (v *OrderView) WarrantyLink() string { return "/account/warranty/" + v.Numb
 
 func (v *OrderView) AwaitingPayment() bool {
 	return order.AwaitingPayment(v.Status, v.Committed, v.OwedCents)
+}
+
+// OffersPayment is true while the side panel leads with paying. Just back from paying, an order that still reads
+// unpaid is not offered a second payment.
+func (v *OrderView) OffersPayment() bool {
+	return v.AwaitingPayment() && v.PaymentRefreshURL == "" && !v.PaymentConfirmationPending
+}
+
+// HoldWindow is the stock hold in the pay page's own words, read from the same stored span. This page cannot tell
+// whether a payment is already open, so while one could still start it names the deadline to start paying, as the
+// order email does: a shopper whose payment is open reads an earlier time than theirs, never a later one.
+func (v *OrderView) HoldWindow(ctx context.Context) (lead, note string, ok bool) {
+	h := payment.PayHold{PlacedAt: v.HoldFrom, Until: v.HoldUntil}
+	if startBy := payment.StartBy(v.HoldUntil); v.PaymentsEnabled && v.Now.Before(startBy) {
+		h.StartBy = startBy
+	}
+	return h.Window(ctx)
 }
 
 type OrderInvoice struct {
