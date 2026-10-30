@@ -219,10 +219,14 @@ func (v *OrderView) OffersPayment() bool {
 }
 
 // HoldWindow is the stock hold in the pay page's own words, read from the same stored span. This page cannot tell
-// whether a payment is already open, so it names where the hold ends and leaves the deadline to start paying to the
-// pay page.
+// whether a payment is already open, so while one could still start it names the deadline to start paying, as the
+// order email does: a shopper whose payment is open reads an earlier time than theirs, never a later one.
 func (v *OrderView) HoldWindow(ctx context.Context) (lead, note string, ok bool) {
-	return payment.PayHold{PlacedAt: v.HoldFrom, Until: v.HoldUntil}.Window(ctx)
+	h := payment.PayHold{PlacedAt: v.HoldFrom, Until: v.HoldUntil}
+	if startBy := payment.StartBy(v.HoldUntil); v.PaymentsEnabled && v.Now.Before(startBy) {
+		h.StartBy = startBy
+	}
+	return h.Window(ctx)
 }
 
 type OrderInvoice struct {

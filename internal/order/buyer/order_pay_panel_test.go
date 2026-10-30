@@ -79,9 +79,13 @@ func TestOrderPayPanel(t *testing.T) {
 				t.Errorf("the first action reads %q, want %q", got, want)
 			}
 
-			lead, note, ok := payment.PayHold{PlacedAt: v.HoldFrom, Until: v.HoldUntil}.Window(ctx)
-			if !ok || !strings.Contains(lead, "12:37") {
-				t.Fatalf("the pay page's own hold wording %q is not the 12:37 the order holds to", lead)
+			hold := payment.PayHold{PlacedAt: v.HoldFrom, Until: v.HoldUntil}
+			if tt.payments {
+				hold.StartBy = payment.StartBy(v.HoldUntil)
+			}
+			lead, note, ok := hold.Window(ctx)
+			if want := map[bool]string{true: "12:06", false: "12:37"}[tt.payments]; !ok || !strings.Contains(lead, want) {
+				t.Fatalf("the pay page's own hold wording %q does not lead with %s", lead, want)
 			}
 			if text := nodeText(actions); !strings.Contains(text, lead) || !strings.Contains(text, note) {
 				t.Errorf("the action column lacks the pay page's hold wording %q / %q:\n%s", lead, note, text)
@@ -93,6 +97,33 @@ func TestOrderPayPanel(t *testing.T) {
 				t.Errorf("the link to the pay page renders = %v, want %v", got, tt.payments)
 			}
 		})
+	}
+}
+
+// TestOrderPayPanelStartBy: while a payment could still start, the panel leads
+// with the deadline to start paying, as the pay page and the order email do, and
+// once that has passed it leads with where the hold ends: the order page cannot
+// tell an open payment from none, and must not promise a later time than the pay
+// page will.
+func TestOrderPayPanelStartBy(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, tt := range []struct {
+		name string
+		now  time.Time
+		want string
+		not  string
+	}{
+		{"before the start deadline", orderNow, "請在 12:06 前開始付款", ""},
+		{"after the start deadline", orderNow.Add(10 * time.Minute), "商品保留到 12:37", "開始付款"},
+	} {
+		v := unpaidOrder()
+		v.PaymentsEnabled = true
+		v.Now = tt.now
+		text := nodeText(actionsOf(t, renderComponent(t, ctx, Order(frame.Page{Title: "訂單"}, v))))
+		if !strings.Contains(text, tt.want) || (tt.not != "" && strings.Contains(text, tt.not)) {
+			t.Errorf("%s: the action column reads %q, want %q and no %q", tt.name, text, tt.want, tt.not)
+		}
 	}
 }
 
