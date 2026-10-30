@@ -139,8 +139,13 @@ func TestHandler_CartAdjustmentCheckout(t *testing.T) {
 					case "retry":
 						h.Authenticate(http.HandlerFunc(h.RetryCartAdoption)).ServeHTTP(signed, req)
 					}
-					if signed.Code != http.StatusSeeOther {
-						t.Fatalf("authentication status=%d body=%s", signed.Code, signed.Body.String())
+					// Google answers a page that loads the landing, not a redirect to it.
+					wantStatus := http.StatusSeeOther
+					if mode == "google" {
+						wantStatus = http.StatusOK
+					}
+					if signed.Code != wantStatus {
+						t.Fatalf("authentication status=%d, want %d, body=%s", signed.Code, wantStatus, signed.Body.String())
 					}
 					if session == nil {
 						session = sessionCookie(t, signed)
@@ -154,7 +159,11 @@ func TestHandler_CartAdjustmentCheckout(t *testing.T) {
 					if quantity := cartItemQuantity(t, accountCart, variantID); quantity != 3 {
 						t.Fatalf("quantity=%d, want 3", quantity)
 					}
-					location, locationErr := url.Parse(signed.Header().Get("Location"))
+					landing := signed.Header().Get("Location")
+					if mode == "google" {
+						landing = handoffTarget(t, signed)
+					}
+					location, locationErr := url.Parse(landing)
 					if locationErr != nil {
 						t.Fatal(locationErr)
 					}

@@ -1285,7 +1285,8 @@ func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 }
 
 // GoogleCallback ends every failure at /signin with a message rather than an
-// error page: the customer is mid-sign-in.
+// error page: the customer is mid-sign-in. A success answers the page that
+// loads where they were headed.
 func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if !h.google.Enabled() {
 		h.googleUnavailable(w, r)
@@ -1343,7 +1344,12 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	next := state.Next
 	next = cartAdoptionLanding(next, adoption)
-	http.Redirect(w, r, next, http.StatusSeeOther)
+	// A page and not a 303, as respond.ReloadSameSite explains: the session
+	// cookie is SameSite=Strict, and a redirect stays inside the navigation that
+	// began at Google, so the landing page would arrive without it and send the
+	// visitor back to /signin. The page's refresh starts a same-site navigation.
+	w.Header().Set("Cache-Control", "no-store")
+	respond.Component(w, r, h.log, http.StatusOK, SignedInHandoff(next))
 }
 
 func (h *Handler) googleUnavailable(w http.ResponseWriter, r *http.Request) {

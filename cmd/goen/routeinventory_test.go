@@ -291,7 +291,7 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "GET /account/warranty/{number}", sample: "/account/warranty/" + probeNumber, traits: "nav nostore signin signinreturn visitor"},
 	{pattern: "GET /account/wishlist", sample: "/account/wishlist", traits: "nav nostore signin signinreturn visitor"},
 	{pattern: "GET /auth/google", sample: "/auth/google", traits: "banner nav nostore visitor"},                   // Google is not configured in this test, so this answers the full 404 page, header included; configured, it answers 303
-	{pattern: "GET /auth/google/callback", sample: "/auth/google/callback", traits: "banner nav nostore visitor"}, // Google is not configured in this test, so this answers the full 404 page, header included; configured, it answers 303
+	{pattern: "GET /auth/google/callback", sample: "/auth/google/callback", traits: "banner nav nostore visitor"}, // Google is not configured in this test, so this answers the full 404 page, header included; configured, it answers 303 to /signin on a failure and 200 with a page that loads the destination on a success
 	{pattern: "GET /c/{slug}", sample: "/c/" + probeSlug, traits: "banner nav speculation visitor"},
 	{pattern: "GET /cart", sample: "/cart", traits: "nav nostore speculation visitor"},
 	{pattern: "GET /checkout", sample: "/checkout", traits: "nav nostore visitor"},
