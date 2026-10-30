@@ -141,7 +141,7 @@ FROM sale_campaigns c, products p
 WHERE c.slug = @campaign::text AND p.slug = @product::text
 ON CONFLICT (campaign_id, product_id) DO NOTHING;
 
--- name: RemoveCampaignProduct :exec
+-- name: RemoveCampaignProduct :execrows
 DELETE FROM sale_campaign_products cp
 USING sale_campaigns c, products p
 WHERE cp.campaign_id = c.id AND cp.product_id = p.id
