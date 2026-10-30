@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
@@ -116,11 +117,11 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 // Breakdown is how an order's figure was reached, for the payment page to list
 // between the lines and what is owed. Stripe is never sent it.
 type Breakdown struct {
-	ShippingName   string
-	ShippingCents  int64
-	DiscountCents  int64
-	DiscountReason string
-	CreditCents    int64
+	ShippingName  string
+	ShippingCents int64
+	DiscountCents int64
+	Coupon        coupon.Redeemed
+	CreditCents   int64
 }
 
 // Breakdown reads through the order page's own query, so the two pages cannot
@@ -133,11 +134,11 @@ func (s *Store) Breakdown(ctx context.Context, number string) (Breakdown, error)
 		return Breakdown{}, fmt.Errorf("read breakdown of order %s: %w", number, err)
 	}
 	return Breakdown{
-		ShippingName:   o.ShippingMethodName,
-		ShippingCents:  o.ShippingCents,
-		DiscountCents:  o.DiscountCents,
-		DiscountReason: o.DiscountReason,
-		CreditCents:    o.CreditCents,
+		ShippingName:  o.ShippingMethodName,
+		ShippingCents: o.ShippingCents,
+		DiscountCents: o.DiscountCents,
+		Coupon:        coupon.Redeemed{Code: o.CouponCode, Description: o.CouponDescription, Kind: coupon.Kind(o.CouponKind)},
+		CreditCents:   o.CreditCents,
 	}, nil
 }
 

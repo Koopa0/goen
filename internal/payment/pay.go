@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -55,20 +56,20 @@ type PayHold struct {
 func (h PayHold) Lapsed() bool { return !h.CancelledAt.IsZero() }
 
 type PayView struct {
-	Number         string
-	TotalCents     int64
-	Email          string
-	Lines          []PayLine
-	Enabled        bool
-	Sandbox        bool
-	Cancelled      bool
-	Closure        PayClosure
-	Hold           PayHold
-	ShippingName   string
-	ShippingCents  int64
-	DiscountCents  int64
-	DiscountReason string
-	CreditCents    int64
+	Number        string
+	TotalCents    int64
+	Email         string
+	Lines         []PayLine
+	Enabled       bool
+	Sandbox       bool
+	Cancelled     bool
+	Closure       PayClosure
+	Hold          PayHold
+	ShippingName  string
+	ShippingCents int64
+	DiscountCents int64
+	Coupon        coupon.Redeemed
+	CreditCents   int64
 }
 
 // Facts is when the order was placed and the amount due, or for a lapsed hold what became of the order.
@@ -155,7 +156,15 @@ func (v *PayView) Shipping(ctx context.Context) string {
 
 func (v *PayView) Discounted() bool { return v.DiscountCents > 0 }
 
-func (v *PayView) Discount() string { return "-" + twd(v.DiscountCents) }
+// ListsDiscount is true while the summary has a discount row: a free-delivery code has one at nothing.
+func (v *PayView) ListsDiscount() bool { return v.Discounted() || v.Coupon.Used() }
+
+func (v *PayView) Discount() string {
+	if v.DiscountCents == 0 {
+		return twd(0)
+	}
+	return "-" + twd(v.DiscountCents)
+}
 
 func (v *PayView) UsedCredit() bool { return v.CreditCents > 0 }
 

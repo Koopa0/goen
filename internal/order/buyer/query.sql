@@ -80,10 +80,13 @@ WHERE orders.id = $1
 SELECT o.id, o.order_number, o.fulfillment_status,
        o.shipping_cents, o.discount_cents,
        -- WHICH discount, joined rather than snapshotted: coupons.code is never
-       -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
-       coalesce((SELECT c.code || ' · ' || c.description
-                 FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
-                 WHERE cr.order_id = o.id), '')::text AS discount_reason,
+       -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it,
+       -- and coupon_redemptions_order_key keeps it to one row. discount_reason is
+       -- the line the order email prints; the pages name the coupon from its parts.
+       coalesce(cp.code || ' · ' || cp.description, '')::text AS discount_reason,
+       coalesce(cp.code, '')::text AS coupon_code,
+       coalesce(cp.description, '')::text AS coupon_description,
+       coalesce(cp.kind, '')::text AS coupon_kind,
        -- The version the order was priced from, which is append-only, so an
        -- English name is read without rewriting what the order chose.
        localized_name(sv.name, sv.name_en, @locale::text) AS shipping_method_name,
@@ -112,6 +115,8 @@ FROM orders o
 JOIN order_totals t ON t.order_id = o.id
 JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
+LEFT JOIN coupon_redemptions cr ON cr.order_id = o.id
+LEFT JOIN coupons cp ON cp.id = cr.coupon_id
 WHERE o.order_number = @number;
 
 -- The customer's order page: each line with its photograph and its warranty promise.
