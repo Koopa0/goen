@@ -123,17 +123,17 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 		return
 	}
 	view := PayView{
-		Number:         o.Number,
-		TotalCents:     o.TotalCents,
-		Email:          o.Email,
-		Enabled:        h.gateway.Enabled(),
-		Sandbox:        h.gateway.Sandbox(),
-		Cancelled:      r.URL.Query().Get("cancelled") == "1",
-		ShippingName:   b.ShippingName,
-		ShippingCents:  b.ShippingCents,
-		DiscountCents:  b.DiscountCents,
-		DiscountReason: b.DiscountReason,
-		CreditCents:    b.CreditCents,
+		Number:        o.Number,
+		TotalCents:    o.TotalCents,
+		Email:         o.Email,
+		Enabled:       h.gateway.Enabled(),
+		Sandbox:       h.gateway.Sandbox(),
+		Cancelled:     r.URL.Query().Get("cancelled") == "1",
+		ShippingName:  b.ShippingName,
+		ShippingCents: b.ShippingCents,
+		DiscountCents: b.DiscountCents,
+		Coupon:        b.Coupon,
+		CreditCents:   b.CreditCents,
 	}
 	hold := PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until}
 	switch {

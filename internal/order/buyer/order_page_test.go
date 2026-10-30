@@ -8,6 +8,7 @@ import (
 	"github.com/a-h/templ"
 	nethtml "golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
@@ -43,8 +44,9 @@ func TestOrderView_CanCancel(t *testing.T) {
 	}
 }
 
-// TestOrderDiscountRow: the order summary shows the discount's reason and
-// amount, and an order with no discount shows no zero-discount row.
+// TestOrderDiscountRow: the order summary names the discount by its code, and by
+// its name only where the name says more than the code, with the amount; an order
+// with no discount shows no zero-discount row.
 //
 // It asserts the HTML, because the view model can hold every number correctly
 // while the template renders one of them nowhere.
@@ -52,15 +54,20 @@ func TestOrderDiscountRow(t *testing.T) {
 	v := &OrderView{
 		Number: "GO-260101-000001", Status: "pending",
 		SubtotalCents: 100000, ShippingCents: 6000,
-		DiscountCents: 20000, DiscountReason: "SAVE200 · 滿額折抵",
-		ShippingName: "宅配",
+		DiscountCents: 20000,
+		Coupon:        coupon.Redeemed{Code: "SAVE200", Description: "滿額折抵", Kind: coupon.Amount},
+		ShippingName:  "宅配",
 	}
 
 	html := renderToString(t, Order(frame.Page{Title: "訂單"}, v))
-	for _, want := range []string{"SAVE200", "滿額折抵", "-NT$200"} {
+	for _, want := range []string{"<dt>折扣碼 SAVE200（滿額折抵）</dt>", "-NT$200"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the order summary does not mention %q", want)
 		}
+	}
+	v.Coupon.Description = "SAVE200 測試折扣"
+	if got := renderToString(t, Order(frame.Page{Title: "訂單"}, v)); !strings.Contains(got, "<dt>折扣碼 SAVE200</dt>") || strings.Contains(got, "測試折扣") {
+		t.Error("a description that begins with the code is read twice in the discount row")
 	}
 
 	plain := &OrderView{
@@ -69,6 +76,32 @@ func TestOrderDiscountRow(t *testing.T) {
 	}
 	if got := renderToString(t, Order(frame.Page{Title: "訂單"}, plain)); strings.Contains(got, "-NT$0") {
 		t.Error("an order with no discount renders a zero discount row")
+	}
+}
+
+// TestOrderFreeDeliveryCodeRow: a free-delivery code leaves the discount at nothing
+// and is still listed, with what it did, in both locales; the delivery row keeps
+// saying it is free.
+func TestOrderFreeDeliveryCodeRow(t *testing.T) {
+	t.Parallel()
+	v := &OrderView{
+		Number: "GO-260101-000004", Status: "pending", ShippingName: "宅配", SubtotalCents: 100000,
+		Coupon: coupon.Redeemed{Code: "FREESHIP", Description: "免運活動", Kind: coupon.FreeShipping},
+	}
+	for locale, want := range map[i18n.Locale]string{
+		i18n.ZhHant: "<dt>折扣碼 FREESHIP：免運</dt>",
+		i18n.En:     "<dt>Discount code FREESHIP: free delivery</dt>",
+	} {
+		html := renderIn(t, locale, Order(frame.Page{Title: "order"}, v))
+		if !strings.Contains(html, want) {
+			t.Errorf("%s: the summary lacks %q", locale, want)
+		}
+		if strings.Contains(html, "-NT$0") {
+			t.Errorf("%s: the free-delivery row is drawn as a deduction of nothing", locale)
+		}
+	}
+	if html := renderToString(t, Order(frame.Page{Title: "訂單"}, v)); !strings.Contains(html, ">免運<") {
+		t.Error("the delivery row stopped saying it is free")
 	}
 }
 
@@ -208,6 +241,38 @@ func TestOrderWarrantyLink(t *testing.T) {
 			got := strings.Contains(html, "/account/warranty/GO-260101-000012")
 			if got != tt.want {
 				t.Errorf("the order page links its warranty form = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestOrderWarrantyNeedsAWarranty: a delivered order whose lines carry no warranty (tea,
+// notebooks) has nothing to register, so its page offers no registration and states no
+// cover; a line that does carry a warranty beside them keeps both.
+func TestOrderWarrantyNeedsAWarranty(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	tea := OrderLine{SKU: "T1", Name: "烏龍茶", UnitCents: 60000, Quantity: 2}
+	for _, tt := range []struct {
+		name  string
+		lines []OrderLine
+		want  bool
+	}{
+		{"tea only", []OrderLine{tea}, false},
+		{"tea and headphones", []OrderLine{tea, headphones()}, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			v := &OrderView{
+				Status: order.FulfillmentDelivered, Committed: true, ShowWarrantyLink: true,
+				SubtotalCents: 100000, ShippingName: "宅配", Lines: tt.lines,
+				Shipments: []OrderShipment{deliveredOn(6, tt.lines...)},
+			}
+			html := orderPage(t, v)
+			for _, marker := range []string{"/account/warranty/GO-261003-000014", i18n.T(ctx, i18n.KeyOrderWarrantyRegister), i18n.T(ctx, i18n.KeyOrderWarrantyFromDelivery)} {
+				if got := strings.Contains(html, marker); got != tt.want {
+					t.Errorf("the order page of %s renders %q = %v, want %v", tt.name, marker, got, tt.want)
+				}
 			}
 		})
 	}

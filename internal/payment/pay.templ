@@ -3,7 +3,6 @@ package payment
 import (
 	"fmt"
 
-	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -74,9 +73,9 @@ templ Pay(p frame.Page, v PayView) {
 						<dt>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippingFee), v.ShippingName) }</dt>
 						<dd class="goen-summary__value">{ v.Shipping(ctx) }</dd>
 					</div>
-					if v.Discounted() {
+					if v.ListsDiscount() {
 						<div class="goen-summary__row">
-							<dt>{ coupon.DiscountLabel(ctx, v.DiscountReason) }</dt>
+							<dt>{ v.Coupon.Label(ctx) }</dt>
 							<dd class="goen-summary__value">{ v.Discount() }</dd>
 						</div>
 					}

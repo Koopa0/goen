@@ -107,3 +107,10 @@ SELECT EXISTS (
     SELECT 1 FROM wishlist_items w JOIN products p ON p.id = w.product_id
     WHERE w.user_id = $1 AND p.slug = @slug::text
 );
+
+-- Whether the customer has a saved product the wishlist page would show.
+-- name: WishlistAnyListed :one
+SELECT EXISTS (
+    SELECT 1 FROM wishlist_items w JOIN products p ON p.id = w.product_id
+    WHERE w.user_id = $1 AND p.status = 'active'
+);

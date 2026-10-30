@@ -12676,10 +12676,13 @@ const orderSummaryByNumber = `-- name: OrderSummaryByNumber :one
 SELECT o.id, o.order_number, o.fulfillment_status,
        o.shipping_cents, o.discount_cents,
        -- WHICH discount, joined rather than snapshotted: coupons.code is never
-       -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
-       coalesce((SELECT c.code || ' · ' || c.description
-                 FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
-                 WHERE cr.order_id = o.id), '')::text AS discount_reason,
+       -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it,
+       -- and coupon_redemptions_order_key keeps it to one row. discount_reason is
+       -- the line the order email prints; the pages name the coupon from its parts.
+       coalesce(cp.code || ' · ' || cp.description, '')::text AS discount_reason,
+       coalesce(cp.code, '')::text AS coupon_code,
+       coalesce(cp.description, '')::text AS coupon_description,
+       coalesce(cp.kind, '')::text AS coupon_kind,
        -- The version the order was priced from, which is append-only, so an
        -- English name is read without rewriting what the order chose.
        localized_name(sv.name, sv.name_en, $1::text) AS shipping_method_name,
@@ -12708,6 +12711,8 @@ FROM orders o
 JOIN order_totals t ON t.order_id = o.id
 JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
+LEFT JOIN coupon_redemptions cr ON cr.order_id = o.id
+LEFT JOIN coupons cp ON cp.id = cr.coupon_id
 WHERE o.order_number = $2
 `
 
@@ -12723,6 +12728,9 @@ type OrderSummaryByNumberRow struct {
 	ShippingCents      int64
 	DiscountCents      int64
 	DiscountReason     string
+	CouponCode         string
+	CouponDescription  string
+	CouponKind         string
 	ShippingMethodName string
 	PlacedAt           time.Time
 	SubtotalCents      int64
@@ -12750,6 +12758,9 @@ func (q *Queries) OrderSummaryByNumber(ctx context.Context, arg OrderSummaryByNu
 		&i.ShippingCents,
 		&i.DiscountCents,
 		&i.DiscountReason,
+		&i.CouponCode,
+		&i.CouponDescription,
+		&i.CouponKind,
 		&i.ShippingMethodName,
 		&i.PlacedAt,
 		&i.SubtotalCents,
@@ -15865,7 +15876,9 @@ func (q *Queries) ReopenMessage(ctx context.Context, id uuid.UUID) (int64, error
 const reorderLines = `-- name: ReorderLines :many
 SELECT ol.variant_id, ol.product_name, ol.variant_label, ol.quantity,
        coalesce(pv.is_active AND p.status = 'active', false)::boolean AS sellable,
-       coalesce(pv.stock_quantity - pv.safety_stock, 0)::integer AS available
+       coalesce(pv.stock_quantity - pv.safety_stock, 0)::integer AS available,
+       coalesce(p.status = 'active', false)::boolean AS listed,
+       coalesce(p.slug, '')::text AS product_slug
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 LEFT JOIN product_variants pv ON pv.id = ol.variant_id
@@ -15881,11 +15894,14 @@ type ReorderLinesRow struct {
 	Quantity     int32
 	Sellable     bool
 	Available    int32
+	Listed       bool
+	ProductSlug  string
 }
 
 // An order's lines as a REORDER sees them. LEFT JOIN and not JOIN: variant_id is
 // nullable so a line survives its variant being deleted, and dropping those rows
-// would make the page say it added everything.
+// would make the page say it added everything. A left-out line links to its
+// product only while the product is listed, even when its variant is not.
 func (q *Queries) ReorderLines(ctx context.Context, orderNumber string) ([]ReorderLinesRow, error) {
 	rows, err := q.db.Query(ctx, reorderLines, orderNumber)
 	if err != nil {
@@ -15902,6 +15918,8 @@ func (q *Queries) ReorderLines(ctx context.Context, orderNumber string) ([]Reord
 			&i.Quantity,
 			&i.Sellable,
 			&i.Available,
+			&i.Listed,
+			&i.ProductSlug,
 		); err != nil {
 			return nil, err
 		}
@@ -20301,6 +20319,21 @@ func (q *Queries) VariantStockByDay(ctx context.Context, arg VariantStockByDayPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const wishlistAnyListed = `-- name: WishlistAnyListed :one
+SELECT EXISTS (
+    SELECT 1 FROM wishlist_items w JOIN products p ON p.id = w.product_id
+    WHERE w.user_id = $1 AND p.status = 'active'
+)
+`
+
+// Whether the customer has a saved product the wishlist page would show.
+func (q *Queries) WishlistAnyListed(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, wishlistAnyListed, userID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const wishlistHas = `-- name: WishlistHas :one

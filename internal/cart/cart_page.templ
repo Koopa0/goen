@@ -50,6 +50,9 @@ templ Page(p frame.Page, v View) {
 					@widget.Notice(widget.NoticeProps{Intent: v.ReorderOutcome().Intent()}) {
 						{ v.ReorderText(ctx) }
 					}
+					if len(v.ReorderLeftOut) > 0 {
+						@reorderLeftOut(v.ReorderLeftOut)
+					}
 				}
 			</div>
 			if v.Empty() {
@@ -61,6 +64,13 @@ templ Page(p frame.Page, v View) {
 						Size:        widget.SizeLarge,
 					}, "/") {
 						{ i18n.T(ctx, i18n.KeyCartEmptyLink) }
+					}
+					if v.SavedProducts {
+						@widget.ButtonLink(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStyleOutline,
+						}, wishlistPath) {
+							{ i18n.T(ctx, i18n.KeyCartEmptyWishlist) }
+						}
 					}
 				</div>
 			} else {
@@ -145,6 +155,28 @@ templ Page(p frame.Page, v View) {
 			}
 		</div>
 	}
+}
+
+// reorderLeftOut names each line a buy-again left out and why; a product still
+// listed links to its page.
+templ reorderLeftOut(lines []SkippedLine) {
+	<ul class="goen-cart__leftout" role="list">
+		for _, l := range lines {
+			<li>
+				if l.Slug != "" {
+					<a href={ templ.URL("/p/" + l.Slug) }>{ l.Name }</a>
+				} else {
+					<span class="goen-line__name">{ l.Name }</span>
+				}
+				if l.Label != "" {
+					<span class="goen-line__meta">{ l.Label }</span>
+				}
+				@widget.Badge(widget.BadgeProps{}) {
+					{ l.ReasonText(ctx) }
+				}
+			</li>
+		}
+	</ul>
 }
 
 templ cartLine(l Line) {
