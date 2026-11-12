@@ -102,6 +102,16 @@ try {
           const visible = [...document.querySelectorAll('.goen-pdp__shot')].filter(shot => getComputedStyle(shot).visibility === 'visible');
           return { checked: checked?.id, focused: document.activeElement === checked, visible: visible.map(shot => shot.querySelector('img').alt) };
         })()`), { checked: `shot-${count - 2}`, focused: true, visible: [`Photo ${count - 1}`] }, `${label}: native ArrowLeft`);
+        // The radio itself is visually hidden, so its thumbnail must show where the keyboard is: the ring
+        // and the ground band outside it, on the chosen thumbnail only.
+        assert.deepEqual(await evaluate(`(() => {
+          const ring = (thumb) => {
+            const style = getComputedStyle(thumb);
+            return style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2 && parseFloat(style.outlineOffset) >= 2
+              && style.boxShadow !== 'none';
+          };
+          return [...document.querySelectorAll('.goen-pdp__thumb')].map((thumb) => ring(thumb));
+        })()`), Array.from({ length: count }, (_, i) => i === count - 2), `${label}: the focused thumbnail shows focus`);
       }
       console.log(`${label}: five columns, rows ${JSON.stringify(rows)}, native selection preserved`);
     }
