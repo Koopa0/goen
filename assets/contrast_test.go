@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"math"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -36,8 +37,14 @@ func luminance(h string) float64 {
 	return 0.2126*linear(b[0]) + 0.7152*linear(b[1]) + 0.0722*linear(b[2])
 }
 
+// contrast is the WCAG ratio of two six-digit hex colours, and 0 when either is
+// not one: NaN passes every "less than" check, so a colour a test could not
+// read would pass as readable.
 func contrast(a, b string) float64 {
 	la, lb := luminance(a), luminance(b)
+	if math.IsNaN(la) || math.IsNaN(lb) {
+		return 0
+	}
 	if la < lb {
 		la, lb = lb, la
 	}
@@ -52,8 +59,8 @@ func hexTokens(t *testing.T) map[string]string {
 }
 
 // translucentTokens reads the rgb(r g b / alpha) tokens from base.css. They are
-// kept apart from the hex ones because contrast reads only hex, and the NaN it
-// returns for anything else passes every "less than" check.
+// kept apart from the hex ones because contrast reads only hex, and counts
+// anything else as 0:1, which fails every check.
 func translucentTokens(t *testing.T) map[string]string {
 	t.Helper()
 	return baseTokens(t, tokenTranslucent, "")
@@ -110,6 +117,170 @@ func resolve(name string, tokens, links map[string]string) string {
 		name = links[name]
 	}
 	return tokens[name]
+}
+
+// roleDecl finds a custom property declared as light-dark(var(--day),
+// var(--night)), and roleName any declaration of a system role.
+var (
+	roleDecl = regexp.MustCompile(`(?m)^\s*(--[a-z0-9-]+):\s*light-dark\(\s*var\((--[a-z0-9-]+)\)\s*,\s*var\((--[a-z0-9-]+)\)\s*\);`)
+	roleName = regexp.MustCompile(`(?m)^\s*(--sys-[a-z0-9-]+)\s*:`)
+)
+
+// role is a system role's two colours as six hex digits, and the tokens its
+// light-dark() names for them.
+type role struct {
+	day, night           string
+	dayToken, nightToken string
+}
+
+// roleTokens reads the --sys-* roles from base.css, each resolved through the
+// aliases to a day and a night hex colour. A role that resolves on one side
+// only would make every contrast it enters NaN, which passes a "less than"
+// check, so it stops the test; so does a role a surface sheet declares again,
+// which none of the checks would read.
+func roleTokens(t *testing.T) map[string]role {
+	t.Helper()
+	base, err := fs.ReadFile(files, BaseCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", BaseCSS, err)
+	}
+	tokens, links := hexTokens(t), aliasTokens(t)
+	roles := make(map[string]role)
+	for _, m := range roleDecl.FindAllStringSubmatch(string(base), -1) {
+		if !strings.HasPrefix(m[1], "--sys-") {
+			continue
+		}
+		if _, dup := roles[m[1]]; dup {
+			t.Fatalf("%s declares %s with light-dark() twice", BaseCSS, m[1])
+		}
+		r := role{day: resolve(m[2], tokens, links), night: resolve(m[3], tokens, links), dayToken: m[2], nightToken: m[3]}
+		if r.day == "" || r.night == "" {
+			t.Fatalf("%s: %s is light-dark(var(%s), var(%s)), which resolves to day %q and night %q; want a hex colour on both sides",
+				BaseCSS, m[1], m[2], m[3], r.day, r.night)
+		}
+		roles[m[1]] = r
+	}
+	for _, m := range roleName.FindAllStringSubmatch(string(base), -1) {
+		if _, ok := roles[m[1]]; !ok {
+			t.Fatalf("%s declares %s, but not as light-dark(var(--day), var(--night))", BaseCSS, m[1])
+		}
+	}
+	for _, name := range []string{AppCSS, AdminCSS} {
+		sheet, err := fs.ReadFile(files, name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		for _, m := range roleName.FindAllStringSubmatch(string(sheet), -1) {
+			t.Errorf("%s declares %s again; a role is declared once, in %s", name, m[1], BaseCSS)
+		}
+	}
+	return roles
+}
+
+// TestBaseCSSRoleContrast checks that each system role reads on the grounds it
+// is drawn on, by day and by night. Only the day is on screen while the
+// storefront's color-scheme is light, so no page the axe gate visits shows the
+// night; this is the only check it gets.
+func TestBaseCSSRoleContrast(t *testing.T) {
+	t.Parallel()
+
+	roles := roleTokens(t)
+	grounds := []string{
+		"--sys-surface", "--sys-surface-container-lowest", "--sys-surface-container-low",
+		"--sys-surface-container", "--sys-surface-container-high", "--sys-surface-container-highest",
+	}
+	inks := []string{
+		"--sys-on-surface", "--sys-on-surface-variant", "--sys-primary",
+		"--sys-secondary", "--sys-tertiary", "--sys-error",
+	}
+	// Text on the role it is named to sit on, and a link inside a chosen option.
+	pairs := []struct{ ink, ground string }{
+		{ink: "--sys-on-primary", ground: "--sys-primary"},
+		{ink: "--sys-on-primary-container", ground: "--sys-primary-container"},
+		{ink: "--sys-primary", ground: "--sys-primary-container"},
+		{ink: "--sys-on-secondary", ground: "--sys-secondary"},
+		{ink: "--sys-on-secondary-container", ground: "--sys-secondary-container"},
+		{ink: "--sys-on-tertiary", ground: "--sys-tertiary"},
+		{ink: "--sys-on-tertiary-container", ground: "--sys-tertiary-container"},
+		{ink: "--sys-on-error", ground: "--sys-error"},
+		{ink: "--sys-on-error-container", ground: "--sys-error-container"},
+		{ink: "--sys-inverse-on-surface", ground: "--sys-inverse-surface"},
+		{ink: "--sys-inverse-primary", ground: "--sys-inverse-surface"},
+	}
+	for _, name := range slices.Concat(grounds, inks, []string{"--sys-outline"}) {
+		if _, ok := roles[name]; !ok {
+			t.Fatalf("%s declares no role %s", BaseCSS, name)
+		}
+	}
+	for _, p := range pairs {
+		if _, ok := roles[p.ink]; !ok {
+			t.Fatalf("%s declares no role %s", BaseCSS, p.ink)
+		}
+		if _, ok := roles[p.ground]; !ok {
+			t.Fatalf("%s declares no role %s", BaseCSS, p.ground)
+		}
+	}
+
+	for _, scheme := range []struct {
+		name   string
+		colour func(role) string
+		token  func(role) string
+	}{
+		{"day", func(r role) string { return r.day }, func(r role) string { return r.dayToken }},
+		{"night", func(r role) string { return r.night }, func(r role) string { return r.nightToken }},
+	} {
+		check := func(ink, ground string, want float64) {
+			i, g := roles[ink], roles[ground]
+			if got := contrast(scheme.colour(i), scheme.colour(g)); math.IsNaN(got) || got < want {
+				t.Errorf("%s: %s (%s #%s) on %s (%s #%s) = %.2f:1, want at least %g:1",
+					scheme.name, ink, scheme.token(i), scheme.colour(i), ground, scheme.token(g), scheme.colour(g), got, want)
+			}
+		}
+		for _, ground := range grounds {
+			for _, ink := range inks {
+				check(ink, ground, 4.5)
+			}
+			// WCAG 1.4.11: the boundary of a control has no text to carry it.
+			check("--sys-outline", ground, 3)
+		}
+		for _, p := range pairs {
+			check(p.ink, p.ground, 4.5)
+		}
+	}
+}
+
+// roleFallback finds the rule a browser without light-dark() reads instead.
+var roleFallback = regexp.MustCompile(`(?s)@supports not \(color: light-dark\(#000, #fff\)\) \{\s*:root \{(.*?)\}\s*\}`)
+
+// TestBaseCSSRoleFallback checks that a browser without light-dark() gets each
+// role's day colour. A role missing from the fallback is unset there, and one
+// that names another token draws a colour no scheme has.
+func TestBaseCSSRoleFallback(t *testing.T) {
+	t.Parallel()
+
+	base, err := fs.ReadFile(files, BaseCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", BaseCSS, err)
+	}
+	block := roleFallback.FindSubmatch(base)
+	if block == nil {
+		t.Fatalf("%s has no @supports not (color: light-dark(#000, #fff)) rule for :root", BaseCSS)
+	}
+	fallback := make(map[string]string)
+	for _, m := range regexp.MustCompile(`(--sys-[a-z0-9-]+):\s*var\((--[a-z0-9-]+)\);`).FindAllStringSubmatch(string(block[1]), -1) {
+		fallback[m[1]] = m[2]
+	}
+	roles := roleTokens(t)
+	for name, r := range roles {
+		if got := fallback[name]; got != r.dayToken {
+			t.Errorf("without light-dark(), %s = var(%s), want var(%s), its day colour", name, got, r.dayToken)
+		}
+	}
+	for name := range fallback {
+		if _, ok := roles[name]; !ok {
+			t.Errorf("the light-dark() fallback sets %s, which no light-dark() role declares", name)
+		}
+	}
 }
 
 // TestBaseCSSTokenContrast checks that the text tokens read on the grounds they
@@ -526,7 +697,7 @@ func TestAppCSSFocusRingContrast(t *testing.T) {
 	tokens := hexTokens(t)
 
 	for _, ground := range []string{"--n-0", "--n-50", "--wash", "--well"} {
-		if got := contrast(tokens["--accent"], tokens[ground]); got < 3 {
+		if got := contrast(tokens["--accent"], tokens[ground]); math.IsNaN(got) || got < 3 {
 			t.Errorf("focus ring --accent (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
 				tokens["--accent"], ground, tokens[ground], got)
 		}
@@ -546,7 +717,7 @@ func TestAppCSSFocusRingContrast(t *testing.T) {
 		}
 	}
 	for _, bg := range []string{tokens["--n-900"], "18181b" /* [data-tone="ink"] */} {
-		if got := contrast(tokens[override[2]], bg); got < 3 {
+		if got := contrast(tokens[override[2]], bg); math.IsNaN(got) || got < 3 {
 			t.Errorf("focus ring %s (#%s) on the dark ground #%s = %.2f:1, want at least 3:1",
 				override[2], tokens[override[2]], bg, got)
 		}
