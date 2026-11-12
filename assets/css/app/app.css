@@ -2038,7 +2038,7 @@ body:has(.goen-hero) .goen-header {
 
 .goen-home__more {
   align-items: center;
-  color: var(--accent-text);
+  color: var(--sys-primary);
   display: inline-flex;
   flex: none;
   font-size: var(--fs-14);
@@ -2173,6 +2173,7 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__title {
+  color: var(--sys-on-surface);
   font: var(--type-display-l);
   letter-spacing: 0.02em;
   margin: 0;
@@ -2188,7 +2189,7 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__lede {
-  color: var(--fg-muted);
+  color: var(--sys-on-surface-variant);
   line-height: 1.7;
   margin: 0;
   text-wrap: pretty;
@@ -2212,7 +2213,7 @@ body:has(.goen-hero) .goen-header {
 .goen-hero .ui-statline dt,
 .goen-hero .ui-statline dd small,
 .goen-hero .ui-statline__note {
-  color: var(--fg-muted);
+  color: var(--sys-on-surface-variant);
 }
 
 /* The campaign's days, one cell each: those to come in vermilion, those gone a
@@ -2325,7 +2326,7 @@ body:has(.goen-hero) .goen-header {
 
 .goen-hero__tabs a {
   align-items: baseline;
-  color: var(--fg-muted);
+  color: var(--sys-on-surface-variant);
   display: inline-flex;
   flex: none;
   font: var(--type-label-m);
@@ -2339,7 +2340,7 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__tabs a:hover {
-  color: var(--fg);
+  color: var(--sys-on-surface);
 }
 
 /* The campaign index keeps its numbers, the only numbering left on the site. */
@@ -2357,7 +2358,7 @@ body:has(.goen-hero) .goen-header {
 .goen-hero__tabs[data-pill]::before {
   border-bottom: 2px solid currentColor;
   box-sizing: border-box;
-  color: var(--fg);
+  color: var(--sys-on-surface);
   content: "";
   inset-block: 4px;
   inset-inline-start: 0;
@@ -2384,7 +2385,7 @@ body:has(.goen-hero) .goen-header {
    attribute starts no transition on its own. */
 @media (scripting: enabled) {
   .goen-hero__tabs a[aria-current="true"] {
-    color: var(--fg);
+    color: var(--sys-on-surface);
   }
 }
 
@@ -2418,10 +2419,10 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__arrow {
-  background: var(--n-100);
+  background: var(--sys-surface-container);
   border: 1px solid transparent;
   border-radius: 50%;
-  color: var(--n-900);
+  color: var(--sys-on-surface);
   cursor: pointer;
   display: grid;
   height: 2.75rem;
@@ -2431,7 +2432,7 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__arrow:hover {
-  background: var(--n-200);
+  background: var(--sys-surface-container-highest);
 }
 
 .goen-hero__arrow svg {
@@ -2825,12 +2826,13 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-rules .ui-statline dt {
-  color: var(--fg-muted);
+  color: var(--sys-on-surface-variant);
   font: var(--type-label-m);
   margin: 0;
 }
 
 .goen-rules .ui-statline dd {
+  color: var(--sys-on-surface);
   font: var(--fw-medium) 1.5rem/1.3 var(--font-sans);
   font-variant-numeric: tabular-nums lining-nums;
   margin-top: var(--s-1);
@@ -2843,7 +2845,7 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-rules .ui-statline .ui-statline__note {
-  color: var(--fg-muted);
+  color: var(--sys-on-surface-variant);
   display: block;
   font: var(--type-body-s);
   margin-top: var(--s-1);
