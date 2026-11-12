@@ -352,6 +352,10 @@ func TestHandler_ProductSoldOut(t *testing.T) {
 	if got := strings.Count(box, "已售完"); got != 1 {
 		t.Errorf("a sold-out combination's buy box says 已售完 %d times, want once", got)
 	}
+	// The one 已售完 is the status line naming the chosen values.
+	if want := `<p class="goen-pdp__status">曙光金 · 128GB<span class="goen-pdp__soldword">已售完</span></p>`; !strings.Contains(box, want) {
+		t.Errorf("the buy box does not name the sold-out choice as %s", want)
+	}
 	if strings.Contains(body, `type="submit" id="add-to-cart"`) || !strings.Contains(body, `id="restock"`) {
 		t.Error("the add-to-cart button is live on a sold-out combination, or there is no restock form")
 	}
