@@ -152,13 +152,14 @@ templ heroCarousel(slides []hero.Slide) {
 	</section>
 }
 
-// The band is one department's shelf: its tone, its name, its sub-categories
-// and four of its products. The department's photograph is the tile above and
-// the department page's head.
+// The band is one department's shelf on its tone, across the window: its name,
+// its sub-categories, the way to all of it and four of its products. A Chinese
+// name stands upright beside the products where the column is wide enough at
+// the reader's text size; the department's photograph is the tile above.
 templ departmentBand(b *DepartmentBand) {
-	<section class="goen-band goen-band--shelf" data-tone={ b.Tone.Attr() } aria-labelledby="band-heading">
-		<div class="goen-band__grid">
-			<div class="goen-band__body">
+	<section class="goen-band" data-tone={ b.Tone.Attr() } aria-labelledby="band-heading">
+		<div class="goen-band__body">
+			<div class="goen-band__grid">
 				<div class="goen-band__head">
 					<h2 id="band-heading" class="goen-band__name">{ b.Name }</h2>
 					if b.Fact != "" {

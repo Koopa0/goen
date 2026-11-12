@@ -12,7 +12,7 @@ import (
 )
 
 // TestDepartmentBandShelf holds that the home band is drawn as a shelf with no
-// photograph.
+// photograph, its name a heading of its own.
 func TestDepartmentBandShelf(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -21,7 +21,7 @@ func TestDepartmentBandShelf(t *testing.T) {
 		Name: "居家生活與廚房", Fact: "廚房 · 寢具", Items: 12, Href: "/c/home", Tone: tone.Ink, Tiles: tiledShelf(4),
 	}}))
 	for _, want := range []string{
-		`class="goen-band goen-band--shelf" data-tone="ink"`,
+		`class="goen-band" data-tone="ink"`,
 		`<h2 id="band-heading" class="goen-band__name">居家生活與廚房</h2>`,
 		`<p class="goen-band__fact">廚房 · 寢具</p>`,
 		`href="/c/home"`,
@@ -30,7 +30,7 @@ func TestDepartmentBandShelf(t *testing.T) {
 			t.Errorf("home band lacks %q", want)
 		}
 	}
-	start := strings.Index(page, `class="goen-band goen-band--shelf"`)
+	start := strings.Index(page, `class="goen-band"`)
 	if start < 0 {
 		t.Fatal("home band is not drawn as a shelf")
 	}

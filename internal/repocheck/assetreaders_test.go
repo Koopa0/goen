@@ -39,7 +39,7 @@ var assetReaders = map[string]string{
 	"assets/assets_test.go#TestAppJSCarouselNoAutoplay":                   "T14d",
 	"assets/assets_test.go#TestAppJSDemoAccountSignsIn":                   "T14d",
 	"assets/assets_test.go#TestAppCSSPageTransition":                      "T14d",
-	"assets/band_test.go#TestAppCSSBandWithoutPhoto":                      "T14b",
+	"assets/band_test.go#TestAppCSSBandNameUpright":                       "contract: the one writing-mode is exception E2 the design notes grant, so a declaration of it anywhere else in the three sheets is the defect, whichever page draws it",
 	"assets/contrast_test.go#TestBaseCSSControlBoundary":                  "#380",
 	"assets/contrast_test.go#TestEveryCustomPropertyUsedIsDeclared":       "#380",
 	"assets/contrast_test.go#TestAppCSSToneColoursConsumed":               "#380",

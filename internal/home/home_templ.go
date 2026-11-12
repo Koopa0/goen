@@ -795,9 +795,10 @@ func heroCarousel(slides []hero.Slide) templ.Component {
 	})
 }
 
-// The band is one department's shelf: its tone, its name, its sub-categories
-// and four of its products. The department's photograph is the tile above and
-// the department page's head.
+// The band is one department's shelf on its tone, across the window: its name,
+// its sub-categories, the way to all of it and four of its products. A Chinese
+// name stands upright beside the products where the column is wide enough at
+// the reader's text size; the department's photograph is the tile above.
 func departmentBand(b *DepartmentBand) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -815,27 +816,27 @@ func departmentBand(b *DepartmentBand) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "<section class=\"goen-band goen-band--shelf\" data-tone=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "<section class=\"goen-band\" data-tone=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templruntime.NewAttributeExpression(b.Tone.Attr()).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 159, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 160, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "\" aria-labelledby=\"band-heading\"><div class=\"goen-band__grid\"><div class=\"goen-band__body\"><div class=\"goen-band__head\"><h2 id=\"band-heading\" class=\"goen-band__name\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "\" aria-labelledby=\"band-heading\"><div class=\"goen-band__body\"><div class=\"goen-band__grid\"><div class=\"goen-band__head\"><h2 id=\"band-heading\" class=\"goen-band__name\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var40 string
 		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(b.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 163, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 164, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 		if templ_7745c5c3_Err != nil {
@@ -853,7 +854,7 @@ func departmentBand(b *DepartmentBand) templ.Component {
 			var templ_7745c5c3_Var41 string
 			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(b.Fact)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 165, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 166, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
@@ -961,7 +962,7 @@ func departmentTile(c Category) templ.Component {
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Tone.Attr()).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 195, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 196, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 		if templ_7745c5c3_Err != nil {
@@ -974,7 +975,7 @@ func departmentTile(c Category) templ.Component {
 		var templ_7745c5c3_Var45 string
 		templ_7745c5c3_Var45, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL("/c/" + c.Slug)).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 195, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 196, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 		if templ_7745c5c3_Err != nil {
@@ -992,7 +993,7 @@ func departmentTile(c Category) templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Photo.URL).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 200, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 201, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var46)
 			if templ_7745c5c3_Err != nil {
@@ -1005,7 +1006,7 @@ func departmentTile(c Category) templ.Component {
 			var templ_7745c5c3_Var47 string
 			templ_7745c5c3_Var47, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Photo.Srcset).ResolveSrcset(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 201, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 202, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var47)
 			if templ_7745c5c3_Err != nil {
@@ -1023,7 +1024,7 @@ func departmentTile(c Category) templ.Component {
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(c.Initial())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 210, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 211, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
@@ -1041,7 +1042,7 @@ func departmentTile(c Category) templ.Component {
 		var templ_7745c5c3_Var49 string
 		templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 213, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 214, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 		if templ_7745c5c3_Err != nil {

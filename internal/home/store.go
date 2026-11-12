@@ -198,10 +198,21 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []t
 			Fact:  subCategoryLine(subs[c.ID]),
 			Href:  "/c/" + c.Slug,
 			Tone:  tone.Resolve(c.Tone),
-			Tiles: tiles[:bandTiles],
+			Tiles: s.saleUntil(tiles[:bandTiles]),
 		}, nil
 	}
 	return nil, nil
+}
+
+// saleUntil has each struck price on the shelf say the last day of its sale.
+func (s *Store) saleUntil(tiles []tile.Tile) []tile.Tile {
+	now := s.now()
+	for i := range tiles {
+		if !tiles[i].SaleEndsAt.IsZero() {
+			tiles[i].SaleUntil = shoptime.LastDay(tiles[i].SaleEndsAt, now)
+		}
+	}
+	return tiles
 }
 
 // subCategoryLine joins names with a no-break space before the dot, so a line

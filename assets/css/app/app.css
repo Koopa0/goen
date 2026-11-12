@@ -2568,48 +2568,61 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
-/* ----- One department, the band: its photograph, lifted out of the tone, beside
-   three of its products. The tone starts --lift below the band's top and the
-   photograph does not stop at it; goen's white runs along the photograph's
-   right and bottom edge, so photograph and tone never touch whatever ground
-   the photograph was shot on. ----- */
+/* ----- One department, the band: its shelf on the department's tone, square
+   and across the window, the name, its sub-categories and the way to all of
+   it, and four of its products, in the page column. From 64rem of column a
+   Chinese name stands upright beside the products; at a narrower column, at
+   larger text or zoomed in it lies down over them again, and English never
+   stands. ----- */
 
 .goen-band {
-  --lift: 2rem;
-  background: linear-gradient(var(--n-0) 0 var(--lift), var(--tone-ground) var(--lift));
+  background: var(--tone-ground);
   color: var(--tone-text);
   margin-top: var(--home-section);
 }
 
-/* minmax(0, ...) because the sideways product scroller would otherwise set the
-   track's minimum width and push the page wider than the viewport. */
+/* The page column, content-box like the header bar and the footer grid. */
+.goen-band__body {
+  container: shelf / inline-size;
+  margin-inline: auto;
+  max-width: var(--page-width);
+  padding: var(--s-7) var(--page-gutter);
+}
+
 .goen-band__grid {
   display: grid;
+  gap: var(--s-5);
   grid-template-columns: minmax(0, 1fr);
 }
 
-.goen-band__media {
-  background: var(--n-0);
-  margin-right: var(--s-6);
-  padding: 0 var(--col-gap) var(--col-gap) 0;
-}
-
-.goen-band__media img {
-  aspect-ratio: 4 / 3;
-  display: block;
-  height: auto;
-  object-fit: cover;
-  width: 100%;
-}
-
-.goen-band__media--well img {
-  background: var(--well);
-  object-fit: contain;
-}
-
-.goen-band__body {
+.goen-band__head {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
   min-width: 0;
-  padding: var(--s-6) var(--page-gutter) var(--s-8);
+}
+
+.goen-band__name {
+  font: var(--type-headline-m);
+  hyphens: auto;
+  margin: 0;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+
+.goen-band__name:lang(zh) {
+  letter-spacing: 0.12em;
+}
+
+.goen-band__fact {
+  font: var(--type-body-s);
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.goen-band__fact:lang(zh) {
+  word-break: keep-all;
 }
 
 .goen-band .goen-home__more {
@@ -2625,7 +2638,8 @@ body:has(.goen-hero) .goen-header {
 }
 
 /* The campaign's colour does not read on the ink ground; the price's does. */
-.goen-band[data-tone="ink"] .goen-tile__amount--sale {
+.goen-band[data-tone="ink"] .goen-tile__amount--sale,
+.goen-band[data-tone="ink"] .goen-tile__until {
   color: inherit;
 }
 
@@ -2642,27 +2656,61 @@ body:has(.goen-hero) .goen-header {
   color: var(--tone-muted);
 }
 
-/* The four products scroll sideways until the shelf's container reaches 48rem. */
+/* The four products two to a line, as the hero's are, and four in a row once
+   the column holds four of at least 9rem. */
 .goen-band__tiles {
   display: grid;
-  gap: 1rem;
-  grid-auto-columns: 42%;
-  grid-auto-flow: column;
+  gap: var(--s-5) var(--s-4);
+  /* Two columns for as long as two cards of 6.5rem fit, as the product grid
+     does, so text at 200% on a phone stacks them rather than cutting names. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--s-4) / 2)), 1fr));
   list-style: none;
-  margin: 0 calc(var(--page-gutter) * -1);
-  overflow-x: auto;
-  padding: 0 var(--page-gutter);
-  scroll-padding-inline: var(--page-gutter);
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
+  margin: 0;
+  padding: 0;
 }
 
-.goen-band__tiles::-webkit-scrollbar {
-  display: none;
+@container shelf (width >= 40rem) {
+  .goen-band__grid {
+    gap: var(--s-6);
+  }
+
+  .goen-band__tiles {
+    gap: var(--s-5);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .goen-band__name {
+    font: var(--type-headline-l);
+  }
+
+  .goen-band__name:lang(zh) {
+    font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
+    letter-spacing: 0.12em;
+  }
 }
 
-.goen-band__tiles > li {
-  scroll-snap-align: start;
+/* The one exception to WCAG 1.4.10 and 1.4.12 the storefront keeps (E2 in the
+   design notes): the department's name set upright. The query is in rem, so
+   larger text or a zoom narrows the column under it and the name lies down
+   again; only the h2 turns, and only in Chinese. */
+@container shelf (width >= 64rem) {
+  .goen-band__grid:lang(zh) {
+    gap: var(--s-8);
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .goen-band__name:lang(zh) {
+    letter-spacing: 0.2em;
+    padding-left: var(--s-4);
+    writing-mode: vertical-rl;
+  }
+}
+
+@media (forced-colors: active) {
+  .goen-band {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
 }
 
 /* ----- The shop's rules, as a stat line above the footer. ----- */
@@ -2766,155 +2814,6 @@ body:has(.goen-hero) .goen-header {
 .goen-rules .ui-statline .ui-statline__note::before {
   content: "\A";
   white-space: pre;
-}
-
-@media (min-width: 48rem) {
-  .goen-band__media img {
-    aspect-ratio: 16 / 9;
-  }
-}
-
-@media (min-width: 64rem) {
-  .goen-band {
-    --lift: 4rem;
-  }
-
-  .goen-band__grid {
-    align-items: start;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  }
-
-  .goen-band__media {
-    margin: 0 0 var(--lift);
-  }
-
-  .goen-band__media img {
-    aspect-ratio: 4 / 3;
-  }
-
-  .goen-band__body {
-    padding: calc(var(--lift) + var(--s-7)) var(--page-edge) var(--s-8) clamp(2rem, 4.5vw, 4.5rem);
-  }
-
-  /* With no photograph the body takes the whole row, on the page's column. */
-  .goen-band__body:first-child {
-    grid-column: 1 / -1;
-    padding-left: var(--page-edge);
-  }
-}
-
-.goen-band:not(:has(.goen-band__media)) {
-  --lift: 0px;
-}
-
-/* The home page's band is the department's shelf: one rounded panel in the
-   page column, with no photograph because the tile above shows it. The sideways
-   scroller of products bleeds by the panel's padding, so it is cut at a
-   straight edge and never at a corner. The container is the panel, narrower
-   than the window by two gutters, so its queries are 44.7rem and 55.9rem where
-   the window's were 48rem and 60rem: the panel is that wide when the window is
-   768px and 960px, and the layout switches at the same windows as before. From
-   55.9rem it has six columns with the tiles' 1.5rem gap, the name in two and the
-   four products under 3 to 6. The department page's head is built from
-   .goen-band too and takes none of this. */
-.goen-band--shelf {
-  --shelf-inset: clamp(24px, 4vw, 48px);
-  background: var(--tone-ground);
-  border-radius: var(--r-hero);
-  container: band / inline-size;
-  margin-inline: auto;
-  max-width: var(--page-width);
-  width: calc(100% - 2 * var(--page-gutter));
-}
-
-.goen-band--shelf .goen-band__body {
-  display: grid;
-  gap: var(--s-5) var(--col-gap);
-  grid-template-columns: minmax(0, 1fr);
-  padding: var(--s-6) var(--shelf-inset) var(--s-7);
-}
-
-.goen-band--shelf .goen-band__head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  min-width: 0;
-}
-
-.goen-band--shelf .goen-band__name {
-  font-family: var(--font-sans);
-  font-size: var(--t-32);
-  font-weight: var(--fw-display);
-  hyphens: auto;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  margin: 0;
-  overflow-wrap: break-word;
-  text-wrap: balance;
-}
-
-.goen-band--shelf .goen-band__name:lang(zh) {
-  font-family: var(--font-editorial);
-  font-weight: 500;
-  letter-spacing: 0;
-}
-
-.goen-band--shelf .goen-band__fact {
-  font-size: var(--t-15);
-  margin: 0;
-  overflow-wrap: break-word;
-}
-
-.goen-band--shelf .goen-band__fact:lang(zh) {
-  word-break: keep-all;
-}
-
-.goen-band--shelf .goen-home__more {
-  align-self: flex-start;
-  margin-top: var(--s-2);
-}
-
-.goen-band--shelf .goen-band__tiles {
-  grid-auto-columns: max(42%, 8rem);
-  margin-inline: calc(var(--shelf-inset) * -1);
-  padding-inline: var(--shelf-inset);
-  scroll-padding-inline: var(--shelf-inset);
-}
-
-@container band (width >= 44.7rem) {
-  .goen-band--shelf .goen-band__tiles {
-    gap: var(--col-gap);
-    grid-auto-flow: row;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin-inline: 0;
-    overflow: visible;
-    padding-inline: 0;
-  }
-}
-
-@container band (width >= 55.9rem) {
-  .goen-band--shelf .goen-band__body {
-    column-gap: 1.5rem;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    padding-block: var(--s-7);
-  }
-
-  .goen-band--shelf .goen-band__head {
-    grid-column: 1 / 3;
-    padding-right: var(--s-5);
-  }
-
-  .goen-band--shelf .goen-band__tiles {
-    gap: 1.5rem;
-    grid-column: 3 / -1;
-  }
-}
-
-@media (forced-colors: active) {
-  .goen-band--shelf {
-    outline: 1px solid CanvasText;
-    outline-offset: -1px;
-  }
 }
 
 /* The head is words on the page, as a catalogue's section opens: the crumbs,
@@ -6007,7 +5906,7 @@ input.goen-check {
 }
 
 [data-tone="stone"] {
-  --tone-ground: light-dark(#dddddc, #29261f);
+  --tone-ground: light-dark(#e6e1d9, #29261f);
   --tone-text: light-dark(var(--n-900), #e8e8e6);
   --tone-muted: light-dark(#4d4d53, #b8b8b5);
   --tone-mark: light-dark(var(--mark), var(--night-primary));
@@ -6057,7 +5956,7 @@ input.goen-check {
   }
 
   [data-tone="stone"] {
-    --tone-ground: #dddddc;
+    --tone-ground: #e6e1d9;
     --tone-text: var(--n-900);
     --tone-muted: #4d4d53;
     --tone-mark: var(--mark);
@@ -9520,7 +9419,6 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media (forced-colors: active) {
-  .goen-band__media img,
   .goen-cat__well,
   .goen-campaign__header {
     outline: 1px solid CanvasText;

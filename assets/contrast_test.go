@@ -669,7 +669,9 @@ var toneNames = func() []string {
 
 // TestAppCSSToneGroundContrast checks that every tone ground holds its text. It
 // holds the text a department or campaign head shows to 4.5:1 on each tone's
-// ground, and its period fill to 3:1 (WCAG 1.4.11). A new tone is a new block, and
+// ground, by day and by night, the vermilion of a sale's price and end on each
+// light tone, which the home band lays them on, and its period fill to 3:1
+// (WCAG 1.4.11). A new tone is a new block, and
 // one whose ground drifts from its oklch source would fail a reader without any
 // route the axe gate visits showing it.
 func TestAppCSSToneGroundContrast(t *testing.T) {
@@ -695,6 +697,10 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 	}
 
 	blocks := toneBlocks(t, string(sheet), tokens, aliasTokens(t))
+	vermilion, ok := roleTokens(t)["--sys-tertiary"]
+	if !ok {
+		t.Fatalf("%s declares no --sys-tertiary", BaseCSS)
+	}
 	if len(blocks) != len(toneNames) {
 		t.Errorf("%s has %d data-tone blocks, want the %d of the closed set", AppCSS, len(blocks), len(toneNames))
 	}
@@ -754,6 +760,17 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 		}
 		if name == "ink" {
 			continue
+		}
+		// The band's sale price and its last day are vermilion on every light
+		// tone; the ink band draws them in its text colour instead.
+		for _, scheme := range []struct{ name, ink, ground string }{
+			{"day", vermilion.day, decl["--tone-ground"].day},
+			{"night", vermilion.night, decl["--tone-ground"].night},
+		} {
+			if got := contrast(scheme.ink, scheme.ground); got < 4.5 {
+				t.Errorf("%s: --sys-tertiary (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
+					scheme.name, scheme.ink, name, scheme.ground, got)
+			}
 		}
 		// A light ground is also where links and the plain text tokens land.
 		for _, ink := range []string{"--muted", "--ink", "--accent"} {
