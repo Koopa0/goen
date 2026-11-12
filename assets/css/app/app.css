@@ -1638,9 +1638,13 @@ body:has(.goen-hero) .goen-header {
     order: 0;
   }
 
+  /* The row wraps rather than scrolls here: a panel hangs from it, and at
+     200% text a department that does not fit starts a line of its own
+     instead of pushing the page wider than the screen (1.4.10). */
   .goen-header__nav {
     column-gap: var(--s-5);
     flex: 0 0 100%;
+    flex-wrap: wrap;
     margin-inline: 0;
     order: 5;
     overflow: visible;
@@ -1665,9 +1669,12 @@ body:has(.goen-hero) .goen-header {
     min-height: 4.5rem;
   }
 
+  /* It may still shrink and wrap: at 200% text the query, which reads the
+     browser's text size and not the page's, still matches. */
   .goen-header:lang(zh-Hant) .goen-header__nav {
     align-self: stretch;
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
     order: 0;
   }
 

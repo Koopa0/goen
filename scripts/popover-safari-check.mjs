@@ -30,7 +30,7 @@ async function key(value) {
   const id = element['element-6066-11e4-a52e-4f735466cecf'];
   await command('POST', `/session/${session}/element/${id}/value`, {text: value});
 }
-async function pointer(point, message, navigating = false) {
+async function pointer(point, message) {
   await command('POST', `/session/${session}/actions`, {actions: [{
     type: 'pointer', id: 'mouse', parameters: {pointerType: 'mouse'},
     actions: [{type: 'pointerMove', duration: 0, origin: 'viewport', ...point}, {type: 'pointerDown', button: 0}],
@@ -39,7 +39,15 @@ async function pointer(point, message, navigating = false) {
   await command('POST', `/session/${session}/actions`, {actions: [{
     type: 'pointer', id: 'mouse', parameters: {pointerType: 'mouse'}, actions: [{type: 'pointerUp', button: 0}],
   }]});
-  if (!navigating) assert.equal(await evaluate('return checkedPopover.open'), true, message + ': release keeps the panel open');
+  assert.equal(await evaluate('return checkedPopover.open'), true, message + ': release keeps the panel open');
+}
+// A press on a control that is not inside a popover: nothing is held open, so
+// there is no panel state to assert between the down and the up.
+async function press(point) {
+  await command('POST', `/session/${session}/actions`, {actions: [{
+    type: 'pointer', id: 'mouse', parameters: {pointerType: 'mouse'},
+    actions: [{type: 'pointerMove', duration: 0, origin: 'viewport', ...point}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}],
+  }]});
 }
 try {
   const started = await command('POST', '/session', {capabilities: {alwaysMatch: {browserName: 'safari'}}});
@@ -80,10 +88,13 @@ try {
     await evaluate("checkedPopover.querySelector('summary').focus(); return true");
     await key('\uE007'); await key('\uE004'); await key('\uE00C');
     assert.equal(await evaluate("return !checkedPopover.open && document.activeElement === checkedPopover.querySelector('summary')"), true, at + ': Escape restores summary focus');
-    // From 1024 the bar's language is one button that posts the other language.
+    // From 1024 the bar's language is one button that posts the other
+    // language, outside any popover (the menu is the drawer's, below 1024, and
+    // popover-focus-check holds it at 375), so it is pressed, not held open.
     const language = locale === 'en' ? 'zh-Hant' : 'en';
-    const buttonPoint = await evaluate(`const r = document.querySelector('.goen-header__lang button[value="${language}"]').getBoundingClientRect(); return {x:Math.round(r.x+r.width/2), y:Math.round(r.y+r.height/2)}`);
-    await pointer(buttonPoint, at + ': native language button', true);
+    const buttonPoint = await evaluate(`const b = document.querySelector('.goen-header__lang button[value="${language}"]'); if (!b) return null; const r = b.getBoundingClientRect(); return {x:Math.round(r.x+r.width/2), y:Math.round(r.y+r.height/2)}`);
+    assert.ok(buttonPoint, at + ': the bar has no button for ' + language);
+    await press(buttonPoint);
     await until(`return document.readyState === 'complete' && document.documentElement.lang === '${language}'`, at + ': native language POST did not follow its 303');
     console.log('PASS Safari pointer, keyboard and locale POST ' + at);
   }
