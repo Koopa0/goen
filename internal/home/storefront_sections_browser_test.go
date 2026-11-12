@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/ui/widget"
+	"github.com/koopa0/goen/internal/wishlist"
 )
 
 // The home page's hero (its square photograph across the window, its tabs,
@@ -38,8 +39,10 @@ import (
 // photograph, the header's search pill with the rule under the header, a
 // department's head as words in the page column and the home page's band
 // across the window with its name upright in Chinese where it fits, the one way a chosen option, a chosen
-// delivery card and a refused field are marked, and the page frame's header,
-// department panel and footer, measured as drawn.
+// delivery card and a refused field are marked, the page frame's header,
+// department panel and footer, and the ways on from an empty cart, an empty
+// wishlist and a missing page with the checkout's one solid button, measured as
+// drawn.
 func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../..")
@@ -130,6 +133,32 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if renderErr := cart.Page(frame.Page{}, view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render cart fixture: %v", renderErr)
+		}
+	})
+	// The pages with nothing to show: an empty cart for a customer with saved
+	// products, an empty wishlist and a missing page, each with its ways on.
+	mux.HandleFunc("GET /cart/empty", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if renderErr := cart.Page(frame.Page{}, cart.View{SavedProducts: true}).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+			t.Errorf("render empty cart fixture: %v", renderErr)
+		}
+	})
+	mux.HandleFunc("GET /wishlist", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if renderErr := wishlist.Page(frame.Page{}, wishlist.View{}).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+			t.Errorf("render wishlist fixture: %v", renderErr)
+		}
+	})
+	mux.HandleFunc("GET /missing", func(w http.ResponseWriter, r *http.Request) {
+		photo := picture.Image{BundledKey: "nimbus-band-2-01.webp"}
+		ctx := frame.WithTopNav(i18n.WithLocale(r.Context(), i18n.En), []frame.NavItem{
+			{Slug: "tech", Name: "Tech", Href: "/c/tech", PhotoURL: photo.URL(), PhotoSrcset: photo.Srcset(),
+				Children: []frame.NavItem{{Slug: "phones", Name: "Phones", Href: "/c/phones"}}},
+		})
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		if renderErr := frame.Notice(frame.Page{}, "404", "Page not found", "Nothing lives at this address.").Render(ctx, w); renderErr != nil {
+			t.Errorf("render missing page fixture: %v", renderErr)
 		}
 	})
 	mux.HandleFunc("GET /c/audio", func(w http.ResponseWriter, r *http.Request) {

@@ -26,21 +26,23 @@ func (v View) Empty() bool { return len(v.Products) == 0 }
 
 templ Page(p frame.Page, v View) {
 	@frame.Base(p) {
-		<div class="goen-listing">
+		<div class="goen-listing goen-wishlist">
 			<div class="goen-pagehead">
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyAccountTitle) }</p>
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyWishlistTitle) }</h1>
 			</div>
 			<div id="wishlist">
 				if v.Empty() {
+					// The state, the one sentence that says where the button is, and the cart's own
+					// way on: 去逛逛 as the section's blue next-step link, not a button.
 					<div class="ui-empty">
 						<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyWishlistEmpty) }</p>
 						<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyWishlistEmptyHint) }</p>
-						@widget.ButtonLink(widget.ButtonProps{
-							ButtonStyle: widget.ButtonStylePrimary,
-						}, templ.SafeURL("/")) {
-							{ i18n.T(ctx, i18n.KeyWishlistEmptyLink) }
-						}
+						<p class="goen-empty__ways">
+							<a class="goen-empty__next" href="/">
+								{ i18n.T(ctx, i18n.KeyCartEmptyLink) }<span aria-hidden="true">&nbsp;→</span>
+							</a>
+						</p>
 					</div>
 				} else {
 					switch v.Added {

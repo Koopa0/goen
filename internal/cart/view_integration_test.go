@@ -4,10 +4,12 @@ package cart_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/picture"
 )
@@ -123,5 +125,69 @@ func TestStore_ItemCountBadge(t *testing.T) {
 	}
 	if got := count(); got != 4 {
 		t.Errorf("this cart counts %d after another cart was filled, want 4", got)
+	}
+}
+
+// TestStore_ViewCampaignLine holds that View strikes a line's price only while
+// a listed campaign features its product, and carries when the first such
+// campaign ends: a compare-at price alone, or one under a campaign that has
+// ended, leaves the line at its plain price.
+func TestStore_ViewCampaignLine(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	id := newCart(t, s)
+	sale := ordertest.FreshVariant(t, pool, "campaign-sale")
+	ended := ordertest.FreshVariant(t, pool, "campaign-ended")
+	plain := ordertest.FreshVariant(t, pool, "campaign-plain")
+	var endsAt time.Time
+	for _, v := range []struct {
+		variant uuid.UUID
+		ends    string
+	}{{sale, "5 days"}, {sale, "9 days"}, {ended, "-1 hour"}, {plain, ""}} {
+		if _, err := pool.Exec(ctx, `UPDATE product_variants SET compare_at_price_cents = price_cents + 10000 WHERE id = $1`, v.variant); err != nil {
+			t.Fatalf("set compare-at price: %v", err)
+		}
+		if v.ends == "" {
+			continue
+		}
+		var campaignEnds time.Time
+		if err := pool.QueryRow(ctx, `
+			WITH c AS (
+			    INSERT INTO sale_campaigns (slug, title, starts_at, ends_at)
+			    VALUES ($1, '測試活動', now() - interval '1 day', now() + $2::interval) RETURNING id, ends_at
+			)
+			INSERT INTO sale_campaign_products (campaign_id, product_id)
+			SELECT c.id, pv.product_id FROM c, product_variants pv WHERE pv.id = $3
+			RETURNING (SELECT ends_at FROM c)`,
+			"cart-"+uuid.NewString()[:8], v.ends, v.variant).Scan(&campaignEnds); err != nil {
+			t.Fatalf("feature the product in a campaign ending in %s: %v", v.ends, err)
+		}
+		if v.variant == sale && v.ends == "5 days" {
+			endsAt = campaignEnds
+		}
+	}
+	for _, v := range []uuid.UUID{sale, ended, plain} {
+		if err := s.Add(ctx, id, v, 1); err != nil {
+			t.Fatalf("add: %v", err)
+		}
+	}
+	view, err := s.View(ctx, id)
+	if err != nil {
+		t.Fatalf("view: %v", err)
+	}
+	want := map[string]bool{sale.String(): true, ended.String(): false, plain.String(): false}
+	for _, line := range view.Lines {
+		if line.OnSale() != want[line.VariantID] {
+			t.Errorf("line %s on sale = %t, want %t", line.SKU, line.OnSale(), want[line.VariantID])
+		}
+		if line.VariantID != sale.String() {
+			continue
+		}
+		if got, want := line.Sale.Datetime(), campaign.NewEnd(endsAt, time.Now()).Datetime(); got != want {
+			t.Errorf("the sale line ends %s, want %s, the first of its two campaigns to end", got, want)
+		}
+		if line.CompareCents != line.UnitCents+10000 {
+			t.Errorf("the sale line strikes %d, want %d", line.CompareCents, line.UnitCents+10000)
+		}
 	}
 }

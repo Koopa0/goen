@@ -19,9 +19,4 @@ var (
 		ZhHant: "在商品頁按下「加入願望清單」，之後就能在這裡找到它。",
 		En:     "Press \"Save for later\" on a product page and it will be here.",
 	})
-
-	KeyWishlistEmptyLink = key("wishlist.empty.link", Message{
-		ZhHant: "回首頁瀏覽",
-		En:     "Browse from the home page",
-	})
 )

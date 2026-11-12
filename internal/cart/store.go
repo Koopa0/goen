@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
@@ -267,6 +268,7 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (View, error) {
 		return View{}, fmt.Errorf("read cart lines: %w", err)
 	}
 
+	now := time.Now()
 	view := View{
 		Lines:           make([]Line, 0, len(rows)),
 		PayStartMinutes: int64(payment.PayWindow / time.Minute),
@@ -295,6 +297,10 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (View, error) {
 			Unavailable:  product.Status(r.ProductStatus) != product.StatusActive || !r.IsActive || r.SellableQuantity <= 0,
 		}
 		line.Short = !line.Unavailable && r.Quantity > r.SellableQuantity
+		if campaign.OnSale(r.InCampaign, !line.Unavailable, r.PriceCents, r.CompareAtPriceCents.Int64) {
+			end := campaign.NewEnd(r.CampaignEndsAt, now)
+			line.Sale = &end
+		}
 
 		view.Lines = append(view.Lines, line)
 		if !line.Unavailable {

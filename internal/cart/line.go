@@ -3,6 +3,7 @@ package cart
 import (
 	"strconv"
 
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/money"
 )
 
@@ -15,14 +16,20 @@ type Line struct {
 	Brand        string
 	SKU          string
 	Label        string
-	TaxExempt    bool
 	UnitCents    int64
 	CompareCents int64
 	Quantity     int32
 	Available    int32
 
+	// The three flags sit together so the struct packs them into one word.
+	TaxExempt   bool
 	Unavailable bool
 	Short       bool
+
+	// Sale is when the first listed campaign featuring the product ends, set
+	// only where campaign.OnSale holds for the line: the campaign runs, the line
+	// can be bought and its compare-at price is the higher.
+	Sale *campaign.End
 
 	ImageURL    string
 	ImageSrcset string
@@ -30,6 +37,12 @@ type Line struct {
 }
 
 func (l Line) UnitPrice() string { return money.TWD(l.UnitCents) }
+
+// OnSale reports that the line is priced by a running campaign.
+func (l Line) OnSale() bool { return l.Sale != nil }
+
+// Compare is the struck original price of a line on sale.
+func (l Line) Compare() string { return money.TWD(l.CompareCents) }
 
 func (l Line) LineTotal() string { return money.TWD(l.UnitCents * int64(l.effectiveQuantity())) }
 

@@ -878,3 +878,27 @@ func TestPageFormNovalidateFocus(t *testing.T) {
 		t.Error("the script still moves focus to the first refused control, past the refusal summary")
 	}
 }
+
+// TestPageOneSolidButton: the checkout's one solid ink button is the one that
+// places the order; the coupon, the store map and the 更新 buttons are outlined,
+// and the hidden default submit is not drawn. A refused form changes none of it.
+func TestPageOneSolidButton(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	v := couponTestView()
+	v.InvoiceChoices = invoiceChoices(ctx)
+	v.Errors = map[string]string{"phone": "電話格式不正確。"}
+	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Page(Meta(ctx), &v))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	solid := descendants(doc, func(n *html.Node) bool { return hasClass(n, "goen-btn--primary") })
+	if len(solid) != 1 {
+		t.Fatalf("the checkout draws %d solid buttons, want 1", len(solid))
+	}
+	if got := solid[0]; got.Data != "button" || attrValue(got, "type") != "submit" || attrValue(got, "formaction") != "" ||
+		strings.TrimSpace(nodeText(got)) != i18n.T(ctx, v.PlaceOrderKey()) {
+		t.Errorf("the solid button is <%s type=%q formaction=%q> %q, want the submit that places the order",
+			got.Data, attrValue(got, "type"), attrValue(got, "formaction"), strings.TrimSpace(nodeText(got)))
+	}
+}
