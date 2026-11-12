@@ -2816,6 +2816,44 @@ body:has(.goen-hero) .goen-header {
   white-space: pre;
 }
 
+/* The shop's rules are said once on the home page, each as its term, its
+   figure large in the sans-serif's figures of one width, and the note under
+   it: the large numbers carry the rules, so they are not the editorial face's
+   voice. The figure's unit is set at its size. */
+.goen-rules .ui-statline :is(dt, dd) {
+  display: block;
+}
+
+.goen-rules .ui-statline dt {
+  color: var(--fg-muted);
+  font: var(--type-label-m);
+  margin: 0;
+}
+
+.goen-rules .ui-statline dd {
+  font: var(--fw-medium) 1.5rem/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums lining-nums;
+  margin-top: var(--s-1);
+}
+
+@media (min-width: 48rem) {
+  .goen-rules .ui-statline dd {
+    font-size: 1.75rem;
+  }
+}
+
+.goen-rules .ui-statline .ui-statline__note {
+  color: var(--fg-muted);
+  display: block;
+  font: var(--type-body-s);
+  margin-top: var(--s-1);
+  max-width: 24em;
+}
+
+.goen-rules .ui-statline .ui-statline__note::before {
+  content: none;
+}
+
 /* The head is words on the page, as a catalogue's section opens: the crumbs,
    the name, the count, and the sub-categories in one row under them. */
 .goen-listing__head {
