@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tile"
@@ -29,12 +30,14 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// The home page's hero tabs, hero arrows, departments and rules row, the deals
-// page's running campaigns, the search page's compare button, the cart's
-// stepper and filled button, a department's filter chip, the corners every
-// pressable control shares, a product's photograph, the header's search pill
-// with the rule under the header, a department's head as words in the page
-// column and the home page's shelf as a panel in it, the one way a chosen option, a chosen
+// The home page's hero (its square photograph across the window, its tabs,
+// its campaign's days and products, no filled button), hero arrows,
+// departments and rules row, the deals page's running campaigns, the search
+// page's compare button, the cart's stepper and filled button, a department's
+// filter chip, the corners every pressable control shares, a product's
+// photograph, the header's search pill with the rule under the header, a
+// department's head as words in the page column and the home page's band
+// across the window with its name upright in Chinese where it fits, the one way a chosen option, a chosen
 // delivery card and a refused field are marked, and the page frame's header,
 // department panel and footer, measured as drawn.
 func TestStorefrontSectionsAsDrawn(t *testing.T) {
@@ -45,12 +48,22 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
-	tones := map[string]tone.Tone{"ink": tone.Ink, "sage": tone.Sage}
+	tones := map[string]tone.Tone{"ink": tone.Ink, "sage": tone.Sage, "stone": tone.Stone}
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
 		view := home.View{Rules: policy.Rules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
 		photo := widget.Photo{URL: picture.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
+		// The first slide is a campaign's: its end, five days of which two are
+		// gone, and its four products.
+		now := time.Date(2026, 11, 12, 4, 0, 0, 0, time.UTC)
+		period := widget.PeriodSpec{Cells: []widget.PeriodCell{{State: widget.CellPast}, {State: widget.CellPast}, {State: widget.CellToday}, {}, {}}}
+		products := make([]tile.Tile, 0, 4)
+		for _, name := range []string{"Oolong", "Black tea", "Drip coffee", "Coffee beans"} {
+			products = append(products, tile.Tile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 58500, CompareCents: 65000, OnSale: true, InStock: true})
+		}
 		view.Slides = []hero.Slide{
-			{Title: "Technology", Layout: hero.LayoutSplit, Tone: tone.Stone, Photo: photo},
+			{Title: "Technology", Source: hero.SourceCampaign, Layout: hero.LayoutPhoto, Tone: tone.Stone, Photo: photo,
+				Ends:   campaign.Ends(campaign.NewEnd(time.Date(2026, 11, 16, 16, 0, 0, 0, time.UTC), now)),
+				Period: &period, CTA: hero.CTA{Label: "See all items", Href: "/s/tea"}, Tiles: products},
 			{Title: "Everyday essentials", Layout: hero.LayoutSplit, Tone: tone.Ink, Photo: photo, CTA: hero.CTA{Label: "Shop now", Href: "/c/audio"}},
 			{Title: "Books & stationery", Layout: hero.LayoutPhoto, Tone: tone.Sage, Photo: photo},
 			{Title: "Slow mornings", Layout: hero.LayoutSplit, Tone: tone.Sage, CTA: hero.CTA{Label: "See the range", Href: "/c/coffee"}},
@@ -66,14 +79,25 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 				Photo: widget.Photo{URL: picture.Image{BundledKey: c.photo}.URL()},
 			})
 		}
+		// ?zh=1 draws the page in Chinese, the band's name upright where it fits.
+		locale, bandName := i18n.En, "Technology"
+		if r.URL.Query().Get("zh") == "1" {
+			locale, bandName = i18n.ZhHant, "居家生活"
+		}
 		if bandTone, ok := tones[r.URL.Query().Get("band")]; ok {
-			view.Band = &home.DepartmentBand{Name: "Technology", Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: bandTone}
-			for _, name := range []string{"Canvas tote", "City tote", "Weekend tote", "Market tote"} {
-				view.Band.Tiles = append(view.Band.Tiles, tile.Tile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 89000, InStock: true})
+			view.Band = &home.DepartmentBand{Name: bandName, Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: bandTone}
+			// The first two are on sale until 22 November.
+			until := shoptime.LastDay(time.Date(2026, 11, 22, 16, 0, 0, 0, time.UTC), now)
+			for i, name := range []string{"Canvas tote", "City tote", "Weekend tote", "Market tote"} {
+				t := tile.Tile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 89000, InStock: true}
+				if i < 2 {
+					t.CompareCents, t.OnSale, t.SaleUntil = 99000, true, until
+				}
+				view.Band.Tiles = append(view.Band.Tiles, t)
 			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := home.Page(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := home.Page(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
 			t.Errorf("render home fixture: %v", renderErr)
 		}
 	})

@@ -2038,7 +2038,7 @@ body:has(.goen-hero) .goen-header {
 
 .goen-home__more {
   align-items: center;
-  color: var(--accent-text);
+  color: var(--sys-primary);
   display: inline-flex;
   flex: none;
   font-size: var(--fs-14);
@@ -2049,7 +2049,6 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-home__more:hover {
-  color: var(--accent-text-hover);
   text-decoration: underline;
   text-underline-offset: 0.25em;
 }
@@ -2067,16 +2066,28 @@ body:has(.goen-hero) .goen-header {
 
 /* ----- Carousel: native scroll-snap does the moving (swipe, trackpad, keyboard,
    the named tabs); nothing moves on its own, and goen.js only wires the arrows
-   and the count. It sits inside the page column, and a slide is two rounded
-   panels, the copy on its tone and the photograph, with a seam of page white
-   between them. The slides touch end to end, since goen.js scrolls by whole
-   track widths. ----- */
+   and the count. A slide is a printed page: its photograph across the window,
+   square, then in the page column its name in the editorial face, the day it
+   ends and the days left in the campaign's vermilion, a row of its days, and
+   its products beside them from 64rem of column. The tabs stand over the name,
+   at the photograph's foot, so they are laid over the track and every slide
+   keeps room for them. The slides touch end to end, since goen.js scrolls by
+   whole track widths. ----- */
 
 .goen-hero {
-  margin-inline: auto;
-  max-width: var(--page-width);
-  padding: var(--s-2) var(--page-gutter) 0;
+  /* The photograph's height, which the tabs are placed under: 15:8 of the
+     window on a phone, a quarter of it (never more than 40% of the screen's
+     height) from 48rem. */
+  --hero-photo: calc(100cqi * 8 / 15);
+  --hero-tabs: 3.25rem;
+  container-type: inline-size;
   position: relative;
+}
+
+@media (min-width: 48rem) {
+  .goen-hero {
+    --hero-photo: min(25cqi, 40svh);
+  }
 }
 
 .goen-hero__track {
@@ -2102,58 +2113,83 @@ body:has(.goen-hero) .goen-header {
   display: flex;
   flex: 0 0 100%;
   flex-direction: column;
-  gap: var(--s-2);
   min-width: 0;
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
 
+/* Square and full-bleed; the tone is the ground a photograph loads on, and the
+   whole field where a slide has none. */
 .goen-hero__media {
-  aspect-ratio: 4 / 3;
   background: var(--tone-ground);
-  border-radius: var(--r-hero);
-  order: -1;
+  border-radius: 0;
+  flex: none;
+  height: var(--hero-photo);
   overflow: hidden;
   position: relative;
 }
 
 .goen-hero__media img {
+  display: block;
   height: 100%;
   object-fit: cover;
-  object-position: 82% 50%;
+  object-position: 78% 55%;
   width: 100%;
 }
 
+@media (min-width: 48rem) {
+  .goen-hero__media img {
+    object-position: 74% 45%;
+  }
+}
+
+/* The page column, content-box like the header bar and the footer grid, so the
+   name starts on their left edge. */
 .goen-hero__body {
-  background: var(--tone-ground);
-  border-radius: var(--r-hero);
+  box-sizing: border-box;
+  container: hero-body / inline-size;
   flex: 1;
-  padding: var(--s-5) var(--s-5) var(--s-6);
+  margin-inline: auto;
+  max-width: calc(var(--page-width) + 2 * var(--page-gutter));
+  padding: var(--s-5) var(--page-gutter) 0;
+  width: 100%;
+}
+
+.goen-hero__page {
+  display: grid;
+  gap: var(--s-5);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.goen-hero:has(> .goen-hero__controls) .goen-hero__body {
+  padding-top: calc(var(--s-5) + var(--hero-tabs));
 }
 
 .goen-hero__inner {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  max-width: 32rem;
-  width: 100%;
+  align-content: start;
+  display: grid;
+  gap: var(--s-3);
+  min-width: 0;
 }
 
 .goen-hero__title {
-  font-size: var(--fs-ed-38);
-  font-weight: var(--fw-display);
-  line-height: 1.25;
+  color: var(--sys-on-surface);
+  font: var(--type-display-l);
+  letter-spacing: 0.02em;
   margin: 0;
   text-wrap: balance;
 }
 
+.goen-hero__title:lang(en) {
+  letter-spacing: 0;
+}
+
 .goen-hero__title--long {
-  font-size: var(--fs-ed-30);
-  line-height: 1.3;
+  font: var(--type-display-m);
 }
 
 .goen-hero__lede {
-  color: var(--tone-text);
+  color: var(--sys-on-surface-variant);
   line-height: 1.7;
   margin: 0;
   text-wrap: pretty;
@@ -2166,45 +2202,51 @@ body:has(.goen-hero) .goen-header {
   word-break: keep-all;
 }
 
-/* The slide's ink comes from its tone, so a statline and a period read on every
-   ground, the dark one included. */
-.goen-hero__slide {
-  color: var(--tone-text);
-}
-
+/* What ends is said in vermilion, the colour of what ends. */
 .goen-hero__ends {
-  color: var(--tone-muted);
+  color: var(--sys-tertiary);
   container-type: inline-size;
-  font-size: var(--fs-16);
-  line-height: 1.5;
+  font: var(--type-title-m);
   margin: 0;
-}
-
-.goen-hero__ends .goen-ends__left {
-  color: var(--tone-text);
 }
 
 .goen-hero .ui-statline dt,
 .goen-hero .ui-statline dd small,
 .goen-hero .ui-statline__note {
-  color: var(--tone-muted);
+  color: var(--sys-on-surface-variant);
 }
 
-.goen-hero__slide[data-tone] .ui-period {
-  --period-fill: var(--tone-mark);
+/* The campaign's days, one cell each: those to come in vermilion, those gone a
+   quiet line. Hidden from a screen reader; the words above say it. */
+.goen-days {
+  display: grid;
+  gap: 4px;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  margin-top: var(--s-1);
+  max-width: 20rem;
 }
 
-/* On ink the fill is --on-ink-accent, so the track is a tint of that blue. */
-.goen-hero__slide[data-tone="ink"] .ui-period {
-  --period-track: var(--period-track-on-ink);
+.goen-days > i {
+  background: var(--sys-tertiary);
+  height: 6px;
 }
 
-/* The track belongs to the facts above it, so it sits closer to them than to the button. */
-.goen-hero__inner > .ui-period {
-  margin-bottom: var(--s-2);
-  margin-top: 0;
+.goen-days > i[data-cell="past"] {
+  background: var(--sys-outline-variant);
 }
 
+@media (forced-colors: active) {
+  .goen-days > i {
+    background: CanvasText;
+  }
+
+  .goen-days > i[data-cell="past"] {
+    background: GrayText;
+  }
+}
+
+/* A department's or a campaign's head lays the period on its tone. */
 .goen-pagehead[data-tone] .ui-period {
   --period-fill: var(--tone-mark);
 }
@@ -2213,55 +2255,55 @@ body:has(.goen-hero) .goen-header {
   --period-track: var(--period-track-on-ink);
 }
 
-.goen-hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: var(--s-2);
+.goen-hero .goen-home__more {
+  align-self: start;
+  justify-self: start;
 }
 
-.goen-hero__actions .ui-btn {
-  text-align: center;
-  white-space: normal;
+/* A slide's products: two to a line until the column holds four of at least
+   9rem, the four beside the name from 64rem of column. */
+.goen-hero__tiles {
+  display: grid;
+  gap: var(--s-5) var(--s-4);
+  /* Two columns for as long as two cards of 6.5rem fit, as the product grid
+     does, so text at 200% on a phone stacks them rather than cutting names. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--s-4) / 2)), 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-/* The day's ink action is 1.2:1 on the ink tone, so the slide takes the action
-   the night draws on its own dark ground, warm stone with a dark label. The
-   band that parts the ring from the stone is the slide's ground, not the
-   page's, because the ring is white here. */
-.goen-hero__slide[data-tone="ink"] .goen-btn--primary {
-  background: var(--night-action);
-  border-color: var(--night-action);
-  color: var(--night-on-action);
+@container hero-body (width >= 40rem) {
+  .goen-hero__tiles {
+    gap: var(--s-5);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
-.goen-hero__slide[data-tone="ink"] .goen-btn--primary:hover {
-  background: color-mix(in srgb, var(--night-on-action) var(--state-hover), var(--night-action));
-  border-color: color-mix(in srgb, var(--night-on-action) var(--state-hover), var(--night-action));
-}
-
-.goen-hero__slide[data-tone="ink"] .goen-btn--primary:active {
-  background: color-mix(in srgb, var(--night-on-action) var(--state-press), var(--night-action));
-  border-color: color-mix(in srgb, var(--night-on-action) var(--state-press), var(--night-action));
-}
-
-.goen-hero__slide[data-tone="ink"] .goen-btn--primary:focus-visible {
-  box-shadow: 0 0 0 6px var(--tone-ground);
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+@container hero-body (width >= 64rem) {
+  .goen-hero__page {
+    grid-template-columns: minmax(0, 22.5rem) minmax(0, 1fr);
+  }
 }
 
 .goen-hero__controls {
   align-items: center;
+  box-sizing: border-box;
   display: flex;
   gap: var(--s-5);
-  padding-top: var(--s-3);
+  inset-inline: 0;
+  margin-inline: auto;
+  max-width: calc(var(--page-width) + 2 * var(--page-gutter));
+  padding: var(--s-3) var(--page-gutter) 0;
+  position: absolute;
+  top: var(--hero-photo);
 }
 
 .goen-hero__tabs {
   display: flex;
-  gap: var(--s-1);
-  margin-inline-start: calc(var(--s-4) * -1 - 4px);
+  gap: var(--s-4);
+  /* The first tab's words sit on the column edge; its ring hangs into the gutter. */
+  margin-inline-start: -4px;
   mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   min-width: 0;
   overflow-x: auto;
@@ -2272,9 +2314,8 @@ body:has(.goen-hero) .goen-header {
   padding-inline-end: 1.5rem;
   /* The same 4px on the leading side, so the ring of the first tab is not cut. */
   padding-inline-start: 4px;
-  /* The pill is positioned in the row's own content, so it scrolls with the tabs.
-     The mask makes the row a stacking context, so the pill's z-index of -1
-     puts it under the tabs and not behind the page. */
+  /* The underline is positioned in the row's own content, so it scrolls with
+     the tabs. The mask makes the row a stacking context. */
   position: relative;
   scrollbar-width: none;
 }
@@ -2284,42 +2325,40 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__tabs a {
-  border-radius: var(--r-full);
-  text-decoration: none;
-  color: var(--fg-muted);
+  align-items: baseline;
+  color: var(--sys-on-surface-variant);
+  display: inline-flex;
   flex: none;
-  font-size: var(--t-14);
-  font-weight: var(--fw-medium);
+  font: var(--type-label-m);
+  gap: var(--s-2);
   line-height: 1.5rem;
   max-width: 14em;
   overflow: hidden;
-  padding: 0.625rem var(--s-4);
-  text-overflow: ellipsis;
+  padding-block: 0.625rem;
+  text-decoration: none;
   white-space: nowrap;
 }
 
 .goen-hero__tabs a:hover {
-  color: var(--fg);
+  color: var(--sys-on-surface);
 }
 
-@media (max-width: 47.99rem) {
-  .goen-hero__tabs {
-    margin-inline-start: -4px;
-  }
+/* The campaign index keeps its numbers, the only numbering left on the site. */
+.goen-hero__no {
+  flex: none;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* The current tab is told apart by one pill that goen.js sets under it and
-   slides to the next tab: a fill, a 1px edge in the accent (6.3:1 on the fill)
-   and the text colour, never the weight, so colour is not the only cue. The
-   pill is as tall as the tabs, so a focused tab's ring lies outside its edge.
-   Only the script that moves between slides keeps the mark true, so without it
-   (no data-pill) no tab is drawn as current. The global reduced-motion rule
-   makes the pill jump. */
+/* The current tab is underlined 2px, as the current page is everywhere: one
+   line that goen.js sets under it and slides to the next tab, never a weight
+   or a colour alone. The line's box is the tab's, so a focused tab's ring
+   lies outside it. Only the script that moves between slides keeps the mark
+   true, so without it (no data-pill) no tab is drawn as current. The global
+   reduced-motion rule makes the line jump. */
 .goen-hero__tabs[data-pill]::before {
-  background: var(--accent-faint);
-  border: 1px solid var(--accent);
-  border-radius: var(--r-full);
+  border-bottom: 2px solid currentColor;
   box-sizing: border-box;
+  color: var(--sys-on-surface);
   content: "";
   inset-block: 4px;
   inset-inline-start: 0;
@@ -2330,8 +2369,8 @@ body:has(.goen-hero) .goen-header {
   z-index: -1;
 }
 
-/* goen.js sets data-still for the moment it places the pill without the visitor
-   having chosen a slide (first paint, a font swap, zoom, resize). */
+/* goen.js sets data-still for the moment it places the line without the
+   visitor having chosen a slide (first paint, a font swap, zoom, resize). */
 .goen-hero__tabs[data-pill]:not([data-still])::before {
   transition:
     translate var(--dur-move) var(--ease-move),
@@ -2346,11 +2385,12 @@ body:has(.goen-hero) .goen-header {
    attribute starts no transition on its own. */
 @media (scripting: enabled) {
   .goen-hero__tabs a[aria-current="true"] {
-    color: var(--accent-deep);
+    color: var(--sys-on-surface);
   }
 }
 
-/* Forced colours drop the fill and the edge: the current tab gets an outline. */
+/* Forced colours keep the line in the system's text colour; the current tab
+   also gets an outline. */
 @media (forced-colors: active) {
   .goen-hero__tabs[data-pill]::before {
     display: none;
@@ -2364,9 +2404,8 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
-/* Forced colours drop the tone, so each panel keeps an edge of its own. */
+/* Forced colours drop the tone, so the photograph's field keeps an edge. */
 @media (forced-colors: active) {
-  .goen-hero__body,
   .goen-hero__media {
     outline: 1px solid CanvasText;
     outline-offset: -1px;
@@ -2380,10 +2419,10 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__arrow {
-  background: var(--n-100);
+  background: var(--sys-surface-container);
   border: 1px solid transparent;
   border-radius: 50%;
-  color: var(--n-900);
+  color: var(--sys-on-surface);
   cursor: pointer;
   display: grid;
   height: 2.75rem;
@@ -2393,40 +2432,12 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__arrow:hover {
-  background: var(--n-200);
+  background: var(--sys-surface-container-highest);
 }
 
 .goen-hero__arrow svg {
   height: 1.25rem;
   width: 1.25rem;
-}
-
-/* Beside photo slides the track makes it as tall as they are, so under 1024px
-   it is a poster: the name at the top, the facts and the button at the foot,
-   instead of the copy in the corner of a tall field of tone. */
-@media (max-width: 63.99rem) {
-  .goen-hero__slide--text .goen-hero__body {
-    display: flex;
-  }
-
-  .goen-hero__slide--text .goen-hero__inner {
-    flex: 1;
-    max-width: none;
-  }
-
-  .goen-hero__slide--text .goen-hero__title {
-    margin-block-end: auto;
-  }
-}
-
-@media (min-width: 40rem) and (max-width: 63.99rem) {
-  .goen-hero__slide--text .goen-hero__title {
-    font-size: 3rem;
-  }
-
-  .goen-hero__slide--text .goen-hero__title--long {
-    font-size: var(--fs-ed-38);
-  }
 }
 
 /* ----- Departments: one square photograph each, the name under it. The
@@ -2558,48 +2569,61 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
-/* ----- One department, the band: its photograph, lifted out of the tone, beside
-   three of its products. The tone starts --lift below the band's top and the
-   photograph does not stop at it; goen's white runs along the photograph's
-   right and bottom edge, so photograph and tone never touch whatever ground
-   the photograph was shot on. ----- */
+/* ----- One department, the band: its shelf on the department's tone, square
+   and across the window, the name, its sub-categories and the way to all of
+   it, and four of its products, in the page column. From 64rem of column a
+   Chinese name stands upright beside the products; at a narrower column, at
+   larger text or zoomed in it lies down over them again, and English never
+   stands. ----- */
 
 .goen-band {
-  --lift: 2rem;
-  background: linear-gradient(var(--n-0) 0 var(--lift), var(--tone-ground) var(--lift));
+  background: var(--tone-ground);
   color: var(--tone-text);
   margin-top: var(--home-section);
 }
 
-/* minmax(0, ...) because the sideways product scroller would otherwise set the
-   track's minimum width and push the page wider than the viewport. */
+/* The page column, content-box like the header bar and the footer grid. */
+.goen-band__body {
+  container: shelf / inline-size;
+  margin-inline: auto;
+  max-width: var(--page-width);
+  padding: var(--s-7) var(--page-gutter);
+}
+
 .goen-band__grid {
   display: grid;
+  gap: var(--s-5);
   grid-template-columns: minmax(0, 1fr);
 }
 
-.goen-band__media {
-  background: var(--n-0);
-  margin-right: var(--s-6);
-  padding: 0 var(--col-gap) var(--col-gap) 0;
-}
-
-.goen-band__media img {
-  aspect-ratio: 4 / 3;
-  display: block;
-  height: auto;
-  object-fit: cover;
-  width: 100%;
-}
-
-.goen-band__media--well img {
-  background: var(--well);
-  object-fit: contain;
-}
-
-.goen-band__body {
+.goen-band__head {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
   min-width: 0;
-  padding: var(--s-6) var(--page-gutter) var(--s-8);
+}
+
+.goen-band__name {
+  font: var(--type-headline-m);
+  hyphens: auto;
+  margin: 0;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+
+.goen-band__name:lang(zh) {
+  letter-spacing: 0.12em;
+}
+
+.goen-band__fact {
+  font: var(--type-body-s);
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.goen-band__fact:lang(zh) {
+  word-break: keep-all;
 }
 
 .goen-band .goen-home__more {
@@ -2615,7 +2639,8 @@ body:has(.goen-hero) .goen-header {
 }
 
 /* The campaign's colour does not read on the ink ground; the price's does. */
-.goen-band[data-tone="ink"] .goen-tile__amount--sale {
+.goen-band[data-tone="ink"] .goen-tile__amount--sale,
+.goen-band[data-tone="ink"] .goen-tile__until {
   color: inherit;
 }
 
@@ -2632,27 +2657,61 @@ body:has(.goen-hero) .goen-header {
   color: var(--tone-muted);
 }
 
-/* The four products scroll sideways until the shelf's container reaches 48rem. */
+/* The four products two to a line, as the hero's are, and four in a row once
+   the column holds four of at least 9rem. */
 .goen-band__tiles {
   display: grid;
-  gap: 1rem;
-  grid-auto-columns: 42%;
-  grid-auto-flow: column;
+  gap: var(--s-5) var(--s-4);
+  /* Two columns for as long as two cards of 6.5rem fit, as the product grid
+     does, so text at 200% on a phone stacks them rather than cutting names. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--s-4) / 2)), 1fr));
   list-style: none;
-  margin: 0 calc(var(--page-gutter) * -1);
-  overflow-x: auto;
-  padding: 0 var(--page-gutter);
-  scroll-padding-inline: var(--page-gutter);
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
+  margin: 0;
+  padding: 0;
 }
 
-.goen-band__tiles::-webkit-scrollbar {
-  display: none;
+@container shelf (width >= 40rem) {
+  .goen-band__grid {
+    gap: var(--s-6);
+  }
+
+  .goen-band__tiles {
+    gap: var(--s-5);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .goen-band__name {
+    font: var(--type-headline-l);
+  }
+
+  .goen-band__name:lang(zh) {
+    font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
+    letter-spacing: 0.12em;
+  }
 }
 
-.goen-band__tiles > li {
-  scroll-snap-align: start;
+/* The one exception to WCAG 1.4.10 and 1.4.12 the storefront keeps (E2 in the
+   design notes): the department's name set upright. The query is in rem, so
+   larger text or a zoom narrows the column under it and the name lies down
+   again; only the h2 turns, and only in Chinese. */
+@container shelf (width >= 64rem) {
+  .goen-band__grid:lang(zh) {
+    gap: var(--s-8);
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .goen-band__name:lang(zh) {
+    letter-spacing: 0.2em;
+    padding-left: var(--s-4);
+    writing-mode: vertical-rl;
+  }
+}
+
+@media (forced-colors: active) {
+  .goen-band {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
 }
 
 /* ----- The shop's rules, as a stat line above the footer. ----- */
@@ -2758,204 +2817,43 @@ body:has(.goen-hero) .goen-header {
   white-space: pre;
 }
 
-@media (min-width: 40rem) {
-  .goen-hero__media {
-    aspect-ratio: 16 / 9;
-  }
+/* The shop's rules are said once on the home page, each as its term, its
+   figure large in the sans-serif's figures of one width, and the note under
+   it: the large numbers carry the rules, so they are not the editorial face's
+   voice. The figure's unit is set at its size. */
+.goen-rules .ui-statline :is(dt, dd) {
+  display: block;
+}
+
+.goen-rules .ui-statline dt {
+  color: var(--sys-on-surface-variant);
+  font: var(--type-label-m);
+  margin: 0;
+}
+
+.goen-rules .ui-statline dd {
+  color: var(--sys-on-surface);
+  font: var(--fw-medium) 1.5rem/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums lining-nums;
+  margin-top: var(--s-1);
 }
 
 @media (min-width: 48rem) {
-  .goen-band__media img {
-    aspect-ratio: 16 / 9;
+  .goen-rules .ui-statline dd {
+    font-size: 1.75rem;
   }
 }
 
-@media (min-width: 64rem) {
-  /* Copy on the tone and the photograph in its own column. Both are
-     full-height cells, so the body's top is the photograph's top, which is how
-     the gate reads a side-by-side hero; the slide's gap is the white seam. */
-  .goen-hero__slide {
-    display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    height: clamp(27.5rem, 38vw, 35rem);
-  }
-
-  .goen-hero__slide--text {
-    grid-template-columns: minmax(0, 1fr);
-    height: auto;
-  }
-
-  .goen-hero__media {
-    aspect-ratio: auto;
-    order: 0;
-  }
-
-  .goen-hero__media img {
-    height: 100%;
-    inset: 0;
-    object-position: 72% 50%;
-    position: absolute;
-    width: 100%;
-  }
-
-  .goen-hero__body {
-    align-items: center;
-    display: flex;
-    padding: var(--s-7) clamp(2rem, 4vw, 3.5rem);
-  }
-
-  .goen-hero__title {
-    font-size: 3rem;
-  }
-
-  .goen-hero__title--long {
-    font-size: var(--fs-ed-38);
-  }
-
-  .goen-hero__lede {
-    font-size: 1.0625rem;
-  }
-
-  .goen-band {
-    --lift: 4rem;
-  }
-
-  .goen-band__grid {
-    align-items: start;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  }
-
-  .goen-band__media {
-    margin: 0 0 var(--lift);
-  }
-
-  .goen-band__media img {
-    aspect-ratio: 4 / 3;
-  }
-
-  .goen-band__body {
-    padding: calc(var(--lift) + var(--s-7)) var(--page-edge) var(--s-8) clamp(2rem, 4.5vw, 4.5rem);
-  }
-
-  /* With no photograph the body takes the whole row, on the page's column. */
-  .goen-band__body:first-child {
-    grid-column: 1 / -1;
-    padding-left: var(--page-edge);
-  }
+.goen-rules .ui-statline .ui-statline__note {
+  color: var(--sys-on-surface-variant);
+  display: block;
+  font: var(--type-body-s);
+  margin-top: var(--s-1);
+  max-width: 24em;
 }
 
-.goen-band:not(:has(.goen-band__media)) {
-  --lift: 0px;
-}
-
-/* The home page's band is the department's shelf: one rounded panel in the
-   page column, with no photograph because the tile above shows it. The sideways
-   scroller of products bleeds by the panel's padding, so it is cut at a
-   straight edge and never at a corner. The container is the panel, narrower
-   than the window by two gutters, so its queries are 44.7rem and 55.9rem where
-   the window's were 48rem and 60rem: the panel is that wide when the window is
-   768px and 960px, and the layout switches at the same windows as before. From
-   55.9rem it has six columns with the tiles' 1.5rem gap, the name in two and the
-   four products under 3 to 6. The department page's head is built from
-   .goen-band too and takes none of this. */
-.goen-band--shelf {
-  --shelf-inset: clamp(24px, 4vw, 48px);
-  background: var(--tone-ground);
-  border-radius: var(--r-hero);
-  container: band / inline-size;
-  margin-inline: auto;
-  max-width: var(--page-width);
-  width: calc(100% - 2 * var(--page-gutter));
-}
-
-.goen-band--shelf .goen-band__body {
-  display: grid;
-  gap: var(--s-5) var(--col-gap);
-  grid-template-columns: minmax(0, 1fr);
-  padding: var(--s-6) var(--shelf-inset) var(--s-7);
-}
-
-.goen-band--shelf .goen-band__head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  min-width: 0;
-}
-
-.goen-band--shelf .goen-band__name {
-  font-family: var(--font-sans);
-  font-size: var(--t-32);
-  font-weight: var(--fw-display);
-  hyphens: auto;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  margin: 0;
-  overflow-wrap: break-word;
-  text-wrap: balance;
-}
-
-.goen-band--shelf .goen-band__name:lang(zh) {
-  font-family: var(--font-editorial);
-  font-weight: 500;
-  letter-spacing: 0;
-}
-
-.goen-band--shelf .goen-band__fact {
-  font-size: var(--t-15);
-  margin: 0;
-  overflow-wrap: break-word;
-}
-
-.goen-band--shelf .goen-band__fact:lang(zh) {
-  word-break: keep-all;
-}
-
-.goen-band--shelf .goen-home__more {
-  align-self: flex-start;
-  margin-top: var(--s-2);
-}
-
-.goen-band--shelf .goen-band__tiles {
-  grid-auto-columns: max(42%, 8rem);
-  margin-inline: calc(var(--shelf-inset) * -1);
-  padding-inline: var(--shelf-inset);
-  scroll-padding-inline: var(--shelf-inset);
-}
-
-@container band (width >= 44.7rem) {
-  .goen-band--shelf .goen-band__tiles {
-    gap: var(--col-gap);
-    grid-auto-flow: row;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin-inline: 0;
-    overflow: visible;
-    padding-inline: 0;
-  }
-}
-
-@container band (width >= 55.9rem) {
-  .goen-band--shelf .goen-band__body {
-    column-gap: 1.5rem;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    padding-block: var(--s-7);
-  }
-
-  .goen-band--shelf .goen-band__head {
-    grid-column: 1 / 3;
-    padding-right: var(--s-5);
-  }
-
-  .goen-band--shelf .goen-band__tiles {
-    gap: 1.5rem;
-    grid-column: 3 / -1;
-  }
-}
-
-@media (forced-colors: active) {
-  .goen-band--shelf {
-    outline: 1px solid CanvasText;
-    outline-offset: -1px;
-  }
+.goen-rules .ui-statline .ui-statline__note::before {
+  content: none;
 }
 
 /* The head is words on the page, as a catalogue's section opens: the crumbs,
@@ -3194,6 +3092,12 @@ body:has(.goen-hero) .goen-header {
    colour of what runs out. */
 .goen-tile__amount--sale {
   color: var(--sys-tertiary);
+}
+
+/* How long the struck price holds, where a page says it, in the same colour. */
+.goen-tile__until {
+  color: var(--sys-tertiary);
+  font: var(--type-label-s);
 }
 
 .goen-tile--out .goen-tile__price {
@@ -6042,7 +5946,7 @@ input.goen-check {
 }
 
 [data-tone="stone"] {
-  --tone-ground: light-dark(#dddddc, #29261f);
+  --tone-ground: light-dark(#e6e1d9, #29261f);
   --tone-text: light-dark(var(--n-900), #e8e8e6);
   --tone-muted: light-dark(#4d4d53, #b8b8b5);
   --tone-mark: light-dark(var(--mark), var(--night-primary));
@@ -6070,7 +5974,6 @@ input.goen-check {
 }
 
 .goen-campaign__band .goen-pagehead[data-tone="ink"],
-.goen-hero__slide[data-tone="ink"],
 .goen-band[data-tone="ink"] {
   --ring: var(--n-0);
 }
@@ -6093,7 +5996,7 @@ input.goen-check {
   }
 
   [data-tone="stone"] {
-    --tone-ground: #dddddc;
+    --tone-ground: #e6e1d9;
     --tone-text: var(--n-900);
     --tone-muted: #4d4d53;
     --tone-mark: var(--mark);
@@ -9556,7 +9459,6 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media (forced-colors: active) {
-  .goen-band__media img,
   .goen-cat__well,
   .goen-campaign__header {
     outline: 1px solid CanvasText;

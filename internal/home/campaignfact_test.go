@@ -15,7 +15,7 @@ import (
 // TestStore_CampaignSlideEnds holds that a campaign slide says its period in one
 // phrase, not as figures: the last day and the days left, then on the last two
 // days only that, with the time of day where it is not midnight. The track of
-// days and the button stay.
+// days and the link to its products stay.
 func TestStore_CampaignSlideEnds(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +61,7 @@ func TestStore_CampaignSlideEnds(t *testing.T) {
 					t.Errorf("the campaign slide draws %s; it says its period in one phrase", absent)
 				}
 			}
-			for _, want := range []string{`class="ui-period"`, `href="/s/autumn"`} {
+			for _, want := range []string{`class="goen-days" aria-hidden="true"`, `href="/s/autumn"`} {
 				if !strings.Contains(page, want) {
 					t.Errorf("the campaign slide lost %s", want)
 				}

@@ -34,7 +34,7 @@ var (
 	KeyRuleUnitDays = key("home.rules.unit.days", Message{ZhHant: "天", En: "days"})
 
 	KeyRuleRescissionNote = key("home.rules.rescission.note", Message{
-		ZhHant: "收到次日起算，退貨運費由 goen 負擔",
+		ZhHant: "收到次日起算；退貨運費由 goen 負擔",
 		En:     "From the day after delivery; goen pays the return postage",
 	})
 

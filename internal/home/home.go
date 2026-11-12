@@ -2,6 +2,7 @@ package home
 
 import (
 	"context"
+	"slices"
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/discount/campaign"
@@ -72,6 +73,17 @@ type View struct {
 	Row           ProductRow
 	Band          *DepartmentBand
 	Rules         policy.Rules
+}
+
+// ShowsRow reports whether the product row is drawn. A campaign's products
+// are said once: where its slide carries them, the row under the hero is not.
+func (v *View) ShowsRow() bool { return !heroCarries(v.Slides, v.Row) }
+
+// heroCarries reports that a slide of the hero draws the row's campaign and its products.
+func heroCarries(slides []hero.Slide, row ProductRow) bool {
+	return row.Campaign != nil && slices.ContainsFunc(slides, func(s hero.Slide) bool {
+		return s.Source == hero.SourceCampaign && s.CTA.Href == row.Href && len(s.Tiles) > 0
+	})
 }
 
 // ShowsDirectory reports whether the department list is drawn. With one

@@ -591,7 +591,7 @@ func TestAppCSSToneColoursConsumed(t *testing.T) {
 // periodDecl one of them: a tone token, a token of the page's own, or a
 // translucent rgb().
 var (
-	periodOverride = regexp.MustCompile(`(?s)\.(goen-hero__slide|goen-pagehead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
+	periodOverride = regexp.MustCompile(`(?s)\.(goen-pagehead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
 	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*(?:var\((--[a-z0-9-]+)\)|(rgb\([^)]*\)));`)
 	translucent    = regexp.MustCompile(`^rgb\((\d{1,3}) (\d{1,3}) (\d{1,3}) / (0?\.\d+)\)$`)
 )
@@ -653,9 +653,10 @@ func checkPeriod(t *testing.T, where, fill, track, groundName, ground string) {
 	}
 }
 
-// toneHeads are the heads that lay the period on a tone's ground: the home
-// hero, and the department and campaign head.
-var toneHeads = []string{"goen-hero__slide", "goen-pagehead"}
+// toneHeads are the heads that lay the period on a tone's ground: the
+// department and campaign head. The home hero draws its days on the page, beside
+// the words that say them, and hides them from a screen reader.
+var toneHeads = []string{"goen-pagehead"}
 
 // toneNames is tone.Tone's closed set, as the data-tone attribute spells it.
 var toneNames = func() []string {
@@ -668,7 +669,9 @@ var toneNames = func() []string {
 
 // TestAppCSSToneGroundContrast checks that every tone ground holds its text. It
 // holds the text a department or campaign head shows to 4.5:1 on each tone's
-// ground, and its period fill to 3:1 (WCAG 1.4.11). A new tone is a new block, and
+// ground, by day and by night, the vermilion of a sale's price and end on each
+// light tone, which the home band lays them on, and its period fill to 3:1
+// (WCAG 1.4.11). A new tone is a new block, and
 // one whose ground drifts from its oklch source would fail a reader without any
 // route the axe gate visits showing it.
 func TestAppCSSToneGroundContrast(t *testing.T) {
@@ -694,6 +697,10 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 	}
 
 	blocks := toneBlocks(t, string(sheet), tokens, aliasTokens(t))
+	vermilion, ok := roleTokens(t)["--sys-tertiary"]
+	if !ok {
+		t.Fatalf("%s declares no --sys-tertiary", BaseCSS)
+	}
 	if len(blocks) != len(toneNames) {
 		t.Errorf("%s has %d data-tone blocks, want the %d of the closed set", AppCSS, len(blocks), len(toneNames))
 	}
@@ -752,8 +759,18 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 			checkPeriod(t, head, period["fill"], period["track"], "the "+name+" ground", ground)
 		}
 		if name == "ink" {
-			checkInkSlideAction(t, string(sheet), decl["--tone-ground"], tokens)
 			continue
+		}
+		// The band's sale price and its last day are vermilion on every light
+		// tone; the ink band draws them in its text colour instead.
+		for _, scheme := range []struct{ name, ink, ground string }{
+			{"day", vermilion.day, decl["--tone-ground"].day},
+			{"night", vermilion.night, decl["--tone-ground"].night},
+		} {
+			if got := contrast(scheme.ink, scheme.ground); got < 4.5 {
+				t.Errorf("%s: --sys-tertiary (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
+					scheme.name, scheme.ink, name, scheme.ground, got)
+			}
 		}
 		// A light ground is also where links and the plain text tokens land.
 		for _, ink := range []string{"--muted", "--ink", "--accent"} {
@@ -762,31 +779,6 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 					ink, tokens[ink], name, ground, got)
 			}
 		}
-	}
-}
-
-// inkSlideAction finds the colours the hero's ink slide gives its filled button.
-var inkSlideAction = regexp.MustCompile(`(?s)\.goen-hero__slide\[data-tone="ink"\] \.goen-btn--primary \{\s*background: var\((--[a-z0-9-]+)\);\s*border-color: var\(--[a-z0-9-]+\);\s*color: var\((--[a-z0-9-]+)\);`)
-
-// checkInkSlideAction holds the hero's filled button on the ink tone: its fill
-// is the control's boundary there, 3:1 on the ground by day and by night (WCAG
-// 1.4.11), and its label reads on the fill.
-func checkInkSlideAction(t *testing.T, sheet string, ground toneColour, tokens map[string]string) {
-	t.Helper()
-	m := inkSlideAction.FindStringSubmatch(sheet)
-	if m == nil {
-		t.Fatalf("%s gives the ink slide's filled button no fill and label of its own", AppCSS)
-	}
-	fill, label := tokens[m[1]], tokens[m[2]]
-	for _, g := range []struct{ scheme, colour string }{{"day", ground.day}, {"night", ground.night}} {
-		if got := contrast(fill, g.colour); got < 3 {
-			t.Errorf("%s: the ink slide's button %s (#%s) on the ink ground (#%s) = %.2f:1, want at least 3:1",
-				g.scheme, m[1], fill, g.colour, got)
-		}
-	}
-	if got := contrast(label, fill); got < 4.5 {
-		t.Errorf("the ink slide's button label %s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1",
-			m[2], label, m[1], fill, got)
 	}
 }
 

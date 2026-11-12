@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/a-h/templ"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // TestTileColourDots holds that a card draws up to four colours and counts the
@@ -304,6 +306,86 @@ func TestTileColoursCountText(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestCardSaleUntil holds that a card says how long its struck price holds
+// only where a page asks it to: 「特價至 11 月 22 日」 in Chinese, "On sale until
+// Nov 22" in English with the phrase's comma read and not shown, and the last
+// day as a time.
+func TestCardSaleUntil(t *testing.T) {
+	t.Parallel()
+	ends := time.Date(2026, 11, 23, 0, 0, 0, 0, time.FixedZone("CST", 8*3600))
+	sale := Tile{Slug: "mug", Name: "Mug", PriceCents: 43200, CompareCents: 48000, OnSale: true, InStock: true, SaleEndsAt: ends}
+	drawn := sale
+	drawn.SaleUntil = shoptime.LastDay(ends, ends)
+	for _, tt := range []struct {
+		locale   i18n.Locale
+		shown    string
+		readOnly string
+	}{
+		{i18n.ZhHant, "特價至 11\u00a0月 22\u00a0日", ""},
+		{i18n.En, "On sale until Nov\u00a022", ","},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tt.locale)
+		page := renderComponent(t, ctx, Card(drawn))
+		start := strings.Index(page, `<span class="goen-tile__until">`)
+		if start < 0 {
+			t.Errorf("%s: a card asked to say its sale's end does not", tt.locale)
+			continue
+		}
+		line := page[start : start+strings.Index(page[start:], "</span></span>")+len("</span></span>")]
+		doc, err := html.Parse(strings.NewReader(line))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var shown, read strings.Builder
+		for n := range doc.Descendants() {
+			if n.Type != html.TextNode {
+				continue
+			}
+			if n.Parent != nil && attr(n.Parent, "class") == "goen-sr-only" {
+				read.WriteString(n.Data)
+				continue
+			}
+			shown.WriteString(n.Data)
+		}
+		if got := shown.String(); got != tt.shown {
+			t.Errorf("%s: the card shows %q, want %q", tt.locale, got, tt.shown)
+		}
+		if got := read.String(); got != tt.readOnly {
+			t.Errorf("%s: the card reads %q beyond what it shows, want %q", tt.locale, got, tt.readOnly)
+		}
+		if !strings.Contains(line, `<time datetime="2026-11-22">`) {
+			t.Errorf("%s: the last day is not a time: %s", tt.locale, line)
+		}
+		for name, tile := range map[string]Tile{"not asked": sale, "not on sale": {Slug: "b", Name: "B", PriceCents: 1, InStock: true, SaleUntil: drawn.SaleUntil}} {
+			if got := renderComponent(t, ctx, Card(tile)); strings.Contains(got, "goen-tile__until") {
+				t.Errorf("%s: a card %s says its sale's end", tt.locale, name)
+			}
+		}
+	}
+}
+
+// TestSaleEndOnlyOnSale holds that a tile carries the end of a sale only for a
+// price that is struck.
+func TestSaleEndOnlyOnSale(t *testing.T) {
+	t.Parallel()
+	ends := time.Date(2026, 11, 23, 0, 0, 0, 0, time.UTC)
+	if got := SaleEnd(true, ends); !got.Equal(ends) {
+		t.Errorf("SaleEnd(true) = %v, want %v", got, ends)
+	}
+	if got := SaleEnd(false, ends); !got.IsZero() {
+		t.Errorf("SaleEnd(false) = %v, want the zero time", got)
+	}
+}
+
+func attr(n *html.Node, key string) string {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return a.Val
+		}
+	}
+	return ""
 }
 
 func renderComponent(t *testing.T, ctx context.Context, c templ.Component) string {

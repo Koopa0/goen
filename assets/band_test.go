@@ -2,26 +2,38 @@ package assets
 
 import (
 	"io/fs"
-	"regexp"
+	"strings"
 	"testing"
 )
 
-// TestAppCSSBandWithoutPhoto checks that the home page's band without a
-// photograph keeps the page's column: it must take the page's column and no
-// white lift instead of the photograph's track.
-func TestAppCSSBandWithoutPhoto(t *testing.T) {
+// TestAppCSSBandNameUpright checks the storefront's one exception to WCAG
+// 1.4.10 and 1.4.12, a department's name set upright (E2 in the design notes):
+// writing-mode is declared once in all three stylesheets, on the band's name in
+// Chinese, inside a query of the band's column in rem, so that larger text, a
+// zoom or a narrow column lays the name down again. The band itself is square.
+func TestAppCSSBandNameUpright(t *testing.T) {
 	t.Parallel()
 
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	for name, rule := range map[string]string{
-		"a photo-less body spans the row":     `(?s)\.goen-band__body:first-child \{\s*grid-column: 1 / -1;\s*padding-left: var\(--page-edge\);`,
-		"a photo-less band has no white lift": `(?s)\.goen-band:not\(:has\(\.goen-band__media\)\) \{\s*--lift: 0px;`,
-	} {
-		if !regexp.MustCompile(rule).Match(sheet) {
-			t.Errorf("%s: %s lacks the rule", name, AppCSS)
+	var upright []string
+	for _, name := range []string{BaseCSS, AppCSS, AdminCSS} {
+		body, err := fs.ReadFile(files, name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
 		}
+		for _, d := range cssDeclarations(string(body)) {
+			if strings.HasPrefix(d.decl, "writing-mode") {
+				upright = append(upright, name+": "+strings.Join(append(d.atRules, d.selector), " ")+" { "+d.decl+" }")
+				if name != AppCSS || d.selector != ".goen-band__name:lang(zh)" || d.decl != "writing-mode: vertical-rl" ||
+					len(d.atRules) != 1 || d.atRules[0] != "@container shelf (width >= 64rem)" {
+					t.Errorf("writing-mode outside the band's name in a 64rem column: %s", upright[len(upright)-1])
+				}
+			}
+			if name == AppCSS && (d.selector == ".goen-band" || strings.HasPrefix(d.selector, ".goen-band__")) && strings.HasPrefix(d.decl, "border-radius") {
+				t.Errorf("%s rounds the band: %s { %s }", AppCSS, d.selector, d.decl)
+			}
+		}
+	}
+	if len(upright) != 1 {
+		t.Errorf("writing-mode is declared %d times, want once, on the band's name: %q", len(upright), upright)
 	}
 }

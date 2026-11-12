@@ -26,6 +26,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -213,6 +223,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (

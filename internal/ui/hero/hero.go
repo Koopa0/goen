@@ -11,6 +11,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -56,10 +57,12 @@ type Slide struct {
 	Ends   templ.Component
 	Period *widget.PeriodSpec
 	CTA    CTA
+	// Tiles are a campaign slide's own products, drawn under its name.
+	Tiles []tile.Tile
 }
 
-// TitleLong is a title that steps down a size so it never pushes the button
-// out: over 8 characters in Chinese, over 24 in English.
+// TitleLong is a title that steps down a size so it keeps to two lines: over 8
+// characters in Chinese, over 24 in English.
 func (s *Slide) TitleLong(locale i18n.Locale) bool {
 	limit := 24
 	if locale == i18n.ZhHant {
@@ -68,14 +71,15 @@ func (s *Slide) TitleLong(locale i18n.Locale) bool {
 	return utf8.RuneCountInString(s.Title) > limit
 }
 
-// PhotoSizes is the img sizes attribute: the slide's width for a photograph that
-// fills it, the height-bound 4:3 box for one beside the copy.
-func (s *Slide) PhotoSizes() string {
-	if s.Layout == LayoutSplit {
-		return "(min-width: 1024px) 800px, 100vw"
-	}
-	return "100vw"
-}
+// PhotoSizes is the img sizes attribute: every slide's photograph runs the
+// width of the window.
+func (s *Slide) PhotoSizes() string { return "100vw" }
+
+// Shelf is the slide's products as drawn, every slide's loaded at once under
+// the photograph that is the page's one high-priority image. A slide not yet
+// shown lies beside the window in a scroller, where a lazy photograph may never
+// be asked for, so a tab would open on empty frames.
+func (s *Slide) Shelf() []tile.Tile { return tile.UnderLeadEager(s.Tiles) }
 
 func (s *Slide) HasPhotoSize() bool { return s.PhotoWidth > 0 && s.PhotoHeight > 0 }
 

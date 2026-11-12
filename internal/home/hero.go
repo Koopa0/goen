@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
@@ -61,7 +63,11 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]hero.Slide, 
 		if len(out) == maxSlides {
 			return out, nil
 		}
-		out = append(out, s.campaignSlide(ctx, &src.camps[i]))
+		slide := s.campaignSlide(ctx, &src.camps[i])
+		if slide.Tiles, err = s.tiles(ctx, uuid.NullUUID{UUID: src.camps[i].ID, Valid: true}, uuid.NullUUID{}, rowTiles); err != nil {
+			return nil, err
+		}
+		out = append(out, slide)
 	}
 
 	for i := range src.cats {
@@ -94,7 +100,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]hero.Slide, 
 }
 
 // campaignSlide is a campaign the query lists, which is always running: its name, the phrase of its end,
-// the track of its days and the way to its products.
+// the track of its days and the way to its products. The products themselves are read by slides.
 func (s *Store) campaignSlide(ctx context.Context, c *db.ListedCampaignsRow) hero.Slide {
 	now := s.now()
 	slide := hero.Slide{

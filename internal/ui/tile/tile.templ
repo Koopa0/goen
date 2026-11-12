@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // Card is the card Cell wraps in its grid cell, for a grid whose cell holds
@@ -55,6 +56,9 @@ templ Card(t Tile) {
 					<span class="goen-tile__state">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
 				}
 			}
+			if t.DrawsSaleUntil() {
+				@saleUntil(t)
+			}
 			if t.HasChoiceOfColour() {
 				@tileColours(t)
 			}
@@ -86,6 +90,14 @@ templ Price(t Tile) {
 		}
 		{ children... }
 	</span>
+}
+
+// saleUntil says how long the struck price holds, as 「特價至 11 月 22 日」: the
+// sale's word, then the campaign's phrase of its last day, whose English ends
+// in a comma that only a screen reader reads on.
+templ saleUntil(t Tile) {
+	{{ before, after := untilPhrase(ctx) }}
+	<span class="goen-tile__until">{ i18n.T(ctx, i18n.KeyOnSale) + wordSpace(ctx) + before }<time datetime={ t.SaleUntil.ISO() }>{ shoptime.DateText(ctx, t.SaleUntil) }</time><span class="goen-sr-only">{ after }</span></span>
 }
 
 // The colour is a presentation attribute, not a style, so the CSP has nothing to refuse.
