@@ -5822,6 +5822,12 @@ input.goen-check {
   max-width: 720px;
 }
 
+/* The checkout is one column of 720px: the form is read and filled from the
+   top down, and the order summary with the one button that pays closes it. */
+.goen-checkout {
+  max-width: calc(45rem + 2 * var(--page-gutter));
+}
+
 /* The order and the payment hand-off are one reading column: a wider page
    around this little content reads as one with something missing. The width
    is added to the gutters because the box sizes itself with border-box. */
@@ -6366,10 +6372,26 @@ input.goen-check {
   min-width: 0;
 }
 
-/* The checkout's summary is a panel like the form's groups beside it. */
-.goen-checkout__summary {
-  border: 1px solid transparent;
-  border-radius: 16px;
+/* The checkout's groups and its summary are words on the page, as the cart's
+   summary is: no panel, no corner, a heading and the space before it. */
+.goen-checkout .goen-checkout__section,
+.goen-checkout .goen-checkout__summary {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+.goen-checkout .goen-checkout__heading,
+.goen-checkout .goen-summary__title {
+  color: var(--sys-on-surface);
+  font: var(--type-headline-m);
+}
+
+.goen-checkout .goen-summary__row--total .goen-summary__value {
+  font: var(--fw-medium) 1.75rem/1.2 var(--font-sans);
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: 0;
 }
 
 .goen-checkout__summary .goen-summary {
@@ -6684,31 +6706,65 @@ input.goen-check {
   overflow-anchor: none;
 }
 
-/* The page is white and each group of the form, like the summary beside it, is
-   one panel on it, in .goen-card's n-50 ground: two layers, not a ground, a
-   block and a group. The transparent border is what forced colours draws as the
-   panel's edge. The inline padding is in px: at 200% text two layers of it in
-   rem, this and the card's, would leave a delivery name 69px at 320. */
+/* The page is white and the form's groups, like the summary under them, are
+   words on it: one layer. A group is parted from the next by space alone. */
 .goen-checkout__main {
-  gap: 1rem;
+  gap: var(--s-8);
 }
 
-.goen-checkout__section {
-  border: 1px solid transparent;
-  border-radius: 16px;
-  padding: 1.5rem 20px;
+.goen-checkout__layout {
+  gap: var(--s-8);
 }
 
-/* The refusal summary: the count, then a link to each refused field. */
+/* The refusal summary: the count, then a link to each refused field, in the
+   error colour on the page and led by the same icon a refused field's sentence
+   has, so it is found without the colour. No box: the focus it takes when the
+   page opens is the shared ring. */
+.goen-checkout #checkout-refusal {
+  align-items: baseline;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--sys-error);
+  column-gap: var(--s-2);
+  display: flex;
+  flex-wrap: wrap;
+  padding: var(--s-3) 0;
+}
+
 .goen-checkout__refusedlead {
-  font-weight: var(--fw-semibold);
+  font: var(--type-title-s);
   margin: 0;
 }
 
+.goen-checkout__refusedlead::before {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b91c1c' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5v5.5M12 16.5h.01'/%3E%3C/svg%3E") no-repeat center / contain;
+  content: '';
+  display: inline-block;
+  height: 1.15em;
+  margin-inline-end: 0.35em;
+  vertical-align: -0.2em;
+  width: 1.15em;
+}
+
 .goen-checkout__refused {
+  column-gap: var(--s-3);
+  display: flex;
+  flex-wrap: wrap;
   list-style: none;
-  margin: 0.375rem 0 0;
+  margin: 0;
+  min-width: 0;
   padding: 0;
+}
+
+.goen-checkout__refused a {
+  color: inherit;
+  display: inline-block;
+  font: var(--type-title-s);
+  min-height: 24px;
+  overflow-wrap: anywhere;
+  text-decoration: underline 1px;
+  text-underline-offset: 3px;
 }
 
 /* One option in a chooser. The card is the tap target, so the height minimum
@@ -6720,9 +6776,9 @@ input.goen-check {
    padding is in px, like the section's, so only the text grows with the size. */
 .goen-checkout__ship {
   align-items: flex-start;
-  background: var(--n-0);
-  border: 1px solid var(--n-300);
-  border-radius: 12px;
+  background: var(--sys-surface);
+  border: 1px solid var(--sys-outline);
+  border-radius: var(--r-field);
   box-sizing: border-box;
   color: inherit;
   container: ship / inline-size;
@@ -6731,7 +6787,7 @@ input.goen-check {
   flex-wrap: wrap;
   gap: 0.75rem;
   justify-content: space-between;
-  min-height: 44px;
+  min-height: 56px;
   padding: 1rem 16px;
   text-decoration: none;
   transition:
@@ -6740,11 +6796,11 @@ input.goen-check {
 }
 
 .goen-checkout__ship:hover {
-  background: var(--n-100);
+  background: color-mix(in srgb, var(--sys-on-surface) var(--state-hover), var(--sys-surface));
 }
 
 .goen-checkout__ship > input[type=radio] {
-  accent-color: var(--accent);
+  accent-color: var(--sys-on-surface);
   align-self: center;
   clip-path: none;
   flex: none;
@@ -6755,13 +6811,14 @@ input.goen-check {
   width: 1rem;
 }
 
-/* The one source for "this is the chosen one": a tinted fill and a 2px edge in
-   the accent, where a shopper chooses. The edge is the border itself, so the
-   padding gives back the extra pixel and the content does not move. The radio
-   inside it is the check. */
+/* The one source for "this is the chosen one": a 2px edge in ink and the
+   name at its medium weight, on the page's own ground, as the board draws a
+   chosen choice. The edge is the border itself, so the padding gives back the
+   extra pixel and the content does not move. The radio inside it is the
+   check. */
 .goen-checkout__ship:has(input:checked) {
-  background: var(--accent-faint);
-  border-color: var(--accent);
+  background: var(--sys-surface);
+  border-color: var(--sys-on-surface);
   border-width: 2px;
   padding: calc(1rem - 1px) 15px;
 }
@@ -6778,18 +6835,22 @@ input.goen-check {
 }
 
 .goen-checkout__shipname {
-  color: var(--fg);
+  color: var(--sys-on-surface);
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
+  font-size: var(--fs-15);
+  font-weight: var(--fw-regular);
   gap: 2px;
   min-width: 0;
 }
 
+.goen-checkout__ship:has(input:checked) .goen-checkout__shipname {
+  font-weight: var(--fw-medium);
+}
+
 .goen-checkout__shipnote {
-  color: var(--fg-muted);
+  color: var(--sys-on-surface-variant);
   font-size: var(--fs-12);
   font-weight: var(--fw-regular);
 }
@@ -6818,11 +6879,11 @@ input.goen-check {
 }
 
 .goen-checkout__option:has(input[type=radio]:checked) > .goen-checkout__optionfields {
-  background: var(--accent-faint);
-  border: 2px solid var(--accent);
+  background: var(--sys-surface);
+  border: 2px solid var(--sys-on-surface);
   border-block-start: 0;
-  border-end-end-radius: 12px;
-  border-end-start-radius: 12px;
+  border-end-end-radius: var(--r-field);
+  border-end-start-radius: var(--r-field);
   margin-top: 0;
   padding: 0.5rem 15px 1rem;
 }
@@ -6864,6 +6925,20 @@ input.goen-check {
 
 .goen-checkout .goen-checkout__wide {
   grid-column: 1 / -1;
+}
+
+/* 登入 inside the sentence that offers it is ink with the faint underline: the
+   blue is kept for a section's next step. */
+.goen-checkout__note a {
+  color: var(--sys-on-surface);
+  text-decoration: underline 1px;
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
+  text-underline-offset: 3px;
+}
+
+.goen-checkout__note a:hover {
+  color: var(--sys-on-surface);
+  text-decoration-color: currentcolor;
 }
 
 .goen-checkout__hint {
@@ -7295,10 +7370,6 @@ input.goen-check {
   .goen-checkout .goen-checkout__fields {
     grid-template-columns: 1fr 1fr;
   }
-
-  .goen-checkout__section {
-    padding: 1.5rem;
-  }
 }
 
 /* Under 1024 the cart's summary is a bar fixed to the bottom edge: the total
@@ -7404,12 +7475,6 @@ input.goen-check {
     padding: 2.5rem var(--page-gutter) 5rem;
   }
 
-  .goen-cart__layout,
-  .goen-checkout__layout {
-    gap: 3rem;
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  }
-
   /* The lines take eight of twelve columns and the summary the other four. */
   .goen-cart__layout {
     gap: 1.5rem;
@@ -7422,13 +7487,8 @@ input.goen-check {
     padding: 1.5rem 0 0 1.5rem;
   }
 
-  .goen-checkout__summary {
-    padding: 2rem;
-  }
-
-  /* The money stays in view while the lines are read and the address typed. */
-  .goen-cart__summary,
-  .goen-checkout__summary {
+  /* The money stays in view while the lines are read. */
+  .goen-cart__summary {
     position: sticky;
     top: 2rem;
   }
