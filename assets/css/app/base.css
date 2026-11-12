@@ -79,6 +79,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Han beside a Latin letter or a figure gets a little air of its own, so
+   「逛逛3C 數位」 reads as two words without a space written into the string. A
+   browser without text-autospace sets the text as written. */
+:root {
+  text-autospace: normal;
+}
+
+/* A middle dot between two phrases, as in 「至 11 月 16 日 · 剩 4 天」. Beside Han
+   at 13 to 15px the Latin face's spaces around it are thin enough to read as
+   「日·剩」, so the dot keeps a margin of its own in every language. */
+.goen-sep {
+  margin-inline: 0.2em;
+}
+
 /* Every focusable thing has a ring before any component asks for one. */
 *:focus-visible {
   outline: 2px solid var(--ring);

@@ -10,7 +10,7 @@ templ Ends(e End) {
 			<time datetime={ e.Datetime() }>{ e.Left(ctx) }</time>{ children... }
 		</span>
 	} else {
-		<span class="goen-ends__until">{ before }<time datetime={ e.Datetime() }>{ e.Day(ctx) }</time><span class="goen-sr-only">{ after }</span>&nbsp;<span class="goen-ends__dot" aria-hidden="true">·</span></span>
+		<span class="goen-ends__until">{ before }<time datetime={ e.Datetime() }>{ e.Day(ctx) }</time><span class="goen-sr-only">{ after }</span>&nbsp;<span class="goen-sep" aria-hidden="true">·</span></span>
 		<span class="goen-ends__left">
 			{ e.Left(ctx) }{ children... }
 		</span>

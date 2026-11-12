@@ -104,7 +104,7 @@ func TestEnds(t *testing.T) {
 				t.Errorf("the children do not close the last words:\n%s", got)
 			}
 			if tt.dot {
-				if !strings.Contains(got, `&nbsp;<span class="goen-ends__dot" aria-hidden="true">·</span></span>`) {
+				if !strings.Contains(got, `&nbsp;<span class="goen-sep" aria-hidden="true">·</span></span>`) {
 					t.Errorf("the dot does not follow a no-break space inside the day's unit:\n%s", got)
 				}
 			} else if strings.Contains(got, "·") || strings.Contains(got, "goen-ends__until") {

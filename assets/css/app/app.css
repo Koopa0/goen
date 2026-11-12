@@ -2111,10 +2111,6 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
-.goen-ends__dot {
-  margin-inline: 0.25em;
-}
-
 .goen-ends__left {
   font-weight: var(--fw-medium);
   word-break: keep-all;
