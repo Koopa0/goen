@@ -27,10 +27,6 @@ func Meter(p MeterProps) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var1 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var1 == nil {
-			templ_7745c5c3_Var1 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"goen-chartmeter\" aria-hidden=\"true\"><svg width=\"100%\" height=\"10\" aria-hidden=\"true\" focusable=\"false\"><rect class=\"goen-chartmeter__track\" x=\"0\" y=\"0\" width=\"100%\" height=\"10\"></rect> ")
 		if templ_7745c5c3_Err != nil {
@@ -42,7 +38,7 @@ func Meter(p MeterProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var2 string
-			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.width())
+			templ_7745c5c3_Var2, templ_7745c5c3_Err = templruntime.NewAttributeExpression(p.width()).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/chart/meter.templ`, Line: 12, Col: 69}
 			}

@@ -1,12 +1,12 @@
-GOLANGCI_LINT_VERSION := 2.14.0
+GOLANGCI_LINT_VERSION := 2.15.0
 SQLC_VERSION := v1.31.1
 KO_VERSION := v0.19.1
-MIGRATE_VERSION := v4.19.1
-GOVULNCHECK_VERSION := v1.7.0
-SQUAWK_VERSION := 2.64.0
-DEADCODE_VERSION := v0.50.0
+MIGRATE_VERSION := v4.20.1
+GOVULNCHECK_VERSION := v1.9.0
+SQUAWK_VERSION := 2.72.0
+DEADCODE_VERSION := v0.52.0
 ACTIONLINT_VERSION := v1.7.12
-AXE_CORE_VERSION := 4.13.0
+AXE_CORE_VERSION := 4.14.0
 
 # Every goen database is created from template0 on PostgreSQL's builtin C.UTF-8
 # locale, and migrations/001 refuses any other. docker-compose.yml passes the same
@@ -17,7 +17,7 @@ CREATEDB := createdb -U goen --template=template0 --encoding=UTF8 --locale-provi
 # unpkg both serve it. check-layout downloads the file and verifies this before
 # evaluating it in the page, because the alternative — a <script src> at a CDN —
 # lets a third party decide what runs inside the gate that decides what merges.
-AXE_CORE_SHA256 := c24f097bd2f451d4f933e8bc7d8d539f8672a2ebcb5cc9f9f3eec8ca9470a0c1
+AXE_CORE_SHA256 := 20c09fe157a8a34a30e241aaa1fcdade657734f08ab379ecfbeb7d45cc46e878
 
 # Tools that generate or inspect this module but are not part of it. `go run
 # pkg@version` pins each as firmly as a require line without joining the module

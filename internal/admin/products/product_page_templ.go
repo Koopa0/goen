@@ -34,10 +34,6 @@ func Products(p frame.Page, v View) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var1 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var1 == nil {
-			templ_7745c5c3_Var1 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -209,12 +205,12 @@ func Products(p frame.Page, v View) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var13 templ.SafeURL
-					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(row.Href()))
+					var templ_7745c5c3_Var13 string
+					templ_7745c5c3_Var13, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(row.Href())).ResolveURL(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 48, Col: 44}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -419,10 +415,6 @@ func Product(p frame.Page, v ProductView) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var25 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var25 == nil {
-			templ_7745c5c3_Var25 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Var26 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -533,7 +525,7 @@ func Product(p frame.Page, v ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var30 string
-				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyAdminProdSectionNav))
+				templ_7745c5c3_Var30, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, i18n.KeyAdminProdSectionNav)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 117, Col: 92}
 				}
@@ -714,10 +706,6 @@ func productDetails(v ProductView) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var39 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var39 == nil {
-			templ_7745c5c3_Var39 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Var40 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -760,12 +748,12 @@ func productDetails(v ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var42 templ.SafeURL
-			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.Action() + "#sec-details"))
+			var templ_7745c5c3_Var42 string
+			templ_7745c5c3_Var42, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.Action() + "#sec-details")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 146, Col: 98}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -805,7 +793,7 @@ func productDetails(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var45 string
-			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Name)
+			templ_7745c5c3_Var45, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Name).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 157, Col: 19}
 			}
@@ -887,7 +875,7 @@ func productDetails(v ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var49 string
-				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Slug)
+				templ_7745c5c3_Var49, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Slug).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 178, Col: 20}
 				}
@@ -1033,7 +1021,7 @@ func productDetails(v ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var56 string
-				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Value)
+				templ_7745c5c3_Var56, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Value).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 207, Col: 30}
 				}
@@ -1156,7 +1144,7 @@ func productDetails(v ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var62 string
-				templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Value)
+				templ_7745c5c3_Var62, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Value).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 230, Col: 30}
 				}
@@ -1251,7 +1239,7 @@ func productDetails(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var67 string
-			templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Summary)
+			templ_7745c5c3_Var67, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Summary).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 247, Col: 22}
 			}
@@ -1405,7 +1393,7 @@ func productDetails(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var75 string
-			templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.NameEn)
+			templ_7745c5c3_Var75, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.NameEn).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 284, Col: 21}
 			}
@@ -1482,7 +1470,7 @@ func productDetails(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var79 string
-			templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.SummaryEn)
+			templ_7745c5c3_Var79, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.SummaryEn).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 303, Col: 24}
 			}
@@ -1636,7 +1624,7 @@ func productDetails(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var87 string
-			templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.WarrantyMonthsText())
+			templ_7745c5c3_Var87, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.WarrantyMonthsText()).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 342, Col: 36}
 			}
@@ -1726,7 +1714,7 @@ func productDetails(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var92 string
-			templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.WarrantyNote)
+			templ_7745c5c3_Var92, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.WarrantyNote).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 359, Col: 101}
 			}
@@ -1812,21 +1800,17 @@ func imageMoveForm(v ProductView, digest, move string, label i18n.Key) templ.Com
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var96 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var96 == nil {
-			templ_7745c5c3_Var96 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 140, "<form method=\"post\" action=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var97 templ.SafeURL
-		templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.ImageMoveAction() + "#sec-images"))
+		var templ_7745c5c3_Var97 string
+		templ_7745c5c3_Var97, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.ImageMoveAction() + "#sec-images")).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 379, Col: 80}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var97))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var97)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1835,7 +1819,7 @@ func imageMoveForm(v ProductView, digest, move string, label i18n.Key) templ.Com
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var98 string
-		templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.ResolveAttributeValue(digest)
+		templ_7745c5c3_Var98, templ_7745c5c3_Err = templruntime.NewAttributeExpression(digest).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 380, Col: 51}
 		}
@@ -1848,7 +1832,7 @@ func imageMoveForm(v ProductView, digest, move string, label i18n.Key) templ.Com
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var99 string
-		templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.ResolveAttributeValue(move)
+		templ_7745c5c3_Var99, templ_7745c5c3_Err = templruntime.NewAttributeExpression(move).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 381, Col: 47}
 		}
@@ -1914,10 +1898,6 @@ func productImages(v ProductView) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var102 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var102 == nil {
-			templ_7745c5c3_Var102 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Var103 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -1963,7 +1943,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var105 string
-					templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.URL())
+					templ_7745c5c3_Var105, templ_7745c5c3_Err = templruntime.NewAttributeExpression(img.URL()).ResolveURL(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 399, Col: 26}
 					}
@@ -1976,7 +1956,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var106 string
-					templ_7745c5c3_Var106, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Srcset())
+					templ_7745c5c3_Var106, templ_7745c5c3_Err = templruntime.NewAttributeExpression(img.Srcset()).ResolveSrcset(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 399, Col: 50}
 					}
@@ -1989,7 +1969,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var107 string
-					templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Alt)
+					templ_7745c5c3_Var107, templ_7745c5c3_Err = templruntime.NewAttributeExpression(img.Alt).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 399, Col: 80}
 					}
@@ -2035,12 +2015,12 @@ func productImages(v ProductView) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var109 templ.SafeURL
-						templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.ImageOptionAction() + "#sec-images"))
+						var templ_7745c5c3_Var109 string
+						templ_7745c5c3_Var109, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.ImageOptionAction() + "#sec-images")).ResolveURL(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 409, Col: 88}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var109)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -2049,7 +2029,7 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var110 string
-						templ_7745c5c3_Var110, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Key())
+						templ_7745c5c3_Var110, templ_7745c5c3_Err = templruntime.NewAttributeExpression(img.Key()).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 410, Col: 60}
 						}
@@ -2062,7 +2042,7 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var111 string
-						templ_7745c5c3_Var111, templ_7745c5c3_Err = templ.ResolveAttributeValue("image-option-" + img.Key())
+						templ_7745c5c3_Var111, templ_7745c5c3_Err = templruntime.NewAttributeExpression("image-option-" + img.Key()).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 411, Col: 69}
 						}
@@ -2088,7 +2068,7 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var113 string
-						templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.ResolveAttributeValue("image-option-" + img.Key())
+						templ_7745c5c3_Var113, templ_7745c5c3_Err = templruntime.NewAttributeExpression("image-option-" + img.Key()).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 412, Col: 67}
 						}
@@ -2147,12 +2127,12 @@ func productImages(v ProductView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var116 templ.SafeURL
-					templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.ImageRemoveAction() + "#sec-images"))
+					var templ_7745c5c3_Var116 string
+					templ_7745c5c3_Var116, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.ImageRemoveAction() + "#sec-images")).ResolveURL(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 423, Col: 87}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var116)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -2161,7 +2141,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var117 string
-					templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Key())
+					templ_7745c5c3_Var117, templ_7745c5c3_Err = templruntime.NewAttributeExpression(img.Key()).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 424, Col: 59}
 					}
@@ -2264,12 +2244,12 @@ func productImages(v ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var123 templ.SafeURL
-			templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.ImageAction() + "#sec-images"))
+			var templ_7745c5c3_Var123 string
+			templ_7745c5c3_Var123, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.ImageAction() + "#sec-images")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 451, Col: 58}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var123))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var123)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2386,7 +2366,7 @@ func productImages(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var130 string
-			templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.ImageUploadDraft.Alt)
+			templ_7745c5c3_Var130, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.ImageUploadDraft.Alt).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 484, Col: 36}
 			}
@@ -2494,7 +2474,7 @@ func productImages(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var136 string
-			templ_7745c5c3_Var136, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.ImageUploadDraft.AltEn)
+			templ_7745c5c3_Var136, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.ImageUploadDraft.AltEn).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 510, Col: 38}
 			}
@@ -2727,12 +2707,12 @@ func productImages(v ProductView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var147 templ.SafeURL
-					templ_7745c5c3_Var147, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.ReuseAction() + "#sec-images"))
+					var templ_7745c5c3_Var147 string
+					templ_7745c5c3_Var147, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.ReuseAction() + "#sec-images")).ResolveURL(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 563, Col: 112}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var147))
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var147)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -2741,7 +2721,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var148 string
-					templ_7745c5c3_Var148, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Key())
+					templ_7745c5c3_Var148, templ_7745c5c3_Err = templruntime.NewAttributeExpression(img.Key()).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 564, Col: 58}
 					}
@@ -2754,7 +2734,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var149 string
-					templ_7745c5c3_Var149, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.URL())
+					templ_7745c5c3_Var149, templ_7745c5c3_Err = templruntime.NewAttributeExpression(img.URL()).ResolveURL(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 565, Col: 26}
 					}
@@ -2767,7 +2747,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var150 string
-					templ_7745c5c3_Var150, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Srcset())
+					templ_7745c5c3_Var150, templ_7745c5c3_Err = templruntime.NewAttributeExpression(img.Srcset()).ResolveSrcset(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 565, Col: 50}
 					}
@@ -2780,7 +2760,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var151 string
-					templ_7745c5c3_Var151, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key())
+					templ_7745c5c3_Var151, templ_7745c5c3_Err = templruntime.NewAttributeExpression("reuse-alt-" + img.Key()).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 566, Col: 64}
 					}
@@ -2806,7 +2786,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var153 string
-					templ_7745c5c3_Var153, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key())
+					templ_7745c5c3_Var153, templ_7745c5c3_Err = templruntime.NewAttributeExpression("reuse-alt-" + img.Key()).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 569, Col: 36}
 					}
@@ -2824,7 +2804,7 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var154 string
-						templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.ImageReuseDraft.Alt)
+						templ_7745c5c3_Var154, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.ImageReuseDraft.Alt).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 572, Col: 37}
 						}
@@ -2842,7 +2822,7 @@ func productImages(v ProductView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var155 string
-							templ_7745c5c3_Var155, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key() + "-error")
+							templ_7745c5c3_Var155, templ_7745c5c3_Err = templruntime.NewAttributeExpression("reuse-alt-" + img.Key() + "-error").Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 575, Col: 63}
 							}
@@ -2861,7 +2841,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var156 string
-					templ_7745c5c3_Var156, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyAdminAltText))
+					templ_7745c5c3_Var156, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, i18n.KeyAdminAltText)).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 580, Col: 54}
 					}
@@ -2879,7 +2859,7 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var157 string
-						templ_7745c5c3_Var157, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key() + "-error")
+						templ_7745c5c3_Var157, templ_7745c5c3_Err = templruntime.NewAttributeExpression("reuse-alt-" + img.Key() + "-error").Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 583, Col: 72}
 						}
@@ -2910,7 +2890,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var159 string
-					templ_7745c5c3_Var159, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key())
+					templ_7745c5c3_Var159, templ_7745c5c3_Err = templruntime.NewAttributeExpression("reuse-alt-en-" + img.Key()).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 585, Col: 67}
 					}
@@ -2936,7 +2916,7 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var161 string
-					templ_7745c5c3_Var161, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key())
+					templ_7745c5c3_Var161, templ_7745c5c3_Err = templruntime.NewAttributeExpression("reuse-alt-en-" + img.Key()).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 588, Col: 39}
 					}
@@ -2954,7 +2934,7 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var162 string
-						templ_7745c5c3_Var162, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.ImageReuseDraft.AltEn)
+						templ_7745c5c3_Var162, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.ImageReuseDraft.AltEn).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 593, Col: 39}
 						}
@@ -2972,7 +2952,7 @@ func productImages(v ProductView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var163 string
-							templ_7745c5c3_Var163, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key() + "-error")
+							templ_7745c5c3_Var163, templ_7745c5c3_Err = templruntime.NewAttributeExpression("reuse-alt-en-" + img.Key() + "-error").Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 596, Col: 66}
 							}
@@ -2996,7 +2976,7 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var164 string
-						templ_7745c5c3_Var164, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key() + "-error")
+						templ_7745c5c3_Var164, templ_7745c5c3_Err = templruntime.NewAttributeExpression("reuse-alt-en-" + img.Key() + "-error").Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 601, Col: 75}
 						}
@@ -3031,7 +3011,7 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var166 string
-						templ_7745c5c3_Var166, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-image-" + img.Key() + "-error")
+						templ_7745c5c3_Var166, templ_7745c5c3_Err = templruntime.NewAttributeExpression("reuse-image-" + img.Key() + "-error").Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 607, Col: 74}
 						}
@@ -3126,10 +3106,6 @@ func imageOptionChoices(v ProductView, chosen string) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var170 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var170 == nil {
-			templ_7745c5c3_Var170 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		if chosen != "" && !v.HasOptionValue(chosen) {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 247, "<option value=\"")
@@ -3137,7 +3113,7 @@ func imageOptionChoices(v ProductView, chosen string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var171 string
-			templ_7745c5c3_Var171, templ_7745c5c3_Err = templ.ResolveAttributeValue(chosen)
+			templ_7745c5c3_Var171, templ_7745c5c3_Err = templruntime.NewAttributeExpression(chosen).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 627, Col: 24}
 			}
@@ -3197,7 +3173,7 @@ func imageOptionChoices(v ProductView, chosen string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var174 string
-				templ_7745c5c3_Var174, templ_7745c5c3_Err = templ.ResolveAttributeValue(o.Name)
+				templ_7745c5c3_Var174, templ_7745c5c3_Err = templruntime.NewAttributeExpression(o.Name).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 632, Col: 27}
 				}
@@ -3215,7 +3191,7 @@ func imageOptionChoices(v ProductView, chosen string) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var175 string
-					templ_7745c5c3_Var175, templ_7745c5c3_Err = templ.ResolveAttributeValue(val.ID)
+					templ_7745c5c3_Var175, templ_7745c5c3_Err = templruntime.NewAttributeExpression(val.ID).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 634, Col: 27}
 					}
@@ -3277,10 +3253,6 @@ func productOptions(v ProductView) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var177 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var177 == nil {
-			templ_7745c5c3_Var177 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Var178 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -3554,12 +3526,12 @@ func productOptions(v ProductView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var191 templ.SafeURL
-				templ_7745c5c3_Var191, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.OptionAction() + "#sec-options"))
+				var templ_7745c5c3_Var191 string
+				templ_7745c5c3_Var191, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.OptionAction() + "#sec-options")).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 692, Col: 105}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var191))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var191)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -3612,7 +3584,7 @@ func productOptions(v ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var195 string
-				templ_7745c5c3_Var195, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.OptionName)
+				templ_7745c5c3_Var195, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.OptionName).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 706, Col: 40}
 				}
@@ -3707,7 +3679,7 @@ func productOptions(v ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var200 string
-				templ_7745c5c3_Var200, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.OptionNameEn)
+				templ_7745c5c3_Var200, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.OptionNameEn).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 729, Col: 42}
 				}
@@ -3814,12 +3786,12 @@ func productOptions(v ProductView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var205 templ.SafeURL
-				templ_7745c5c3_Var205, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.OptionValueAction() + "#sec-options"))
+				var templ_7745c5c3_Var205 string
+				templ_7745c5c3_Var205, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.OptionValueAction() + "#sec-options")).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 752, Col: 110}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var205))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var205)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -3877,7 +3849,7 @@ func productOptions(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var209 string
-					templ_7745c5c3_Var209, templ_7745c5c3_Err = templ.ResolveAttributeValue(o.ID)
+					templ_7745c5c3_Var209, templ_7745c5c3_Err = templruntime.NewAttributeExpression(o.ID).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 760, Col: 27}
 					}
@@ -3949,7 +3921,7 @@ func productOptions(v ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var213 string
-				templ_7745c5c3_Var213, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.Value)
+				templ_7745c5c3_Var213, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.Value).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 776, Col: 35}
 				}
@@ -4044,7 +4016,7 @@ func productOptions(v ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var218 string
-				templ_7745c5c3_Var218, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.ValueEn)
+				templ_7745c5c3_Var218, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.ValueEn).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 799, Col: 37}
 				}
@@ -4139,7 +4111,7 @@ func productOptions(v ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var223 string
-				templ_7745c5c3_Var223, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.Swatch)
+				templ_7745c5c3_Var223, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.Swatch).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 823, Col: 36}
 				}
@@ -4263,10 +4235,6 @@ func productVariants(v ProductView) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var228 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var228 == nil {
-			templ_7745c5c3_Var228 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Var229 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -4420,12 +4388,12 @@ func productVariants(v ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var237 templ.SafeURL
-			templ_7745c5c3_Var237, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/admin/products/" + v.Slug + "/variants#sec-variants"))
+			var templ_7745c5c3_Var237 string
+			templ_7745c5c3_Var237, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/admin/products/" + v.Slug + "/variants#sec-variants")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 878, Col: 125}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var237))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var237)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4473,7 +4441,7 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var240 string
-			templ_7745c5c3_Var240, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.SKU)
+			templ_7745c5c3_Var240, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.SKU).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 892, Col: 32}
 			}
@@ -4550,7 +4518,7 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var244 string
-			templ_7745c5c3_Var244, templ_7745c5c3_Err = templ.ResolveAttributeValue(widget.DollarInputType(v.VariantDraft.Price))
+			templ_7745c5c3_Var244, templ_7745c5c3_Err = templruntime.NewAttributeExpression(widget.DollarInputType(v.VariantDraft.Price)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 910, Col: 57}
 			}
@@ -4563,7 +4531,7 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var245 string
-			templ_7745c5c3_Var245, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.Price)
+			templ_7745c5c3_Var245, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.Price).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 915, Col: 34}
 			}
@@ -4640,7 +4608,7 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var249 string
-			templ_7745c5c3_Var249, templ_7745c5c3_Err = templ.ResolveAttributeValue(widget.DollarInputType(v.VariantDraft.Compare))
+			templ_7745c5c3_Var249, templ_7745c5c3_Err = templruntime.NewAttributeExpression(widget.DollarInputType(v.VariantDraft.Compare)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 933, Col: 59}
 			}
@@ -4653,7 +4621,7 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var250 string
-			templ_7745c5c3_Var250, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.Compare)
+			templ_7745c5c3_Var250, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.Compare).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 937, Col: 36}
 			}
@@ -4736,7 +4704,7 @@ func productVariants(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var254 string
-					templ_7745c5c3_Var254, templ_7745c5c3_Err = templ.ResolveAttributeValue("v-opt-" + o.ID)
+					templ_7745c5c3_Var254, templ_7745c5c3_Err = templruntime.NewAttributeExpression("v-opt-" + o.ID).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 955, Col: 28}
 					}
@@ -4754,7 +4722,7 @@ func productVariants(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var255 string
-						templ_7745c5c3_Var255, templ_7745c5c3_Err = templ.ResolveAttributeValue("v-opt-" + o.ID + "-error")
+						templ_7745c5c3_Var255, templ_7745c5c3_Err = templruntime.NewAttributeExpression("v-opt-" + o.ID + "-error").Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 960, Col: 54}
 						}
@@ -4777,7 +4745,7 @@ func productVariants(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var256 string
-						templ_7745c5c3_Var256, templ_7745c5c3_Err = templ.ResolveAttributeValue(val.ID)
+						templ_7745c5c3_Var256, templ_7745c5c3_Err = templruntime.NewAttributeExpression(val.ID).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 964, Col: 31}
 						}
@@ -4823,7 +4791,7 @@ func productVariants(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var258 string
-						templ_7745c5c3_Var258, templ_7745c5c3_Err = templ.ResolveAttributeValue("v-opt-" + o.ID + "-error")
+						templ_7745c5c3_Var258, templ_7745c5c3_Err = templruntime.NewAttributeExpression("v-opt-" + o.ID + "-error").Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 968, Col: 64}
 						}
@@ -4891,7 +4859,7 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var262 string
-			templ_7745c5c3_Var262, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.Safety)
+			templ_7745c5c3_Var262, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.Safety).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 983, Col: 35}
 			}
@@ -4968,7 +4936,7 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var266 string
-			templ_7745c5c3_Var266, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.ParcelLongest)
+			templ_7745c5c3_Var266, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.ParcelLongest).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1003, Col: 42}
 			}
@@ -5045,7 +5013,7 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var270 string
-			templ_7745c5c3_Var270, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.ParcelSum)
+			templ_7745c5c3_Var270, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.ParcelSum).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1023, Col: 38}
 			}
@@ -5122,7 +5090,7 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var274 string
-			templ_7745c5c3_Var274, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.VariantDraft.ParcelWeight)
+			templ_7745c5c3_Var274, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.VariantDraft.ParcelWeight).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1043, Col: 41}
 			}
@@ -5260,10 +5228,6 @@ func productSpecs(v ProductView) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var280 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var280 == nil {
-			templ_7745c5c3_Var280 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Var281 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -5473,12 +5437,12 @@ func productSpecs(v ProductView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var294 templ.SafeURL
-					templ_7745c5c3_Var294, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.SpecRemoveAction()))
+					var templ_7745c5c3_Var294 string
+					templ_7745c5c3_Var294, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.SpecRemoveAction())).ResolveURL(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1110, Col: 73}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var294))
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var294)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -5487,7 +5451,7 @@ func productSpecs(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var295 string
-					templ_7745c5c3_Var295, templ_7745c5c3_Err = templ.ResolveAttributeValue(sp.ID)
+					templ_7745c5c3_Var295, templ_7745c5c3_Err = templruntime.NewAttributeExpression(sp.ID).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1111, Col: 56}
 					}
@@ -5578,12 +5542,12 @@ func productSpecs(v ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var300 templ.SafeURL
-			templ_7745c5c3_Var300, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.SpecAction() + "#sec-specs"))
+			var templ_7745c5c3_Var300 string
+			templ_7745c5c3_Var300, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.SpecAction() + "#sec-specs")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1131, Col: 100}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var300))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var300)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -5636,7 +5600,7 @@ func productSpecs(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var304 string
-			templ_7745c5c3_Var304, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.SpecDraft.Label)
+			templ_7745c5c3_Var304, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.SpecDraft.Label).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1141, Col: 31}
 			}
@@ -5731,7 +5695,7 @@ func productSpecs(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var309 string
-			templ_7745c5c3_Var309, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.SpecDraft.Value)
+			templ_7745c5c3_Var309, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.SpecDraft.Value).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1165, Col: 31}
 			}
@@ -5826,7 +5790,7 @@ func productSpecs(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var314 string
-			templ_7745c5c3_Var314, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.SpecDraft.LabelEn)
+			templ_7745c5c3_Var314, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.SpecDraft.LabelEn).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1189, Col: 33}
 			}
@@ -5921,7 +5885,7 @@ func productSpecs(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var319 string
-			templ_7745c5c3_Var319, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.SpecDraft.ValueEn)
+			templ_7745c5c3_Var319, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.SpecDraft.ValueEn).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1212, Col: 33}
 			}
@@ -6057,10 +6021,6 @@ func productPublishing(v ProductView) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var325 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var325 == nil {
-			templ_7745c5c3_Var325 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		if v.NeedsVariant() {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 505, "<p class=\"goen-admin__hint\">")
@@ -6085,12 +6045,12 @@ func productPublishing(v ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var327 templ.SafeURL
-			templ_7745c5c3_Var327, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/admin/products/" + v.Slug + "/status"))
+			var templ_7745c5c3_Var327 string
+			templ_7745c5c3_Var327, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/admin/products/" + v.Slug + "/status")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1246, Col: 85}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var327))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var327)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -6099,7 +6059,7 @@ func productPublishing(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var328 string
-			templ_7745c5c3_Var328, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyAdminProdPublishing))
+			templ_7745c5c3_Var328, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, i18n.KeyAdminProdPublishing)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/products/product_page.templ`, Line: 1246, Col: 141}
 			}
@@ -6232,10 +6192,6 @@ func sectionNotice(v ProductView, s Section) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var335 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var335 == nil {
-			templ_7745c5c3_Var335 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		if v.NoticeIn == s {
 			templ_7745c5c3_Err = widget.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)

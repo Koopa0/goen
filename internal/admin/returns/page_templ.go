@@ -31,10 +31,6 @@ func Returns(p frame.Page, v View) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var1 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var1 == nil {
-			templ_7745c5c3_Var1 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -120,12 +116,12 @@ func Returns(p frame.Page, v View) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var6 templ.SafeURL
-					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.OrderAction()))
+					var templ_7745c5c3_Var6 string
+					templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(r.OrderAction())).ResolveURL(ctx)
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 34, Col: 82}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -514,12 +510,12 @@ func Returns(p frame.Page, v View) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var29 templ.SafeURL
-						templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.OrderAction()))
+						var templ_7745c5c3_Var29 string
+						templ_7745c5c3_Var29, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(r.OrderAction())).ResolveURL(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 99, Col: 75}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -545,12 +541,12 @@ func Returns(p frame.Page, v View) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var31 templ.SafeURL
-						templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.OrderAction()))
+						var templ_7745c5c3_Var31 string
+						templ_7745c5c3_Var31, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(r.OrderAction())).ResolveURL(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 103, Col: 75}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -577,12 +573,12 @@ func Returns(p frame.Page, v View) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							var templ_7745c5c3_Var33 templ.SafeURL
-							templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.AssessAction()))
+							var templ_7745c5c3_Var33 string
+							templ_7745c5c3_Var33, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(r.AssessAction())).ResolveURL(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 106, Col: 95}
 							}
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -670,7 +666,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var37 string
-							templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.ResolveAttributeValue("basis-" + r.ID)
+							templ_7745c5c3_Var37, templ_7745c5c3_Err = templruntime.NewAttributeExpression("basis-" + r.ID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 121, Col: 55}
 							}
@@ -696,7 +692,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var39 string
-							templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue("basis-" + r.ID)
+							templ_7745c5c3_Var39, templ_7745c5c3_Err = templruntime.NewAttributeExpression("basis-" + r.ID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 124, Col: 31}
 							}
@@ -709,7 +705,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var40 string
-							templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(r.AssessmentBasis)
+							templ_7745c5c3_Var40, templ_7745c5c3_Err = templruntime.NewAttributeExpression(r.AssessmentBasis).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 128, Col: 36}
 							}
@@ -722,7 +718,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var41 string
-							templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue("basis-" + r.ID + "-error")
+							templ_7745c5c3_Var41, templ_7745c5c3_Err = templruntime.NewAttributeExpression("basis-" + r.ID + "-error").Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 129, Col: 56}
 							}
@@ -745,7 +741,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var42 string
-							templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue("basis-" + r.ID + "-error")
+							templ_7745c5c3_Var42, templ_7745c5c3_Err = templruntime.NewAttributeExpression("basis-" + r.ID + "-error").Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 134, Col: 66}
 							}
@@ -806,12 +802,12 @@ func Returns(p frame.Page, v View) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var46 templ.SafeURL
-						templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.Action()))
+						var templ_7745c5c3_Var46 string
+						templ_7745c5c3_Var46, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(r.Action())).ResolveURL(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 143, Col: 88}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var46)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -820,7 +816,7 @@ func Returns(p frame.Page, v View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var47 string
-						templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.ResolveAttributeValue(r.AssessmentVersionText())
+						templ_7745c5c3_Var47, templ_7745c5c3_Err = templruntime.NewAttributeExpression(r.AssessmentVersionText()).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 144, Col: 88}
 						}
@@ -841,7 +837,7 @@ func Returns(p frame.Page, v View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var48 string
-						templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.ResolveAttributeValue("decision-" + r.ID + "-error")
+						templ_7745c5c3_Var48, templ_7745c5c3_Err = templruntime.NewAttributeExpression("decision-" + r.ID + "-error").Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 146, Col: 67}
 						}
@@ -867,7 +863,7 @@ func Returns(p frame.Page, v View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var50 string
-						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue("res-" + r.ID)
+						templ_7745c5c3_Var50, templ_7745c5c3_Err = templruntime.NewAttributeExpression("res-" + r.ID).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 148, Col: 52}
 						}
@@ -893,7 +889,7 @@ func Returns(p frame.Page, v View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var52 string
-						templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.ResolveAttributeValue("res-" + r.ID)
+						templ_7745c5c3_Var52, templ_7745c5c3_Err = templruntime.NewAttributeExpression("res-" + r.ID).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 151, Col: 28}
 						}
@@ -906,7 +902,7 @@ func Returns(p frame.Page, v View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var53 string
-						templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.ResolveAttributeValue(r.Resolution)
+						templ_7745c5c3_Var53, templ_7745c5c3_Err = templruntime.NewAttributeExpression(r.Resolution).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 155, Col: 30}
 						}
@@ -919,7 +915,7 @@ func Returns(p frame.Page, v View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var54 string
-						templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.ResolveAttributeValue("res-" + r.ID + "-error")
+						templ_7745c5c3_Var54, templ_7745c5c3_Err = templruntime.NewAttributeExpression("res-" + r.ID + "-error").Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 156, Col: 53}
 						}
@@ -942,7 +938,7 @@ func Returns(p frame.Page, v View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var55 string
-						templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue("res-" + r.ID + "-error")
+						templ_7745c5c3_Var55, templ_7745c5c3_Err = templruntime.NewAttributeExpression("res-" + r.ID + "-error").Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 161, Col: 63}
 						}
@@ -1072,12 +1068,12 @@ func Returns(p frame.Page, v View) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var63 templ.SafeURL
-						templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.Action()))
+						var templ_7745c5c3_Var63 string
+						templ_7745c5c3_Var63, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(r.Action())).ResolveURL(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 191, Col: 88}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var63)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1162,7 +1158,7 @@ func Returns(p frame.Page, v View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var68 string
-						templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.ResolveAttributeValue("inspect-" + r.ID)
+						templ_7745c5c3_Var68, templ_7745c5c3_Err = templruntime.NewAttributeExpression("inspect-" + r.ID).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 205, Col: 62}
 						}
@@ -1174,12 +1170,12 @@ func Returns(p frame.Page, v View) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var69 templ.SafeURL
-						templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.InspectAction() + "#inspect-" + r.ID))
+						var templ_7745c5c3_Var69 string
+						templ_7745c5c3_Var69, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(r.InspectAction() + "#inspect-" + r.ID)).ResolveURL(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 205, Col: 141}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var69)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1227,7 +1223,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var72 string
-							templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.ResolveAttributeValue("recv-" + r.ID + "-" + l.OrderLineID)
+							templ_7745c5c3_Var72, templ_7745c5c3_Err = templruntime.NewAttributeExpression("recv-" + r.ID + "-" + l.OrderLineID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 212, Col: 77}
 							}
@@ -1253,7 +1249,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var74 string
-							templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue("recv-" + r.ID + "-" + l.OrderLineID)
+							templ_7745c5c3_Var74, templ_7745c5c3_Err = templruntime.NewAttributeExpression("recv-" + r.ID + "-" + l.OrderLineID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 215, Col: 53}
 							}
@@ -1266,7 +1262,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var75 string
-							templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.ResolveAttributeValue(widget.DollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))))
+							templ_7745c5c3_Var75, templ_7745c5c3_Err = templruntime.NewAttributeExpression(widget.DollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect")))).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 216, Col: 91}
 							}
@@ -1279,7 +1275,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var76 string
-							templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.ResolveAttributeValue("received_" + l.OrderLineID)
+							templ_7745c5c3_Var76, templ_7745c5c3_Err = templruntime.NewAttributeExpression("received_" + l.OrderLineID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 218, Col: 46}
 							}
@@ -1292,7 +1288,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var77 string
-							templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.ReceivedField(v.FieldInvalid(r.ID, "inspect")))
+							templ_7745c5c3_Var77, templ_7745c5c3_Err = templruntime.NewAttributeExpression(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 219, Col: 68}
 							}
@@ -1305,7 +1301,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var78 string
-							templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.MaxQuantityText())
+							templ_7745c5c3_Var78, templ_7745c5c3_Err = templruntime.NewAttributeExpression(l.MaxQuantityText()).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 221, Col: 37}
 							}
@@ -1323,7 +1319,7 @@ func Returns(p frame.Page, v View) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var79 string
-								templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.ResolveAttributeValue("recv-" + r.ID + "-" + l.OrderLineID + "-error")
+								templ_7745c5c3_Var79, templ_7745c5c3_Err = templruntime.NewAttributeExpression("recv-" + r.ID + "-" + l.OrderLineID + "-error").Resolve(ctx)
 								if templ_7745c5c3_Err != nil {
 									return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 225, Col: 79}
 								}
@@ -1346,7 +1342,7 @@ func Returns(p frame.Page, v View) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var80 string
-								templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.ResolveAttributeValue("recv-" + r.ID + "-" + l.OrderLineID + "-error")
+								templ_7745c5c3_Var80, templ_7745c5c3_Err = templruntime.NewAttributeExpression("recv-" + r.ID + "-" + l.OrderLineID + "-error").Resolve(ctx)
 								if templ_7745c5c3_Err != nil {
 									return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 229, Col: 89}
 								}
@@ -1382,7 +1378,7 @@ func Returns(p frame.Page, v View) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var82 string
-								templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.ResolveAttributeValue("stock-" + r.ID + "-" + l.OrderLineID)
+								templ_7745c5c3_Var82, templ_7745c5c3_Err = templruntime.NewAttributeExpression("stock-" + r.ID + "-" + l.OrderLineID).Resolve(ctx)
 								if templ_7745c5c3_Err != nil {
 									return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 234, Col: 79}
 								}
@@ -1408,7 +1404,7 @@ func Returns(p frame.Page, v View) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var84 string
-								templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.ResolveAttributeValue("stock-" + r.ID + "-" + l.OrderLineID)
+								templ_7745c5c3_Var84, templ_7745c5c3_Err = templruntime.NewAttributeExpression("stock-" + r.ID + "-" + l.OrderLineID).Resolve(ctx)
 								if templ_7745c5c3_Err != nil {
 									return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 237, Col: 55}
 								}
@@ -1421,7 +1417,7 @@ func Returns(p frame.Page, v View) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var85 string
-								templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.ResolveAttributeValue(widget.DollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))))
+								templ_7745c5c3_Var85, templ_7745c5c3_Err = templruntime.NewAttributeExpression(widget.DollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect")))).Resolve(ctx)
 								if templ_7745c5c3_Err != nil {
 									return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 238, Col: 93}
 								}
@@ -1434,7 +1430,7 @@ func Returns(p frame.Page, v View) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var86 string
-								templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.ResolveAttributeValue("restocked_" + l.OrderLineID)
+								templ_7745c5c3_Var86, templ_7745c5c3_Err = templruntime.NewAttributeExpression("restocked_" + l.OrderLineID).Resolve(ctx)
 								if templ_7745c5c3_Err != nil {
 									return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 240, Col: 48}
 								}
@@ -1447,7 +1443,7 @@ func Returns(p frame.Page, v View) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var87 string
-								templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.RestockedField(v.FieldInvalid(r.ID, "inspect")))
+								templ_7745c5c3_Var87, templ_7745c5c3_Err = templruntime.NewAttributeExpression(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))).Resolve(ctx)
 								if templ_7745c5c3_Err != nil {
 									return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 241, Col: 70}
 								}
@@ -1460,7 +1456,7 @@ func Returns(p frame.Page, v View) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var88 string
-								templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.MaxQuantityText())
+								templ_7745c5c3_Var88, templ_7745c5c3_Err = templruntime.NewAttributeExpression(l.MaxQuantityText()).Resolve(ctx)
 								if templ_7745c5c3_Err != nil {
 									return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 243, Col: 38}
 								}
@@ -1478,7 +1474,7 @@ func Returns(p frame.Page, v View) templ.Component {
 										return templ_7745c5c3_Err
 									}
 									var templ_7745c5c3_Var89 string
-									templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.ResolveAttributeValue("stock-" + r.ID + "-" + l.OrderLineID + "-error")
+									templ_7745c5c3_Var89, templ_7745c5c3_Err = templruntime.NewAttributeExpression("stock-" + r.ID + "-" + l.OrderLineID + "-error").Resolve(ctx)
 									if templ_7745c5c3_Err != nil {
 										return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 246, Col: 81}
 									}
@@ -1501,7 +1497,7 @@ func Returns(p frame.Page, v View) templ.Component {
 										return templ_7745c5c3_Err
 									}
 									var templ_7745c5c3_Var90 string
-									templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.ResolveAttributeValue("stock-" + r.ID + "-" + l.OrderLineID + "-error")
+									templ_7745c5c3_Var90, templ_7745c5c3_Err = templruntime.NewAttributeExpression("stock-" + r.ID + "-" + l.OrderLineID + "-error").Resolve(ctx)
 									if templ_7745c5c3_Err != nil {
 										return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 250, Col: 91}
 									}
@@ -1555,7 +1551,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var93 string
-							templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.ResolveAttributeValue("note-" + r.ID + "-" + l.OrderLineID)
+							templ_7745c5c3_Var93, templ_7745c5c3_Err = templruntime.NewAttributeExpression("note-" + r.ID + "-" + l.OrderLineID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 257, Col: 77}
 							}
@@ -1581,7 +1577,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var95 string
-							templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.ResolveAttributeValue("note-" + r.ID + "-" + l.OrderLineID)
+							templ_7745c5c3_Var95, templ_7745c5c3_Err = templruntime.NewAttributeExpression("note-" + r.ID + "-" + l.OrderLineID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 260, Col: 53}
 							}
@@ -1594,7 +1590,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var96 string
-							templ_7745c5c3_Var96, templ_7745c5c3_Err = templ.ResolveAttributeValue("note_" + l.OrderLineID)
+							templ_7745c5c3_Var96, templ_7745c5c3_Err = templruntime.NewAttributeExpression("note_" + l.OrderLineID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 261, Col: 42}
 							}
@@ -1607,7 +1603,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var97 string
-							templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.DraftNote)
+							templ_7745c5c3_Var97, templ_7745c5c3_Err = templruntime.NewAttributeExpression(l.DraftNote).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 262, Col: 31}
 							}
@@ -1620,7 +1616,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var98 string
-							templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.ResolveAttributeValue("note-example-" + r.ID + "-" + l.OrderLineID)
+							templ_7745c5c3_Var98, templ_7745c5c3_Err = templruntime.NewAttributeExpression("note-example-" + r.ID + "-" + l.OrderLineID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 265, Col: 75}
 							}
@@ -1633,7 +1629,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var99 string
-							templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.ResolveAttributeValue("note-example-" + r.ID + "-" + l.OrderLineID)
+							templ_7745c5c3_Var99, templ_7745c5c3_Err = templruntime.NewAttributeExpression("note-example-" + r.ID + "-" + l.OrderLineID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 267, Col: 88}
 							}
@@ -1665,7 +1661,7 @@ func Returns(p frame.Page, v View) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var101 string
-							templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.ResolveAttributeValue("inspect-error-" + r.ID)
+							templ_7745c5c3_Var101, templ_7745c5c3_Err = templruntime.NewAttributeExpression("inspect-error-" + r.ID).Resolve(ctx)
 							if templ_7745c5c3_Err != nil {
 								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 272, Col: 62}
 							}
@@ -1732,12 +1728,12 @@ func Returns(p frame.Page, v View) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var105 templ.SafeURL
-						templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.CompleteAction()))
+						var templ_7745c5c3_Var105 string
+						templ_7745c5c3_Var105, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(r.CompleteAction())).ResolveURL(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 282, Col: 96}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var105))
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var105)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1767,7 +1763,7 @@ func Returns(p frame.Page, v View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var107 string
-						templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.ResolveAttributeValue("done-" + r.ID)
+						templ_7745c5c3_Var107, templ_7745c5c3_Err = templruntime.NewAttributeExpression("done-" + r.ID).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 288, Col: 53}
 						}
@@ -1793,7 +1789,7 @@ func Returns(p frame.Page, v View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var109 string
-						templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.ResolveAttributeValue("done-" + r.ID)
+						templ_7745c5c3_Var109, templ_7745c5c3_Err = templruntime.NewAttributeExpression("done-" + r.ID).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 289, Col: 52}
 						}
@@ -1882,10 +1878,6 @@ func ownPageField(own bool) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var112 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var112 == nil {
-			templ_7745c5c3_Var112 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		if own {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 159, "<input type=\"hidden\" name=\"")
@@ -1893,7 +1885,7 @@ func ownPageField(own bool) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var113 string
-			templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.ResolveAttributeValue(fromField)
+			templ_7745c5c3_Var113, templ_7745c5c3_Err = templruntime.NewAttributeExpression(fromField).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 309, Col: 39}
 			}
@@ -1906,7 +1898,7 @@ func ownPageField(own bool) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var114 string
-			templ_7745c5c3_Var114, templ_7745c5c3_Err = templ.ResolveAttributeValue(fromOwnPage)
+			templ_7745c5c3_Var114, templ_7745c5c3_Err = templruntime.NewAttributeExpression(fromOwnPage).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 309, Col: 61}
 			}
@@ -1939,10 +1931,6 @@ func eligibilityFactRadios(returnID string, l Line, name string, label i18n.Key,
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var115 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var115 == nil {
-			templ_7745c5c3_Var115 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 162, "<fieldset class=\"ui-field\"><legend class=\"ui-label\">")
 		if templ_7745c5c3_Err != nil {
@@ -1962,7 +1950,7 @@ func eligibilityFactRadios(returnID string, l Line, name string, label i18n.Key,
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var117 string
-		templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.ResolveAttributeValue(name + "-" + l.OrderLineID + "-error")
+		templ_7745c5c3_Var117, templ_7745c5c3_Err = templruntime.NewAttributeExpression(name + "-" + l.OrderLineID + "-error").Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 316, Col: 69}
 		}
@@ -1988,7 +1976,7 @@ func eligibilityFactRadios(returnID string, l Line, name string, label i18n.Key,
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var119 string
-		templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.ResolveAttributeValue(name + "_" + l.OrderLineID)
+		templ_7745c5c3_Var119, templ_7745c5c3_Err = templruntime.NewAttributeExpression(name + "_" + l.OrderLineID).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 320, Col: 37}
 		}
@@ -2001,7 +1989,7 @@ func eligibilityFactRadios(returnID string, l Line, name string, label i18n.Key,
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var120 string
-		templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.ResolveAttributeValue(name + "-" + l.OrderLineID + "-error")
+		templ_7745c5c3_Var120, templ_7745c5c3_Err = templruntime.NewAttributeExpression(name + "-" + l.OrderLineID + "-error").Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 322, Col: 60}
 		}
@@ -2043,7 +2031,7 @@ func eligibilityFactRadios(returnID string, l Line, name string, label i18n.Key,
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var122 string
-		templ_7745c5c3_Var122, templ_7745c5c3_Err = templ.ResolveAttributeValue(name + "_" + l.OrderLineID)
+		templ_7745c5c3_Var122, templ_7745c5c3_Err = templruntime.NewAttributeExpression(name + "_" + l.OrderLineID).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 335, Col: 37}
 		}
@@ -2079,7 +2067,7 @@ func eligibilityFactRadios(returnID string, l Line, name string, label i18n.Key,
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var124 string
-		templ_7745c5c3_Var124, templ_7745c5c3_Err = templ.ResolveAttributeValue(name + "_" + l.OrderLineID)
+		templ_7745c5c3_Var124, templ_7745c5c3_Err = templruntime.NewAttributeExpression(name + "_" + l.OrderLineID).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 346, Col: 37}
 		}
