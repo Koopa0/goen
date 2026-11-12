@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/koopa0/goen/assets"
@@ -44,7 +45,22 @@ func TestListingPopoverNative(t *testing.T) {
 			locale = i18n.Parse(cookie.Value)
 		}
 		ctx := frame.WithReturnPath(i18n.WithLocale(r.Context(), locale), r.URL.RequestURI())
-		ctx = frame.WithTopNav(ctx, []frame.NavItem{{Slug: "audio", Name: "Audio", Href: "/c/audio"}})
+		// The frame as check-layout's catalogue draws it: the seed's six
+		// departments with deals, a cart and the promotion strip. Under that
+		// strip at 320 and 200% text the brand group sits at the bottom edge and
+		// its panel opens below the fold.
+		names := []string{"書籍文具", "居家生活", "美妝保養", "服飾配件", "美食飲品", "3C 數位"}
+		banner := frame.Banner{ID: "layout", Message: "版面檢查用的促銷訊息，長度接近真實的一句文案", MessageShort: "版面檢查促銷", Code: "LAYOUT10", CTALabel: "看看", CTAHref: "/deals"}
+		if locale == i18n.En {
+			names = []string{"Books & stationery", "Home & living", "Beauty & care", "Fashion", "Food & drink", "Tech"}
+			banner.Message, banner.MessageShort, banner.CTALabel = "A layout-check promotion, about as long as a real one", "Layout promo", "Look"
+		}
+		nav := make([]frame.NavItem, 0, len(names))
+		for i, name := range names {
+			slug := "department-" + strconv.Itoa(i)
+			nav = append(nav, frame.NavItem{Slug: slug, Name: name, Href: "/c/" + slug, Children: []frame.NavItem{{Slug: "audio", Name: "Audio", Href: "/c/audio"}}})
+		}
+		ctx = frame.WithBanner(frame.WithDeals(frame.WithCartCount(frame.WithTopNav(ctx, nav), 2), true), banner)
 		if respond.IsHTMX(r) {
 			ctx = catalog.AsPartial(ctx)
 		}
