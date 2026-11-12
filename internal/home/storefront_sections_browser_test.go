@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
@@ -32,8 +34,9 @@ import (
 // stepper and filled button, a department's filter chip, the corners every
 // pressable control shares, a product's photograph, the header's search pill
 // with the rule under the header, a department's head and the home page's shelf
-// as panels in the page column, and the one way a chosen option, a chosen
-// delivery card and a refused field are marked, measured as drawn.
+// as panels in the page column, the one way a chosen option, a chosen
+// delivery card and a refused field are marked, and the page frame's header,
+// department panel and footer, measured as drawn.
 func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../..")
@@ -175,6 +178,30 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		ctx := i18n.WithLocale(r.Context(), i18n.En)
 		if renderErr := checkout.Page(checkout.Meta(ctx), &view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render checkout fixture: %v", renderErr)
+		}
+	})
+	// The page frame on its own: the seed's departments and deals, 3C 數位 with
+	// a panel, a cart of two, in either language (?lang=en), with 3C 數位
+	// current.
+	mux.HandleFunc("GET /frame", func(w http.ResponseWriter, r *http.Request) {
+		locale, names := i18n.ZhHant, []string{"書籍文具", "居家生活", "美妝保養", "服飾配件", "美食飲品", "3C 數位"}
+		if r.URL.Query().Get("lang") == "en" {
+			locale, names = i18n.En, []string{"Books & stationery", "Home & living", "Beauty & care", "Fashion", "Food & drink", "Tech"}
+		}
+		photo := picture.Image{BundledKey: "nimbus-band-2-01.webp"}
+		nav := make([]frame.NavItem, 0, len(names))
+		for i, slug := range []string{"books-stationery", "home-living", "beauty", "fashion", "food-drink", "tech"} {
+			nav = append(nav, frame.NavItem{Slug: slug, Name: names[i], Href: "/c/" + slug})
+		}
+		nav[5].Children = []frame.NavItem{{Slug: "phones", Name: "Phones", Href: "/c/phones"}, {Slug: "audio", Name: "Audio", Href: "/c/audio"}}
+		nav[5].PhotoURL, nav[5].PhotoSrcset = photo.URL(), photo.Srcset()
+		for _, name := range []string{"Nimbus Band 2", "Nimbus Speaker S1", "Meridian Watch C1"} {
+			nav[5].Picks = append(nav[5].Picks, frame.NavPick{Slug: "band", Name: name, Price: "NT$1,900", ImageURL: photo.URL(), ImageSrcset: photo.Srcset()})
+		}
+		ctx := frame.WithCartCount(frame.WithDeals(frame.WithTopNav(i18n.WithLocale(r.Context(), locale), nav), true), 2)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if renderErr := frame.Base(frame.Page{Title: "Frame", Nav: "tech"}).Render(templ.WithChildren(ctx, templ.NopComponent), w); renderErr != nil {
+			t.Errorf("render frame fixture: %v", renderErr)
 		}
 	})
 	server := httptest.NewServer(mux)

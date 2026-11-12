@@ -1923,6 +1923,43 @@ for (const want of [
   console.log(`${want.label.padEnd(24)} links=${got.links} covered=${got.covered.length}${got.covered.length ? '' : ' ok'}`);
 }
 
+// The departments' row on a phone scrolls sideways and shows that it does:
+// at 320, 375 and 414 the screen's right edge cuts a department at least 12px
+// in, rather than falling in a gap between two. Read at the row's start, as a
+// page with no current department opens (goen.js centres a current one).
+// English is not held to it: its names are of every length.
+const DEPARTMENT_CUT_PROBE = `(async () => {
+  const nav = document.querySelector('.goen-header__nav');
+  if (!nav) return { ok: false, why: 'the header has no departments row' };
+  nav.scrollLeft = 0;
+  await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+  const edge = document.documentElement.clientWidth;
+  const links = [...nav.querySelectorAll(':scope > a, :scope > .goen-dept > a')];
+  const cut = links.map((a) => a.getBoundingClientRect()).find((r) => r.left < edge && r.right > edge);
+  return { ok: true, links: links.length, scrolls: nav.scrollWidth > nav.clientWidth, into: cut ? edge - cut.left : null };
+})()`;
+
+await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+for (const width of [320, 375, 414]) {
+  const label = `department cut ${width}`;
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height: 812, deviceScaleFactor: 1, mobile: true });
+  await send(ws, 'Page.navigate', { url: ORIGIN + '/' });
+  await settled(ws, label, ORIGIN + '/');
+  const got = await evalPage(DEPARTMENT_CUT_PROBE);
+  if (got.threw || !got.ok) {
+    fail(label, `the probe did not run — ${got.why}`);
+    continue;
+  }
+  if (!got.scrolls) {
+    console.log(`${label.padEnd(24)} the row fits, nothing to show`);
+    continue;
+  }
+  if (got.into === null || got.into < 12) {
+    fail(label, `the right edge cuts no department at least 12px in (${got.into === null ? 'it falls between two' : got.into + 'px'})`);
+  }
+  console.log(`${label.padEnd(24)} the edge cuts a department ${got.into}px in`);
+}
+
 const HEADER_EN_PROBE = `(() => {
   const de = document.documentElement;
   const clipped = (e) => {
@@ -4049,8 +4086,8 @@ const provePdpAdd = async (label, scriptingOff) => {
   }
 
   const cartCount = () => `(() => {
-    const badge = document.querySelector('.goen-header__cart .ui-badge--count');
-    return badge ? parseInt(badge.textContent.trim(), 10) : 0;
+    const count = document.querySelector('#cart-link .goen-header__count');
+    return count ? parseInt(count.textContent.trim(), 10) : 0;
   })()`;
 
   const before = await evalPage(`({
@@ -4063,7 +4100,7 @@ const provePdpAdd = async (label, scriptingOff) => {
     return;
   }
   if (before.cartUnits < 1) {
-    fail(label, 'the header cart badge did not reflect the add-to-cart write');
+    fail(label, 'the header cart count did not reflect the add-to-cart write');
   }
 
   await send(ws, 'Page.reload', { ignoreCache: false });

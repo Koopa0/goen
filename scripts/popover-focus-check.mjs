@@ -146,6 +146,12 @@ try {
   await key('Enter');
   assert.equal(await evaluate('checkedPopover.open'), true, label + ': Enter opens the group');
   const checked = await evaluate("checkedPopover.querySelector('input').checked");
+  // A pointer can only press what is on the screen. Focusing the summary
+  // scrolls only as far as the summary itself, so where the page puts the
+  // group near the bottom edge (320 at 200% text, under a tall promotion) its
+  // panel opens below the fold: a shopper scrolls to it, and so does the check,
+  // by the least that shows the option, before it reads where to press.
+  await evaluate("checkedPopover.querySelector('.goen-filters__label').scrollIntoView({ block: 'nearest' })");
   const optionText = await evaluate(`(() => { const e = checkedPopover.querySelector('.goen-filters__label'); const range = document.createRange(); range.selectNodeContents(e); const r = range.getBoundingClientRect(); return {x:r.x + r.width / 2, y:r.y + r.height / 2}; })()`);
   await press(optionText, label + ': option label');
   assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), !checked, label + ': native label press toggles its option');
@@ -154,6 +160,7 @@ try {
   assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), checked, label + ': second native label press restores the filter');
   await evaluate("checkedPopover.querySelector('summary').focus()");
   if (width === 1440) {
+   await evaluate("checkedPopover.querySelector('.goen-filters__options').scrollIntoView({ block: 'nearest' })");
    const padding = await evaluate(`(() => { const panel = checkedPopover.querySelector('.goen-filters__options'), r = panel.getBoundingClientRect(), s = getComputedStyle(panel); return {x:r.x + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft) / 2, y:r.y + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) / 2}; })()`);
    await press(padding, label + ': panel padding');
    assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), checked, label + ': padding does not toggle the option');
@@ -188,12 +195,17 @@ try {
   await connection.send('Input.dispatchMouseEvent', {type:'mouseReleased', button:'left', clickCount:1, ...outside});
   assert.equal(await evaluate('checkedPopover.open'), false, label + ': outside click still closes the group');
 
-  if (width === 1440) {
+  // The language menu lives in the drawer; from 1024 the bar's language is one
+  // button and there is no menu to hold open.
+  if (width === 375) {
+   // The drawer's content fades in and is skipped by focus until it has.
+   await evaluate("document.querySelector('[data-menu]').open = true; new Promise(done => setTimeout(done, 1000))");
    await evaluate("window.checkedLanguage = [...document.querySelectorAll('.goen-langmenu')].find(e => e.getBoundingClientRect().width > 0); checkedLanguage.querySelector('summary').focus()");
    await key('Enter'); await key('Tab');
    assert.equal(await evaluate('checkedLanguage.open && checkedLanguage.contains(document.activeElement)'), true, label + ': language menu stays open within');
    await evaluate("[...checkedLanguage.querySelectorAll('button')].at(-1).focus()"); await key('Tab');
    assert.equal(await evaluate('checkedLanguage.open'), false, label + ': language menu closes when focus leaves');
+   await evaluate("document.querySelector('[data-menu]').open = false");
   }
   console.log('PASS popover keyboard ' + label + ': ' + JSON.stringify(chip));
  }

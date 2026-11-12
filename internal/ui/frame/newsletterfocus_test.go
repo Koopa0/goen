@@ -71,11 +71,12 @@ func TestNewsletterFormButtonInField(t *testing.T) {
 	}
 }
 
-// TestNewsletterFormActionArrow: the newsletter action is blue text with a decorative arrow.
+// TestNewsletterFormActionNoArrow: the newsletter's subscribe is a plain word, with no arrow.
 //
 // The footer's subscribe is a text action in the field, not the page's filled
-// button, and its arrow is decoration only.
-func TestNewsletterFormActionArrow(t *testing.T) {
+// button, and it sends the form: an arrow is what a section's next link
+// wears, so the button has none.
+func TestNewsletterFormActionNoArrow(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
 	if err := frame.NewsletterForm(frame.NewsletterState{}).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
@@ -85,8 +86,8 @@ func TestNewsletterFormActionArrow(t *testing.T) {
 	if !strings.Contains(button, "goen-btn--ghost") || strings.Contains(button, "goen-btn--primary") {
 		t.Errorf("the subscribe button is not a ghost button: %s", button)
 	}
-	if !strings.Contains(button, `訂閱<span aria-hidden="true">→</span>`) && !strings.Contains(button, `訂閱 <span aria-hidden="true">→</span>`) {
-		t.Errorf("the subscribe button lacks its decorative arrow: %s", button)
+	if !strings.Contains(button, `訂閱`) || strings.Contains(button, "→") || strings.Contains(button, "<svg") {
+		t.Errorf("the subscribe button is not the word 訂閱 alone: %s", button)
 	}
 }
 

@@ -51,8 +51,9 @@ try {
     }
     throw new Error(`${label} did not settle`);
   };
-  const open = async (path, width) => {
-    await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+  // A phone's scrollbar overlays the page; a desktop's takes 15px of it.
+  const open = async (path, width, mobile = false) => {
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile });
     const url = origin + path;
     await send('Page.navigate', { url });
     await waitFor(`location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`, `${path} at ${width}px`);
@@ -313,12 +314,12 @@ try {
     console.log(`${label}: hidden until a product is ticked`);
   }
 
-  // The header's and the footer's controls and the filter chips are still a
-  // pill with one corner, in rem so it grows with the text. A button is a seal,
-  // --r-lg (0.5rem), in rem too; the quantity field is a field, 4px at any text
-  // size, as the field corners below are. The wishlist
-  // heart and the hero arrows are circles, and the footer's button sits 4px
-  // inside its field.
+  // The filter chips are still a pill with one corner, in rem so it grows with
+  // the text. A button is a seal, --r-lg (0.5rem), in rem too; the quantity
+  // field and the footer's newsletter field are fields, 4px at any text size,
+  // as the field corners below are, and the footer's button sits 4px inside
+  // its field, so square. The header's words, the back office's among them,
+  // have no corner at all. The hero arrows are circles.
   {
     const label = 'pressable corners';
     const measure = (selectors, rootSize) => evaluate(`(() => {
@@ -341,31 +342,27 @@ try {
     const submit = '.goen-footer__field > .goen-btn';
     const filled = '.goen-summary__actions .goen-btn--primary';
     const stepper = '.goen-stepper';
-    const cartPills = ['.goen-header__lang > summary', '.goen-header__backoffice', field];
-    const heart = '.goen-header__action--wide';
+    const words = '.goen-header__backoffice';
     const chip = '.goen-filters__chip';
     const arrow = '.goen-hero__arrow';
     const corner = {};
     for (const rootSize of ['', '200%']) {
       const scale = rootSize || '100%';
       await open('/cart', 1440);
-      const cart = await measure([...cartPills, filled, stepper, submit, heart], rootSize);
-      for (const selector of [...cartPills, filled, stepper, submit, heart]) assert.ok(cart[selector]?.height > 0, `${label}: ${selector} is not drawn in the cart at ${scale}`);
+      const cart = await measure([words, field, filled, stepper, submit], rootSize);
+      for (const selector of [words, field, filled, stepper, submit]) assert.ok(cart[selector]?.height > 0, `${label}: ${selector} is not drawn in the cart at ${scale}`);
       assert.equal(length(cart[filled], filled), cart[filled].rem * 0.5, `${label}: the filled button has a ${cart[filled].radius} corner at ${scale}, not --r-lg (${cart[filled].rem * 0.5}px)`);
       assert.equal(length(cart[stepper], stepper), 4, `${label}: the quantity field has a ${cart[stepper].radius} corner at ${scale}, not a field's 4px`);
-      corner[scale] = length(cart[field], field);
-      for (const selector of cartPills) {
-        assert.equal(length(cart[selector], selector), corner[scale], `${label}: ${selector} has a ${cart[selector].radius} corner at ${scale}, not the footer field's ${corner[scale]}px`);
-        assert.ok(corner[scale] >= cart[selector].height / 2 - 0.5, `${label}: ${selector} is ${cart[selector].height}px tall with a ${corner[scale]}px corner at ${scale}, not a full pill`);
-      }
-      assert.equal(length(cart[submit], submit), corner[scale] - 4, `${label}: the footer button's corner at ${scale} is ${cart[submit].radius}, not its field's ${corner[scale]}px less 4px`);
-      assert.equal(cart[heart].radius, '50%', `${label}: the wishlist heart at ${scale} is ${cart[heart].radius}, not a circle`);
+      assert.equal(length(cart[field], field), 4, `${label}: the newsletter field has a ${cart[field].radius} corner at ${scale}, not a field's 4px`);
+      assert.equal(length(cart[submit], submit), 0, `${label}: the footer button's corner at ${scale} is ${cart[submit].radius}, not its field's 4px less 4px`);
+      assert.equal(length(cart[words], words), 0, `${label}: the header's back office has a ${cart[words].radius} corner at ${scale}, not none`);
       assert.equal(cart[filled].shadow, 'none', `${label}: the filled button at ${scale} casts a shadow: ${cart[filled].shadow}`);
 
       await open('/c/audio', 1440);
       const listing = await measure([chip], rootSize);
       assert.ok(listing[chip]?.height > 0, `${label}: no filter chip is drawn at ${scale}`);
-      assert.equal(length(listing[chip], chip), corner[scale], `${label}: a filter chip has a ${listing[chip].radius} corner at ${scale}, not ${corner[scale]}px`);
+      corner[scale] = length(listing[chip], chip);
+      assert.equal(corner[scale], 1.625 * listing[chip].rem, `${label}: a filter chip has a ${listing[chip].radius} corner at ${scale}, not --r-press (${1.625 * listing[chip].rem}px)`);
       assert.ok(corner[scale] >= listing[chip].height / 2 - 0.5, `${label}: a filter chip is ${listing[chip].height}px tall with a ${corner[scale]}px corner at ${scale}, not a full pill`);
 
       await open('/home', 1440);
@@ -377,7 +374,100 @@ try {
       assert.notEqual(hero[arrow].background, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow at ${scale} has no fill`);
     }
     assert.equal(corner['200%'], corner['100%'] * 2, `${label}: ${corner['100%']}px at 100% text is ${corner['200%']}px at 200%, not double`);
-    console.log(`${label}: ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; heart and hero arrows round, footer button 4px inside its field`);
+    console.log(`${label}: chips ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; fields 4px, footer button square inside its field, header words cornerless, hero arrows round`);
+  }
+
+  // The page frame. The header is one row of words in Chinese at 1440 and two
+  // in English, the departments on the second; the current department is
+  // underlined 2px in its own colour; the cart reads 購物車 2 in figures of one
+  // width. Below 1024 the departments scroll sideways and the right edge of a
+  // 320, 375 or 414 screen cuts a department at least 12px in, so the row shows
+  // it goes on. A department's panel is white by day under its shadow, in
+  // 200px, the middle and 280px. The footer's links are ink and underlined,
+  // and its subscribe is an ink word with no arrow.
+  {
+    const label = 'page frame';
+    const header = () => evaluate(`(() => {
+      const box = element => { const r = element.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
+      const nav = document.querySelector('.goen-header__nav');
+      const current = nav.querySelector('[aria-current="page"]');
+      const style = getComputedStyle(current);
+      const count = document.querySelector('#cart-link .goen-header__count');
+      return { bar: box(document.querySelector('.goen-header__bar')), nav: box(nav), search: box(document.querySelector('.goen-header__search')),
+        actions: box(document.querySelector('.goen-header__actions')), cart: document.querySelector('#cart-link').textContent.replace(/\s+/g, ' ').trim(),
+        figures: count && getComputedStyle(count).fontVariantNumeric,
+        current: { text: current.textContent.trim(), line: style.textDecorationLine, thickness: style.textDecorationThickness,
+          lineColour: style.textDecorationColor, colour: style.color } };
+    })()`);
+    for (const [path, rows, cart] of [['/frame', 1, '購物車 2'], ['/frame?lang=en', 2, 'Cart 2']]) {
+      await open(path, 1440);
+      const got = await header();
+      const where = `${label} ${path} 1440px`;
+      const oneRow = got.nav.top < got.search.bottom && got.search.top < got.nav.bottom && got.nav.right <= got.search.left;
+      assert.equal(oneRow ? 1 : 2, rows, `${where}: the departments are on ${oneRow ? 'the bar\'s row' : 'a row of their own'}: ${JSON.stringify(got)}`);
+      if (rows === 2) assert.ok(got.nav.top >= got.search.bottom && got.nav.top >= got.actions.bottom - 0.5, `${where}: the departments' row is not under the others: ${JSON.stringify(got)}`);
+      assert.equal(got.cart, cart, `${where}: the cart reads ${JSON.stringify(got.cart)}`);
+      assert.match(got.figures, /tabular-nums/, `${where}: the cart's count is set in ${got.figures}, not tabular figures`);
+      assert.deepEqual([got.current.line, got.current.thickness, got.current.lineColour], ['underline', '2px', got.current.colour],
+        `${where}: the current department ${got.current.text} is marked ${JSON.stringify(got.current)}, not a 2px underline in its own colour`);
+      console.log(`${where}: ${rows} row${rows === 1 ? '' : 's'}, ${got.cart}, current department underlined 2px`);
+    }
+    await open('/frame', 1024);
+    const narrow = await header();
+    assert.ok(narrow.nav.top >= narrow.search.bottom, `${label} /frame 1024px: the Chinese departments do not step down where one row cannot hold them: ${JSON.stringify(narrow)}`);
+
+    for (const width of [320, 375, 414]) {
+      await open('/frame', width, true);
+      // goen.js centres the current department; the cut is measured at the
+      // row's start, as a page with no current department opens.
+      await evaluate(`document.querySelector('.goen-header__nav').scrollLeft = 0; new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))`);
+      const row = await evaluate(`(() => {
+        const nav = document.querySelector('.goen-header__nav');
+        const edge = document.documentElement.clientWidth;
+        const links = [...nav.querySelectorAll(':scope > a, :scope > .goen-dept > a')];
+        const cut = links.map(a => a.getBoundingClientRect()).find(r => r.left < edge && r.right > edge);
+        return { edge, scroll: nav.scrollWidth > nav.clientWidth, snap: getComputedStyle(nav).scrollSnapType,
+          margin: getComputedStyle(links[0]).scrollMarginInlineStart, into: cut ? edge - cut.left : null,
+          page: document.documentElement.scrollWidth };
+      })()`);
+      const where = `${label} /frame ${width}px`;
+      assert.ok(row.scroll, `${where}: the departments' row does not scroll: ${JSON.stringify(row)}`);
+      assert.equal(row.page, row.edge, `${where}: the page scrolls sideways: ${JSON.stringify(row)}`);
+      // proximity is the default strictness, so it computes to plain x.
+      assert.match(row.snap, /^x( proximity)?$/, `${where}: the row snaps ${row.snap}, not x proximity`);
+      assert.equal(row.margin, '16px', `${where}: a link's scroll margin is ${row.margin}, not 16px`);
+      assert.ok(row.into !== null && row.into >= 12, `${where}: the right edge cuts no department at least 12px in: ${JSON.stringify(row)}`);
+      console.log(`${where}: the edge cuts a department ${row.into}px in`);
+    }
+
+    await open('/frame', 1440);
+    const panel = await evaluate(`(() => {
+      const dept = document.querySelector('.goen-dept');
+      dept.setAttribute('data-open', '');
+      const panel = dept.querySelector('.goen-dept__panel');
+      const style = getComputedStyle(panel);
+      return { shown: panel.getClientRects().length > 0, background: style.backgroundColor, shadow: style.boxShadow,
+        columns: getComputedStyle(panel.querySelector('.goen-dept__inner')).gridTemplateColumns.split(' '),
+        sizes: panel.querySelector('.goen-dept__picks img').getAttribute('sizes') };
+    })()`);
+    assert.ok(panel.shown, `${label}: the department panel does not open`);
+    assert.equal(panel.background, 'rgb(255, 255, 255)', `${label}: the department panel's ground is ${panel.background}, not white`);
+    assert.notEqual(panel.shadow, 'none', `${label}: the department panel casts no shadow`);
+    assert.deepEqual([panel.columns.length, panel.columns[0], panel.columns[2]], [3, '200px', '280px'], `${label}: the panel's columns are ${panel.columns}`);
+    console.log(`${label}: the panel is white under its shadow in ${panel.columns.join(' ')}`);
+
+    const footer = await evaluate(`(() => {
+      const ink = getComputedStyle(document.body).color;
+      const submit = document.querySelector('#newsletter-submit');
+      const link = getComputedStyle(document.querySelector('.goen-footer__links .goen-footer__link'));
+      return { ink, submit: getComputedStyle(submit).color, words: submit.textContent.trim(), font: getComputedStyle(submit).fontSize,
+        link: link.color, line: link.textDecorationLine };
+    })()`);
+    assert.equal(footer.submit, footer.ink, `${label}: the subscribe word is ${footer.submit}, not the ink ${footer.ink}`);
+    assert.equal(footer.words, '訂閱', `${label}: the subscribe button reads ${JSON.stringify(footer.words)}, not the word alone`);
+    assert.equal(footer.font, '15px', `${label}: the subscribe word is ${footer.font}, not label-l's 15px`);
+    assert.deepEqual([footer.link, footer.line], [footer.ink, 'underline'], `${label}: a footer link is ${footer.link} with ${footer.line}, not ink and underlined`);
+    console.log(`${label}: footer links and the subscribe word in ink`);
   }
 
   // The home hero is two rounded panels inside the page column, the copy on its
@@ -657,9 +747,9 @@ try {
       }
     }
   }
-  // The header's search is a white pill with a 1px edge on all four sides, in
-  // rem so it grows with the text. A page that opens with the hero meets it
-  // without the header's rule; every other page keeps the rule.
+  // The header's search is a white field with a 1px edge on all four sides and
+  // the field's 4px corner at any text size. A page that opens with the hero
+  // meets it without the header's rule; every other page keeps the rule.
   {
     const label = 'header search';
     const measure = rootSize => evaluate(`(() => {
@@ -685,7 +775,7 @@ try {
         hero: document.querySelector('.goen-hero') !== null,
         rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
         edge: resolve('color', 'var(--edge)'),
-        press: resolve('border-top-left-radius', 'var(--r-press)'),
+        corner: resolve('border-top-left-radius', 'var(--r-field)'),
         background: style.backgroundColor,
         widths: sides.map(side => style[\`border\${side}Width\`]),
         styles: sides.map(side => style[\`border\${side}Style\`]),
@@ -712,20 +802,19 @@ try {
           assert.deepEqual(got.widths, ['1px', '1px', '1px', '1px'], `${where}: border widths ${got.widths}`);
           assert.deepEqual(got.styles, ['solid', 'solid', 'solid', 'solid'], `${where}: border styles ${got.styles}`);
           assert.deepEqual(got.colors, Array(4).fill(got.edge), `${where}: border colours ${got.colors}, not the control edge ${got.edge}`);
-          assert.match(got.press, /^\d+(\.\d+)?px$/, `${where}: --r-press resolves to ${got.press}, not a length`);
-          assert.deepEqual(got.radii, Array(4).fill(got.press), `${where}: corners ${got.radii}, not --r-press ${got.press}`);
-          assert.ok(parseFloat(got.press) >= got.height / 2 - 0.5, `${where}: ${got.height}px tall with a ${got.press} corner, not a full pill`);
+          assert.equal(got.corner, '4px', `${where}: --r-field resolves to ${got.corner}, not 4px`);
+          assert.deepEqual(got.radii, Array(4).fill('4px'), `${where}: corners ${got.radii}, not the field's 4px`);
           assert.equal(got.paddingLeft, `${2.5 * got.rem}px`, `${where}: left padding ${got.paddingLeft}, not 2.5rem`);
           assert.ok(Math.abs(got.iconLeft - got.rem) < 0.5, `${where}: the magnifier starts ${got.iconLeft}px in, not 1rem (${got.rem}px)`);
           assert.ok(got.iconRight <= 2.5 * got.rem, `${where}: the magnifier ends ${got.iconRight}px in, over the text that starts at 2.5rem`);
           if (hero) assert.equal(got.rule.width, '0px', `${where}: the header keeps its rule over the hero`);
           else assert.deepEqual(got.rule, { width: '1px', style: 'solid' }, `${where}: the header's rule is ${JSON.stringify(got.rule)}`);
         }
-        console.log(`${label} ${path} ${width}px: white pill, 1px edge, 2.5rem inset, header rule ${hero ? 'gone' : 'kept'}`);
+        console.log(`${label} ${path} ${width}px: white field, 4px corner, 1px edge, 2.5rem inset, header rule ${hero ? 'gone' : 'kept'}`);
       }
     }
     // The focus ring is the shared 2px outline, drawn outside a field that
-    // keeps its pill corners while it is focused.
+    // keeps its corners while it is focused.
     await open('/search', 1440);
     await send('Emulation.setFocusEmulationEnabled', { enabled: true });
     try {

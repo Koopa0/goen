@@ -927,26 +927,29 @@ th {
 
 /* ---------- Header ----------
 
-   Two rows on a hairline. The bar: the brand, a search field underlined on the
-   3:1 line, and the language, account, wishlist and cart controls. Under it the
-   departments, always on a row of their own (see .goen-header__nav). Static and
-   not sticky on purpose: a bar that follows the scroll takes 64px out of an
-   844px phone and moves every scroll position the follow-up issues are
-   measured against.
+   One row of text on a hairline: the brand, the departments, the search field
+   and the words for the language, the account, the wishlist and the cart.
+   English names are longer, so in English, and wherever the Chinese row would
+   not fit, the departments step down to a row of their own under the others;
+   the markup keeps the one-row order. Static and not sticky on purpose: a bar
+   that follows the scroll takes its height out of an 844px phone and moves
+   every scroll position the follow-up issues are measured against.
 
    From 1024 a department with sub-categories shows a full-width panel under
-   the row on hover or focus. The panel hangs from .goen-header, which is why
-   nothing between the two is positioned.
+   the header on hover or focus. The panel hangs from .goen-header, which is
+   why nothing between the two is positioned, and a department's link is as
+   tall as its row so the pointer never crosses a gap on its way down.
 
-   Below 1024 the menu button opens a native <details data-menu> that covers
-   the page with every department, the account links and the language; the
-   search field wraps onto its own row of the bar. `assets/js/goen.js` closes
-   the menu on Escape and on an outside click; nothing here needs script to
-   open it.
+   Below 1024 the bar keeps the cart and the menu. The search field takes a
+   row of its own under them below 640, and the departments a row that scrolls
+   sideways under that. The menu is a native <details data-menu> whose drawer
+   lists every department, the account links and the language.
+   `assets/js/goen.js` closes it on Escape and on an outside click; nothing
+   here needs script to open it.
    ------------------------------------------------------------------------ */
 
 .goen-header {
-  background: var(--n-0);
+  background: var(--sys-surface);
   border-bottom: 1px solid var(--n-200);
   position: relative;
   /* The view-transition-name below makes the header a stacking context, so the
@@ -963,97 +966,157 @@ body:has(.goen-hero) .goen-header {
 
 .goen-header__bar {
   align-items: center;
-  column-gap: 12px;
+  column-gap: var(--s-4);
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   margin: 0 auto;
   max-width: var(--page-width);
-  min-height: 4rem;
-  padding: 8px var(--page-gutter);
-  position: relative;
-  row-gap: 8px;
+  padding: 0 var(--page-gutter);
 }
 
 .goen-header__brand {
   align-items: center;
-  color: var(--n-900);
+  color: var(--sys-on-surface);
   display: flex;
-  gap: 8px;
+  gap: 6px;
   margin-right: auto;
   text-decoration: none;
 }
 
 .goen-header__brand:hover {
-  color: var(--n-900);
+  color: var(--sys-on-surface);
 }
 
 .goen-header__mark {
   flex: none;
-  height: 24px;
-  width: 24px;
+  height: 28px;
+  width: 28px;
 }
 
 .goen-header__wordmark {
-  font-size: var(--fs-18);
+  font-size: 1.25rem;
   font-weight: var(--fw-semibold);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
+  line-height: 1;
 }
 
-/* The departments, always on a row of their own under the bar, in either
-   language and for any number of them. Wide screens wrap it a department at a
-   time; a phone scrolls it sideways and goen.js centres the current one. The
-   `ui-navitem` spelling is kept because `internal/ui/frame/backoffice_test.go:22`
-   locates the drawer's /admin entrance by the whole tag; every declaration
-   base.css gives that name is replaced here. The current department is
-   underlined as text, not boxed: a border would show on every link in forced
-   colours. */
-.goen-header__nav {
-  column-gap: clamp(1.25rem, 2vw, 1.75rem);
+/* The words of the bar. A link, the language's button and the menu's summary
+   are drawn alike: ink text, underlined on hover, 44px tall. */
+.goen-header__tool {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--sys-on-surface);
+  cursor: pointer;
+  display: inline-flex;
+  font: var(--type-label-l);
+  font-weight: var(--fw-regular);
+  justify-content: center;
+  list-style: none;
+  min-height: 2.75rem;
+  min-width: 1.5rem;
+  padding: 0;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.goen-header__tool::-webkit-details-marker {
+  display: none;
+}
+
+.goen-header__tool:hover {
+  color: var(--sys-on-surface);
+  text-decoration: underline 1px;
+  text-underline-offset: 6px;
+}
+
+.goen-header__actions {
+  align-items: center;
   display: flex;
-  flex-wrap: wrap;
-  padding-inline: max(var(--page-gutter), calc((100% - var(--page-width)) / 2));
+  gap: var(--s-4);
+  margin-left: auto;
+  min-height: 3.5rem;
+  order: 1;
+}
+
+/* The menu carries these below 1024. */
+.goen-header__wide,
+.goen-header__lang,
+.goen-header__backoffice {
+  display: none;
+}
+
+/* The departments. Below 1024 they are a row under the search field that
+   scrolls sideways, edge to edge: the next department's first characters show
+   at the right edge, so the row says there is more, and a link that takes
+   focus is scrolled clear of the edge with its ring. The end's room is an
+   ::after, because Safari drops a flex container's end padding inside a
+   scroller. goen.js centres the current department. The `ui-navitem`
+   spelling is kept because `internal/ui/frame/backoffice_test.go` locates the
+   drawer's /admin entrance by the whole tag; every declaration base.css gives
+   that name is replaced here. The current department is underlined as text,
+   not boxed: a border would show on every link in forced colours. */
+/* 26px, not a step of the scale: with four-character names it is the one gap
+   that cuts a department at 320, 375 and 414 alike (24 leaves the edge in a
+   gap at 414, 20 at 320). check-layout.mjs holds the cut. */
+.goen-header__nav {
+  box-sizing: border-box;
+  column-gap: 26px;
+  display: flex;
+  flex: 0 0 calc(100% + 2 * var(--page-gutter));
+  margin-inline: calc(-1 * var(--page-gutter));
+  order: 3;
+  overflow-x: auto;
+  padding-inline-start: var(--page-gutter);
+  scroll-padding-inline: var(--page-gutter);
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.goen-header__nav::-webkit-scrollbar {
+  display: none;
+}
+
+.goen-header__nav::after {
+  content: '';
+  flex: 0 0 var(--s-4);
 }
 
 .goen-header__nav .ui-navitem {
   align-items: center;
   background: none;
   border-radius: 0;
-  color: var(--n-700);
+  color: var(--sys-on-surface);
   display: inline-flex;
   flex: none;
-  font-size: var(--fs-14);
+  font: var(--type-label-l);
+  font-weight: var(--fw-regular);
   min-height: 2.75rem;
   padding: 0;
+  scroll-margin-inline: var(--s-4);
+  scroll-snap-align: start;
   text-decoration: none;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 8px;
-  transition: color var(--dur-base) var(--ease-standard);
   white-space: nowrap;
+}
+
+/* The row scrolls, so it clips: the ring is drawn inside the link's box. */
+.goen-header__nav .ui-navitem:focus-visible {
+  outline-offset: -2px;
 }
 
 .goen-header__nav .ui-navitem:hover {
   background: none;
-  color: var(--n-900);
+  color: var(--sys-on-surface);
+  text-decoration: underline 1px;
+  text-underline-offset: 6px;
 }
 
 .goen-header__nav .ui-navitem[aria-current='page'] {
   background: none;
-  color: var(--n-900);
-  text-decoration-color: var(--accent);
-  text-decoration-line: underline;
-}
-
-@media (max-width: 700px) {
-  .goen-header__nav {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .goen-header__nav::-webkit-scrollbar {
-    display: none;
-  }
+  color: var(--sys-on-surface);
+  font-weight: var(--fw-medium);
+  text-decoration: underline 2px;
+  text-underline-offset: 10px;
 }
 
 /* The panels are for a pointer and a keyboard on a wide row. Below 1024 the
@@ -1072,15 +1135,23 @@ body:has(.goen-hero) .goen-header {
   flex: none;
 }
 
+/* White by day, as the page is, and set off from it by the shadow alone; by
+   night a step lighter than the page (1.30:1), so it does not read as more of
+   the page under it. */
 .goen-dept__panel {
-  background: var(--n-0);
-  border-bottom: 1px solid var(--n-200);
+  background: var(--sys-surface);
   box-shadow: var(--sh-lg);
   display: none;
   left: 0;
   position: absolute;
   right: 0;
   top: 100%;
+}
+
+@supports (color: light-dark(#000, #fff)) {
+  .goen-dept__panel {
+    background: light-dark(var(--n-0), var(--night-surface-container-high));
+  }
 }
 
 .goen-dept:hover > .goen-dept__panel,
@@ -1114,82 +1185,70 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
-/* The panel is as tall as what it holds: the sub-categories, three of the
-   department's newest products and a small photograph, on one row with the
-   free width between them. The products' track may shrink, so a long list of
-   sub-categories in English at 1024 squeezes the thumbnails rather than
-   pushing the row past the container. */
+/* Three columns: the sub-categories in 200px, three of the department's
+   newest products filling the middle, and the department's photograph with
+   its link in 280px. The middle track may shrink, so at 1024 the products
+   are smaller pictures rather than a row pushed past the page. */
 .goen-dept__inner {
   align-items: start;
-  column-gap: 3rem;
+  column-gap: var(--s-7);
   display: grid;
-  grid-template-columns: max-content minmax(0, max-content) max-content;
-  justify-content: space-between;
+  grid-template-columns: 200px minmax(0, 1fr) 280px;
   margin: 0 auto;
   max-width: var(--page-width);
-  padding: 1.5rem var(--page-gutter) 2rem;
+  padding: var(--s-6) var(--page-gutter) var(--s-7);
 }
 
-/* One column of sub-categories; from five, columns of three, read top to
-   bottom, so the list is never taller than the products beside it. */
 .goen-dept__links {
-  column-gap: 2.5rem;
   display: grid;
-  grid-auto-columns: max-content;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.goen-dept__links:has(> li:nth-child(5)) {
-  grid-auto-flow: column;
-  grid-template-rows: repeat(3, auto);
-}
-
 .goen-dept__link {
-  color: var(--n-700);
-  display: block;
-  font-size: var(--fs-15);
-  padding: 0.375rem 0;
+  align-items: center;
+  color: var(--sys-on-surface);
+  display: flex;
+  font: var(--type-body-m);
+  min-height: 36px;
   text-decoration: none;
 }
 
 .goen-dept__link:hover {
-  color: var(--n-900);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--sys-on-surface);
+  text-decoration: underline 1px;
+  text-underline-offset: 4px;
 }
 
 .goen-dept__picks {
   display: grid;
-  gap: 1.5rem;
-  grid-template-columns: repeat(3, minmax(0, 8rem));
+  gap: var(--s-5);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .goen-dept__pick {
-  color: var(--n-900);
+  color: var(--sys-on-surface);
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
   text-decoration: none;
 }
 
 .goen-dept__pick:hover {
-  color: var(--n-900);
+  color: var(--sys-on-surface);
 }
 
 /* The tile's well at a smaller size, on the photographs' own ground. At this
-   size the photograph fills it: held in from the edge, a 144px product would
+   size the photograph fills it: held in from the edge, a small product would
    shrink to a stamp. */
 .goen-dept__well {
   aspect-ratio: 1;
   background: var(--photo);
   border-radius: 0;
   display: block;
-  margin-bottom: 0.5rem;
   overflow: hidden;
 }
 
@@ -1203,108 +1262,68 @@ body:has(.goen-hero) .goen-header {
 .goen-dept__name {
   -webkit-box-orient: vertical;
   display: -webkit-box;
-  font-size: var(--fs-14);
+  font: var(--type-body-s);
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  line-height: 1.45;
+  margin-top: var(--s-2);
   overflow: hidden;
   text-wrap: pretty;
 }
 
 .goen-dept__price {
   color: var(--price);
-  font-size: var(--fs-14);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-medium);
+  font: var(--type-label-m);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .goen-dept__pick:hover .goen-dept__name {
-  text-decoration: underline;
+  text-decoration: underline 1px;
   text-underline-offset: 3px;
 }
 
-.goen-dept__pick:hover img {
-  opacity: 0.85;
-}
-
-/* Pinned to the last track: a department with nothing buyable has no product
-   list, and the link would otherwise fall into the middle of the row. */
+/* The section's one next step: blue, with its arrow, underlined on hover. */
 .goen-dept__browse {
-  color: var(--accent-text);
+  color: var(--sys-primary);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--s-2);
   grid-column: 3;
   text-decoration: none;
 }
 
 .goen-dept__browse:hover {
-  color: var(--accent-text-hover);
+  color: var(--sys-primary);
 }
 
-/* Below 1280 the row has no room for a fourth picture, so the photograph goes
-   and its caption stays as the department's text link. Lazy and display:none,
-   it is never fetched there. */
 .goen-dept__photo {
-  display: none;
+  aspect-ratio: 4 / 3;
+  background: var(--sys-surface-container);
+  border-radius: 0;
+  display: block;
+  object-fit: cover;
+  width: 100%;
 }
 
 .goen-dept__caption {
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  padding-top: 0.375rem;
-  white-space: nowrap;
+  font: var(--type-label-l);
 }
 
 .goen-dept__browse:hover .goen-dept__caption {
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-
-@media (min-width: 1280px) {
-  .goen-dept__picks {
-    grid-template-columns: repeat(3, minmax(0, 9rem));
-  }
-
-  .goen-dept__photo {
-    aspect-ratio: 4 / 3;
-    background: var(--photo);
-    border-radius: 0;
-    display: block;
-    object-fit: cover;
-    width: 15rem;
-  }
-
-  .goen-dept__browse:hover .goen-dept__photo {
-    opacity: 0.85;
-  }
-
-  .goen-dept__caption {
-    padding-top: 0;
-  }
-}
-
-.goen-header .goen-header__nav .goen-header__navitem--deal {
-  padding-left: 0;
-}
-
-/* Deals is not a department, so a 2.5rem space (this margin plus the row's gap)
-   sets it apart. The margin sits on the item before it, so a wrapped Deals starts
-   at the row's edge. */
-.goen-header__nav > :has(+ .goen-header__navitem--deal) {
-  margin-inline-end: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
+  text-decoration: underline 1px;
+  text-underline-offset: 4px;
 }
 
 .goen-header__search {
   flex: 0 0 100%;
-  order: 10;
+  margin-bottom: var(--s-2);
+  order: 2;
   position: relative;
 }
 
 .goen-header__searchicon {
   align-items: center;
   bottom: 0;
-  color: var(--ink-2);
+  color: var(--sys-on-surface-variant);
   display: flex;
   left: 1rem;
   pointer-events: none;
@@ -1317,101 +1336,22 @@ body:has(.goen-hero) .goen-header {
   width: 1rem;
 }
 
-/* A white pill. Its 1px edge is the control's boundary (1.4.11, 3.66:1 on
-   white) and focus draws the shared ring outside it. */
+/* A field like any other, with the field's corner; its 1px edge is the
+   control's boundary (1.4.11) and focus draws the shared ring outside it. */
 .goen-header .goen-header__field {
-  background: var(--n-0);
-  border-radius: var(--r-press);
-  border-width: 1px;
+  background: var(--sys-surface);
   padding-left: 2.5rem;
-}
-
-.goen-header .goen-header__field:hover {
-  border-color: var(--ink-2);
 }
 
 .goen-header .goen-header__field:focus-visible {
   outline-offset: 2px;
 }
 
-.goen-header__actions {
-  align-items: center;
-  display: flex;
-  gap: 4px;
-}
-
-.goen-header__actions svg,
-.goen-header__menu > summary svg {
-  height: 1.25rem;
-  width: 1.25rem;
-}
-
-.goen-header__actions .goen-btn,
-.goen-header__actions .ui-btn,
-.goen-header__menu > summary {
-  color: var(--ink-2);
-}
-
-.goen-header__actions .goen-btn:hover,
-.goen-header__actions .ui-btn:hover,
-.goen-header__menu > summary:hover {
-  background: var(--n-100);
-  color: var(--ink);
-}
-
-/* The wishlist heart and, for staff, the words "Back office" before the language
-   menu. Both keep the shared `ui-btn` spelling that `backoffice_test.go` reads,
-   so the ghost recipe is written out here rather than taken from `.goen-btn`. */
-.goen-header__action--wide,
-.goen-header__backoffice {
-  align-items: center;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--r-press);
-  box-sizing: border-box;
-  cursor: pointer;
-  display: none;
-  height: 44px;
-  justify-content: center;
-  text-decoration: none;
-  transition: background-color var(--dur-base) var(--ease-standard);
-}
-
-.goen-header__action--wide {
-  border-radius: 50%;
-  padding: 0;
-  width: 44px;
-}
-
-.goen-header__backoffice {
-  font-size: var(--fs-13);
-  font-weight: var(--fw-regular);
-  padding: 0 0.75rem;
-  white-space: nowrap;
-}
-
-.goen-header__actions .goen-header__cart {
-  gap: 4px;
-  min-width: 2.75rem;
-  padding-inline: 0.625rem;
-  width: auto;
-}
-
-/* The count is a number beside the bag, not a badge on it. `check-layout.mjs`
-   reads its text through this exact pair of names after an add to cart, so the
-   spelling stays and the declarations are goen's. */
-.goen-header__cart .ui-badge--count {
-  background: none;
-  border: none;
-  color: var(--ink);
-  font-family: inherit;
-  font-size: var(--fs-13);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-medium);
-  height: auto;
-  line-height: 1;
-  min-width: 0;
-  padding: 0;
+/* The count is figures after the word and its space, not a badge, in
+   figures of one width so a count that changes does not move the word.
+   `check-layout.mjs` reads its text after an add to cart. */
+.goen-header__count {
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 /* The language control, in the footer: two plain words, the current one set. */
@@ -1440,19 +1380,17 @@ body:has(.goen-hero) .goen-header {
   color: var(--n-900);
 }
 
+/* The current one is marked as the current department is: a 2px rule under
+   the text, in the text's own colour. */
 .goen-lang__item[aria-pressed='true'] {
-  color: var(--n-900);
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
-  text-decoration-thickness: 2px;
+  color: var(--sys-on-surface);
+  text-decoration: underline 2px;
   text-underline-offset: 6px;
 }
 
-/* The language menu of the header and the back office's bar: a globe and the
-   current language's short name on a button, a small panel of the two choices
-   under it. The name is visible from 1280 and in the back office; where the
-   header is tight it is only the globe, and the name stays in the accessible
-   name. */
+/* The language menu of the header's drawer: a globe and the other language's
+   short name on a button, the two choices under it. The back office's bar has
+   its own copy in admin.css. */
 .goen-langmenu {
   position: relative;
 }
@@ -1480,18 +1418,6 @@ body:has(.goen-hero) .goen-header {
   display: none;
 }
 
-.goen-header__actions .goen-langmenu > summary {
-  box-sizing: border-box;
-  color: var(--ink-2);
-  font-size: var(--fs-13);
-  font-weight: var(--fw-regular);
-}
-
-.goen-header__actions .goen-langmenu > summary:hover,
-.goen-header__actions .goen-langmenu[open] > summary {
-  color: var(--ink);
-}
-
 .goen-langmenu > summary:hover,
 .goen-langmenu[open] > summary {
   background: var(--n-100);
@@ -1502,23 +1428,6 @@ body:has(.goen-hero) .goen-header {
   flex: none;
   height: 1.25rem;
   width: 1.25rem;
-}
-
-.goen-header__actions .goen-langmenu svg {
-  height: 1rem;
-  width: 1rem;
-}
-
-.goen-header .goen-langmenu__current {
-  border: 0;
-  clip-path: inset(50%);
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  padding: 0;
-  position: absolute;
-  white-space: nowrap;
-  width: 1px;
 }
 
 .goen-langmenu__panel {
@@ -1562,31 +1471,23 @@ body:has(.goen-hero) .goen-header {
   font-weight: var(--fw-medium);
 }
 
-/* The disclosure menu: a native <details>, no script involved in opening it. */
-.goen-header__menu > summary {
-  list-style: none;
-}
-
-.goen-header__menu > summary::-webkit-details-marker {
-  display: none;
-}
-
-/* A 20rem panel from the left edge, under the bar so the menu button stays
-   where it was and closes it. */
+/* The disclosure menu: a native <details>, no script involved in opening it.
+   A 20rem panel from the right edge, under the header, so the menu's button
+   stays where it was and closes it. */
 .goen-header__drawer {
-  background: var(--n-0);
+  background: var(--sys-surface);
   box-sizing: border-box;
   border-bottom: 1px solid var(--n-200);
-  border-right: 1px solid var(--n-200);
+  border-left: 1px solid var(--n-200);
   box-shadow: var(--sh-xl);
   display: flex;
   flex-direction: column;
   gap: 2px;
   height: var(--drawer-room, calc(100dvh - 7rem));
-  left: 0;
   overflow-y: auto;
   padding: 12px;
   position: absolute;
+  right: 0;
   top: 100%;
   width: min(20rem, 100%);
   z-index: var(--z-dropdown);
@@ -1646,14 +1547,13 @@ body:has(.goen-hero) .goen-header {
 /* The name only: the count beside it is not part of what is current. */
 .goen-header__drawer .ui-navitem[aria-current='page'] .goen-header__navname,
 .goen-header__drawer .goen-header__navitem--deal[aria-current='page'] {
-  text-decoration: underline 2px var(--accent);
+  text-decoration: underline 2px;
   text-underline-offset: 0.45em;
 }
 
-/* The way out of the drawer, and what the phone's bar has no room for. The
+/* The way out of the drawer, and what the bar below 1024 has no room for. The
    language menu opens in the flow here: an absolutely placed panel would be
-   clipped by the drawer's own scroll. Below 768 the bar's copy of the menu is
-   dropped, so one language control shows at a time. */
+   clipped by the drawer's own scroll. */
 .goen-header__close {
   align-self: flex-end;
   display: none;
@@ -1676,17 +1576,9 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-header__drawerlang > summary {
+  box-sizing: border-box;
   justify-content: flex-start;
   width: 100%;
-}
-
-.goen-header .goen-header__drawerlang .goen-langmenu__current {
-  clip-path: none;
-  height: auto;
-  margin: 0;
-  overflow: visible;
-  position: static;
-  width: auto;
 }
 
 .goen-header__drawerlang .goen-langmenu__panel {
@@ -1694,93 +1586,103 @@ body:has(.goen-hero) .goen-header {
   position: static;
 }
 
-@media (max-width: 767px) {
-  .goen-header__lang {
-    display: none;
+/* From 640 the search field shares the bar's row. */
+@media (min-width: 640px) and (max-width: 1023.98px) {
+  .goen-header__search {
+    flex: 1 1 12rem;
+    margin-bottom: 0;
+    max-width: 24rem;
+    order: 0;
   }
 }
 
-@media (min-width: 768px) {
-  .goen-header__drawerlang {
-    display: none;
-  }
-}
-
+/* From 1024 every word of the bar shows and the menu goes. The departments sit
+   on a row of their own under the others: in English, and in Chinese until the
+   one row fits (below). Their link is as tall as that row, which ends where the
+   header does, so a panel hangs from the link's own bottom edge. */
 @media (min-width: 1024px) {
   .goen-header__bar {
-    column-gap: 1.25rem;
-    padding: 0 var(--page-gutter);
-  }
-
-  .goen-header__action--wide,
-  .goen-header__backoffice {
-    display: inline-flex;
+    column-gap: var(--s-6);
   }
 
   .goen-header__menu {
     display: none;
   }
 
+  .goen-header__wide,
+  .goen-header__lang,
+  .goen-header__backoffice {
+    display: inline-flex;
+  }
+
   .goen-header__brand {
     margin-right: 0;
   }
 
-  .goen-header .goen-header__field {
-    font-size: var(--fs-14);
-  }
-
   .goen-header__search {
-    flex: 1 1 8.75rem;
-    margin-left: auto;
-    max-width: 15.5rem;
+    flex: 0 1 13.75rem;
+    margin: 0 0 0 auto;
     min-width: 8.75rem;
     order: 0;
   }
-}
 
-@media (min-width: 640px) and (max-width: 1023.98px) {
-  .goen-header__search {
-    flex: 1 1 12rem;
-    max-width: 24rem;
-    order: 0;
-  }
-}
-
-@media (min-width: 1024px) and (max-width: 1279px) {
-  .goen-header__bar {
-    column-gap: 0.75rem;
+  .goen-header .goen-header__field {
+    font-size: var(--fs-14);
+    height: 2.5rem;
   }
 
   .goen-header__actions {
-    gap: 0;
+    gap: var(--s-5);
+    margin-left: 0;
+    min-height: 4rem;
+    order: 0;
   }
 
-  .goen-header__search {
-    flex-basis: 7.5rem;
-    min-width: 7.5rem;
-  }
-}
-
-@media (min-width: 1280px) {
-  .goen-header .goen-langmenu__current {
-    clip-path: none;
-    height: auto;
-    margin: 0;
+  /* The row wraps rather than scrolls here: a panel hangs from it, and at
+     200% text a department that does not fit starts a line of its own
+     instead of pushing the page wider than the screen (1.4.10). */
+  .goen-header__nav {
+    column-gap: var(--s-5);
+    flex: 0 0 100%;
+    flex-wrap: wrap;
+    margin-inline: 0;
+    order: 5;
     overflow: visible;
-    position: static;
-    width: auto;
+    padding: 0;
+    scroll-snap-type: none;
+  }
+
+  .goen-header__nav::after {
+    content: none;
+  }
+
+  .goen-header__nav .ui-navitem:focus-visible {
+    outline-offset: 2px;
   }
 }
 
-/* Forced colours replace the greys, so the glyphs and the count take the
-   button colour the system chose for controls. */
-@media (forced-colors: active) {
-  .goen-header__actions .goen-btn,
-  .goen-header__actions .ui-btn,
-  .goen-header__actions .goen-langmenu > summary,
-  .goen-header__menu > summary,
-  .goen-header__cart .ui-badge--count {
-    color: ButtonText;
+/* The one row: Chinese, wide enough for the departments, the field and the
+   words beside each other with a staff member's back office among them. In em,
+   so a larger default text size keeps the two rows. */
+@media (min-width: 85em) {
+  .goen-header:lang(zh-Hant) .goen-header__actions {
+    min-height: 4.5rem;
+  }
+
+  /* It may still shrink and wrap: at 200% text the query, which reads the
+     browser's text size and not the page's, still matches. */
+  .goen-header:lang(zh-Hant) .goen-header__nav {
+    align-self: stretch;
+    flex: 0 1 auto;
+    min-width: 0;
+    order: 0;
+  }
+
+  /* A line breaks at the items' bases, so the field offers its smallest width
+     to the line and grows back to its own when there is room. */
+  .goen-header:lang(zh-Hant) .goen-header__search {
+    flex: 1 1 8.75rem;
+    max-width: 13.75rem;
   }
 }
 
@@ -1852,15 +1754,20 @@ body:has(.goen-hero) .goen-header {
   padding: 0;
 }
 
+/* Ink with the faint underline every link but a section's next step wears;
+   the line takes the text's colour on hover. */
 .goen-footer__link {
-  color: var(--n-500);
+  color: var(--sys-on-surface);
   font-size: var(--fs-14);
-  text-decoration: none;
-  transition: color var(--dur-base) var(--ease-standard);
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
 .goen-footer__link:hover {
-  color: var(--n-900);
+  color: var(--sys-on-surface);
+  text-decoration-color: currentcolor;
 }
 
 .goen-footer__news {
@@ -1899,14 +1806,13 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-footer__field > .goen-input {
-  border-radius: var(--r-press);
   grid-area: 1 / 1 / 2 / 3;
   height: 3.25rem;
-  padding-right: 8.5rem;
+  padding-right: 7rem;
 }
 
 .goen-footer__field > .goen-btn {
-  border-radius: calc(var(--r-press) - 4px);
+  border-radius: calc(var(--r-field) - 4px);
   flex-wrap: wrap;
   grid-area: 1 / 2;
   margin: 4px;
@@ -1926,7 +1832,7 @@ body:has(.goen-hero) .goen-header {
   container-type: inline-size;
 }
 
-@container (max-width: 24rem) {
+@container (max-width: 18rem) {
   .goen-footer__field {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1948,33 +1854,20 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
+/* The subscribe button is a label in ink: a button never wears the link's
+   blue, and the field's edge is its shape. */
 .goen-footer__field > .goen-btn--ghost {
   background: none;
-  color: var(--accent);
-  font-weight: var(--fw-medium);
-  gap: 0.375rem;
-  padding-inline: 0.75rem 1rem;
+  color: var(--sys-on-surface);
+  font: var(--type-label-l);
+  padding-inline: 0.875rem;
 }
 
 .goen-footer__field > .goen-btn--ghost:hover {
   background: none;
-  color: var(--accent-deep);
+  color: var(--sys-on-surface);
   text-decoration: underline 1px;
   text-underline-offset: 3px;
-}
-
-.goen-footer__field > .goen-btn--ghost > [aria-hidden] {
-  transition: transform var(--dur-base) var(--ease-standard);
-}
-
-.goen-footer__field > .goen-btn--ghost:hover > [aria-hidden] {
-  transform: translateX(3px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .goen-footer__field > .goen-btn--ghost:hover > [aria-hidden] {
-    transform: none;
-  }
 }
 
 .goen-footer__signup-done {

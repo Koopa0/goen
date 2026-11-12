@@ -25,6 +25,21 @@ func renderChrome(t *testing.T, locale i18n.Locale, items []frame.NavItem) (head
 	return h.String(), f.String()
 }
 
+// drawerOf is the menu's drawer in a rendered header: from its <nav> to the
+// </nav> that closes it, which holds no navigation of its own.
+func drawerOf(t *testing.T, header string) string {
+	t.Helper()
+	start := strings.Index(header, `class="goen-header__drawer"`)
+	if start < 0 {
+		t.Fatal("the drawer is not in the header")
+	}
+	drawer, _, closed := strings.Cut(header[start:], "</nav>")
+	if !closed {
+		t.Fatal("the drawer is never closed")
+	}
+	return drawer
+}
+
 var chromeNav = []frame.NavItem{
 	{Slug: "phones", Name: "手機", Href: "/c/phones"},
 	{Slug: "accessories", Name: "周邊配件", Href: "/c/accessories", Children: []frame.NavItem{
@@ -76,20 +91,23 @@ func TestHeaderFooterFormRoles(t *testing.T) {
 	}
 }
 
-// TestHeaderLanguageMenuFooterPair: the language control is a menu in the header and a pair in the footer.
+// TestHeaderLanguageMenuFooterPair: the language control is a word in the bar, a menu in the drawer and a pair in the footer.
 //
-// The header's language control is one menu button and, once opened, one
-// choice per language, in the bar and again in the drawer, which CSS shows one
-// at a time; the footer keeps its own pair of plain buttons. Neither is a
-// second copy of the other's markup, and the button says which language is on.
+// The bar names the other language and switches to it in one press; the
+// drawer, which the bar below 1024 leaves it to, keeps a menu of one choice per
+// language; the footer keeps its own pair of plain buttons. None is a second
+// copy of another's markup, and the menu says which language is on.
 func TestHeaderLanguageMenuFooterPair(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		header, footer := renderChrome(t, locale, chromeNav)
 		want := len(i18n.Locales())
-		if got := strings.Count(header, "goen-langmenu__item"); got != 2*want {
-			t.Errorf("%s: the bar and the drawer have %d choices, want %d", locale, got, 2*want)
+		if got := strings.Count(header, "goen-langmenu__item"); got != want {
+			t.Errorf("%s: the header has %d language choices, want the drawer menu's %d", locale, got, want)
+		}
+		if got := strings.Count(drawerOf(t, header), "goen-langmenu__item"); got != want {
+			t.Errorf("%s: %d of the language choices are in the drawer, want all %d", locale, got, want)
 		}
 		if strings.Contains(header, "goen-lang__item") {
 			t.Errorf("%s: the header carries the footer's pair as well as its menu", locale)
@@ -103,30 +121,32 @@ func TestHeaderLanguageMenuFooterPair(t *testing.T) {
 				other = l
 			}
 		}
-		if !strings.Contains(header, `lang="`+other.Tag()+`">`+other.Short()+`</span>`) {
-			t.Errorf("%s: the menu button does not show %q, the language it switches to", locale, other.Short())
+		bar := regexp.MustCompile(`(?s)<form class="goen-header__lang"[^>]*>.*?</form>`).FindString(header)
+		if !strings.Contains(bar, `name="locale" value="`+other.Tag()+`"`) || strings.Count(bar, "<button") != 1 {
+			t.Errorf("%s: the bar's language control is %q, want one button posting %s", locale, bar, other.Tag())
 		}
-		if got := strings.Count(header, `aria-pressed="true"`); got != 2 {
-			t.Errorf("%s: %d choices are marked current, want one per menu", locale, got)
+		if !strings.Contains(bar, `<span lang="`+other.Tag()+`">`+other.Short()+`</span>`) {
+			t.Errorf("%s: the bar's language control does not show %q in its own language: %s", locale, other.Short(), bar)
+		}
+		if got := strings.Count(header, `lang="`+other.Tag()+`">`+other.Short()+`</span>`); got != 2 {
+			t.Errorf("%s: %d controls show %q, want the bar's and the drawer menu's", locale, got, other.Short())
+		}
+		if got := strings.Count(header, `aria-pressed="true"`); got != 1 {
+			t.Errorf("%s: %d choices are marked current, want the drawer menu's one", locale, got)
 		}
 	}
 }
 
 // TestHeaderDrawerContents: the drawer carries what the phone bar has no room for.
 //
-// A phone's bar has no room for the wishlist, the account or the language, so
-// the drawer carries them, and it carries a way out that has a name.
+// The bar below 1024 has no room for the wishlist, the account or the language,
+// so the drawer carries them, and it carries a way out that has a name.
 func TestHeaderDrawerContents(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		header, _ := renderChrome(t, locale, chromeNav)
-		start := strings.Index(header, `class="goen-header__drawer"`)
-		end := strings.Index(header, `class="goen-header__brand"`)
-		if start < 0 || end < start {
-			t.Fatalf("%s: the drawer is not in the header", locale)
-		}
-		drawer := header[start:end]
+		drawer := drawerOf(t, header)
 		ctx := i18n.WithLocale(t.Context(), locale)
 		for _, want := range []string{
 			`href="/account/wishlist">` + i18n.T(ctx, i18n.KeyWishlist) + `</a>`,
@@ -138,6 +158,38 @@ func TestHeaderDrawerContents(t *testing.T) {
 			if !strings.Contains(drawer, want) {
 				t.Errorf("%s: the drawer does not contain %q", locale, want)
 			}
+		}
+	}
+}
+
+// TestHeaderBarWords: the bar names its links in words.
+//
+// The account, the wishlist, the cart and the menu are words a shopper reads,
+// not glyphs that need an accessible name to be told apart, and the menu's
+// word is its name.
+func TestHeaderBarWords(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		header, _ := renderChrome(t, locale, chromeNav)
+		ctx := i18n.WithLocale(t.Context(), locale)
+		_, actions, found := strings.Cut(header, `class="goen-header__actions"`)
+		if !found {
+			t.Fatalf("%s: the header has no actions", locale)
+		}
+		actions, _, _ = strings.Cut(actions, `class="goen-header__drawer"`)
+		for _, want := range []string{
+			`href="/account">` + i18n.T(ctx, i18n.KeyAccount) + `</a>`,
+			`href="/account/wishlist">` + i18n.T(ctx, i18n.KeyWishlist) + `</a>`,
+			`<summary class="goen-header__tool">` + i18n.T(ctx, i18n.KeyMenu) + `</summary>`,
+			`href="/cart" aria-label="` + i18n.T(ctx, i18n.KeyCartEmpty) + `">` + i18n.T(ctx, i18n.KeyCart),
+		} {
+			if !strings.Contains(actions, want) {
+				t.Errorf("%s: the bar does not contain %q", locale, want)
+			}
+		}
+		if strings.Contains(actions, "<svg") {
+			t.Errorf("%s: the bar draws a glyph: %s", locale, actions)
 		}
 	}
 }
@@ -384,9 +436,7 @@ func TestHeaderMenuOneDepartmentNoHeading(t *testing.T) {
 	t.Parallel()
 
 	for _, items := range [][]frame.NavItem{chromeNav[:1], chromeNav} {
-		header := renderHeader(t, items, true, frame.Page{})
-		start := strings.Index(header, `class="goen-header__drawer"`)
-		drawer := header[start:strings.Index(header, `class="goen-header__brand"`)]
+		drawer := drawerOf(t, renderHeader(t, items, true, frame.Page{}))
 		if got, want := strings.Contains(drawer, "goen-header__drawerheading"), len(items) > 1; got != want {
 			t.Errorf("%d departments: the menu has a heading = %v, want %v", len(items), got, want)
 		}
@@ -516,6 +566,11 @@ func TestDepartmentPanelProducts(t *testing.T) {
 	if !strings.Contains(imgs[0], `loading="lazy"`) {
 		t.Errorf("a panel picture is fetched before the panel opens: %s", imgs[0])
 	}
+	// The middle track is about 240px wide at 1440 and shrinks with the page
+	// below that, so a 144px or a fixed size would fetch the wrong file.
+	if !strings.Contains(imgs[0], `sizes="(min-width:90rem) 240px, 18vw"`) {
+		t.Errorf("a panel picture does not size itself to the middle track: %s", imgs[0])
+	}
 }
 
 // TestBaseAdminStylesheetLinks: only the back office links its stylesheet.
@@ -587,17 +642,22 @@ func TestHeaderFooterDepartmentsLabel(t *testing.T) {
 	}
 }
 
-// TestHeaderCartCount: the cart count sits beside the bag and only when there is something in it.
+// TestHeaderCartCount: the cart says 購物車 and its count, and its name says the count in a sentence.
+//
+// The count is the lasting answer to an add to cart, so it is shown as the
+// word and a number after it, never alone and never once the cart is empty;
+// the link's name is the sentence, which the number by itself does not make.
 func TestHeaderCartCount(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		count int
+		name  string
 		want  string
 	}{
-		{0, ""},
-		{1, `<span class="ui-badge--count" aria-hidden="true">1</span>`},
-		{12, `<span class="ui-badge--count" aria-hidden="true">12</span>`},
+		{0, "購物車，目前是空的", ""},
+		{1, "購物車，1 件商品", `購物車 <span class="goen-header__count">1</span>`},
+		{12, "購物車，12 件商品", `購物車 <span class="goen-header__count">12</span>`},
 	} {
 		ctx := frame.WithCartCount(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.count)
 		var b strings.Builder
@@ -606,17 +666,20 @@ func TestHeaderCartCount(t *testing.T) {
 		}
 		_, cart, _ := strings.Cut(b.String(), `id="cart-link"`)
 		cart, _, _ = strings.Cut(cart, "</a>")
-		if !strings.Contains(cart, `d="M9 10.5V7a3 3 0 0 1 6 0v3.5"`) {
-			t.Errorf("count %d: the cart link does not draw a bag", tc.count)
+		if !strings.Contains(cart, `aria-label="`+tc.name+`">購物車`) {
+			t.Errorf("count %d: the cart link is %s, want the name %q and the word 購物車", tc.count, cart, tc.name)
+		}
+		if strings.Contains(cart, "<svg") || strings.Contains(cart, "badge") {
+			t.Errorf("count %d: the cart link draws a glyph or a badge: %s", tc.count, cart)
 		}
 		if tc.want == "" {
-			if strings.Contains(cart, "ui-badge--count") {
+			if strings.Contains(cart, "goen-header__count") {
 				t.Errorf("count %d: an empty cart prints a count", tc.count)
 			}
 			continue
 		}
 		if !strings.Contains(cart, tc.want) {
-			t.Errorf("count %d: the cart link lacks %s", tc.count, tc.want)
+			t.Errorf("count %d: the cart link is %s, want %s", tc.count, cart, tc.want)
 		}
 	}
 }

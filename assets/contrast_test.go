@@ -1227,6 +1227,46 @@ func TestAppCSSInverseNoticeParts(t *testing.T) {
 	}
 }
 
+// TestAppCSSDepartmentPanelGround checks the department panel's ground. By day
+// it is the page's own white and the shadow alone sets it off; by night the
+// page's ground under it would make it read as more of the page, so it is a
+// step lighter, at least 1.25:1 on the page, and keeps the shadow. Without
+// light-dark() the panel is the page's surface.
+func TestAppCSSDepartmentPanelGround(t *testing.T) {
+	t.Parallel()
+
+	app, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	sheet := cssComment.ReplaceAllString(string(app), "")
+	var bodies []string
+	for _, r := range cssRule.FindAllStringSubmatch(sheet, -1) {
+		if slices.Contains(selectorList(r[1]), ".goen-dept__panel") {
+			bodies = append(bodies, r[2])
+		}
+	}
+	decls := strings.Join(bodies, ";")
+	for _, want := range []string{"background: var(--sys-surface);", "box-shadow: var(--sh-lg);"} {
+		if !strings.Contains(decls, want) {
+			t.Errorf("%s: .goen-dept__panel does not declare %q", AppCSS, want)
+		}
+	}
+	m := regexp.MustCompile(`background: light-dark\(var\((--[a-z0-9-]+)\), var\((--[a-z0-9-]+)\)\);`).FindStringSubmatch(decls)
+	if m == nil {
+		t.Fatalf("%s: .goen-dept__panel has no background: light-dark(var(--day), var(--night))", AppCSS)
+	}
+	tokens, links := hexTokens(t), aliasTokens(t)
+	page := roleTokens(t)["--sys-surface"]
+	if day := resolve(m[1], tokens, links); day != page.day {
+		t.Errorf("day: the panel is %s (#%s), want the page's white (#%s)", m[1], day, page.day)
+	}
+	night := resolve(m[2], tokens, links)
+	if got := contrast(night, page.night); math.IsNaN(got) || got < 1.25 {
+		t.Errorf("night: the panel %s (#%s) on the page (#%s) = %.2f:1, want at least 1.25:1", m[2], night, page.night, got)
+	}
+}
+
 // TestFieldBoundariesHoldContrast checks that the boundaries of invalid and
 // read-only fields hold their contrast. The state colours are read from the rules
 // that actually paint the boundary.

@@ -129,9 +129,10 @@ templ NewsletterForm(s NewsletterState) {
 						"maxlength":    "254",
 					}), fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID("newsletter-error")),
 				})
+				// A button, so ink and no arrow: blue with an arrow is a section's next
+				// link, and this sends the form.
 				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
 					{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
-					<span aria-hidden="true">→</span>
 				}
 			</div>
 			<p class="goen-footer__newsnote goen-footer__signup-example" id="newsletter-email-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "you@example.com") }</p>
