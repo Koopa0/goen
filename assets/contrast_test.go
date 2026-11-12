@@ -177,6 +177,31 @@ func roleTokens(t *testing.T) map[string]role {
 	return roles
 }
 
+// lightDarkTokens reads every custom property base.css declares as
+// light-dark(var(--day), var(--night)), the roles and the tokens of the ground
+// alike, each resolved through the aliases to a day and a night hex colour.
+func lightDarkTokens(t *testing.T) map[string]role {
+	t.Helper()
+	base, err := fs.ReadFile(files, BaseCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", BaseCSS, err)
+	}
+	tokens, links := hexTokens(t), aliasTokens(t)
+	pairs := make(map[string]role)
+	for _, m := range roleDecl.FindAllStringSubmatch(string(base), -1) {
+		if _, dup := pairs[m[1]]; dup {
+			t.Fatalf("%s declares %s with light-dark() twice", BaseCSS, m[1])
+		}
+		r := role{day: resolve(m[2], tokens, links), night: resolve(m[3], tokens, links), dayToken: m[2], nightToken: m[3]}
+		if r.day == "" || r.night == "" {
+			t.Fatalf("%s: %s is light-dark(var(%s), var(%s)), which resolves to day %q and night %q; want a hex colour on both sides",
+				BaseCSS, m[1], m[2], m[3], r.day, r.night)
+		}
+		pairs[m[1]] = r
+	}
+	return pairs
+}
+
 // TestBaseCSSRoleContrast checks that each system role reads on the grounds it
 // is drawn on, by day and by night. Only the day is on screen while the
 // storefront's color-scheme is light, so no page the axe gate visits shows the
@@ -206,8 +231,9 @@ func TestBaseCSSRoleContrast(t *testing.T) {
 		{ink: "--sys-on-error-container", ground: "--sys-error-container"},
 		{ink: "--sys-inverse-on-surface", ground: "--sys-inverse-surface"},
 		{ink: "--sys-inverse-primary", ground: "--sys-inverse-surface"},
+		{ink: "--sys-on-action", ground: "--sys-action"},
 	}
-	for _, name := range slices.Concat(grounds, inks, []string{"--sys-outline"}) {
+	for _, name := range slices.Concat(grounds, inks, []string{"--sys-outline", "--sys-action"}) {
 		if _, ok := roles[name]; !ok {
 			t.Fatalf("%s declares no role %s", BaseCSS, name)
 		}
@@ -240,8 +266,10 @@ func TestBaseCSSRoleContrast(t *testing.T) {
 			for _, ink := range inks {
 				check(ink, ground, 4.5)
 			}
-			// WCAG 1.4.11: the boundary of a control has no text to carry it.
+			// WCAG 1.4.11: the boundary of a control has no text to carry it,
+			// and a filled control's boundary is its fill.
 			check("--sys-outline", ground, 3)
+			check("--sys-action", ground, 3)
 		}
 		for _, p := range pairs {
 			check(p.ink, p.ground, 4.5)
@@ -252,9 +280,10 @@ func TestBaseCSSRoleContrast(t *testing.T) {
 // roleFallback finds the rule a browser without light-dark() reads instead.
 var roleFallback = regexp.MustCompile(`(?s)@supports not \(color: light-dark\(#000, #fff\)\) \{\s*:root \{(.*?)\}\s*\}`)
 
-// TestBaseCSSRoleFallback checks that a browser without light-dark() gets each
-// role's day colour. A role missing from the fallback is unset there, and one
-// that names another token draws a colour no scheme has.
+// TestBaseCSSRoleFallback checks that a browser without light-dark() gets the
+// day colour of each role and of each token of the ground drawn with
+// light-dark(), such as --price. One missing from the fallback is unset there,
+// and one that names another token draws a colour no scheme has.
 func TestBaseCSSRoleFallback(t *testing.T) {
 	t.Parallel()
 
@@ -267,12 +296,17 @@ func TestBaseCSSRoleFallback(t *testing.T) {
 		t.Fatalf("%s has no @supports not (color: light-dark(#000, #fff)) rule for :root", BaseCSS)
 	}
 	fallback := make(map[string]string)
-	for _, m := range regexp.MustCompile(`(--sys-[a-z0-9-]+):\s*var\((--[a-z0-9-]+)\);`).FindAllStringSubmatch(string(block[1]), -1) {
+	for _, m := range regexp.MustCompile(`(--[a-z0-9-]+):\s*var\((--[a-z0-9-]+)\);`).FindAllStringSubmatch(string(block[1]), -1) {
 		fallback[m[1]] = m[2]
 	}
-	roles := roleTokens(t)
+	roleTokens(t)
+	roles := lightDarkTokens(t)
 	for name, r := range roles {
-		if got := fallback[name]; got != r.dayToken {
+		got, set := fallback[name]
+		switch {
+		case !set:
+			t.Errorf("without light-dark(), %s is unset, want var(%s), its day colour", name, r.dayToken)
+		case got != r.dayToken:
 			t.Errorf("without light-dark(), %s = var(%s), want var(%s), its day colour", name, got, r.dayToken)
 		}
 	}
@@ -409,6 +443,18 @@ func TestBaseCSSTokenContrast(t *testing.T) {
 		checkPeriod(t, "the page", tokens["--mark"], track, ground, tokens[ground])
 	}
 
+	// A filled button is a block of colour like a photograph's frame, --well;
+	// under 2:1 against it, the night's light button reads as one more frame.
+	for _, name := range []string{"--day-action", "--night-action"} {
+		if tokens[name] == "" {
+			t.Fatalf("no stylesheet declares a hex value for %s", name)
+		}
+		if got := contrast(tokens[name], tokens["--well"]); got < 2 {
+			t.Errorf("%s (#%s) on --well (#%s) = %.2f:1, want at least 2:1",
+				name, tokens[name], tokens["--well"], got)
+		}
+	}
+
 	// The photographs are encoded on #f9f9f9; any other container ground
 	// draws an edge around every product.
 	if tokens["--well"] != "f9f9f9" {
@@ -419,25 +465,43 @@ func TestBaseCSSTokenContrast(t *testing.T) {
 // toneBlock finds a [data-tone="…"] rule and its declarations.
 var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 
-// toneDecl finds one declaration inside a tone block. The value is a hex colour
-// or a var() naming a token.
-var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
+// toneValue is a colour a tone block may name: a hex colour or a var() naming
+// a token. toneDecl finds one declaration inside a tone block, either such a
+// value or light-dark() of two of them.
+const toneValue = `#[0-9a-fA-F]{6}|var\(--[a-z0-9-]+\)`
 
-// toneBlocks reads each tone's declarations from the storefront sheet as hex
-// colours, a var() resolved through tokens.
-func toneBlocks(t *testing.T, sheet string, tokens map[string]string) map[string]map[string]string {
+var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(light-dark\(\s*(` + toneValue + `)\s*,\s*(` + toneValue + `)\s*\)|` + toneValue + `);`)
+
+// toneColour is one tone declaration: its day and night colours as six hex
+// digits, the day value as written, and whether light-dark() gives it a night
+// of its own. A value without light-dark() is drawn in both schemes.
+type toneColour struct {
+	day, night string
+	dayValue   string
+	lightDark  bool
+}
+
+// toneBlocks reads each tone's declarations from the storefront sheet, a var()
+// resolved through tokens and links.
+func toneBlocks(t *testing.T, sheet string, tokens, links map[string]string) map[string]map[string]toneColour {
 	t.Helper()
-	blocks := make(map[string]map[string]string)
+	hexOf := func(v string) string {
+		if name, ok := strings.CutPrefix(v, "var("); ok {
+			return resolve(strings.TrimSuffix(name, ")"), tokens, links)
+		}
+		return strings.TrimPrefix(v, "#")
+	}
+	blocks := make(map[string]map[string]toneColour)
 	for _, m := range toneBlock.FindAllStringSubmatch(sheet, -1) {
 		if _, dup := blocks[m[1]]; dup {
 			t.Errorf("%s declares data-tone=%q twice", AppCSS, m[1])
 		}
-		decls := make(map[string]string)
+		decls := make(map[string]toneColour)
 		for _, d := range toneDecl.FindAllStringSubmatch(m[2], -1) {
 			if d[3] != "" {
-				decls[d[1]] = tokens[d[3]]
+				decls[d[1]] = toneColour{day: hexOf(d[3]), night: hexOf(d[4]), dayValue: d[3], lightDark: true}
 			} else {
-				decls[d[1]] = strings.TrimPrefix(d[2], "#")
+				decls[d[1]] = toneColour{day: hexOf(d[2]), night: hexOf(d[2]), dayValue: d[2]}
 			}
 		}
 		blocks[m[1]] = decls
@@ -575,7 +639,7 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 		}
 	}
 
-	blocks := toneBlocks(t, string(sheet), tokens)
+	blocks := toneBlocks(t, string(sheet), tokens, aliasTokens(t))
 	if len(blocks) != len(toneNames) {
 		t.Errorf("%s has %d data-tone blocks, want the %d of the closed set", AppCSS, len(blocks), len(toneNames))
 	}
@@ -583,16 +647,30 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 	for _, name := range toneNames {
 		decl := blocks[name]
 		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted", "--tone-mark"} {
-			if len(decl[prop]) != 6 {
+			if len(decl[prop].day) != 6 || len(decl[prop].night) != 6 {
 				t.Fatalf("data-tone=%q declares no colour for %s", name, prop)
 			}
 		}
-		ground := decl["--tone-ground"]
+		ground := decl["--tone-ground"].day
 		// The mark is also the colour of a link on the tone ("see all").
 		for _, prop := range []string{"--tone-text", "--tone-muted", "--tone-mark"} {
-			if got := contrast(decl[prop], ground); got < 4.5 {
+			if got := contrast(decl[prop].day, ground); got < 4.5 {
 				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
-					prop, decl[prop], name, ground, got)
+					prop, decl[prop].day, name, ground, got)
+			}
+		}
+		// By night a tone that kept its day ground would be a lit block on a
+		// dark page, so each ground has a night of its own, and the text on it
+		// is held as by day. The period is held by day only: its track,
+		// --period-track, has no night value yet.
+		if !decl["--tone-ground"].lightDark {
+			t.Errorf("data-tone=%q declares --tone-ground without light-dark(), so the night draws the day's ground", name)
+		}
+		for _, prop := range []string{"--tone-text", "--tone-muted", "--tone-mark"} {
+			night := decl["--tone-ground"].night
+			if got := contrast(decl[prop].night, night); got < 4.5 {
+				t.Errorf("night: %s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
+					prop, decl[prop].night, name, night, got)
 			}
 		}
 		// The period sits on the tone's ground under each head. Each head
@@ -609,7 +687,7 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 					case d[3] != "":
 						period[d[1]] = d[3]
 					case strings.HasPrefix(d[2], "--tone-"):
-						period[d[1]] = decl[d[2]]
+						period[d[1]] = decl[d[2]].day
 					case rgba[d[2]] != "":
 						period[d[1]] = rgba[d[2]]
 					default:
@@ -632,6 +710,60 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 	}
 }
 
+// toneFallback finds the tone rules a browser without light-dark() reads
+// instead, and fallbackDecl one declaration in them.
+var (
+	toneFallback = regexp.MustCompile(`(?s)@supports not \(color: light-dark\(#000, #fff\)\) \{\s*((?:\[data-tone="[a-z]+"\]\s*\{[^{}]*\}\s*)+)\}`)
+	fallbackRule = regexp.MustCompile(`\[data-tone="([a-z]+)"\]\s*\{([^{}]*)\}`)
+	fallbackDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*([^;]+);`)
+)
+
+// TestAppCSSToneFallback checks that a browser without light-dark() draws each
+// tone by day. A tone colour declared with light-dark() is invalid there, and
+// a rule reading it falls back to its initial colour: a band with no ground,
+// or black text where the ink tone wants white.
+func TestAppCSSToneFallback(t *testing.T) {
+	t.Parallel()
+
+	app, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	sheet := cssComment.ReplaceAllString(string(app), "")
+	block := toneFallback.FindStringSubmatch(sheet)
+	if block == nil {
+		t.Fatalf("%s has no @supports not (color: light-dark(#000, #fff)) rule for the tones", AppCSS)
+	}
+	fallback := make(map[string]map[string]string)
+	for _, r := range fallbackRule.FindAllStringSubmatch(block[1], -1) {
+		decls := make(map[string]string)
+		for _, d := range fallbackDecl.FindAllStringSubmatch(r[2], -1) {
+			decls[d[1]] = strings.TrimSpace(d[2])
+		}
+		fallback[r[1]] = decls
+	}
+
+	tones := toneBlocks(t, sheet, hexTokens(t), aliasTokens(t))
+	for name, decls := range tones {
+		for prop, c := range decls {
+			got, set := fallback[name][prop]
+			switch {
+			case c.lightDark && got != c.dayValue:
+				t.Errorf("without light-dark(), data-tone=%q %s = %q, want %q, its day value", name, prop, got, c.dayValue)
+			case !c.lightDark && set:
+				t.Errorf("the light-dark() fallback sets data-tone=%q %s, which the tone declares without light-dark()", name, prop)
+			}
+		}
+	}
+	for name, decls := range fallback {
+		for prop := range decls {
+			if _, ok := tones[name][prop]; !ok {
+				t.Errorf("the light-dark() fallback sets data-tone=%q %s, which the tone does not declare", name, prop)
+			}
+		}
+	}
+}
+
 // TestAppCSSStarPickerContrast checks that the star picker is visible on the
 // review form. The review form's star picker is a control with no text, so WCAG
 // 1.4.11 holds its outline and its selected fill to 3:1 against the ground the
@@ -644,6 +776,10 @@ func TestAppCSSStarPickerContrast(t *testing.T) {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
 	tokens := hexTokens(t)
+	// The picker is drawn by day only: its outline, --n-900, has no night.
+	for name, r := range lightDarkTokens(t) {
+		tokens[name] = r.day
+	}
 	outline := regexp.MustCompile(`(?s)\.goen-pdp__starmark svg \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	fill := regexp.MustCompile(`(?s)\.goen-pdp__starrow:not\(:hover\)[^{]*\{\s*fill: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	if outline == nil || fill == nil {
@@ -863,8 +999,9 @@ func TestFieldBoundariesHoldContrast(t *testing.T) {
 var cssComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
 
 // TestAppCSSShelfPriceContrast checks that shelf prices read on their grounds. A
-// shelf price is one token, --price, an alias of the ink blue, and it is held to
-// 4.5:1 on every ground a shelf price sits on. The ink band is the one ground the
+// shelf price is one token, --price: the ink blue by day and the text colour by
+// night, where the blue is the link's. It is held to 4.5:1 on every ground a
+// shelf price sits on in each scheme. The ink band is the one ground the
 // blue fails on, so it alone re-points the token to the tone's own text colour,
 // and no other rule may declare it: a bare [data-tone="ink"] would white-out the
 // price on the light grounds that carry the tone as data.
@@ -873,17 +1010,18 @@ func TestAppCSSShelfPriceContrast(t *testing.T) {
 
 	tokens := hexTokens(t)
 	links := aliasTokens(t)
-	price := resolve("--price", tokens, links)
-	if price == "" {
-		t.Fatalf("%s does not declare --price as an alias of a hex colour", BaseCSS)
+	schemed, ok := lightDarkTokens(t)["--price"]
+	if !ok {
+		t.Fatalf("%s does not declare --price as light-dark(var(--day), var(--night))", BaseCSS)
 	}
+	price := schemed.day
 
 	app, err := fs.ReadFile(files, AppCSS)
 	if err != nil {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
 	sheet := cssComment.ReplaceAllString(string(app), "")
-	tones := toneBlocks(t, sheet, tokens)
+	tones := toneBlocks(t, sheet, tokens, links)
 
 	grounds := map[string]string{}
 	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well"} {
@@ -891,12 +1029,32 @@ func TestAppCSSShelfPriceContrast(t *testing.T) {
 	}
 	for _, name := range toneNames {
 		if name != "ink" {
-			grounds["the "+name+" tone"] = tones[name]["--tone-ground"]
+			grounds["the "+name+" tone"] = tones[name]["--tone-ground"].day
 		}
 	}
 	for name, ground := range grounds {
 		if got := contrast(price, ground); math.IsNaN(got) || got < 4.5 {
 			t.Errorf("--price (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1", price, name, ground, got)
+		}
+	}
+	nightGrounds := map[string]string{}
+	for name, r := range roleTokens(t) {
+		if strings.HasPrefix(name, "--sys-surface") {
+			nightGrounds[name] = r.night
+		}
+	}
+	for _, name := range toneNames {
+		if name != "ink" {
+			nightGrounds["the "+name+" tone"] = tones[name]["--tone-ground"].night
+		}
+	}
+	if len(nightGrounds) < 6 {
+		t.Fatalf("found %d night grounds for --price, want the surfaces and the light tones", len(nightGrounds))
+	}
+	for name, ground := range nightGrounds {
+		if got := contrast(schemed.night, ground); math.IsNaN(got) || got < 4.5 {
+			t.Errorf("night: --price (%s #%s) on %s (#%s) = %.2f:1, want at least 4.5:1",
+				schemed.nightToken, schemed.night, name, ground, got)
 		}
 	}
 
@@ -916,9 +1074,18 @@ func TestAppCSSShelfPriceContrast(t *testing.T) {
 		t.Fatalf("%s: the ink band does not point --price at a tone colour", AppCSS)
 	}
 	ink := tones["ink"]
-	if got := contrast(ink[override[1]], ink["--tone-ground"]); math.IsNaN(got) || got < 4.5 {
-		t.Errorf("--price on the ink band is %s (#%s) on the ink ground (#%s) = %.2f:1, want at least 4.5:1",
-			override[1], ink[override[1]], ink["--tone-ground"], got)
+	for _, scheme := range []struct {
+		name   string
+		colour func(toneColour) string
+	}{
+		{"day", func(c toneColour) string { return c.day }},
+		{"night", func(c toneColour) string { return c.night }},
+	} {
+		text, ground := scheme.colour(ink[override[1]]), scheme.colour(ink["--tone-ground"])
+		if got := contrast(text, ground); math.IsNaN(got) || got < 4.5 {
+			t.Errorf("%s: --price on the ink band is %s (#%s) on the ink ground (#%s) = %.2f:1, want at least 4.5:1",
+				scheme.name, override[1], text, ground, got)
+		}
 	}
 
 	for _, sheetName := range []string{BaseCSS, AdminCSS} {
@@ -928,6 +1095,8 @@ func TestAppCSSShelfPriceContrast(t *testing.T) {
 		}
 		want := 0
 		if sheetName == BaseCSS {
+			// The light-dark() fallback is held by TestBaseCSSRoleFallback.
+			body = roleFallback.ReplaceAll(body, nil)
 			want = 1
 		}
 		if got := len(regexp.MustCompile(`(?m)^\s*--price\s*:`).FindAll(body, -1)); got != want {

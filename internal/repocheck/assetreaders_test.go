@@ -52,6 +52,8 @@ var assetReaders = map[string]string{
 	"assets/contrast_test.go#TestBaseCSSRoleContrast":                     "contract: the night is drawn on no page while the color-scheme is light, so its contrast is held on the token values",
 	"assets/contrast_test.go#TestBaseCSSRoleFallback":                     "contract: the fallback runs only in a browser without light-dark(), which no browser test has, so the rule's text is what is held",
 	"assets/contrast_test.go#roleTokens":                                  "contract: the night is drawn on no page while the color-scheme is light, so its contrast is held on the token values",
+	"assets/contrast_test.go#lightDarkTokens":                             "contract: the night is drawn on no page while the color-scheme is light, so its contrast is held on the token values",
+	"assets/contrast_test.go#TestAppCSSToneFallback":                      "contract: the fallback runs only in a browser without light-dark(), which no browser test has, so the rule's text is what is held",
 	"assets/contrast_test.go#TestAppCSSBandMutedText":                     "#380",
 	"assets/contrast_test.go#TestAppCSSFocusRingContrast":                 "#380",
 	"assets/contrast_test.go#TestAppCSSStarPickerContrast":                "#380",
