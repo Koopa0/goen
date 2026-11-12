@@ -171,8 +171,10 @@ a:hover {
   top: 8px;
 }
 
-/* Reachable by assistive technology, absent from the visual layout. */
-.goen-sr-only {
+/* Reachable by assistive technology, absent from the visual layout. A tile's
+   brand is read with its link and not shown: the card shows the name alone. */
+.goen-sr-only,
+.goen-tile__brand {
   border: 0;
   clip-path: inset(50%);
   height: 1px;
@@ -2613,8 +2615,16 @@ body:has(.goen-hero) .goen-header {
   color: var(--tone-text);
 }
 
+.goen-band .goen-tile__slash {
+  stroke: var(--tone-text);
+}
+
+/* The campaign's colour does not read on the ink ground; the price's does. */
+.goen-band[data-tone="ink"] .goen-tile__amount--sale {
+  color: inherit;
+}
+
 .goen-band .goen-band__fact,
-.goen-band .goen-tile__brand,
 .goen-band .goen-tile__was,
 .goen-band .goen-tile__state,
 .goen-band .goen-tile__colours {
@@ -3058,16 +3068,16 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-tile {
-  color: var(--n-900);
+  color: var(--sys-on-surface);
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--s-3);
   text-decoration: none;
 }
 
 .goen-tile:hover {
-  color: var(--n-900);
+  color: var(--sys-on-surface);
 }
 
 /* The ring goes around the photograph, not the card's text. */
@@ -3135,24 +3145,16 @@ body:has(.goen-hero) .goen-header {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 4px;
-}
-
-.goen-tile__brand {
-  color: var(--n-500);
-  font-size: var(--fs-13);
-  line-height: var(--lh-normal);
+  gap: 2px;
 }
 
 .goen-tile__name {
   -webkit-box-orient: vertical;
-  color: var(--n-900);
+  color: var(--sys-on-surface);
   display: -webkit-box;
-  font-size: var(--fs-15);
-  font-weight: var(--fw-regular);
+  font: var(--type-title-m);
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  line-height: var(--lh-normal);
   margin: 0;
   overflow: hidden;
   /* A two-line name never leaves one Han character alone on the second. */
@@ -3165,15 +3167,20 @@ body:has(.goen-hero) .goen-header {
   color: var(--price);
   display: flex;
   flex-wrap: wrap;
-  font-size: var(--fs-16);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-medium);
-  gap: 8px;
-  padding-top: 4px;
+  font: var(--type-title-m);
+  font-variant-numeric: tabular-nums lining-nums;
+  gap: 0 var(--s-2);
+  padding-top: 2px;
 }
 
 .goen-tile__amount {
   overflow-wrap: normal;
+}
+
+/* A struck price belongs to a campaign, which ends: the amount is in the
+   colour of what runs out. */
+.goen-tile__amount--sale {
+  color: var(--sys-tertiary);
 }
 
 .goen-tile--out .goen-tile__price {
@@ -3182,8 +3189,7 @@ body:has(.goen-hero) .goen-header {
 
 .goen-tile__state {
   color: var(--n-500);
-  font-size: var(--fs-13);
-  font-weight: var(--fw-regular);
+  font: var(--type-body-s);
 }
 
 .goen-tile__colours {
@@ -3193,14 +3199,21 @@ body:has(.goen-hero) .goen-header {
   flex-wrap: wrap;
   font-size: var(--fs-12);
   gap: 6px;
-  padding-top: 4px;
+  padding-top: var(--s-2);
 }
 
 .goen-tile__dot {
   display: block;
   flex: none;
-  height: 12px;
-  width: 12px;
+  height: 14px;
+  overflow: visible;
+  width: 14px;
+}
+
+/* The line across a colour that is sold out is drawn in the text's ink, so it
+   reads on the swatch whatever its shade. */
+.goen-tile__slash {
+  stroke: var(--sys-on-surface);
 }
 
 .goen-tile__dot circle {
@@ -3209,15 +3222,15 @@ body:has(.goen-hero) .goen-header {
 }
 
 @media (forced-colors: active) {
-  .goen-tile__dot circle {
+  .goen-tile__dot circle,
+  .goen-tile__slash {
     stroke: CanvasText;
   }
 }
 
 .goen-tile__was {
-  color: var(--n-500);
-  font-size: var(--fs-13);
-  font-weight: var(--fw-regular);
+  color: var(--sys-on-surface-variant);
+  font: var(--type-body-s);
   text-decoration: line-through;
 }
 
@@ -3229,7 +3242,7 @@ body:has(.goen-hero) .goen-header {
   color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
-  font-size: var(--fs-13);
+  font: var(--type-body-s);
   gap: 8px;
   min-height: 44px;
 }
@@ -4345,9 +4358,8 @@ input.goen-check {
 /* Where products are put side by side, a row holds five and a card says what it is under
    its name. */
 .goen-tile__specs {
-  color: var(--fg-muted);
-  font-size: var(--fs-13);
-  line-height: var(--lh-normal);
+  color: var(--sys-on-surface-variant);
+  font: var(--type-body-s);
 }
 
 @media (min-width: 1280px) {

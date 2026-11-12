@@ -12,6 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// TestTileColourDots holds that a card draws up to four colours and counts the
+// rest.
+//
+// A colour no variant of which is in stock is drawn faded and struck through;
+// a colour past the fourth is counted, not drawn, so it is not marked.
 func TestTileColourDots(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -21,21 +26,37 @@ func TestTileColourDots(t *testing.T) {
 	tests := []struct {
 		name    string
 		colours []string
+		soldOut []string
 		dots    int
 		more    string
+		struck  []string
 	}{
-		{"none", nil, 0, ""},
-		{"one colour is not a choice", hexes[:1], 0, ""},
-		{"two", hexes[:2], 2, ""},
-		{"four", hexes[:4], 4, ""},
-		{"nine", hexes, 4, "+5"},
+		{"none", nil, nil, 0, "", nil},
+		{"one colour is not a choice", hexes[:1], nil, 0, "", nil},
+		{"two", hexes[:2], nil, 2, "", nil},
+		{"four", hexes[:4], nil, 4, "", nil},
+		{"nine", hexes, nil, 4, "+5", nil},
+		{"walnut sold out", hexes[:2], []string{"胡桃", ""}, 2, "", []string{"#111111"}},
+		{"sold out past the dots", hexes[:6], []string{"", "", "", "", "", "白"}, 4, "+2", nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tile := base
 			tile.Colours = tc.colours
+			tile.ColoursSoldOut = tc.soldOut
 			got := renderComponent(t, ctx, Cell(tile))
+			if n := strings.Count(got, `class="goen-tile__slash"`); n != len(tc.struck) {
+				t.Errorf("Cell(%d colours, sold out %q) struck %d dots, want %d", len(tc.colours), tc.soldOut, n, len(tc.struck))
+			}
+			for _, hex := range tc.struck {
+				if !strings.Contains(got, `fill="`+hex+`" opacity="0.55"`) {
+					t.Errorf("Cell(sold out %q): the dot %s is not faded", tc.soldOut, hex)
+				}
+			}
+			if n := strings.Count(got, `opacity="0.55"`); n != len(tc.struck) {
+				t.Errorf("Cell(%d colours, sold out %q) faded %d dots, want %d", len(tc.colours), tc.soldOut, n, len(tc.struck))
+			}
 			if n := strings.Count(got, `class="goen-tile__dot"`); n != tc.dots {
 				t.Errorf("Cell(%d colours) drew %d dots, want %d", len(tc.colours), n, tc.dots)
 			}
@@ -71,7 +92,15 @@ func TestCellSoldOut(t *testing.T) {
 		t.Error("a sold-out tile draws a badge")
 	}
 
+	// Every colour of a sold-out product is sold out; the card has stepped back
+	// as a whole, so no dot is struck on its own.
+	sold.Colours, sold.ColoursSoldOut = []string{"#111111", "#222222"}, []string{"胡桃", "炭黑"}
+	if got = renderComponent(t, ctx, Cell(sold)); strings.Contains(got, "goen-tile__slash") {
+		t.Error("a sold-out tile strikes its colours one by one")
+	}
+
 	sold.InStock = true
+	sold.Colours, sold.ColoursSoldOut = nil, nil
 	got = renderComponent(t, ctx, Cell(sold))
 	if strings.Contains(got, "已售完") || strings.Contains(got, "goen-tile--out") {
 		t.Error("an in-stock tile says sold out")
@@ -133,6 +162,11 @@ func TestCellPhotoDecorative(t *testing.T) {
 			if !strings.Contains(textOf(link), "Pixelight 9 5G") {
 				t.Errorf("the tile link does not carry the product name as text: %q", textOf(link))
 			}
+			// The brand is not shown on the card, but the link still reads it,
+			// before the name.
+			if text := textOf(link); !strings.HasPrefix(strings.TrimSpace(text), "Pixelight") || strings.Index(text, "Pixelight") == strings.Index(text, "Pixelight 9 5G") {
+				t.Errorf("the tile link does not read the brand before the name: %q", text)
+			}
 		})
 	}
 }
@@ -174,6 +208,10 @@ func TestCellStrikesPriceOnlyOnSale(t *testing.T) {
 		page := renderComponent(t, ctx, Cell(tile))
 		if got := strings.Contains(page, `class="goen-tile__was"`); got != tt.wantStruck {
 			t.Errorf("Tile %s: struck price drawn = %v, want %v", tt.name, got, tt.wantStruck)
+		}
+		// The amount takes the campaign's colour only beside a struck price.
+		if got := strings.Contains(page, `class="goen-tile__amount goen-tile__amount--sale"`); got != tt.wantStruck {
+			t.Errorf("Tile %s: sale amount = %v, want %v", tt.name, got, tt.wantStruck)
 		}
 		if strings.Contains(page, "原價") != tt.wantStruck {
 			t.Errorf("Tile %s: the was-price label and the struck price disagree", tt.name)

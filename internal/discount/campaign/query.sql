@@ -64,6 +64,46 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
+    -- Beside colours, in the same order: the name of a colour no variant of
+    -- which is in stock, and '' where one is.
+    coalesce((
+        SELECT array_agg(
+            CASE WHEN EXISTS (
+                SELECT 1 FROM variant_option_values sov
+                JOIN product_variants spv ON spv.id = sov.variant_id
+                WHERE sov.option_value_id = cv.id AND spv.is_active AND spv.stock_quantity > spv.safety_stock
+            ) THEN '' ELSE localized_name(cv.value, cv.value_en, @locale::text) END
+            ORDER BY cv.position, cv.id
+        )
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours_sold_out,
     coalesce(img.media_digest, '') AS image_digest,
     coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
@@ -211,6 +251,46 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
+    -- Beside colours, in the same order: the name of a colour no variant of
+    -- which is in stock, and '' where one is.
+    coalesce((
+        SELECT array_agg(
+            CASE WHEN EXISTS (
+                SELECT 1 FROM variant_option_values sov
+                JOIN product_variants spv ON spv.id = sov.variant_id
+                WHERE sov.option_value_id = cv.id AND spv.is_active AND spv.stock_quantity > spv.safety_stock
+            ) THEN '' ELSE localized_name(cv.value, cv.value_en, @locale::text) END
+            ORDER BY cv.position, cv.id
+        )
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours_sold_out,
     coalesce(img.media_digest, '') AS image_digest,
     coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
