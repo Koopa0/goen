@@ -210,6 +210,7 @@ func TestBaseCSSRoleContrast(t *testing.T) {
 	t.Parallel()
 
 	roles := roleTokens(t)
+	layers := stateLayers(t)
 	grounds := []string{
 		"--sys-surface", "--sys-surface-container-lowest", "--sys-surface-container-low",
 		"--sys-surface-container", "--sys-surface-container-high", "--sys-surface-container-highest",
@@ -274,7 +275,60 @@ func TestBaseCSSRoleContrast(t *testing.T) {
 		for _, p := range pairs {
 			check(p.ink, p.ground, 4.5)
 		}
+		// A hovered or pressed filled button lays its label's colour over its
+		// fill, and the label has to read on what that leaves.
+		label, fill := roles["--sys-on-action"], roles["--sys-action"]
+		for _, state := range []string{"--state-hover", "--state-press"} {
+			ground := mix(scheme.colour(label), scheme.colour(fill), layers[state])
+			if got := contrast(scheme.colour(label), ground); got < 4.5 {
+				t.Errorf("%s: --sys-on-action (#%s) on --sys-action under %s (%g%% of the label, #%s) = %.2f:1, want at least 4.5:1",
+					scheme.name, scheme.colour(label), state, layers[state]*100, ground, got)
+			}
+		}
 	}
+}
+
+// stateLayer finds a state layer token: how much of a control's text colour
+// is laid over its ground, as a percentage.
+var stateLayer = regexp.MustCompile(`(?m)^\s*(--state-[a-z]+):\s*(\d+(?:\.\d+)?)%;`)
+
+// stateLayers reads the state layers from base.css as fractions, and stops the
+// test when hover or press is missing.
+func stateLayers(t *testing.T) map[string]float64 {
+	t.Helper()
+	base, err := fs.ReadFile(files, BaseCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", BaseCSS, err)
+	}
+	layers := make(map[string]float64)
+	for _, m := range stateLayer.FindAllStringSubmatch(string(base), -1) {
+		v, err := strconv.ParseFloat(m[2], 64)
+		if err != nil {
+			t.Fatalf("%s: %s = %s%%: %v", BaseCSS, m[1], m[2], err)
+		}
+		layers[m[1]] = v / 100
+	}
+	for _, name := range []string{"--state-hover", "--state-press"} {
+		if layers[name] == 0 {
+			t.Fatalf("%s declares no %s as a percentage", BaseCSS, name)
+		}
+	}
+	return layers
+}
+
+// mix is color-mix(in srgb, top p, ground) of two six-digit hex colours, as six
+// hex digits, or "" when either is not one.
+func mix(top, ground string, p float64) string {
+	a, errA := hex.DecodeString(top)
+	b, errB := hex.DecodeString(ground)
+	if errA != nil || errB != nil || len(a) != 3 || len(b) != 3 {
+		return ""
+	}
+	out := make([]byte, 3)
+	for i := range out {
+		out[i] = uint8(math.Round(p*float64(a[i]) + (1-p)*float64(b[i])))
+	}
+	return hex.EncodeToString(out)
 }
 
 // roleFallback finds the rule a browser without light-dark() reads instead.
@@ -698,6 +752,7 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 			checkPeriod(t, head, period["fill"], period["track"], "the "+name+" ground", ground)
 		}
 		if name == "ink" {
+			checkInkSlideAction(t, string(sheet), decl["--tone-ground"], tokens)
 			continue
 		}
 		// A light ground is also where links and the plain text tokens land.
@@ -707,6 +762,31 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 					ink, tokens[ink], name, ground, got)
 			}
 		}
+	}
+}
+
+// inkSlideAction finds the colours the hero's ink slide gives its filled button.
+var inkSlideAction = regexp.MustCompile(`(?s)\.goen-hero__slide\[data-tone="ink"\] \.goen-btn--primary \{\s*background: var\((--[a-z0-9-]+)\);\s*border-color: var\(--[a-z0-9-]+\);\s*color: var\((--[a-z0-9-]+)\);`)
+
+// checkInkSlideAction holds the hero's filled button on the ink tone: its fill
+// is the control's boundary there, 3:1 on the ground by day and by night (WCAG
+// 1.4.11), and its label reads on the fill.
+func checkInkSlideAction(t *testing.T, sheet string, ground toneColour, tokens map[string]string) {
+	t.Helper()
+	m := inkSlideAction.FindStringSubmatch(sheet)
+	if m == nil {
+		t.Fatalf("%s gives the ink slide's filled button no fill and label of its own", AppCSS)
+	}
+	fill, label := tokens[m[1]], tokens[m[2]]
+	for _, g := range []struct{ scheme, colour string }{{"day", ground.day}, {"night", ground.night}} {
+		if got := contrast(fill, g.colour); got < 3 {
+			t.Errorf("%s: the ink slide's button %s (#%s) on the ink ground (#%s) = %.2f:1, want at least 3:1",
+				g.scheme, m[1], fill, g.colour, got)
+		}
+	}
+	if got := contrast(label, fill); got < 4.5 {
+		t.Errorf("the ink slide's button label %s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1",
+			m[2], label, m[1], fill, got)
 	}
 }
 
@@ -883,6 +963,81 @@ func TestEveryFocusOutlineColourIsTheRing(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// cssRule finds a rule whose block holds no other block: a top-level rule, or
+// one inside @media.
+var cssRule = regexp.MustCompile(`([^{}]*)\{([^{}]*)\}`)
+
+// selectorList splits a rule's selector list at its top-level commas, so a
+// comma inside :not() or :is() stays with its selector.
+func selectorList(list string) []string {
+	var out []string
+	depth, start := 0, 0
+	for i, r := range list {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ',':
+			if depth == 0 {
+				out = append(out, strings.TrimSpace(list[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	return append(out, strings.TrimSpace(list[start:]))
+}
+
+// TestAppCSSFilledControlFocusHalo checks that a filled action control parts its
+// focus ring from its fill with a band of the ground it sits on. The ring is
+// 1.21:1 on the night's warm-stone button, so without the band the focus is not
+// seen. Each selector that fills a control with an action colour must have a
+// :focus-visible rule drawing the ring (outline: 2px solid var(--ring)) and a
+// box-shadow of --sys-surface, or of --tone-ground where the control sits on a
+// tone.
+func TestAppCSSFilledControlFocusHalo(t *testing.T) {
+	t.Parallel()
+
+	app, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	rules := cssRule.FindAllStringSubmatch(cssComment.ReplaceAllString(string(app), ""), -1)
+	filled := regexp.MustCompile(`(?:^|;)\s*background(?:-color)?:\s*var\(--(?:sys|day|night)-action\)\s*;`)
+	ring := regexp.MustCompile(`(?:^|;)\s*outline:\s*2px solid var\(--ring\)\s*;`)
+	halo := regexp.MustCompile(`(?:^|;)\s*box-shadow:\s*0 0 0 [1-9]\d*px var\((--[a-z0-9-]+)\)\s*;`)
+
+	decls := make(map[string]string)
+	for _, r := range rules {
+		for _, sel := range selectorList(r[1]) {
+			decls[sel] += ";" + r[2]
+		}
+	}
+	found := 0
+	for _, r := range rules {
+		if !filled.MatchString(";" + r[2]) {
+			continue
+		}
+		for _, sel := range selectorList(r[1]) {
+			found++
+			focus := sel + ":focus-visible"
+			want := "--sys-surface"
+			if strings.Contains(sel, "[data-tone") {
+				want = "--tone-ground"
+			}
+			if !ring.MatchString(decls[focus]) {
+				t.Errorf("%s: %s draws no 2px solid var(--ring) outline", AppCSS, focus)
+			}
+			if m := halo.FindStringSubmatch(decls[focus]); m == nil || m[1] != want {
+				t.Errorf("%s: %s has no box-shadow band of var(%s) between the ring and the fill", AppCSS, focus, want)
+			}
+		}
+	}
+	if found == 0 {
+		t.Fatalf("%s fills no control with an action colour; the check found nothing to hold", AppCSS)
 	}
 }
 

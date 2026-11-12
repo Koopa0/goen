@@ -429,17 +429,32 @@ th {
   width: 100%;
 }
 
-/* One filled control to a surface. Everything else is quieter on purpose: a
-   row of equally weighted buttons makes the shopper choose before they act. */
+/* One filled control to a surface, in the one solid action colour: ink by day,
+   warm stone by night. Everything else is quieter on purpose: a row of equally
+   weighted buttons makes the shopper choose before they act. Hover and press
+   lay the label's colour over the ground. */
 .goen-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--sys-action);
+  border-color: var(--sys-action);
+  color: var(--sys-on-action);
 }
 
 .goen-btn--primary:hover {
-  background: var(--accent-deep);
-  border-color: var(--accent-deep);
+  background: color-mix(in srgb, var(--sys-on-action) var(--state-hover), var(--sys-action));
+  border-color: color-mix(in srgb, var(--sys-on-action) var(--state-hover), var(--sys-action));
+}
+
+.goen-btn--primary:active {
+  background: color-mix(in srgb, var(--sys-on-action) var(--state-press), var(--sys-action));
+  border-color: color-mix(in srgb, var(--sys-on-action) var(--state-press), var(--sys-action));
+}
+
+/* The ring alone is 1.21:1 on the night's stone button, so a band of the
+   page's own ground parts the two; without it the focus is not seen. */
+.goen-btn--primary:focus-visible {
+  box-shadow: 0 0 0 6px var(--sys-surface);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* Tonal: a step forward that is not the surface's own action, alone or once a row. The
@@ -506,6 +521,19 @@ th {
 .goen-btn[aria-disabled='true'] {
   opacity: 0.5;
   pointer-events: none;
+}
+
+/* The filled control that cannot act yet keeps its place in the tab order
+   (aria-disabled, with the reason beside it) and steps back to the text colour
+   at 12% under its label at 50%. A form in flight is the exception: the button
+   just pressed only dims. WCAG asks no contrast of a disabled control. */
+.goen-btn--primary:disabled,
+.goen-btn--primary[aria-disabled='true']:not([data-request-pending] *) {
+  background: color-mix(in srgb, var(--sys-on-surface) 12%, transparent);
+  border-color: transparent;
+  color: color-mix(in srgb, var(--sys-on-surface) 50%, transparent);
+  cursor: not-allowed;
+  opacity: 1;
 }
 
 .goen-badge {
@@ -2276,16 +2304,30 @@ body:has(.goen-hero) .goen-header {
   white-space: normal;
 }
 
-/* The blue is 2.5:1 on the ink tone; the light blue with dark text is 9.6:1. */
+/* The day's ink action is 1.2:1 on the ink tone, so the slide takes the action
+   the night draws on its own dark ground, warm stone with a dark label. The
+   band that parts the ring from the stone is the slide's ground, not the
+   page's, because the ring is white here. */
 .goen-hero__slide[data-tone="ink"] .goen-btn--primary {
-  background: var(--on-ink-accent);
-  border-color: var(--on-ink-accent);
-  color: var(--n-900);
+  background: var(--night-action);
+  border-color: var(--night-action);
+  color: var(--night-on-action);
 }
 
 .goen-hero__slide[data-tone="ink"] .goen-btn--primary:hover {
-  background: var(--n-0);
-  border-color: var(--n-0);
+  background: color-mix(in srgb, var(--night-on-action) var(--state-hover), var(--night-action));
+  border-color: color-mix(in srgb, var(--night-on-action) var(--state-hover), var(--night-action));
+}
+
+.goen-hero__slide[data-tone="ink"] .goen-btn--primary:active {
+  background: color-mix(in srgb, var(--night-on-action) var(--state-press), var(--night-action));
+  border-color: color-mix(in srgb, var(--night-on-action) var(--state-press), var(--night-action));
+}
+
+.goen-hero__slide[data-tone="ink"] .goen-btn--primary:focus-visible {
+  box-shadow: 0 0 0 6px var(--tone-ground);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .goen-hero__controls {
