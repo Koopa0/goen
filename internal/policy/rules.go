@@ -51,11 +51,7 @@ func (r Rules) Stats(ctx context.Context) []widget.Stat {
 	return []widget.Stat{
 		r.PayStartStat(ctx),
 		r.RescissionStat(ctx),
-		{
-			Label: i18n.T(ctx, i18n.KeyRuleReturn),
-			Value: widget.StatCount(r.ReturnDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
-			Note:  i18n.T(ctx, i18n.KeyRuleReturnNote),
-		},
+		r.ReturnStat(ctx),
 		r.FreeDeliveryStat(ctx),
 	}
 }
@@ -73,6 +69,15 @@ func (r Rules) RescissionStat(ctx context.Context) widget.Stat {
 		Label: i18n.T(ctx, i18n.KeyRuleRescission),
 		Value: widget.StatCount(r.RescissionDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
 		Note:  i18n.T(ctx, i18n.KeyRuleRescissionNote),
+	}
+}
+
+// ReturnStat is goen's own window for an unused return, a rule apart from the statutory one RescissionStat states.
+func (r Rules) ReturnStat(ctx context.Context) widget.Stat {
+	return widget.Stat{
+		Label: i18n.T(ctx, i18n.KeyRuleReturn),
+		Value: widget.StatCount(r.ReturnDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
+		Note:  i18n.T(ctx, i18n.KeyRuleReturnNote),
 	}
 }
 
