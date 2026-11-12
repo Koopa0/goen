@@ -63,22 +63,18 @@ templ Page(p frame.Page, v View) {
 				}
 			</div>
 			if v.Empty() {
+				// The state in one sentence and the ways on as words: the next step in blue, the
+				// wishlist in ink beside it. Nothing here is a button, so the page has no solid one.
 				<div class="goen-empty">
-					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyEmptyCart) }</p>
-					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyCartEmptyDesc) }</p>
-					@widget.ButtonLink(widget.ButtonProps{
-						ButtonStyle: widget.ButtonStylePrimary,
-						Size:        widget.SizeLarge,
-					}, "/") {
-						{ i18n.T(ctx, i18n.KeyCartEmptyLink) }
-					}
-					if v.SavedProducts {
-						@widget.ButtonLink(widget.ButtonProps{
-							ButtonStyle: widget.ButtonStyleOutline,
-						}, wishlistPath) {
-							{ i18n.T(ctx, i18n.KeyCartEmptyWishlist) }
+					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyCartEmptyDesc) }</p>
+					<p class="goen-empty__ways">
+						<a class="goen-empty__next" href="/">
+							{ i18n.T(ctx, i18n.KeyCartEmptyLink) }<span aria-hidden="true">&nbsp;→</span>
+						</a>
+						if v.SavedProducts {
+							<a class="goen-empty__more" href={ templ.URL(wishlistPath) }>{ i18n.T(ctx, i18n.KeyCartEmptyWishlist) }</a>
 						}
-					}
+					</p>
 				</div>
 			} else {
 				<div class="goen-cart__layout">
@@ -149,12 +145,7 @@ templ Page(p frame.Page, v View) {
 									{ i18n.T(ctx, i18n.KeyCheckout) }
 								</span>
 							}
-							@widget.ButtonLink(widget.ButtonProps{
-								ButtonStyle: widget.ButtonStyleGhost,
-								Block:       true,
-							}, "/") {
-								{ i18n.T(ctx, i18n.KeyContinue) }
-							}
+							<a class="goen-cart__continue" href="/">{ i18n.T(ctx, i18n.KeyContinue) }</a>
 						</div>
 						<p class="goen-cart__hold">{ v.PayStartNote(ctx) }</p>
 					}
@@ -196,7 +187,7 @@ templ cartLine(l Line) {
 					class="goen-line__img"
 					src={ l.ImageURL }
 					srcset={ l.ImageSrcset }
-					sizes="96px"
+					sizes="(min-width: 64rem) 160px, (min-width: 40rem) 128px, 96px"
 					alt={ l.ImageAlt }
 					width="96"
 					height="96"

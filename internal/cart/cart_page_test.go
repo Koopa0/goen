@@ -148,9 +148,10 @@ func TestLine_LineTotalShort(t *testing.T) {
 	}
 }
 
-// TestCartLineSmallPhoto holds that a 96px thumbnail offers the -400 derivative
-// through the same srcset the product cards use, and is told its slot is 96px
-// wide so the browser does not fall back to the 1600px source.
+// TestCartLineSmallPhoto holds that a line's thumbnail, 96px on a phone and 160px
+// at most, offers the -400 derivative through the same srcset the product cards
+// use, and is told its slot's widths so the browser does not fall back to the
+// 1600px source.
 func TestCartLineSmallPhoto(t *testing.T) {
 	t.Parallel()
 	const key = "nimbus-buds-pro-01.webp"
@@ -160,7 +161,7 @@ func TestCartLineSmallPhoto(t *testing.T) {
 	}
 	markup := renderToString(t, cartLine(line))
 	small := assets.URL("media/products/nimbus-buds-pro-01-400.webp")
-	for _, want := range []string{`srcset="` + small + ` 400w`, `sizes="96px"`, `width="96"`, `height="96"`} {
+	for _, want := range []string{`srcset="` + small + ` 400w`, `sizes="(min-width: 64rem) 160px, (min-width: 40rem) 128px, 96px"`, `width="96"`, `height="96"`} {
 		if !strings.Contains(markup, want) {
 			t.Errorf("cart line image omits %s:\n%s", want, markup)
 		}

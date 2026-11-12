@@ -6097,8 +6097,12 @@ input.goen-check {
   padding: 0;
 }
 
+/* The cart's lines are parted by hairlines, as a printed list is: one over each
+   line and one under the last. */
 .goen-cart__lines {
+  border-bottom: 1px solid var(--sys-outline-variant);
   container: cartlines / inline-size;
+  gap: 0;
 }
 
 .goen-line {
@@ -6206,7 +6210,29 @@ input.goen-check {
 }
 
 .goen-line--cart .goen-line__thumb {
+  border-radius: 0;
   grid-area: thumb;
+}
+
+.goen-line--cart {
+  border-top: 1px solid var(--sys-outline-variant);
+  padding-block: 1.5rem;
+}
+
+.goen-line--cart .goen-line__name {
+  color: var(--sys-on-surface);
+  font: var(--type-title-m);
+}
+
+.goen-line--cart :is(.goen-line__brand, .goen-line__meta) {
+  color: var(--sys-on-surface-variant);
+  font: var(--type-body-s);
+}
+
+.goen-line--cart .goen-line__total {
+  color: var(--sys-on-surface);
+  font: var(--type-title-m);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .goen-line--cart .goen-line__body {
@@ -6223,23 +6249,24 @@ input.goen-check {
 }
 
 /* Remove reads as text, not as a button: it is the quietest of the three
-   things a line offers. The box stays 44px tall, which is the target. */
+   things a line offers, an ink word with the faint underline every link but a
+   section's next step wears. The box stays 44px tall, which is the target. */
 .goen-line__remove {
   background: transparent;
-  color: var(--ink-2);
-  font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
+  color: var(--sys-on-surface);
+  font: var(--type-label-m);
   justify-content: flex-start;
   min-width: 2.75rem;
   padding: 0;
-  text-decoration: none;
+  text-decoration: underline 1px;
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
   text-underline-offset: 3px;
 }
 
 .goen-line__remove:hover {
   background: transparent;
-  color: var(--n-900);
-  text-decoration: underline;
+  color: var(--sys-on-surface);
+  text-decoration-color: currentcolor;
 }
 
 /* The 更新 button is the way to apply a quantity with scripting off. With it
@@ -6350,8 +6377,8 @@ input.goen-check {
 }
 
 /* The other money panels are wash faces; the transparent outline is what forced
-   colours draws as their edge. */
-.goen-cart__summary,
+   colours draws as their edge. The cart's summary is words on the page beside
+   its lines, as the catalogue sets a total. */
 .goen-order__summary,
 .goen-pay__summary {
   background: var(--wash);
@@ -6363,6 +6390,36 @@ input.goen-check {
    rather than the top of the form. The margin keeps it off the viewport edge. */
 .goen-checkout__section {
   scroll-margin-top: 24px;
+}
+
+.goen-cart__summary .goen-summary__title {
+  color: var(--sys-on-surface);
+  font: var(--type-headline-m);
+}
+
+.goen-cart__summary .goen-summary__row--total .goen-summary__value {
+  font: var(--fw-medium) 1.75rem/1.2 var(--font-sans);
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: 0;
+}
+
+/* 繼續選購 is a secondary way on: ink with the faint underline, centred under
+   the one solid button. */
+.goen-cart__continue {
+  align-items: center;
+  align-self: center;
+  color: var(--sys-on-surface);
+  display: inline-flex;
+  font: var(--type-label-m);
+  min-height: 2.75rem;
+  text-decoration: underline 1px;
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
+  text-underline-offset: 3px;
+}
+
+.goen-cart__continue:hover {
+  color: var(--sys-on-surface);
+  text-decoration-color: currentcolor;
 }
 
 .goen-summary__title,
@@ -6550,6 +6607,55 @@ input.goen-check {
 .goen-empty > .goen-btn,
 .ui-empty > .goen-btn {
   margin-top: 1rem;
+}
+
+/* The cart's and the wishlist's empty pages: the sentence at the size of a
+   lead, and the ways on as a row of words. The next step is the section's one
+   blue link with its arrow, underlined only under the pointer; any other is ink
+   with the faint underline. */
+.goen-cart .goen-empty__title {
+  color: var(--sys-on-surface);
+  font: var(--type-headline-s);
+  max-width: none;
+}
+
+.goen-empty__ways {
+  align-items: center;
+  column-gap: var(--s-6);
+  display: flex;
+  flex-wrap: wrap;
+  margin: var(--s-2) 0 0;
+}
+
+.goen-empty__next {
+  align-items: center;
+  color: var(--accent-text);
+  display: inline-flex;
+  font: var(--type-label-l);
+  min-height: 2.75rem;
+  text-decoration: none;
+}
+
+.goen-empty__next:hover {
+  color: var(--accent-text-hover);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.goen-empty__more {
+  align-items: center;
+  color: var(--sys-on-surface);
+  display: inline-flex;
+  font: var(--type-label-m);
+  min-height: 2.75rem;
+  text-decoration: underline 1px;
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
+  text-underline-offset: 3px;
+}
+
+.goen-empty__more:hover {
+  color: var(--sys-on-surface);
+  text-decoration-color: currentcolor;
 }
 
 /* A second way on sits close under the first, not a paragraph away from it. */
@@ -7107,9 +7213,20 @@ input.goen-check {
   gap: 12px;
 }
 
+/* The cart's and the checkout's names in the editorial face, one step under
+   the display size, as the catalogue's pages are named. */
+.goen-cart .goen-pagehead__title,
+.goen-checkout .goen-pagehead__title {
+  font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
+  letter-spacing: 0.02em;
+}
+
+.goen-cart .goen-pagehead__title:lang(en),
+.goen-checkout .goen-pagehead__title:lang(en) {
+  letter-spacing: 0;
+}
+
 @media (min-width: 640px) {
-  .goen-cart .goen-pagehead__title,
-  .goen-checkout .goen-pagehead__title,
   .goen-order .goen-pagehead__title,
   .goen-pay .goen-pagehead__title {
     font-size: var(--t-44);
@@ -7118,6 +7235,12 @@ input.goen-check {
   .goen-line--cart {
     column-gap: 1.5rem;
     grid-template-columns: 8rem minmax(0, 1fr) auto;
+  }
+}
+
+@media (min-width: 64rem) {
+  .goen-line--cart {
+    grid-template-columns: 10rem minmax(0, 1fr) auto;
   }
 }
 
@@ -7212,7 +7335,7 @@ input.goen-check {
   }
 
   .goen-cart__summary .goen-summary__row:not(.goen-summary__row--total),
-  .goen-cart__summary .goen-summary__actions .goen-btn--ghost {
+  .goen-cart__summary .goen-cart__continue {
     display: none;
   }
 
@@ -7226,6 +7349,7 @@ input.goen-check {
   }
 
   .goen-cart__summary .goen-summary__row--total .goen-summary__value {
+    font-size: 1.625rem;
     margin-left: 0;
     overflow-wrap: normal;
     white-space: nowrap;
@@ -7276,7 +7400,18 @@ input.goen-check {
     grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
   }
 
-  .goen-cart__summary,
+  /* The lines take eight of twelve columns and the summary the other four. */
+  .goen-cart__layout {
+    gap: 1.5rem;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+
+  .goen-cart__summary {
+    background: none;
+    border-radius: 0;
+    padding: 1.5rem 0 0 1.5rem;
+  }
+
   .goen-checkout__summary {
     padding: 2rem;
   }
