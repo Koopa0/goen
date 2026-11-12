@@ -105,7 +105,11 @@ SELECT
     coalesce(img.media_digest, '') AS image_digest,
     coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
-    coalesce(img.width, 0)::integer AS image_width
+    coalesce(img.width, 0)::integer AS image_width,
+    -- Two columns, not one nullable time: sqlc reads a LATERAL join's column as
+    -- NOT NULL, so pgx could not scan the NULL of a line outside any campaign.
+    (campaign.ends_at IS NOT NULL)::boolean AS in_campaign,
+    coalesce(campaign.ends_at, 'epoch')::timestamptz AS campaign_ends_at
 FROM cart_items ci
 JOIN product_variants pv ON pv.id = ci.variant_id
 JOIN products p ON p.id = pv.product_id
@@ -118,6 +122,18 @@ LEFT JOIN LATERAL (
     WHERE v.product_id = p.id AND v.variant_id = pv.id
     LIMIT 1
 ) img ON true
+LEFT JOIN LATERAL (
+    -- The listed campaign featuring the product that ends first, as the
+    -- product page names it: the line's price is struck only while one runs,
+    -- and the line says until when. No row when none does.
+    SELECT fc.ends_at
+    FROM sale_campaign_products fp
+    JOIN listed_campaigns l ON l.id = fp.campaign_id
+    JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+    WHERE fp.product_id = p.id
+    ORDER BY fc.ends_at, fc.id
+    LIMIT 1
+) campaign ON true
 WHERE ci.cart_id = $1
 ORDER BY ci.added_at, pv.id;
 

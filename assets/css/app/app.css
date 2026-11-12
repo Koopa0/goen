@@ -6235,6 +6235,33 @@ input.goen-check {
   font: var(--type-body-s);
 }
 
+/* A campaign's price is vermilion, the colour of what ends, beside the struck
+   price it replaces in the secondary colour; the line under it says until
+   when. */
+.goen-line__price {
+  align-items: baseline;
+  column-gap: var(--s-2);
+  display: flex;
+  flex-wrap: wrap;
+  font: var(--type-title-m);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.goen-line__sale {
+  color: var(--sys-tertiary);
+}
+
+.goen-line__was {
+  color: var(--sys-on-surface-variant);
+  font: var(--type-body-s);
+}
+
+.goen-line__until {
+  color: var(--sys-tertiary);
+  font: var(--type-label-s);
+  overflow-wrap: anywhere;
+}
+
 .goen-line--cart .goen-line__total {
   color: var(--sys-on-surface);
   font: var(--type-title-m);

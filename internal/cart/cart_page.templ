@@ -3,6 +3,7 @@ package cart
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -177,6 +178,14 @@ templ reorderLeftOut(lines []SkippedLine) {
 	</ul>
 }
 
+// saleUntil says until when a line's campaign price holds: 特價至 11 月 22 日, On sale
+// until Nov 22. The phrase's trailing comma in English belongs to a sentence that
+// goes on, which this line does not, so only a screen reader hears it.
+templ saleUntil(e campaign.End) {
+	{{ before, after := e.Until(ctx) }}
+	<span class="goen-line__until">{ onSaleLead(ctx) }{ before }<time datetime={ e.Datetime() }>{ e.Day(ctx) }</time><span class="goen-sr-only">{ after }</span></span>
+}
+
 templ cartLine(l Line) {
 	<li id={ "line-" + l.VariantID } class={ "goen-line", "goen-line--cart", templ.KV("goen-line--out", l.Unavailable) }>
 		<a class="goen-line__thumb" href={ templ.URL("/p/" + l.Slug) }>
@@ -206,7 +215,17 @@ templ cartLine(l Line) {
 			if l.Label != "" {
 				<span class="goen-line__meta">{ l.Label }</span>
 			}
-			<span class="goen-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyUnitPrice), l.UnitPrice()) }</span>
+			if l.OnSale() {
+				// A campaign's price, in vermilion beside the struck price it replaces, and
+				// the day the campaign ends: what ends is marked, and says when.
+				<span class="goen-line__price">
+					<span class="goen-line__sale">{ l.UnitPrice() }</span>
+					<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span><s class="goen-line__was">{ l.Compare() }</s>
+				</span>
+				@saleUntil(*l.Sale)
+			} else {
+				<span class="goen-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyUnitPrice), l.UnitPrice()) }</span>
+			}
 			if l.TaxExempt {
 				@widget.Badge(widget.BadgeProps{}) {
 					{ i18n.T(ctx, i18n.KeyInvoiceExempt) }

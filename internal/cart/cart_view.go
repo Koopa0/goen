@@ -122,6 +122,15 @@ func ordersLink(ctx context.Context) (href string, label i18n.Key) {
 	return "/orders/find", i18n.KeyFindOrderTitle
 }
 
+// onSaleLead is 特價 as the head of the phrase that says until when a campaign
+// price holds. Chinese runs it into 至 with no space; English parts the words.
+func onSaleLead(ctx context.Context) string {
+	if i18n.FromContext(ctx) == i18n.En {
+		return i18n.T(ctx, i18n.KeyOnSale) + " "
+	}
+	return i18n.T(ctx, i18n.KeyOnSale)
+}
+
 // PayStartNote is the line under the checkout button that says when the stock is held and how long the customer has to start paying.
 func (v View) PayStartNote(ctx context.Context) string {
 	return i18n.Count(ctx, i18n.KeyCartPayStart, v.PayStartMinutes, strconv.FormatInt(v.PayStartMinutes, 10))

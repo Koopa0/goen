@@ -5,11 +5,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -547,6 +549,51 @@ func TestView_ReorderTextAgrees(t *testing.T) {
 					t.Errorf("ReorderText(added %d, skipped %d) = %q, which says %d%q", c.added, c.skipped, got, n, w)
 				}
 			}
+		}
+	}
+}
+
+// TestCartLineOnSale holds that a line on a campaign's price shows it beside the
+// struck price it replaces and says until when it holds, 特價至 11 月 22 日 or
+// On sale until Nov 22, the English phrase's trailing comma heard and not seen;
+// and that a line not on sale shows its unit price and nothing of a campaign,
+// whatever its compare-at price.
+func TestCartLineOnSale(t *testing.T) {
+	t.Parallel()
+	taipei := time.FixedZone("CST", 8*3600)
+	end := campaign.NewEnd(time.Date(2026, 11, 23, 0, 0, 0, 0, taipei), time.Date(2026, 11, 13, 12, 0, 0, 0, taipei))
+	sale := Line{Slug: "mug", Name: "Mug", Quantity: 1, Available: 3, UnitCents: 43200, CompareCents: 48000, Sale: &end}
+	plain := sale
+	plain.Sale = nil
+	for _, tt := range []struct {
+		locale i18n.Locale
+		until  string
+		was    string
+	}{
+		{i18n.ZhHant, "<span class=\"goen-line__until\">特價至 <time datetime=\"2026-11-22\">11\u00a0月 22\u00a0日</time><span class=\"goen-sr-only\"></span></span>", "原價"},
+		{i18n.En, "<span class=\"goen-line__until\">On sale until <time datetime=\"2026-11-22\">Nov\u00a022</time><span class=\"goen-sr-only\">,</span></span>", "Was"},
+	} {
+		markup := renderIn(t, tt.locale, cartLine(sale))
+		for _, want := range []string{
+			tt.until,
+			`<span class="goen-line__sale">NT$432</span>`,
+			`<span class="goen-sr-only">` + tt.was + `</span><s class="goen-line__was">NT$480</s>`,
+		} {
+			if !strings.Contains(markup, want) {
+				t.Errorf("%s: the line on sale lacks %s:\n%s", tt.locale, want, markup)
+			}
+		}
+		if strings.Contains(markup, "goen-line__meta") {
+			t.Errorf("%s: the line on sale still says its unit price as a plain one", tt.locale)
+		}
+		markup = renderIn(t, tt.locale, cartLine(plain))
+		for _, unwanted := range []string{"goen-line__until", "goen-line__sale", "<s "} {
+			if strings.Contains(markup, unwanted) {
+				t.Errorf("%s: a line not on sale draws %s", tt.locale, unwanted)
+			}
+		}
+		if want := fmt.Sprintf(i18n.T(i18n.WithLocale(t.Context(), tt.locale), i18n.KeyUnitPrice), "NT$432"); !strings.Contains(markup, want) {
+			t.Errorf("%s: a line not on sale lacks %q", tt.locale, want)
 		}
 	}
 }
