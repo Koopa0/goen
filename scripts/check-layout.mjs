@@ -3986,7 +3986,10 @@ const provePdpAdd = async (label, scriptingOff) => {
   const pick = await evalPage(`(() => {
     const form = document.querySelector('.goen-pdp__form');
     const add = form && form.querySelector('.goen-pdp__add');
-    if (form && add && !add.disabled) return { ok: true, ready: true };
+    // Ready means a submit that can post: until every group is picked the
+    // button is a focusable aria-disabled type=button, not a disabled one.
+    if (form && add && add.type === 'submit' && !add.disabled
+      && add.getAttribute('aria-disabled') !== 'true') return { ok: true, ready: true };
     const swatch = document.querySelector('.goen-swatch:not(.goen-swatch--on):not(.goen-swatch--out)');
     if (!swatch) return { ok: false, why: 'no choosable swatch on the pdp' };
     const href = swatch.getAttribute('href');
@@ -4016,7 +4019,7 @@ const provePdpAdd = async (label, scriptingOff) => {
   const submit = await evalPage(`(() => {
     const form = document.querySelector('.goen-pdp__form');
     const add = form && form.querySelector('.goen-pdp__add');
-    if (!form || !add || add.disabled) {
+    if (!form || !add || add.disabled || add.type !== 'submit' || add.getAttribute('aria-disabled') === 'true') {
       return { ok: false, why: 'add-to-cart is not ready before submit' };
     }
     add.scrollIntoView({ block: 'center', behavior: 'instant' });

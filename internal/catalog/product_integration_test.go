@@ -352,8 +352,8 @@ func TestHandler_ProductSoldOut(t *testing.T) {
 	if got := strings.Count(box, "已售完"); got != 1 {
 		t.Errorf("a sold-out combination's buy box says 已售完 %d times, want once", got)
 	}
-	if !strings.Contains(body, `type="submit" disabled`) {
-		t.Error("the add-to-cart button is live on a sold-out combination")
+	if strings.Contains(body, `type="submit" id="add-to-cart"`) || !strings.Contains(body, `id="restock"`) {
+		t.Error("the add-to-cart button is live on a sold-out combination, or there is no restock form")
 	}
 }
 
@@ -401,7 +401,7 @@ func TestHandler_ProductUnknownCombination(t *testing.T) {
 	if !strings.Contains(body, "NT$33,900 起") {
 		t.Error("an impossible combination lost the catalogue's starting price")
 	}
-	if !strings.Contains(body, "請選擇選項") || !strings.Contains(body, `type="submit" disabled`) || !strings.Contains(body, `name="variant" value=""`) {
+	if !strings.Contains(body, "請選擇選項") || !strings.Contains(body, `type="button" aria-describedby="add-to-cart-why" aria-disabled="true" id="add-to-cart"`) || !strings.Contains(body, `name="variant" value=""`) {
 		t.Error("an impossible combination must request a choice without offering a purchase variant")
 	}
 }
@@ -416,7 +416,7 @@ func TestHandler_ProductPartialSelection(t *testing.T) {
 	if !strings.Contains(body, "請選擇選項") {
 		t.Error("a partial selection does not ask for the rest")
 	}
-	if !strings.Contains(body, `type="submit" disabled`) {
+	if !strings.Contains(body, `type="button" aria-describedby="add-to-cart-why" aria-disabled="true" id="add-to-cart"`) || strings.Contains(body, `type="submit" id="add-to-cart"`) {
 		t.Error("the add-to-cart button is live on a partial selection")
 	}
 }
