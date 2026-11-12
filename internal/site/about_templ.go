@@ -37,10 +37,6 @@ func About(p frame.Page) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var1 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var1 == nil {
-			templ_7745c5c3_Var1 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -221,10 +217,6 @@ func aboutArt() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var12 == nil {
-			templ_7745c5c3_Var12 = templ.NopComponent
-		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<svg class=\"about__art\" data-tone=\"paper\" viewBox=\"0 0 1600 900\" aria-hidden=\"true\" focusable=\"false\"><path class=\"about__lens\" d=\"M 715.6 534.4 A 193 193 0 0 0 884.4 365.6 A 193 193 0 0 0 715.6 534.4 Z\"></path> <circle class=\"about__ring\" cx=\"692.8\" cy=\"342.8\" r=\"193\" vector-effect=\"non-scaling-stroke\"></circle> <circle class=\"about__ring about__ring--accent\" cx=\"907.2\" cy=\"557.2\" r=\"193\" vector-effect=\"non-scaling-stroke\"></circle></svg>")
 		if templ_7745c5c3_Err != nil {
