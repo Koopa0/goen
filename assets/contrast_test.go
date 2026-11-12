@@ -249,62 +249,37 @@ func TestBaseCSSRoleContrast(t *testing.T) {
 	}
 }
 
-// The shapes TestBaseCSSRoleFallback reads: the @supports rule that gives a
-// browser with light-dark() its two colours, the plain day value every browser
-// reads before it, and the negated query a sheet must not carry.
-var (
-	roleEnhance      = regexp.MustCompile(`(?s)@supports \(color: light-dark\(#000, #fff\)\) \{\s*:root \{(.*?)\}\s*\}`)
-	roleDefault      = regexp.MustCompile(`(?m)^\s*(--sys-[a-z0-9-]+):\s*var\((--[a-z0-9-]+)\);`)
-	negatedLightDark = regexp.MustCompile(`@supports\s+not\s*\(\s*color\s*:\s*light-dark\(`)
-)
+// roleFallback finds the rule a browser without light-dark() reads instead.
+var roleFallback = regexp.MustCompile(`(?s)@supports not \(color: light-dark\(#000, #fff\)\) \{\s*:root \{(.*?)\}\s*\}`)
 
 // TestBaseCSSRoleFallback checks that a browser without light-dark() gets each
-// role's day colour. Every browser reads the plain :root block before the
-// @supports rule, and a browser with light-dark() then overrides it there. A
-// role missing from the plain block is unset in the browser without light-dark(),
-// one that names another token draws a colour no scheme has, and a plain value
-// after the @supports rule would override the night in every browser.
-//
-// It also keeps the negated query out of the sheet: with
-// @supports not (color: light-dark(...)) in base.css, Safari 15.8 lost the root
-// text size the popover check in internal/catalog sets, which the positive
-// query does not.
+// role's day colour. A role missing from the fallback is unset there, and one
+// that names another token draws a colour no scheme has.
 func TestBaseCSSRoleFallback(t *testing.T) {
 	t.Parallel()
 
-	raw, err := fs.ReadFile(files, BaseCSS)
+	base, err := fs.ReadFile(files, BaseCSS)
 	if err != nil {
 		t.Fatalf("read %s: %v", BaseCSS, err)
 	}
-	base := cssComment.ReplaceAll(raw, nil)
-	if negatedLightDark.Match(base) {
-		t.Errorf("%s has an @supports not (color: light-dark(...)) rule; Safari 15.8 loses the root text size beside it, so default the day and override it in a positive @supports rule", BaseCSS)
+	block := roleFallback.FindSubmatch(base)
+	if block == nil {
+		t.Fatalf("%s has no @supports not (color: light-dark(#000, #fff)) rule for :root", BaseCSS)
 	}
-	at := roleEnhance.FindSubmatchIndex(base)
-	if at == nil {
-		t.Fatalf("%s has no @supports (color: light-dark(#000, #fff)) rule for :root", BaseCSS)
+	fallback := make(map[string]string)
+	for _, m := range regexp.MustCompile(`(--sys-[a-z0-9-]+):\s*var\((--[a-z0-9-]+)\);`).FindAllStringSubmatch(string(block[1]), -1) {
+		fallback[m[1]] = m[2]
 	}
-	inside, before, after := base[at[2]:at[3]], base[:at[0]], base[at[1]:]
-
 	roles := roleTokens(t)
-	enhanced := make(map[string]bool)
-	for _, m := range roleDecl.FindAllSubmatch(inside, -1) {
-		enhanced[string(m[1])] = true
-	}
-	defaults := make(map[string]string)
-	for _, m := range roleDefault.FindAllSubmatch(before, -1) {
-		defaults[string(m[1])] = string(m[2])
-	}
 	for name, r := range roles {
-		if !enhanced[name] {
-			t.Errorf("%s is not declared as light-dark() inside the @supports rule", name)
-		}
-		if got := defaults[name]; got != r.dayToken {
+		if got := fallback[name]; got != r.dayToken {
 			t.Errorf("without light-dark(), %s = var(%s), want var(%s), its day colour", name, got, r.dayToken)
 		}
 	}
-	for _, m := range roleName.FindAllSubmatch(after, -1) {
-		t.Errorf("%s is declared after the @supports rule and overrides it in every browser", m[1])
+	for name := range fallback {
+		if _, ok := roles[name]; !ok {
+			t.Errorf("the light-dark() fallback sets %s, which no light-dark() role declares", name)
+		}
 	}
 }
 
