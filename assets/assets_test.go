@@ -414,9 +414,9 @@ func TestAppCSSPageTransition(t *testing.T) {
 	if script.Code != http.StatusOK {
 		t.Fatalf("GET %s = %d, want %d", assets.TransitionsJS, script.Code, http.StatusOK)
 	}
-	photo := regexp.MustCompile(`"([a-z]+-photo)"`)
-	var names []string
-	for _, m := range photo.FindAllStringSubmatch(script.Body.String(), -1) {
+	matches := regexp.MustCompile(`"([a-z]+-photo)"`).FindAllStringSubmatch(script.Body.String(), -1)
+	names := make([]string, 0, len(matches))
+	for _, m := range matches {
 		names = append(names, m[1])
 	}
 	if !slices.Equal(names, []string{"product-photo"}) {
