@@ -1166,7 +1166,8 @@ func TestAppCSSPromoDeclaredOnce(t *testing.T) {
 // dismiss control lays the text colour over the ground when hovered and
 // pressed, and its glyph, a graphical object, holds 3:1 on what that leaves
 // (WCAG 1.4.11) by day and by night. The confirming notice paints the same
-// ground, and its link is the inverse blue, underlined.
+// ground, and its link is the inverse blue, underlined, with an inverse band
+// outside its focus ring.
 func TestAppCSSInverseNoticeParts(t *testing.T) {
 	t.Parallel()
 
@@ -1217,6 +1218,10 @@ func TestAppCSSInverseNoticeParts(t *testing.T) {
 		has(sel, "color: var(--sys-inverse-primary);")
 		has(sel, "text-decoration: underline;")
 	}
+	// Focused, the link's ring is the inverse blue the notice sets as --ring, with a band of the
+	// inverse ground outside it, not the page's.
+	has(".goen-pdp__added .goen-pdp__addedlink:focus-visible", "outline: 2px solid var(--ring);")
+	has(".goen-pdp__added .goen-pdp__addedlink:focus-visible", "box-shadow: 0 0 0 4px var(--sys-inverse-surface);")
 }
 
 // TestAppCSSDepartmentPanelGround checks the department panel's ground. By day

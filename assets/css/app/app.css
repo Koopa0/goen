@@ -5339,6 +5339,7 @@ input.goen-check {
   color: var(--sys-inverse-on-surface);
   display: flex;
   flex-wrap: wrap;
+  gap: var(--s-2) var(--s-5);
   min-height: 48px;
   padding: var(--s-2) var(--s-4);
 }
@@ -5351,6 +5352,14 @@ input.goen-check {
   min-height: 32px;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* The ring is the inverse blue, and a band of the inverse ground outside it
+   keeps the ring off the page's own ground where the notice ends. */
+.goen-pdp__added .goen-pdp__addedlink:focus-visible {
+  box-shadow: 0 0 0 4px var(--sys-inverse-surface);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .goen-pdp__notify {
