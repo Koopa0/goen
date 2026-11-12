@@ -342,8 +342,15 @@ func TestHandler_ProductSoldOut(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if got := strings.Count(body, "已售完"); got != 1 {
-		t.Errorf("a sold-out combination says 已售完 %d times, want once", got)
+	// Counted in the buy box: a product card below it may say a colour of its
+	// own is sold out.
+	start := strings.Index(body, `id="buybox"`)
+	if start < 0 {
+		t.Fatal("the page has no buy box")
+	}
+	box, _, _ := strings.Cut(body[start:], "<section")
+	if got := strings.Count(box, "已售完"); got != 1 {
+		t.Errorf("a sold-out combination's buy box says 已售完 %d times, want once", got)
 	}
 	if !strings.Contains(body, `type="submit" disabled`) {
 		t.Error("the add-to-cart button is live on a sold-out combination")
