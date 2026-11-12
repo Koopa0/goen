@@ -838,96 +838,59 @@ try {
     }
   }
 
-  // A department's head lays out as the hero does, inside the page column: the
-  // photograph and the copy are two rounded panels with a seam of page white
-  // between them, side by side from 48rem and the photograph above the copy
-  // below it, and a running campaign's notice is a line in the copy, under the
-  // name.
-  // The tone is the copy's own panel and nothing behind the photograph, so no
-  // white L runs along the photograph's edge. The sub-categories mark the
-  // current one as a white pill with a 2px edge inside it, and its focus ring
-  // is a separate 2px ring outside that edge.
+  // A department's head is words on the page, inside the page column: the
+  // crumbs, the name in the editorial face at 40px at most, the count, a running
+  // campaign's notice under the name, and the sub-categories in one row under
+  // them. It draws no photograph and no tone ground, whatever the department
+  // has. The current sub-category is underlined 2px and the others are not; no
+  // pill, no edge. On a phone the row scrolls sideways, stops at a name's start,
+  // and keeps its focus ring inside the link, which the scroller would cut.
   {
-    const corner = '24px';
-    const seam = 8;
     const near = (got, want, tolerance = 0.5) => Math.abs(got - want) <= tolerance;
-    const rgb = /^rgb\((\d+), (\d+), (\d+)\)$/;
     const measure = () => evaluate(`(() => {
       const box = element => {
         const r = element.getBoundingClientRect();
         return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
       };
-      const corners = style => [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
-      const colour = value => {
-        const probe = document.createElement('i');
-        probe.style.color = value;
-        document.body.append(probe);
-        const got = getComputedStyle(probe).color;
-        probe.remove();
-        return got;
-      };
-      const panel = element => {
-        const style = getComputedStyle(element);
-        return { box: box(element), corners: corners(style), background: style.backgroundColor, shadow: style.boxShadow,
-          padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(parseFloat),
-          overflow: style.overflow, border: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ') };
-      };
       const page = document.querySelector('.goen-listing');
       const pageStyle = getComputedStyle(page);
       const pageBox = box(page);
-      const wrapper = document.querySelector('.goen-listing__head');
-      const wrapperStyle = getComputedStyle(wrapper);
-      const wrapperBox = box(wrapper);
-      const pagehead = wrapper.querySelector('.goen-pagehead');
-      const band = pagehead.querySelector('.goen-band');
-      const bandStyle = getComputedStyle(band);
-      const media = band.querySelector('.goen-band__media');
-      const body = band.querySelector('.goen-band__body');
-      const notice = band.querySelector('.goen-deptnotice');
-      const probe = document.createElement('i');
-      probe.style.backgroundColor = 'var(--tone-ground)';
-      probe.style.position = 'absolute';
-      pagehead.append(probe);
-      const ground = getComputedStyle(probe).backgroundColor;
-      probe.remove();
-      const row = body.querySelector('.goen-pagehead__chips');
+      const head = document.querySelector('.goen-listing__head');
+      const headStyle = getComputedStyle(head);
+      const headBox = box(head);
+      const pagehead = head.querySelector('.goen-pagehead');
+      const title = head.querySelector('h1.goen-pagehead__title');
+      const titleStyle = getComputedStyle(title);
+      const notice = pagehead.querySelector('.goen-deptnotice');
+      const row = head.querySelector('.goen-subindex');
+      const rowStyle = getComputedStyle(row);
       const current = row.querySelector('a[aria-current="page"]');
       const other = row.querySelector('a:not([aria-current])');
-      const chip = element => {
+      const link = element => {
         const style = getComputedStyle(element);
-        return { background: style.backgroundColor, shadow: style.boxShadow, box: box(element) };
+        return { line: style.textDecorationLine, thickness: style.textDecorationThickness, weight: Number(style.fontWeight),
+          background: style.backgroundColor, shadow: style.boxShadow, snap: style.scrollSnapAlign, margin: style.scrollMarginLeft, box: box(element) };
       };
-      const rowStyle = getComputedStyle(row);
-      const got = {
+      return {
         viewport: innerWidth,
         column: { left: pageBox.left + parseFloat(pageStyle.paddingLeft), right: pageBox.right - parseFloat(pageStyle.paddingRight) },
-        wrapper: { left: wrapperBox.left + parseFloat(wrapperStyle.paddingLeft), right: wrapperBox.right - parseFloat(wrapperStyle.paddingRight) },
-        band: { background: bandStyle.backgroundColor, image: bandStyle.backgroundImage },
-        ground, accent: colour('var(--accent)'), onInk: colour('var(--on-ink-accent)'),
-        body: panel(body), media: media ? { ...panel(media), img: box(media.querySelector('img')) } : null,
+        head: { left: headBox.left + parseFloat(headStyle.paddingLeft), right: headBox.right - parseFloat(headStyle.paddingRight) },
+        grounds: [headStyle.backgroundColor, getComputedStyle(pagehead).backgroundColor],
+        images: head.querySelectorAll('img').length,
+        title: { box: box(title), size: parseFloat(titleStyle.fontSize), family: titleStyle.fontFamily },
         notice: notice ? { box: box(notice) } : null,
-        title: box(body.querySelector('.goen-pagehead__title')),
-        row: { box: box(row), overflowX: rowStyle.overflowX }, current: chip(current), other: chip(other),
+        row: { box: box(row), overflowX: rowStyle.overflowX, snap: rowStyle.scrollSnapType, after: getComputedStyle(row, '::after').flexBasis, top: box(row).top },
+        current: link(current), other: link(other),
       };
-      return got;
     })()`);
     const ringOf = async selector => {
       await force(selector, ['focus', 'focus-visible']);
       const got = await evaluate(`(() => {
-        const element = document.querySelector(${JSON.stringify(selector)});
-        const style = getComputedStyle(element);
-        const r = element.getBoundingClientRect();
-        return { style: style.outlineStyle, width: style.outlineWidth, offset: style.outlineOffset, colour: style.outlineColor,
-          box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom } };
+        const style = getComputedStyle(document.querySelector(${JSON.stringify(selector)}));
+        return { style: style.outlineStyle, width: style.outlineWidth, offset: style.outlineOffset };
       })()`);
       await force(selector, []);
       return got;
-    };
-    // How far a ring leaves a panel: negative when the ring stays inside it.
-    const overhang = (ring, within) => {
-      const reach = parseFloat(ring.width) + Math.max(0, parseFloat(ring.offset));
-      return Math.max(within.left - (ring.box.left - reach), ring.box.right + reach - within.right,
-        within.top - (ring.box.top - reach), ring.box.bottom + reach - within.bottom);
     };
     const cases = [
       { tone: 'ink', photo: 1, notice: 1 },
@@ -939,114 +902,65 @@ try {
         const label = `department head ${c.tone}${c.photo ? '' : ' without a photograph'}${c.notice ? ' with a notice' : ''} ${width}px`;
         await open(`/department?tone=${c.tone}&photo=${c.photo}&notice=${c.notice}`, width);
         const head = await measure();
-        const [, red, green, blue] = rgb.exec(head.ground) ?? [];
-        assert.ok(red !== undefined, `${label}: tone ground ${head.ground}`);
-        const sum = Number(red) + Number(green) + Number(blue);
-        if (c.tone === 'ink') assert.ok(sum < 150, `${label}: ink ground is ${head.ground}`);
-        else assert.ok(sum > 500 && sum < 765, `${label}: ground is ${head.ground}, not a light tone`);
 
-        // Inside the page column, the panels spanning it, and nothing behind them.
-        assert.ok(near(head.wrapper.left, head.column.left) && near(head.wrapper.right, head.column.right),
-          `${label}: the head is ${head.wrapper.left}-${head.wrapper.right}, the page column ${head.column.left}-${head.column.right}`);
-        assert.equal(head.band.background, 'rgba(0, 0, 0, 0)', `${label}: the band has a ground of ${head.band.background}`);
-        assert.equal(head.band.image, 'none', `${label}: the band paints ${head.band.image} behind its panels`);
-        const panels = [head.body, head.media].filter(Boolean);
-        assert.ok(near(Math.min(...panels.map(p => p.box.left)), head.column.left) && near(Math.max(...panels.map(p => p.box.right)), head.column.right),
-          `${label}: the panels do not span the page column`);
-        for (const p of panels) {
-          assert.deepEqual(p.corners, [corner, corner, corner, corner], `${label}: panel corners ${p.corners}`);
-          assert.equal(p.border, '0px 0px 0px 0px', `${label}: a panel has a border: ${p.border}`);
-        }
+        // In the page column, words on the page: no photograph, no ground.
+        assert.ok(near(head.head.left, head.column.left) && near(head.head.right, head.column.right),
+          `${label}: the head is ${head.head.left}-${head.head.right}, the page column ${head.column.left}-${head.column.right}`);
+        assert.equal(head.images, 0, `${label}: the head draws ${head.images} image(s)`);
+        for (const ground of head.grounds) assert.equal(ground, 'rgba(0, 0, 0, 0)', `${label}: the head has a ground of ${ground}`);
 
-        // The copy is the tone; a corner is never larger than the padding inside it.
-        assert.equal(head.body.background, head.ground, `${label}: the copy is ${head.body.background}, the tone ground is ${head.ground}`);
-        assert.equal(head.body.shadow, 'none', `${label}: the copy has a ring: ${head.body.shadow}`);
-        const inline = Math.min(48, Math.max(24, head.viewport * 0.035));
-        assert.ok(near(head.body.padding[0], 24) && near(head.body.padding[2], 24), `${label}: copy padding above and below ${head.body.padding}`);
-        assert.ok(near(head.body.padding[1], inline) && near(head.body.padding[3], inline), `${label}: copy padding beside ${head.body.padding}, want ${inline}px`);
+        // The name is the editorial face, 40px at most.
+        assert.ok(head.title.size <= 40 + 0.5 && head.title.size >= 32 - 0.5, `${label}: the name is ${head.title.size}px, not 32 to 40`);
+        assert.ok(/Serif/.test(head.title.family), `${label}: the name is set in ${head.title.family}`);
 
-        // The notice is a line of the copy, inside its panel and under the name.
+        // The notice is a line under the name, above the sub-categories.
         if (c.notice) {
-          const n = head.notice.box;
-          const b = head.body.box;
-          assert.ok(n.left >= b.left - 0.5 && n.right <= b.right + 0.5 && n.top >= b.top - 0.5 && n.bottom <= b.bottom + 0.5,
-            `${label}: the notice ${n.left}-${n.right} x ${n.top}-${n.bottom} is not inside the copy ${b.left}-${b.right} x ${b.top}-${b.bottom}`);
-          assert.ok(n.top >= head.title.bottom - 0.5, `${label}: the notice starts at ${n.top}px, above the name's bottom at ${head.title.bottom}px`);
+          assert.ok(head.notice.box.top >= head.title.box.bottom - 0.5, `${label}: the notice starts at ${head.notice.box.top}px, above the name's bottom at ${head.title.box.bottom}px`);
+          assert.ok(head.notice.box.bottom <= head.row.top + 0.5, `${label}: the notice runs into the sub-categories`);
         }
 
-        if (!c.photo) {
-          assert.equal(head.media, null, `${label}: a photograph is drawn`);
-          assert.ok(near(head.body.box.left, head.column.left) && near(head.body.box.right, head.column.right), `${label}: the copy does not fill the column`);
+        // The current sub-category is underlined 2px, heavier; the others are plain words.
+        assert.equal(head.current.line, 'underline', `${label}: the current sub-category is not underlined`);
+        assert.equal(head.current.thickness, '2px', `${label}: the current sub-category's line is ${head.current.thickness}`);
+        assert.ok(head.current.weight > head.other.weight, `${label}: the current sub-category weighs ${head.current.weight}, another ${head.other.weight}`);
+        assert.equal(head.other.line, 'none', `${label}: another sub-category is underlined at rest`);
+        for (const l of [head.current, head.other]) {
+          assert.equal(l.background, 'rgba(0, 0, 0, 0)', `${label}: a sub-category is filled: ${l.background}`);
+          assert.equal(l.shadow, 'none', `${label}: a sub-category has an edge: ${l.shadow}`);
+        }
+
+        const ring = await ringOf('.goen-subindex__link[aria-current="page"]');
+        assert.deepEqual([ring.style, ring.width], ['solid', '2px'], `${label}: the focused sub-category's ring`);
+        if (width < 768) {
+          // One sideways row that stops at a name's start, with a 16px end, and
+          // the ring inside the link so the scroller does not cut it.
+          assert.equal(head.row.overflowX, 'auto', `${label}: the row does not scroll sideways`);
+          assert.ok(/^x/.test(head.row.snap), `${label}: the row's snap is ${head.row.snap}`);
+          assert.equal(head.current.snap, 'start', `${label}: a name snaps at ${head.current.snap}`);
+          assert.equal(head.current.margin, '16px', `${label}: a name's scroll margin is ${head.current.margin}`);
+          assert.equal(head.row.after, '16px', `${label}: the row ends in ${head.row.after}`);
+          assert.ok(parseFloat(ring.offset) <= -2, `${label}: the ring is drawn ${ring.offset} outside the link, where the row cuts it`);
         } else {
-          const { media: photo } = head;
-          assert.equal(photo.overflow, 'hidden', `${label}: the photograph's panel overflow is ${photo.overflow}, so its corners do not clip the picture`);
-          assert.deepEqual(photo.padding, [0, 0, 0, 0], `${label}: the photograph's panel has padding ${photo.padding}`);
-          for (const edge of ['left', 'right', 'top', 'bottom']) {
-            assert.ok(near(photo.img[edge], photo.box[edge], 1), `${label}: the picture's ${edge} is ${photo.img[edge]}, its panel's ${photo.box[edge]}`);
-          }
-          if (width >= 768) {
-            assert.ok(photo.box.left < head.body.box.left, `${label}: the photograph is not to the left of the copy`);
-            assert.ok(near(head.body.box.left - photo.box.right, seam), `${label}: ${head.body.box.left - photo.box.right}px between the panels, want ${seam}px`);
-            assert.ok(near(photo.box.top, head.body.box.top, 1) && near(photo.box.bottom, head.body.box.bottom, 1), `${label}: the two panels are not the same height`);
-            const whole = head.column.right - head.column.left - seam;
-            assert.ok(near(photo.box.width, whole * 7 / 12, 1) && near(head.body.box.width, whole * 5 / 12, 1),
-              `${label}: photograph ${photo.box.width}px and copy ${head.body.box.width}px, not 7 and 5 of ${whole}px`);
-          } else {
-            assert.ok(photo.box.top < head.body.box.top, `${label}: the photograph is not above the copy`);
-            assert.ok(near(head.body.box.top - photo.box.bottom, seam), `${label}: ${head.body.box.top - photo.box.bottom}px between the panels, want ${seam}px`);
-            for (const p of [photo, head.body]) assert.ok(near(p.box.left, head.column.left) && near(p.box.right, head.column.right), `${label}: a panel does not span the column`);
-          }
+          assert.equal(head.row.overflowX, 'visible', `${label}: the row scrolls at ${width}px`);
         }
 
-        // The current sub-category: a white pill (a clear one on ink) with a 2px edge inside it; the others have neither.
-        const edge = c.tone === 'ink' ? head.onInk : head.accent;
-        assert.equal(head.current.shadow, `${edge} 0px 0px 0px 2px inset`, `${label}: the current sub-category's edge`);
-        assert.equal(head.current.background, c.tone === 'ink' ? 'rgba(255, 255, 255, 0.1)' : 'rgb(255, 255, 255)', `${label}: the current sub-category's ground`);
-        assert.equal(head.other.shadow, 'none', `${label}: another sub-category has an edge: ${head.other.shadow}`);
-        assert.equal(head.other.background, 'rgba(0, 0, 0, 0)', `${label}: another sub-category is filled: ${head.other.background}`);
-
-        // Its focus ring is the shared 2px ring, drawn outside the edge with the
-        // ground between them, and the scrolling row leaves it room to be seen.
-        const chipRing = await ringOf('.goen-pagehead__chip[aria-current="page"]');
-        assert.deepEqual([chipRing.style, chipRing.width, chipRing.offset], ['solid', '2px', '2px'], `${label}: the focused sub-category's ring`);
-        if (c.tone === 'ink') assert.notEqual(chipRing.colour, head.onInk, `${label}: the ring is the edge's own colour`);
-        if (head.row.overflowX !== 'visible') {
-          const room = Math.min(head.current.box.top - head.row.box.top, head.row.box.bottom - head.current.box.bottom, head.current.box.left - head.row.box.left);
-          assert.ok(room >= 4 - 0.5, `${label}: the scrolling row leaves ${room}px round the first sub-category, which would clip its ring`);
-        }
-        // The white ring of an ink head sits on the ink: the sub-categories' and the notice's stay inside the copy.
-        if (c.tone === 'ink') {
-          assert.equal(chipRing.colour, 'rgb(255, 255, 255)', `${label}: the ink head's ring is ${chipRing.colour}`);
-          assert.ok(overhang(chipRing, head.body.box) <= 0, `${label}: the ring leaves the copy by ${overhang(chipRing, head.body.box)}px, onto the page white`);
-          if (c.notice) {
-            const noticeRing = await ringOf('.goen-deptnotice__name');
-            assert.equal(noticeRing.colour, 'rgb(255, 255, 255)', `${label}: the notice's ring is ${noticeRing.colour}`);
-            assert.ok(overhang(noticeRing, head.body.box) <= 0, `${label}: the notice's ring leaves the copy by ${overhang(noticeRing, head.body.box)}px, onto the page white`);
-          }
-        }
-
-        // Forced colours drop the tone, so each panel draws an edge of its own.
+        // Forced colours keep the underline that marks the current one.
         await media([{ name: 'forced-colors', value: 'active' }]);
-        const edges = await evaluate(`['.goen-pagehead .goen-band__media', '.goen-pagehead .goen-band__body']
-          .map(selector => document.querySelector(selector)).filter(Boolean).map(element => {
-            const style = getComputedStyle(element);
-            return [style.outlineStyle, style.outlineWidth, style.outlineOffset].join(' ');
-          })`);
+        const forced = await evaluate(`getComputedStyle(document.querySelector('.goen-subindex__link[aria-current="page"]')).textDecorationLine`);
         await media([]);
-        assert.equal(edges.length, 1 + c.photo, `${label}: panels drawn in forced colours`);
-        for (const edgeOf of edges) assert.equal(edgeOf, 'solid 1px -1px', `${label}: a panel's edge in forced colours is ${edgeOf}`);
-        console.log(`${label}: ${panels.length} panels ${corner} in the column, ${c.photo ? (width >= 768 ? 'side by side' : 'stacked') : 'copy only'}, seam ${seam}px, edge 2px`);
+        assert.equal(forced, 'underline', `${label}: the current sub-category loses its mark in forced colours`);
+        console.log(`${label}: words in the column, name ${head.title.size}px, current underlined 2px${width < 768 ? ', row scrolls' : ''}`);
       }
     }
   }
 
-  // Six Chinese sub-category names stay on one line beside the photograph at
-  // 1400px and 1440px, so the last one is never left alone on a second line.
-  // Narrower windows, where the row wraps as it did before, are not asserted.
+  // Six Chinese sub-category names stay on one line at 1400px and 1440px, so
+  // the last one is never left alone on a second line. Narrower windows, where
+  // the row wraps, are not asserted.
   for (const width of [1400, 1440]) {
     const label = `department head sub-categories ${width}px`;
     await open('/department?tone=sage&photo=1&zh=1', width);
-    const tops = await evaluate(`[...document.querySelectorAll('.goen-listing__head .goen-pagehead__chip')].map(chip => chip.getBoundingClientRect().top)`);
+    const tops = await evaluate(`[...document.querySelectorAll('.goen-listing__head .goen-subindex__link')].map(link => link.getBoundingClientRect().top)`);
     assert.equal(tops.length, 6, `${label}: six sub-categories drawn`);
     assert.ok(tops.every(top => Math.abs(top - tops[0]) < 1), `${label}: the sub-categories are on more than one line: ${tops}`);
     console.log(`${label}: six names on one line`);

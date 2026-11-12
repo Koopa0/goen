@@ -41,6 +41,8 @@ templ Card(t Tile) {
 			}
 		</div>
 		<div class="goen-tile__body">
+			// Read, not shown: the link says whose product it is, and the card shows
+			// only the name.
 			if t.Brand != "" {
 				<span class="goen-tile__brand">{ t.Brand }</span>
 			}
@@ -71,7 +73,7 @@ templ Card(t Tile) {
 
 templ Price(t Tile) {
 	<span class="goen-tile__price">
-		<span class="goen-tile__amount">
+		<span class={ "goen-tile__amount", templ.KV("goen-tile__amount--sale", t.OnSale) }>
 			if t.PriceVaries {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), t.Price()) }
 			} else {
@@ -89,15 +91,26 @@ templ Price(t Tile) {
 // The colour is a presentation attribute, not a style, so the CSP has nothing to refuse.
 templ tileColours(t Tile) {
 	<span class="goen-tile__colours">
-		for _, hex := range t.Dots() {
+		// A colour nobody can buy is faded and struck through, so its shade
+		// still shows under the line.
+		for _, dot := range t.Dots() {
 			<svg class="goen-tile__dot" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
-				<circle cx="6" cy="6" r="5.5" fill={ hex }></circle>
+				if dot.SoldOut {
+					<circle cx="6" cy="6" r="5.5" fill={ dot.Hex } opacity="0.55"></circle>
+					<line class="goen-tile__slash" x1="0.5" y1="11.5" x2="11.5" y2="0.5" stroke="currentColor" stroke-width="1.5"></line>
+				} else {
+					<circle cx="6" cy="6" r="5.5" fill={ dot.Hex }></circle>
+				}
 			</svg>
 		}
 		if t.MoreColours() > 0 {
 			<span class="goen-tile__more" aria-hidden="true">{ fmt.Sprintf("+%d", t.MoreColours()) }</span>
 		}
-		<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyColourCount, int64(len(t.Colours)), len(t.Colours)) }</span>
+		if out := t.SoldOutColours(); len(out) > 0 {
+			<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyColourCountSoldOut, int64(len(t.Colours)), len(t.Colours), i18n.JoinList(ctx, out)) }</span>
+		} else {
+			<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyColourCount, int64(len(t.Colours)), len(t.Colours)) }</span>
+		}
 	</span>
 }
 

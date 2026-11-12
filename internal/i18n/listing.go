@@ -33,11 +33,6 @@ var (
 
 	KeyFilters = key("listing.filters", Message{ZhHant: "篩選", En: "Filters"})
 
-	KeyFiltersAndSort = key("listing.filters.and.sort", Message{
-		ZhHant: "篩選與排序",
-		En:     "Filters & sort",
-	})
-
 	KeyFiltersActive = key("listing.filters.active", Message{
 		ZhHant: "已套用篩選",
 		En:     "Active filters",
@@ -144,6 +139,10 @@ var (
 
 	// KeyColourCount is said to a screen reader, which cannot see the dots.
 	KeyColourCount = countKey("card.colours", "%d 種顏色", "%d colour", "%d colours")
+
+	// KeyColourCountSoldOut is KeyColourCount when some colours are sold out;
+	// the second argument is their names, joined by JoinList.
+	KeyColourCountSoldOut = countKey("card.colours.soldout", "%d 種顏色，%s已售完", "%d colour, %s sold out", "%d colours, %s sold out")
 
 	KeyRatingSummary = countKey("card.rating",
 		"評分 %s 分，共 %s 則評價",

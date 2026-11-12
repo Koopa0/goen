@@ -48,7 +48,6 @@ type Await uint8
 const (
 	AwaitNone Await = iota
 	AwaitGallery
-	AwaitPageheadPhoto
 )
 
 // ID is the element's id, or "" for AwaitNone.
@@ -58,8 +57,6 @@ func (a Await) ID() string {
 		return ""
 	case AwaitGallery:
 		return "gallery"
-	case AwaitPageheadPhoto:
-		return "pagehead-photo"
 	}
 	return ""
 }

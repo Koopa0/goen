@@ -12,43 +12,43 @@ import (
 )
 
 // rules and head are nil where the page has none to state.
+//
+// The head is words on the page, as a catalogue's section opens: the crumbs, the
+// name, how many products, and the sub-categories in one row under them, the
+// current one underlined. No photograph: the products are the pictures.
 templ Listing(p frame.Page, v ListingView, rules *policy.Rules, head *DepartmentHead) {
-	{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
-	{{ p = awaitingIf(p, photo.Shown(), frame.AwaitPageheadPhoto) }}
 	@frame.Base(p) {
 		<div class="goen-listing__head">
-			<div class="goen-pagehead" data-tone={ v.Theme.ToneAttr() }>
-				<div class="goen-band">
-					<div class="goen-band__grid">
-						if photo.Shown() {
-							@bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw")
-						}
-						<div class="goen-band__body goen-pagehead__text">
-							@widget.Breadcrumb(widget.BreadcrumbProps{
-								Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
-								Crumbs: v.Trail(ctx),
-							})
-							<h1 class={ "goen-pagehead__title", templ.KV("goen-band__name--long", bandNameLong(v.Name)) }>{ v.Name }</h1>
-							if head != nil && head.Notice != nil {
-								@departmentNotice(head.Notice)
-							}
-							if len(v.Children()) > 1 {
-								<nav class="goen-pagehead__chips" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
-									for _, c := range v.Children() {
-										if c.Slug == v.Slug {
-											<a class="goen-pagehead__chip" href={ templ.URL("/c/" + c.Slug) } aria-current="page">{ c.Name }</a>
-										} else {
-											<a class="goen-pagehead__chip" href={ templ.URL("/c/" + c.Slug) }>{ c.Name }</a>
-										}
-									}
-								</nav>
-							}
-						</div>
-					</div>
-				</div>
+			<div class="goen-pagehead">
+				@widget.Breadcrumb(widget.BreadcrumbProps{
+					Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
+					Crumbs: v.Trail(ctx),
+				})
+				<h1 class="goen-pagehead__title">{ v.Name }</h1>
+				// Empty at zero: the empty state says nothing matched, and a count of
+				// none would only repeat it. The box stays so a swap can fill it.
+				<p class="goen-listing__count" id="listing-count" aria-hidden="true">
+					if !v.Empty() {
+						{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }
+					}
+				</p>
+				if head != nil && head.Notice != nil {
+					@departmentNotice(head.Notice)
+				}
 			</div>
+			if len(v.Children()) > 1 {
+				<nav class="goen-subindex" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
+					for _, c := range v.Children() {
+						if c.Slug == v.Slug {
+							<a class="goen-subindex__link" href={ templ.URL("/c/" + c.Slug) } aria-current="page">{ c.Name }</a>
+						} else {
+							<a class="goen-subindex__link" href={ templ.URL("/c/" + c.Slug) }>{ c.Name }</a>
+						}
+					}
+				</nav>
+			}
 		</div>
-		<div class="goen-listing" data-comparable={ v.Theme.ComparableAttr() }>
+		<div class="goen-listing">
 			if head != nil {
 				@departmentSlot(head)
 			}
@@ -63,11 +63,12 @@ templ Listing(p frame.Page, v ListingView, rules *policy.Rules, head *Department
 						autofocus?={ v.Filtered && !isPartial(ctx) }
 					>
 						if v.Empty() {
-							<div class="ui-empty">
+							// The way back to everything is a secondary link, ink with a faint
+							// line: the page's next step is to loosen a filter, not to leave.
+							<div class="ui-empty goen-listing__empty">
 								<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyListingEmpty) }</p>
 								<p class="goen-empty__text">
-									{ i18n.T(ctx, i18n.KeyListingEmptyHint) }
-									<a href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyListingEmptyLink) }</a>
+									{ i18n.T(ctx, i18n.KeyListingEmptyHint) }<a class="goen-listing__all" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyListingEmptyLink) }</a>
 								</p>
 							</div>
 						} else {
@@ -109,31 +110,34 @@ templ Listing(p frame.Page, v ListingView, rules *policy.Rules, head *Department
 	}
 }
 
+// The form holds the filters and the sort. On a phone the filters fold into one
+// disclosure named for them and the sort stays beside it, outside the fold; from
+// 1024 the disclosure is forced open into a row of menus.
 templ listingFilters(v ListingView) {
 	<div class="goen-listing__filters">
-		<details class="goen-filters__shell">
-			<summary class="goen-filters__shell-summary">{ i18n.T(ctx, i18n.KeyFiltersAndSort) }</summary>
-			// With script, a changed control fetches the URL the button would have navigated
-			// to and swaps the results, chips and announced count; the button stays for a
-			// browser without script. A price box fires nothing until left or Enter.
-			<form
-				class="goen-filters"
-				method="get"
-				action={ templ.SafeURL(v.FilterAction()) }
-				hx-get={ "/c/" + v.Slug }
-				hx-trigger="change delay:300ms"
-				hx-target="#listing-results"
-				hx-select="#listing-results"
-				hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML, #listing-sort:innerHTML"
-				hx-swap="outerHTML"
-				hx-push-url="true"
-				hx-sync="this:replace"
-				hx-status:4xx="swap:none"
-				hx-status:5xx="swap:none"
-			>
-				// Keeps the outline unbroken: without an h2 between the page title and a tile's
-				// h3 the document skips a level (check-layout.mjs reads that as a defect).
-				<h2 class="goen-filters__title">{ i18n.T(ctx, i18n.KeyFilters) }</h2>
+		// With script, a changed control fetches the URL the button would have navigated
+		// to and swaps the results, chips and announced count; the button stays for a
+		// browser without script. A price box fires nothing until left or Enter.
+		<form
+			class="goen-filters"
+			method="get"
+			action={ templ.SafeURL(v.FilterAction()) }
+			hx-get={ "/c/" + v.Slug }
+			hx-trigger="change delay:300ms"
+			hx-target="#listing-results"
+			hx-select="#listing-results"
+			hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML, #listing-sort:innerHTML"
+			hx-swap="outerHTML"
+			hx-push-url="true"
+			hx-sync="this:replace"
+			hx-status:4xx="swap:none"
+			hx-status:5xx="swap:none"
+		>
+			// Keeps the outline unbroken: without an h2 between the page title and a tile's
+			// h3 the document skips a level (check-layout.mjs reads that as a defect).
+			<h2 class="goen-filters__title">{ i18n.T(ctx, i18n.KeyFilters) }</h2>
+			<details class="goen-filters__shell">
+				<summary class="goen-filters__shell-summary">{ i18n.T(ctx, i18n.KeyFilters) }</summary>
 				<div class="goen-filters__menus">
 					for _, group := range v.Facets {
 						<details class="goen-filters__group" name="filters" data-popover>
@@ -197,28 +201,23 @@ templ listingFilters(v ListingView) {
 						</div>
 					</details>
 				</div>
-				<div class="goen-filters__end">
-					// Nothing to sort when nothing is listed; the box stays so a swap can fill it.
-					<div id="listing-sort" class="goen-filters__sort">
-						if !v.Empty() {
-							@sortField(v.SortOptions(ctx))
-						}
-					</div>
-					@widget.Button(widget.ButtonProps{
-						ButtonStyle: widget.ButtonStylePrimary,
-						Block:       true,
-						Class:       "goen-filters__apply",
-					}, "submit") {
-						{ i18n.T(ctx, i18n.KeyApplyFilters) }
+			</details>
+			<div class="goen-filters__end">
+				// Nothing to sort when nothing is listed; the box stays so a swap can fill it.
+				<div id="listing-sort" class="goen-filters__sort">
+					if !v.Empty() {
+						@sortField(v.SortOptions(ctx))
 					}
 				</div>
-			</form>
-		</details>
-		<p class="goen-listing__count" id="listing-count" aria-hidden="true">
-			if !v.Empty() {
-				{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }
-			}
-		</p>
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
+					Block:       true,
+					Class:       "goen-filters__apply",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyApplyFilters) }
+				}
+			</div>
+		</form>
 		// Shown by script when an update fails: the old results stay and this says why.
 		<p class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
 		// Announced from here, a region that stays while the results around it are
@@ -295,56 +294,90 @@ templ showMore(hasPrev, hasNext bool, prev, next, page, pages string) {
 	}
 }
 
-// searchDepartments is the way on from a search page with nothing to show.
+// searchDepartments is the way on from a search page with nothing to show: the
+// departments the header lists, each with its photograph, its name and its
+// sub-categories. The photograph repeats the name's link, so it is out of the
+// tab order and hidden from a screen reader.
 templ searchDepartments() {
-	if len(frame.TopNavFrom(ctx)) > 0 {
-		<ul class="goen-empty__links" role="list">
-			for _, n := range frame.TopNavFrom(ctx) {
-				<li><a class="goen-pagehead__chip" href={ templ.URL(n.Href) }>{ n.Name }</a></li>
-			}
-		</ul>
+	if items := frame.TopNavFrom(ctx); len(items) > 0 {
+		<section class="goen-search__section" aria-labelledby="search-departments">
+			<h2 class="goen-search__heading" id="search-departments">{ i18n.T(ctx, i18n.KeySectionCategories) }</h2>
+			<ul class="goen-deptindex" role="list">
+				for _, n := range items {
+					<li class="goen-deptindex__item">
+						if n.PhotoURL != "" {
+							<a class="goen-deptindex__photo" href={ templ.URL(n.Href) } tabindex="-1" aria-hidden="true">
+								<img
+									src={ n.PhotoURL }
+									srcset={ n.PhotoSrcset }
+									sizes="(min-width: 48rem) 12rem, 7rem"
+									alt=""
+									width="800"
+									height="600"
+									loading="lazy"
+									decoding="async"
+								/>
+							</a>
+						}
+						<h3 class="goen-deptindex__name"><a href={ templ.URL(n.Href) }>{ n.Name }</a></h3>
+						if len(n.Children) > 0 {
+							<p class="goen-deptindex__subs">
+								for i, c := range n.Children {
+									if i > 0 {
+										<span class="goen-sep" aria-hidden="true">·</span><a href={ templ.URL(c.Href) }>{ c.Name }</a>
+									} else {
+										<a href={ templ.URL(c.Href) }>{ c.Name }</a>
+									}
+								}
+							</p>
+						}
+					</li>
+				}
+			</ul>
+		</section>
 	}
 }
 
 templ searchNewest(v SearchView) {
 	if len(v.Newest) > 0 {
-		<h2 class="goen-listing__subhead">{ i18n.T(ctx, i18n.KeySearchNewest) }</h2>
-		@compareForm(tile.AnyComparable(v.Newest)) {
-			<ul class="goen-tiles__grid" role="list">
-				for _, t := range tile.FirstRowEager(v.Newest) {
-					@tile.Cell(t)
-				}
-			</ul>
-		}
+		<section class="goen-search__section" aria-labelledby="search-newest">
+			<h2 class="goen-listing__subhead" id="search-newest">{ i18n.T(ctx, i18n.KeySearchNewest) }</h2>
+			@compareForm(tile.AnyComparable(v.Newest)) {
+				<ul class="goen-tiles__grid" role="list">
+					for _, t := range tile.FirstRowEager(v.Newest) {
+						@tile.Cell(t)
+					}
+				</ul>
+			}
+		</section>
 	}
 }
 
-// The search has no facets, so there is no filter rail.
+// The search has no facets, so there is no filter rail. With nothing to show,
+// the heading says so and the page offers the departments and the newest
+// products as the way on.
 templ Search(p frame.Page, v SearchView) {
 	@frame.Base(p) {
 		<div class="goen-listing goen-listing--search">
 			<div class="goen-pagehead goen-pagehead--search">
 				<h1 class="goen-pagehead__title">
-					if v.Searched() {
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchFor), v.Query) }
-					} else {
+					if !v.Searched() {
 						{ i18n.T(ctx, i18n.KeySearchHeading) }
+					} else if v.Empty() {
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchNoResults), v.Query) }
+					} else {
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchFor), v.Query) }
 					}
 				</h1>
+				if !v.Searched() {
+					<p class="goen-search__lead">{ i18n.T(ctx, i18n.KeySearchPrompt) }</p>
+					<p class="goen-search__lead">{ i18n.T(ctx, i18n.KeySearchPromptHint) }</p>
+				} else if v.Empty() {
+					<p class="goen-search__lead">{ i18n.T(ctx, i18n.KeySearchNoResultsHint) }</p>
+				}
 			</div>
-			if !v.Searched() {
-				<div class="ui-empty">
-					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeySearchPrompt) }</p>
-					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchPromptHint) }</p>
-					@searchDepartments()
-				</div>
-				@searchNewest(v)
-			} else if v.Empty() {
-				<div class="ui-empty">
-					<p class="goen-empty__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchNoResults), v.Query) }</p>
-					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchNoResultsHint) }</p>
-					@searchDepartments()
-				</div>
+			if !v.Searched() || v.Empty() {
+				@searchDepartments()
 				@searchNewest(v)
 			} else {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>

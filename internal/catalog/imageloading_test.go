@@ -20,9 +20,11 @@ func TestListingFirstScreenEager(t *testing.T) {
 	page := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 
 	assertEveryImageReservesItsBox(t, page)
+	// The head draws no photograph, so the first screen's largest paint is the
+	// first tile's.
 	for _, tag := range imageTags(page) {
-		if strings.Contains(tag, `class="goen-pagehead__photo"`) && strings.Contains(tag, `loading="lazy"`) {
-			t.Errorf("the department photograph is lazy: %s", tag)
+		if strings.Contains(tag, "/img/tech.webp") {
+			t.Errorf("the department photograph is drawn: %s", tag)
 		}
 	}
 	tiles := tileImages(page)

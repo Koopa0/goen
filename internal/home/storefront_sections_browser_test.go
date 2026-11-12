@@ -33,8 +33,8 @@ import (
 // page's running campaigns, the search page's compare button, the cart's
 // stepper and filled button, a department's filter chip, the corners every
 // pressable control shares, a product's photograph, the header's search pill
-// with the rule under the header, a department's head and the home page's shelf
-// as panels in the page column, the one way a chosen option, a chosen
+// with the rule under the header, a department's head as words in the page
+// column and the home page's shelf as a panel in it, the one way a chosen option, a chosen
 // delivery card and a refused field are marked, and the page frame's header,
 // department panel and footer, measured as drawn.
 func TestStorefrontSectionsAsDrawn(t *testing.T) {

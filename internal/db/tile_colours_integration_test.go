@@ -16,7 +16,8 @@ import (
 // TestTileQueriesColours: each of the nine queries that fill a product card
 // carries the colours the product page's picker offers, the first option all of
 // whose values are colours, counting a value only while an active variant uses
-// it.
+// it. Beside them it names each colour no in-stock variant carries, and only
+// those.
 //
 // Each copy of the subquery is checked on its own, so none can drift.
 func TestTileQueriesColours(t *testing.T) {
@@ -36,6 +37,7 @@ func TestTileQueriesColours(t *testing.T) {
 	type colour struct {
 		name, swatch string
 		retired      bool // used only by a variant that is no longer sold
+		soldOut      bool // used only by a variant with nothing to sell
 	}
 	product := func(slug string, options ...[]colour) uuid.UUID {
 		t.Helper()
@@ -45,7 +47,7 @@ func TestTileQueriesColours(t *testing.T) {
 		}
 		type pick struct{ option, value uuid.UUID }
 		var variants [][]pick
-		var retired []bool
+		var retired, empty []bool
 		for o, values := range options {
 			var optionID uuid.UUID
 			if err = tx.QueryRow(ctx, `INSERT INTO product_options(product_id,name,position) VALUES($1,$2,$3) RETURNING id`, id, "option"+strings.Repeat("x", o+1), o).Scan(&optionID); err != nil {
@@ -59,17 +61,19 @@ func TestTileQueriesColours(t *testing.T) {
 				for len(variants) <= i {
 					variants = append(variants, nil)
 					retired = append(retired, false)
+					empty = append(empty, false)
 				}
 				variants[i] = append(variants[i], pick{optionID, valueID})
 				retired[i] = retired[i] || v.retired
+				empty[i] = empty[i] || v.soldOut
 			}
 		}
 		if len(variants) == 0 {
-			variants, retired = [][]pick{nil}, []bool{false}
+			variants, retired, empty = [][]pick{nil}, []bool{false}, []bool{false}
 		}
 		for i, picks := range variants {
 			var variantID uuid.UUID
-			if err = tx.QueryRow(ctx, `INSERT INTO product_variants(product_id,sku,price_cents,compare_at_price_cents,stock_quantity,is_active,position) VALUES($1,$2,10000,20000,5,$3,$4) RETURNING id`, id, "TC-"+strings.ToUpper(uuid.NewString()[:8]), !retired[i], i).Scan(&variantID); err != nil {
+			if err = tx.QueryRow(ctx, `INSERT INTO product_variants(product_id,sku,price_cents,compare_at_price_cents,stock_quantity,is_active,position) VALUES($1,$2,10000,20000,CASE WHEN $5 THEN 0 ELSE 5 END,$3,$4) RETURNING id`, id, "TC-"+strings.ToUpper(uuid.NewString()[:8]), !retired[i], i, empty[i]).Scan(&variantID); err != nil {
 				t.Fatal(err)
 			}
 			for _, p := range picks {
@@ -87,13 +91,18 @@ func TestTileQueriesColours(t *testing.T) {
 	seed := product(token + "-seed")
 	choice := product(token+"-choice",
 		[]colour{{name: "128"}, {name: "256"}, {name: "512"}},
-		[]colour{{name: "black", swatch: "#111111"}, {name: "white", swatch: "#222222"}, {name: "red", swatch: "#333333", retired: true}},
+		[]colour{{name: "black", swatch: "#111111"}, {name: "white", swatch: "#222222", soldOut: true}, {name: "red", swatch: "#333333", retired: true}},
 	)
 	single := product(token+"-single", []colour{{name: "black", swatch: "#111111"}})
 	unlabelled := product(token+"-unlabelled", []colour{{name: "black", swatch: "#111111"}, {name: "plain"}})
 	want := map[string][]string{
 		token + "-choice":     {"#111111", "#222222"},
 		token + "-single":     {"#111111"},
+		token + "-unlabelled": nil,
+	}
+	wantSoldOut := map[string][]string{
+		token + "-choice":     {"", "white"},
+		token + "-single":     {""},
 		token + "-unlabelled": nil,
 	}
 
@@ -119,8 +128,8 @@ func TestTileQueriesColours(t *testing.T) {
 	terms, exact := catalog.SearchTerms(catalog.SearchPattern(token))
 	const locale = "en"
 	type tile struct {
-		slug    string
-		colours []string
+		slug             string
+		colours, soldOut []string
 	}
 	tests := []struct {
 		query string
@@ -128,39 +137,39 @@ func TestTileQueriesColours(t *testing.T) {
 	}{
 		{"CategoryListing", func() ([]tile, error) {
 			rows, err := q.CategoryListing(ctx, db.CategoryListingParams{Locale: locale, CategoryIds: []uuid.UUID{category}, BrandIds: []uuid.UUID{}, PageSize: 50})
-			return mapTiles(rows, func(r db.CategoryListingRow) tile { return tile{r.Slug, r.Colours} }), err
+			return mapTiles(rows, func(r db.CategoryListingRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
 		}},
 		{"SearchProducts", func() ([]tile, error) {
 			rows, err := q.SearchProducts(ctx, db.SearchProductsParams{Locale: locale, Patterns: terms, ExactPattern: exact, PageSize: 50})
-			return mapTiles(rows, func(r db.SearchProductsRow) tile { return tile{r.Slug, r.Colours} }), err
+			return mapTiles(rows, func(r db.SearchProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
 		}},
 		{"NewestProducts", func() ([]tile, error) {
 			rows, err := q.NewestProducts(ctx, db.NewestProductsParams{Locale: locale, PageSize: 500})
-			return mapTiles(rows, func(r db.NewestProductsRow) tile { return tile{r.Slug, r.Colours} }), err
+			return mapTiles(rows, func(r db.NewestProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
 		}},
 		{"DealProducts", func() ([]tile, error) {
 			rows, err := q.DealProducts(ctx, db.DealProductsParams{Locale: locale, PageSize: 500})
-			return mapTiles(rows, func(r db.DealProductsRow) tile { return tile{r.Slug, r.Colours} }), err
+			return mapTiles(rows, func(r db.DealProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
 		}},
 		{"CampaignProducts", func() ([]tile, error) {
 			rows, err := q.CampaignProducts(ctx, db.CampaignProductsParams{CampaignID: campaign, Locale: locale})
-			return mapTiles(rows, func(r db.CampaignProductsRow) tile { return tile{r.Slug, r.Colours} }), err
+			return mapTiles(rows, func(r db.CampaignProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
 		}},
 		{"HomeTiles", func() ([]tile, error) {
 			rows, err := q.HomeTiles(ctx, db.HomeTilesParams{Locale: locale, CampaignID: uuid.NullUUID{UUID: campaign, Valid: true}, MaxTiles: 50})
-			return mapTiles(rows, func(r db.HomeTilesRow) tile { return tile{r.Slug, r.Colours} }), err
+			return mapTiles(rows, func(r db.HomeTilesRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
 		}},
 		{"RelatedProducts", func() ([]tile, error) {
 			rows, err := q.RelatedProducts(ctx, db.RelatedProductsParams{Locale: locale, CategoryID: category, ExcludeID: seed, RowLimit: 50})
-			return mapTiles(rows, func(r db.RelatedProductsRow) tile { return tile{r.Slug, r.Colours} }), err
+			return mapTiles(rows, func(r db.RelatedProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
 		}},
 		{"BoughtTogether", func() ([]tile, error) {
 			rows, err := q.BoughtTogether(ctx, db.BoughtTogetherParams{Locale: locale, ProductID: seed, MinOrders: 1, LimitTo: 50})
-			return mapTiles(rows, func(r db.BoughtTogetherRow) tile { return tile{r.Slug, r.Colours} }), err
+			return mapTiles(rows, func(r db.BoughtTogetherRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
 		}},
 		{"WishlistItems", func() ([]tile, error) {
 			rows, err := q.WishlistItems(ctx, db.WishlistItemsParams{UserID: user, Locale: locale})
-			return mapTiles(rows, func(r db.WishlistItemsRow) tile { return tile{r.Slug, r.Colours} }), err
+			return mapTiles(rows, func(r db.WishlistItemsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
 		}},
 	}
 	for _, tc := range tests {
@@ -178,6 +187,9 @@ func TestTileQueriesColours(t *testing.T) {
 				seen++
 				if !slices.Equal(got.colours, colours) {
 					t.Errorf("%s: %s colours = %v, want %v", tc.query, got.slug, got.colours, colours)
+				}
+				if !slices.Equal(got.soldOut, wantSoldOut[got.slug]) {
+					t.Errorf("%s: %s colours sold out = %q, want %q", tc.query, got.slug, got.soldOut, wantSoldOut[got.slug])
 				}
 			}
 			if seen != len(want) {

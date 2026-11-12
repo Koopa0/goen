@@ -40,6 +40,9 @@ type Tile struct {
 	// Colours are the swatches of the product's colour option, the first option all of whose
 	// values are colours, as #rrggbb; empty when it has none.
 	Colours []string
+	// ColoursSoldOut runs beside Colours: a colour's name where no variant of it
+	// is in stock, "" where one is. Shorter than Colours, or nil, marks nothing.
+	ColoursSoldOut []string
 	// Set only where somebody is choosing between candidates (listing, search); not a
 	// shop window, a promotional list or a wishlist.
 	Comparable bool
@@ -64,7 +67,38 @@ const maxDots = 4
 // HasChoiceOfColour is false for a single colour: that is not a choice to show.
 func (t *Tile) HasChoiceOfColour() bool { return len(t.Colours) >= 2 }
 
-func (t *Tile) Dots() []string { return t.Colours[:min(len(t.Colours), maxDots)] }
+// Dot is one colour a card draws.
+type Dot struct {
+	Hex string
+	// SoldOut is struck through: no variant of the colour is in stock.
+	SoldOut bool
+}
+
+// Dots are the colours the card draws. A sold-out card marks none of them: the
+// card has stepped back as a whole and says so in words.
+func (t *Tile) Dots() []Dot {
+	dots := make([]Dot, min(len(t.Colours), maxDots))
+	for i := range dots {
+		dots[i] = Dot{Hex: t.Colours[i], SoldOut: t.InStock && i < len(t.ColoursSoldOut) && t.ColoursSoldOut[i] != ""}
+	}
+	return dots
+}
+
+// SoldOutColours are the names of the colours no variant of which is in stock,
+// counted or drawn, in the colours' order; none on a sold-out card, as Dots
+// marks none.
+func (t *Tile) SoldOutColours() []string {
+	if !t.InStock {
+		return nil
+	}
+	var names []string
+	for i, name := range t.ColoursSoldOut {
+		if name != "" && i < len(t.Colours) {
+			names = append(names, name)
+		}
+	}
+	return names
+}
 
 func (t *Tile) MoreColours() int { return max(len(t.Colours)-maxDots, 0) }
 

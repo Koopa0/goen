@@ -186,7 +186,7 @@ func TestDepartmentNoticeEnd(t *testing.T) {
 }
 
 // TestListingNoticeUnderName holds that the campaign notice is a line of the
-// head's copy, under the department's name, not a third panel under the band.
+// head, under the department's name, not a row of its own under the head.
 func TestListingNoticeUnderName(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -197,31 +197,31 @@ func TestListingNoticeUnderName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	band := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-band") })
-	if band == nil {
-		t.Fatal("the department head draws no band")
+	head := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-listing__head") })
+	if head == nil {
+		t.Fatal("the department page draws no head")
 	}
-	for c := band.FirstChild; c != nil; c = c.NextSibling {
+	for c := head.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && hasClass(c, "goen-deptnotice") {
-			t.Error("the campaign notice is a row of the band, not a line of its copy")
+			t.Error("the campaign notice is a row of the head, not a line under the name")
 		}
 	}
-	body := findDescendant(band, func(n *html.Node) bool { return hasClass(n, "goen-band__body") })
-	if body == nil {
-		t.Fatal("the department head draws no copy")
+	copyBlock := findDescendant(head, func(n *html.Node) bool { return hasClass(n, "goen-pagehead") })
+	if copyBlock == nil {
+		t.Fatal("the department head draws no name block")
 	}
-	line := findDescendant(body, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice") })
+	line := findDescendant(copyBlock, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice") })
 	if line == nil {
-		t.Fatal("the campaign notice is not inside the head's copy")
+		t.Fatal("the campaign notice is not with the department's name")
 	}
 	var title *html.Node
 	for p := line.PrevSibling; p != nil; p = p.PrevSibling {
-		if p.Type == html.ElementNode {
+		if p.Type == html.ElementNode && p.Data == "h1" {
 			title = p
 			break
 		}
 	}
-	if title == nil || title.Data != "h1" || !hasClass(title, "goen-pagehead__title") {
+	if title == nil || !hasClass(title, "goen-pagehead__title") {
 		t.Error("the campaign notice does not follow the department's name")
 	}
 	if got := nodeText(line); !strings.Contains(got, notice.Title) {
@@ -259,20 +259,6 @@ func TestDepartmentHead_Slot(t *testing.T) {
 	}
 	if got, want := story.Title(ctx), "燕麥、墨綠、霧灰"; got != want {
 		t.Errorf("story title = %q, want %q", got, want)
-	}
-}
-
-// TestListingComparableAttr holds that a comparable department says so on its
-// page.
-func TestListingComparableAttr(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	for _, offered := range []bool{true, false} {
-		view := ListingView{Slug: "c", Name: "Tech", Theme: &Theme{Comparable: offered}}
-		got := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, nil))
-		if want := `data-comparable="` + strconv.FormatBool(offered) + `"`; !strings.Contains(got, want) {
-			t.Errorf("Comparable %v: page omits %s", offered, want)
-		}
 	}
 }
 

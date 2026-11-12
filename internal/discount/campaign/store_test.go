@@ -11,7 +11,12 @@ import (
 func TestDealTilesCarryTheColoursOfTheirRows(t *testing.T) {
 	t.Parallel()
 	colours := []string{"#111111", "#222222"}
-	if got := dealTiles([]db.DealProductsRow{{Colours: colours}})[0].Colours; !slices.Equal(got, colours) {
-		t.Errorf("dealTiles: colours = %v, want %v", got, colours)
+	soldOut := []string{"", "Walnut"}
+	got := dealTiles([]db.DealProductsRow{{Colours: colours, ColoursSoldOut: soldOut}})[0]
+	if !slices.Equal(got.Colours, colours) {
+		t.Errorf("dealTiles: colours = %v, want %v", got.Colours, colours)
+	}
+	if !slices.Equal(got.ColoursSoldOut, soldOut) {
+		t.Errorf("dealTiles: colours sold out = %q, want %q", got.ColoursSoldOut, soldOut)
 	}
 }

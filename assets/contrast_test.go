@@ -700,7 +700,7 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 
 	for _, name := range toneNames {
 		decl := blocks[name]
-		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted", "--tone-mark"} {
+		for _, prop := range []string{"--tone-ground", "--tone-text", "--tone-muted", "--tone-mark"} {
 			if len(decl[prop].day) != 6 || len(decl[prop].night) != 6 {
 				t.Fatalf("data-tone=%q declares no colour for %s", name, prop)
 			}
@@ -1122,7 +1122,7 @@ func TestAppCSSBandMutedText(t *testing.T) {
 	if rule == nil {
 		t.Fatalf("%s has no band rule setting color: var(--tone-muted)", AppCSS)
 	}
-	for _, class := range []string{"goen-band__fact", "goen-tile__brand", "goen-tile__was", "goen-tile__state", "goen-tile__colours"} {
+	for _, class := range []string{"goen-band__fact", "goen-tile__was", "goen-tile__state", "goen-tile__colours"} {
 		if !strings.Contains(rule[1], ".goen-band ."+class) {
 			t.Errorf("the band's muted-text rule does not name .%s", class)
 		}

@@ -232,23 +232,24 @@ func (s *Store) tiles(ctx context.Context, campaignID, department uuid.NullUUID,
 		t := &rows[i]
 		photo := picture.Image{Digest: t.ImageDigest, BundledKey: t.ImageBundledKey, Width: int(t.ImageWidth)}
 		out = append(out, tile.Tile{
-			Slug:         t.Slug,
-			Name:         t.Name,
-			Summary:      t.Summary,
-			Brand:        t.Brand,
-			PriceCents:   t.TilePriceCents,
-			PriceVaries:  t.PriceVaries,
-			CompareCents: t.CompareAtPriceCents.Int64, // 0 when NULL
-			OnSale:       campaign.OnSale(t.InCampaign, t.InStock, t.TilePriceCents, t.CompareAtPriceCents.Int64),
-			Rating:       t.Rating,
-			RatingCount:  t.RatingCount,
-			InStock:      t.InStock,
-			Colours:      t.Colours,
-			ImageURL:     photo.URL(),
-			ImageSrcset:  photo.Srcset(),
-			ImageAlt:     t.ImageAlt,
-			ImageWidth:   t.ImageWidth,
-			ImageHeight:  t.ImageHeight,
+			Slug:           t.Slug,
+			Name:           t.Name,
+			Summary:        t.Summary,
+			Brand:          t.Brand,
+			PriceCents:     t.TilePriceCents,
+			PriceVaries:    t.PriceVaries,
+			CompareCents:   t.CompareAtPriceCents.Int64, // 0 when NULL
+			OnSale:         campaign.OnSale(t.InCampaign, t.InStock, t.TilePriceCents, t.CompareAtPriceCents.Int64),
+			Rating:         t.Rating,
+			RatingCount:    t.RatingCount,
+			InStock:        t.InStock,
+			Colours:        t.Colours,
+			ColoursSoldOut: t.ColoursSoldOut,
+			ImageURL:       photo.URL(),
+			ImageSrcset:    photo.Srcset(),
+			ImageAlt:       t.ImageAlt,
+			ImageWidth:     t.ImageWidth,
+			ImageHeight:    t.ImageHeight,
 		})
 	}
 	return out, nil

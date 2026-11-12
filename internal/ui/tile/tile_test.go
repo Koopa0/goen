@@ -12,6 +12,13 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// TestTileColourDots holds that a card draws up to four colours and counts the
+// rest.
+//
+// A colour no variant of which is in stock is drawn faded and struck through;
+// a colour past the fourth is counted, not drawn, so it is not marked. The
+// spoken name says which colours are sold out, drawn or not, in either
+// language; with none it is the count alone.
 func TestTileColourDots(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -21,21 +28,45 @@ func TestTileColourDots(t *testing.T) {
 	tests := []struct {
 		name    string
 		colours []string
+		soldOut []string
 		dots    int
 		more    string
+		struck  []string
+		// soldOutEn is soldOut as an English page's query names them;
+		// spoken and spokenEn are the colours' spoken names.
+		soldOutEn        []string
+		spoken, spokenEn string
 	}{
-		{"none", nil, 0, ""},
-		{"one colour is not a choice", hexes[:1], 0, ""},
-		{"two", hexes[:2], 2, ""},
-		{"four", hexes[:4], 4, ""},
-		{"nine", hexes, 4, "+5"},
+		{"none", nil, nil, 0, "", nil, nil, "", ""},
+		{"one colour is not a choice", hexes[:1], nil, 0, "", nil, nil, "", ""},
+		{"two", hexes[:2], nil, 2, "", nil, nil, "2 種顏色", "2 colours"},
+		{"four", hexes[:4], nil, 4, "", nil, nil, "4 種顏色", "4 colours"},
+		{"nine", hexes, nil, 4, "+5", nil, nil, "9 種顏色", "9 colours"},
+		{"walnut sold out", hexes[:2], []string{"胡桃", ""}, 2, "", []string{"#111111"}, []string{"Walnut", ""},
+			"2 種顏色，胡桃已售完", "2 colours, Walnut sold out"},
+		{"two sold out", hexes[:3], []string{"胡桃", "", "墨黑"}, 3, "", []string{"#111111", "#333333"}, []string{"Walnut", "", "Ink"},
+			"3 種顏色，胡桃、墨黑已售完", "3 colours, Walnut and Ink sold out"},
+		{"sold out past the dots", hexes[:6], []string{"", "", "", "", "", "白"}, 4, "+2", nil, []string{"", "", "", "", "", "White"},
+			"6 種顏色，白已售完", "6 colours, White sold out"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tile := base
 			tile.Colours = tc.colours
+			tile.ColoursSoldOut = tc.soldOut
 			got := renderComponent(t, ctx, Cell(tile))
+			if n := strings.Count(got, `class="goen-tile__slash"`); n != len(tc.struck) {
+				t.Errorf("Cell(%d colours, sold out %q) struck %d dots, want %d", len(tc.colours), tc.soldOut, n, len(tc.struck))
+			}
+			for _, hex := range tc.struck {
+				if !strings.Contains(got, `fill="`+hex+`" opacity="0.55"`) {
+					t.Errorf("Cell(sold out %q): the dot %s is not faded", tc.soldOut, hex)
+				}
+			}
+			if n := strings.Count(got, `opacity="0.55"`); n != len(tc.struck) {
+				t.Errorf("Cell(%d colours, sold out %q) faded %d dots, want %d", len(tc.colours), tc.soldOut, n, len(tc.struck))
+			}
 			if n := strings.Count(got, `class="goen-tile__dot"`); n != tc.dots {
 				t.Errorf("Cell(%d colours) drew %d dots, want %d", len(tc.colours), n, tc.dots)
 			}
@@ -50,6 +81,16 @@ func TestTileColourDots(t *testing.T) {
 			}
 			if tc.dots > 0 && !strings.Contains(got, `fill="`+tc.colours[0]+`"`) {
 				t.Errorf("Cell(%d colours) lost the first colour", len(tc.colours))
+			}
+			if tc.spoken != "" && !strings.Contains(got, `<span class="goen-sr-only">`+tc.spoken+`</span>`) {
+				t.Errorf("Cell(%d colours, sold out %q) does not say %q", len(tc.colours), tc.soldOut, tc.spoken)
+			}
+			if tc.spokenEn != "" {
+				en := tile
+				en.ColoursSoldOut = tc.soldOutEn
+				if body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Cell(en)); !strings.Contains(body, `<span class="goen-sr-only">`+tc.spokenEn+`</span>`) {
+					t.Errorf("Cell(%d colours, sold out %q) in English does not say %q", len(tc.colours), tc.soldOutEn, tc.spokenEn)
+				}
 			}
 		})
 	}
@@ -71,7 +112,18 @@ func TestCellSoldOut(t *testing.T) {
 		t.Error("a sold-out tile draws a badge")
 	}
 
+	// Every colour of a sold-out product is sold out; the card has stepped back
+	// as a whole, so no dot is struck on its own.
+	sold.Colours, sold.ColoursSoldOut = []string{"#111111", "#222222"}, []string{"胡桃", "炭黑"}
+	if got = renderComponent(t, ctx, Cell(sold)); strings.Contains(got, "goen-tile__slash") {
+		t.Error("a sold-out tile strikes its colours one by one")
+	}
+	if strings.Contains(got, "種顏色，") {
+		t.Error("a sold-out tile names its colours sold out one by one")
+	}
+
 	sold.InStock = true
+	sold.Colours, sold.ColoursSoldOut = nil, nil
 	got = renderComponent(t, ctx, Cell(sold))
 	if strings.Contains(got, "已售完") || strings.Contains(got, "goen-tile--out") {
 		t.Error("an in-stock tile says sold out")
@@ -133,6 +185,11 @@ func TestCellPhotoDecorative(t *testing.T) {
 			if !strings.Contains(textOf(link), "Pixelight 9 5G") {
 				t.Errorf("the tile link does not carry the product name as text: %q", textOf(link))
 			}
+			// The brand is not shown on the card, but the link still reads it,
+			// before the name.
+			if text := textOf(link); !strings.HasPrefix(strings.TrimSpace(text), "Pixelight") || strings.Index(text, "Pixelight") == strings.Index(text, "Pixelight 9 5G") {
+				t.Errorf("the tile link does not read the brand before the name: %q", text)
+			}
 		})
 	}
 }
@@ -174,6 +231,10 @@ func TestCellStrikesPriceOnlyOnSale(t *testing.T) {
 		page := renderComponent(t, ctx, Cell(tile))
 		if got := strings.Contains(page, `class="goen-tile__was"`); got != tt.wantStruck {
 			t.Errorf("Tile %s: struck price drawn = %v, want %v", tt.name, got, tt.wantStruck)
+		}
+		// The amount takes the campaign's colour only beside a struck price.
+		if got := strings.Contains(page, `class="goen-tile__amount goen-tile__amount--sale"`); got != tt.wantStruck {
+			t.Errorf("Tile %s: sale amount = %v, want %v", tt.name, got, tt.wantStruck)
 		}
 		if strings.Contains(page, "原價") != tt.wantStruck {
 			t.Errorf("Tile %s: the was-price label and the struck price disagree", tt.name)
