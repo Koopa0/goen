@@ -564,7 +564,19 @@ templ productBuyBar(v *ProductView) {
 				}
 			}
 		} else if v.CanBuy() {
-			<p class="goen-buybar__price">{ v.Price() }</p>
+			// The price and the struck original show only once the buy box's own price has left the
+			// screen (goen.js sets data-price="hidden" while it is on it), so the two never stand
+			// together. The struck price is a sibling of .goen-buybar__price, whose text has to equal
+			// the buy box's price.
+			<p class="goen-buybar__sum">
+				<span class="goen-buybar__price">{ v.Price() }</span>
+				if v.OnSale {
+					<span class="goen-buybar__was"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span><s>{ v.Compare() }</s></span>
+				}
+				if chosen := v.Chosen(); chosen != "" {
+					<span class="goen-buybar__chosen">{ chosen }</span>
+				}
+			</p>
 			@widget.Button(widget.ButtonProps{
 				ButtonStyle: widget.ButtonStylePrimary,
 				Class:       "goen-buybar__btn",

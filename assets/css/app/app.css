@@ -5243,8 +5243,8 @@ input.goen-check {
 @media (max-width: 768px) {
   .goen-buybar {
     align-items: center;
-    background: var(--bg);
-    border-top: 1px solid var(--n-200);
+    background: var(--sys-surface);
+    border-top: 1px solid var(--sys-outline-variant);
     bottom: 0;
     display: flex;
     flex-wrap: wrap;
@@ -5267,13 +5267,47 @@ input.goen-check {
     visibility: visible;
   }
 
+  /* The price and the struck original share a line, the chosen options take
+     the one under it; while the buy box's price is on screen only the options
+     stay. Each part wraps inside the bar rather than widening the page. */
+  .goen-buybar__sum {
+    align-items: baseline;
+    column-gap: 0.5rem;
+    display: grid;
+    flex: 0 1 auto;
+    grid-template-columns: auto minmax(0, auto);
+    justify-content: start;
+    margin: 0;
+    min-width: 0;
+  }
+
   .goen-buybar__price {
     color: var(--price);
-    flex: none;
     font-size: var(--fs-18);
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: tabular-nums lining-nums;
     font-weight: var(--fw-medium);
-    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .goen-buybar__was {
+    color: var(--sys-on-surface-variant);
+    font-size: var(--fs-14);
+    font-variant-numeric: tabular-nums;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .goen-buybar__chosen {
+    color: var(--sys-on-surface-variant);
+    font-size: var(--fs-14);
+    grid-column: 1 / -1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .goen-buybar[data-price='hidden'] :is(.goen-buybar__price, .goen-buybar__was) {
+    display: none;
   }
 
   .goen-buybar__msg {
@@ -5293,6 +5327,16 @@ input.goen-check {
   /* The menu drawer belongs to the header, which this later fixed block would
      paint over; hidden, the bar also leaves the tab order. */
   :root[data-buybar='out'] body:has(.goen-header__menu[open]) .goen-buybar {
+    transform: translateY(100%);
+    visibility: hidden;
+  }
+
+  /* A field being typed in brings up the on-screen keyboard, and the bar
+     would ride on top of it over the field; it steps aside until focus leaves.
+     Its own controls are not fields, so focus in the bar never hides it; a
+     radio or a checkbox, the gallery's thumbnails among them, raises no
+     keyboard. */
+  :root[data-buybar='out'] body:has(:is(input:not([type='radio'], [type='checkbox']), textarea, select):focus:not(#buybar *)) .goen-buybar {
     transform: translateY(100%);
     visibility: hidden;
   }
