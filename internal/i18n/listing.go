@@ -140,6 +140,10 @@ var (
 	// KeyColourCount is said to a screen reader, which cannot see the dots.
 	KeyColourCount = countKey("card.colours", "%d 種顏色", "%d colour", "%d colours")
 
+	// KeyColourCountSoldOut is KeyColourCount when some colours are sold out;
+	// the second argument is their names, joined by JoinList.
+	KeyColourCountSoldOut = countKey("card.colours.soldout", "%d 種顏色，%s已售完", "%d colour, %s sold out", "%d colours, %s sold out")
+
 	KeyRatingSummary = countKey("card.rating",
 		"評分 %s 分，共 %s 則評價",
 		"Rated %s out of 5, from %s review",

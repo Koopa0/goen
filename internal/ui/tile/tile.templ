@@ -106,7 +106,11 @@ templ tileColours(t Tile) {
 		if t.MoreColours() > 0 {
 			<span class="goen-tile__more" aria-hidden="true">{ fmt.Sprintf("+%d", t.MoreColours()) }</span>
 		}
-		<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyColourCount, int64(len(t.Colours)), len(t.Colours)) }</span>
+		if out := t.SoldOutColours(); len(out) > 0 {
+			<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyColourCountSoldOut, int64(len(t.Colours)), len(t.Colours), i18n.JoinList(ctx, out)) }</span>
+		} else {
+			<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyColourCount, int64(len(t.Colours)), len(t.Colours)) }</span>
+		}
 	</span>
 }
 

@@ -84,6 +84,22 @@ func (t *Tile) Dots() []Dot {
 	return dots
 }
 
+// SoldOutColours are the names of the colours no variant of which is in stock,
+// counted or drawn, in the colours' order; none on a sold-out card, as Dots
+// marks none.
+func (t *Tile) SoldOutColours() []string {
+	if !t.InStock {
+		return nil
+	}
+	var names []string
+	for i, name := range t.ColoursSoldOut {
+		if name != "" && i < len(t.Colours) {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
 func (t *Tile) MoreColours() int { return max(len(t.Colours)-maxDots, 0) }
 
 func (t *Tile) HasImage() bool { return t.ImageURL != "" }
