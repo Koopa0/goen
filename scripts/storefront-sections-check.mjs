@@ -313,9 +313,11 @@ try {
     console.log(`${label}: hidden until a product is ticked`);
   }
 
-  // Anything that can be pressed is a pill with one corner, in rem so it grows
-  // with the text. The wishlist heart and the hero arrows are circles, and the
-  // footer's button sits 4px inside its field.
+  // The header's and the footer's controls and the filter chips are still a
+  // pill with one corner, in rem so it grows with the text. A button is a seal,
+  // --r-lg (0.5rem), and a field --r-field (0.25rem), in rem too. The wishlist
+  // heart and the hero arrows are circles, and the footer's button sits 4px
+  // inside its field.
   {
     const label = 'pressable corners';
     const measure = (selectors, rootSize) => evaluate(`(() => {
@@ -326,7 +328,8 @@ try {
         const style = getComputedStyle(element);
         return [selector, { radius: style.borderRadius, height: element.getBoundingClientRect().height,
           shadow: style.boxShadow, border: style.borderTopColor, background: style.backgroundColor,
-          page: getComputedStyle(document.body).backgroundColor }];
+          page: getComputedStyle(document.body).backgroundColor,
+          rem: parseFloat(getComputedStyle(document.documentElement).fontSize) }];
       }));
     })()`);
     const length = (got, what) => {
@@ -336,7 +339,8 @@ try {
     const field = '.goen-footer__field > .goen-input';
     const submit = '.goen-footer__field > .goen-btn';
     const filled = '.goen-summary__actions .goen-btn--primary';
-    const cartPills = [filled, '.goen-stepper', '.goen-header__lang > summary', '.goen-header__backoffice', field];
+    const stepper = '.goen-stepper';
+    const cartPills = ['.goen-header__lang > summary', '.goen-header__backoffice', field];
     const heart = '.goen-header__action--wide';
     const chip = '.goen-filters__chip';
     const arrow = '.goen-hero__arrow';
@@ -344,8 +348,10 @@ try {
     for (const rootSize of ['', '200%']) {
       const scale = rootSize || '100%';
       await open('/cart', 1440);
-      const cart = await measure([...cartPills, submit, heart], rootSize);
-      for (const selector of [...cartPills, submit, heart]) assert.ok(cart[selector]?.height > 0, `${label}: ${selector} is not drawn in the cart at ${scale}`);
+      const cart = await measure([...cartPills, filled, stepper, submit, heart], rootSize);
+      for (const selector of [...cartPills, filled, stepper, submit, heart]) assert.ok(cart[selector]?.height > 0, `${label}: ${selector} is not drawn in the cart at ${scale}`);
+      assert.equal(length(cart[filled], filled), cart[filled].rem * 0.5, `${label}: the filled button has a ${cart[filled].radius} corner at ${scale}, not --r-lg (${cart[filled].rem * 0.5}px)`);
+      assert.equal(length(cart[stepper], stepper), cart[stepper].rem * 0.25, `${label}: the quantity field has a ${cart[stepper].radius} corner at ${scale}, not --r-field (${cart[stepper].rem * 0.25}px)`);
       corner[scale] = length(cart[field], field);
       for (const selector of cartPills) {
         assert.equal(length(cart[selector], selector), corner[scale], `${label}: ${selector} has a ${cart[selector].radius} corner at ${scale}, not the footer field's ${corner[scale]}px`);

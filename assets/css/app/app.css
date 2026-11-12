@@ -115,11 +115,14 @@ a:hover {
   --page-gutter: clamp(16px, 3.4vw, 48px);
   /* Read by the product grid and the footer grid once they are rebuilt. */
   --col-gap: clamp(16px, 1.7vw, 24px);
-  /* The corner of anything that can be pressed, in rem so it grows with the
-     text. base.css's --r-* stay as they are: the back office uses them. */
+  /* The round corner the header, the footer, the chips and the swatches
+     still draw until each is rebuilt, in rem so it grows with the text. A
+     button no longer reads it: a button is a seal, base.css's --r-lg (8px),
+     and a photograph is square. base.css's --r-* stay as they are: the back
+     office uses them too. */
   --r-press: 1.625rem;
-  /* The corner of a field a shopper types or chooses in. */
-  --r-field: 12px;
+  /* The corner of a field a shopper types or chooses in: barely rounded. */
+  --r-field: var(--r-sm);
   /* The outer corner of the hero, of a department's head and of the home
      page's shelf, in px so it stays 24 at any text size. A panel's copy sits
      at least one corner in from its edge and a photograph is clipped by its
@@ -366,7 +369,7 @@ th {
 .goen-btn {
   align-items: center;
   border: 1px solid transparent;
-  border-radius: var(--r-press);
+  border-radius: var(--r-lg);
   box-sizing: border-box;
   cursor: pointer;
   display: inline-flex;
@@ -652,7 +655,7 @@ th {
 .goen-stepper {
   align-items: stretch;
   border: 1px solid var(--control-boundary);
-  border-radius: var(--r-press);
+  border-radius: var(--r-field);
   display: inline-flex;
   height: 3rem;
   overflow: hidden;
@@ -1159,7 +1162,7 @@ body:has(.goen-hero) .goen-header {
 .goen-dept__well {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: 12px;
+  border-radius: 0;
   display: block;
   margin-bottom: 0.5rem;
   overflow: hidden;
@@ -1241,7 +1244,7 @@ body:has(.goen-hero) .goen-header {
   .goen-dept__photo {
     aspect-ratio: 4 / 3;
     background: var(--photo);
-    border-radius: 12px;
+    border-radius: 0;
     display: block;
     object-fit: cover;
     width: 15rem;
@@ -3175,15 +3178,9 @@ body:has(.goen-hero) .goen-header {
 .goen-tile__media {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: 12px;
+  border-radius: 0;
   overflow: hidden;
   position: relative;
-}
-
-@media (min-width: 48rem) {
-  .goen-tile__media {
-    border-radius: 16px;
-  }
 }
 
 .goen-tile__img {
@@ -4374,7 +4371,7 @@ input.goen-check {
 .goen-story__well {
   aspect-ratio: 4 / 3;
   background: var(--well);
-  border-radius: 12px;
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -4488,17 +4485,11 @@ input.goen-check {
 .goen-compare__suggestmedia {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: 12px;
+  border-radius: 0;
   display: block;
   margin-bottom: 0.75rem;
   overflow: hidden;
   width: 100%;
-}
-
-@media (min-width: 48rem) {
-  .goen-compare__suggestmedia {
-    border-radius: 16px;
-  }
 }
 
 .goen-compare__suggestmedia img {
