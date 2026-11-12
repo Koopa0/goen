@@ -176,15 +176,19 @@ a:hover {
 /* ---------- Promo banner ----------
 
    One row above the header and IN FLOW, not fixed: it is rendered on first
-   paint and removed by a form, so it never moves the page after load. The bar
-   carries the accent because it is the shop speaking in its own voice, and its
-   dismiss control is a full 44px because `check-layout.mjs:1300` sweeps every
-   button outside the header and the footer.
+   paint and removed by a form, so it never moves the page after load. It is a
+   notification, so it is drawn inverse, as the notice that confirms an action
+   is: dark by day and light by night, never the action's colour. Its focus
+   ring is the inverse blue, 7.25:1 on the day's ground and 5.74:1 on the
+   night's. The link and the dismiss control are each a full 44px tall, because
+   `check-layout.mjs:1300` sweeps every button outside the header and the
+   footer.
    ------------------------------------------------------------------------ */
 
 .goen-promo {
-  background: var(--n-900);
-  color: var(--on-accent);
+  --ring: var(--sys-inverse-primary);
+  background: var(--sys-inverse-surface);
+  color: var(--sys-inverse-on-surface);
   display: block;
   font-size: var(--fs-14);
   margin: 0;
@@ -210,6 +214,12 @@ a:hover {
   min-width: 0;
   padding: 8px 0;
   text-decoration: none;
+}
+
+/* The page's link hover is the ink blue, which the inverse ground would
+   swallow; the call to action's underline is what answers the pointer. */
+.goen-promo__link:hover {
+  color: inherit;
 }
 
 /* One line, clipped rather than wrapped: a two-line bar changes the page's
@@ -241,16 +251,16 @@ a:hover {
 }
 
 /* The discount code reads as something to be copied rather than as part of the
-   sentence, and user-select: all makes one tap take the whole of it. */
+   sentence, and user-select: all makes one tap take the whole of it. Its edge
+   is the bar's own text colour, so it holds what the text holds on either
+   ground. */
 .goen-promo__code {
-  background: var(--n-0);
+  border: 1px solid currentcolor;
   border-radius: var(--r-sm);
-  color: var(--n-900);
   flex: none;
-  font-size: var(--fs-12);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-medium);
-  padding: 2px 6px;
+  font: var(--fw-medium) var(--fs-12)/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  padding: 4px 6px;
   -webkit-user-select: all;
   user-select: all;
 }
@@ -289,7 +299,11 @@ a:hover {
 }
 
 .goen-promo__close:hover {
-  background: var(--n-700);
+  background: color-mix(in srgb, currentcolor var(--state-hover), transparent);
+}
+
+.goen-promo__close:active {
+  background: color-mix(in srgb, currentcolor var(--state-press), transparent);
 }
 
 @media (min-width: 768px) {
@@ -5330,6 +5344,35 @@ input.goen-check {
   text-decoration: underline;
 }
 
+/* The notice that confirms an action, adding to the cart or asking to be told
+   of a restock, is drawn inverse like the promotional strip: in the place the
+   action was taken, never floating and never timed away. Its link is the
+   inverse blue, underlined, and so is its focus ring. A refusal in the same
+   place keeps the error colour. */
+.goen-pdp__added.goen-notice--accent,
+.goen-pdp__notify > .goen-notice--accent {
+  --ring: var(--sys-inverse-primary);
+  align-items: center;
+  background: var(--sys-inverse-surface);
+  border-radius: var(--r-sm);
+  box-sizing: border-box;
+  color: var(--sys-inverse-on-surface);
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 48px;
+  padding: var(--s-2) var(--s-4);
+}
+
+.goen-pdp__added .goen-pdp__addedlink,
+.goen-pdp__added .goen-pdp__addedlink:hover {
+  align-items: center;
+  color: var(--sys-inverse-primary);
+  display: inline-flex;
+  min-height: 32px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .goen-pdp__notify {
   border-top: 1px solid var(--n-200);
   display: flex;
@@ -6121,7 +6164,6 @@ input.goen-check {
   --tone-mark: light-dark(var(--mark), var(--night-primary));
 }
 
-.goen-promo,
 .goen-campaign__band .goen-pagehead[data-tone="ink"],
 .goen-listing__head .goen-pagehead[data-tone="ink"] .goen-band__body,
 .goen-hero__slide[data-tone="ink"],

@@ -56,6 +56,7 @@ var assetReaders = map[string]string{
 	"assets/contrast_test.go#stateLayers":                                 "contract: the night is drawn on no page while the color-scheme is light, so its contrast is held on the token values",
 	"assets/contrast_test.go#checkInkSlideAction":                         "contract: the night is drawn on no page while the color-scheme is light, so its contrast is held on the token values",
 	"assets/contrast_test.go#TestAppCSSFilledControlFocusHalo":            "contract: the night is drawn on no page while the color-scheme is light, so the band that keeps the focus ring seen on the night's button is held on the rule itself",
+	"assets/contrast_test.go#TestAppCSSInverseNoticeParts":                "contract: the night is drawn on no page while the color-scheme is light, so what the rules lay on the inverse ground is held on the rules and the token values",
 	"assets/contrast_test.go#TestAppCSSToneFallback":                      "contract: the fallback runs only in a browser without light-dark(), which no browser test has, so the rule's text is what is held",
 	"assets/contrast_test.go#TestAppCSSBandMutedText":                     "#380",
 	"assets/contrast_test.go#TestAppCSSFocusRingContrast":                 "#380",

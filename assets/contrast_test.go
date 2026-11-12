@@ -919,24 +919,51 @@ func TestAppCSSFocusRingContrast(t *testing.T) {
 		}
 	}
 
-	override := regexp.MustCompile(`(?s)((?:[^{}]*)\{[^{}]*--ring: var\((--[a-z0-9-]+)\);)`).FindStringSubmatch(string(sheet))
-	if override == nil {
+	// A rule that re-points --ring either paints a ground of its own from a
+	// role, and its ring is held on that ground in both schemes, or it is the
+	// rule that whitens the ring on the dark grounds.
+	roles := roleTokens(t)
+	ringDecl := regexp.MustCompile(`(?:^|;)\s*--ring:\s*var\((--[a-z0-9-]+)\);`)
+	roleGround := regexp.MustCompile(`(?:^|;)\s*background:\s*var\((--sys-[a-z0-9-]+)\);`)
+	dark := 0
+	for _, r := range cssRule.FindAllStringSubmatch(cssComment.ReplaceAllString(string(sheet), ""), -1) {
+		decl := ringDecl.FindStringSubmatch(";" + r[2])
+		if decl == nil {
+			continue
+		}
+		selectors := strings.Join(selectorList(r[1]), ", ")
+		if _, isRole := roles[decl[1]]; isRole {
+			g := roleGround.FindStringSubmatch(";" + r[2])
+			if g == nil || roles[g[1]].day == "" {
+				t.Errorf("%s re-points --ring to the role %s without painting a role ground of its own to hold it on", selectors, decl[1])
+				continue
+			}
+			ring, ground := roles[decl[1]], roles[g[1]]
+			for _, s := range []struct{ name, ring, ground string }{{"day", ring.day, ground.day}, {"night", ring.night, ground.night}} {
+				if got := contrast(s.ring, s.ground); got < 3 {
+					t.Errorf("%s: the focus ring of %s, %s (#%s), on its ground %s (#%s) = %.2f:1, want at least 3:1",
+						s.name, selectors, decl[1], s.ring, g[1], s.ground, got)
+				}
+			}
+			continue
+		}
+		dark++
+		for _, sel := range selectorList(r[1]) {
+			// A bare tone selector also reaches the light grounds that carry
+			// the tone as data, where a white ring would be 1:1.
+			if strings.HasPrefix(sel, "[data-tone") {
+				t.Errorf("the white --ring override selects %q on any element; scope it to a dark ground", sel)
+			}
+		}
+		for _, bg := range []string{tokens["--n-900"], "18181b" /* [data-tone="ink"] */} {
+			if got := contrast(tokens[decl[1]], bg); math.IsNaN(got) || got < 3 {
+				t.Errorf("focus ring %s (#%s) on the dark ground #%s = %.2f:1, want at least 3:1",
+					decl[1], tokens[decl[1]], bg, got)
+			}
+		}
+	}
+	if dark == 0 {
 		t.Fatal("app.css does not re-point --ring on any dark ground")
-	}
-	selectorList, _, _ := strings.Cut(override[1], "{")
-	selectors := strings.Split(strings.TrimSpace(selectorList), ",")
-	for _, sel := range selectors {
-		// A bare tone selector also reaches the light grounds that carry
-		// the tone as data, where a white ring would be 1:1.
-		if strings.HasPrefix(strings.TrimSpace(sel), "[data-tone") {
-			t.Errorf("the white --ring override selects %q on any element; scope it to a dark ground", strings.TrimSpace(sel))
-		}
-	}
-	for _, bg := range []string{tokens["--n-900"], "18181b" /* [data-tone="ink"] */} {
-		if got := contrast(tokens[override[2]], bg); math.IsNaN(got) || got < 3 {
-			t.Errorf("focus ring %s (#%s) on the dark ground #%s = %.2f:1, want at least 3:1",
-				override[2], tokens[override[2]], bg, got)
-		}
 	}
 }
 
@@ -1113,6 +1140,90 @@ func TestAppCSSPromoDeclaredOnce(t *testing.T) {
 	}
 	if got := len(regexp.MustCompile(`(?m)^\.goen-promo \{`).FindAll(sheet, -1)); got != 1 {
 		t.Errorf(".goen-promo is declared %d times, want once, as the strip", got)
+	}
+	// The strip is a notification, drawn on the inverse roles with the inverse
+	// blue for its ring, and no other rule repaints it or re-points its ring.
+	block := regexp.MustCompile(`(?m)^\.goen-promo \{([^{}]*)\}`).FindSubmatch(sheet)
+	if block == nil {
+		t.Fatalf("%s has no .goen-promo rule", AppCSS)
+	}
+	for _, want := range []string{
+		"--ring: var(--sys-inverse-primary);",
+		"background: var(--sys-inverse-surface);",
+		"color: var(--sys-inverse-on-surface);",
+	} {
+		if !strings.Contains(string(block[1]), want) {
+			t.Errorf("%s: .goen-promo does not declare %q", AppCSS, want)
+		}
+	}
+	for _, r := range cssRule.FindAllStringSubmatch(cssComment.ReplaceAllString(string(sheet), ""), -1) {
+		if !slices.Contains(selectorList(r[1]), ".goen-promo") || strings.TrimSpace(r[1]) == ".goen-promo" {
+			continue
+		}
+		if regexp.MustCompile(`(?:^|;)\s*(?:--ring|background|color)\s*:`).MatchString(";" + r[2]) {
+			t.Errorf("%s: %q repaints the strip or re-points its ring; the strip's own rule holds them", AppCSS, strings.Join(selectorList(r[1]), ", "))
+		}
+	}
+}
+
+// TestAppCSSInverseNoticeParts checks the parts drawn on the inverse ground:
+// the promotional strip's code, its dismiss control and the link of the notice
+// that confirms an action. The text, the link and the ring on the inverse
+// ground are held by TestBaseCSSRoleContrast; this holds what the rules lay on
+// it. The code's edge is the text colour, so it holds what the text holds. The
+// dismiss control lays the text colour over the ground when hovered and
+// pressed, and its glyph, a graphical object, holds 3:1 on what that leaves
+// (WCAG 1.4.11) by day and by night. The confirming notice paints the same
+// ground, and its link is the inverse blue, underlined.
+func TestAppCSSInverseNoticeParts(t *testing.T) {
+	t.Parallel()
+
+	app, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	sheet := cssComment.ReplaceAllString(string(app), "")
+	roles := roleTokens(t)
+	layers := stateLayers(t)
+	decls := make(map[string]string)
+	for _, r := range cssRule.FindAllStringSubmatch(sheet, -1) {
+		for _, sel := range selectorList(r[1]) {
+			decls[sel] += ";" + r[2]
+		}
+	}
+	has := func(sel, decl string) {
+		t.Helper()
+		if !regexp.MustCompile(`(?:^|;)\s*` + regexp.QuoteMeta(decl)).MatchString(decls[sel]) {
+			t.Errorf("%s: %s does not declare %q", AppCSS, sel, decl)
+		}
+	}
+
+	has(".goen-promo__code", "border: 1px solid currentcolor;")
+	if regexp.MustCompile(`(?:^|;)\s*(?:background|color)\s*:`).MatchString(decls[".goen-promo__code"]) {
+		t.Errorf("%s: .goen-promo__code paints a colour of its own; it takes the strip's", AppCSS)
+	}
+
+	text, ground := roles["--sys-inverse-on-surface"], roles["--sys-inverse-surface"]
+	for _, state := range []string{"hover", "active"} {
+		sel := ".goen-promo__close:" + state
+		layer := map[string]string{"hover": "--state-hover", "active": "--state-press"}[state]
+		has(sel, "background: color-mix(in srgb, currentcolor var("+layer+"), transparent);")
+		for _, s := range []struct{ name, text, ground string }{{"day", text.day, ground.day}, {"night", text.night, ground.night}} {
+			seen := mix(s.text, s.ground, layers[layer])
+			if got := contrast(s.text, seen); got < 3 {
+				t.Errorf("%s: the dismiss glyph (#%s) on %s (#%s) = %.2f:1, want at least 3:1", s.name, s.text, sel, seen, got)
+			}
+		}
+	}
+
+	for _, sel := range []string{".goen-pdp__added.goen-notice--accent", ".goen-pdp__notify > .goen-notice--accent"} {
+		has(sel, "--ring: var(--sys-inverse-primary);")
+		has(sel, "background: var(--sys-inverse-surface);")
+		has(sel, "color: var(--sys-inverse-on-surface);")
+	}
+	for _, sel := range []string{".goen-pdp__added .goen-pdp__addedlink", ".goen-pdp__added .goen-pdp__addedlink:hover"} {
+		has(sel, "color: var(--sys-inverse-primary);")
+		has(sel, "text-decoration: underline;")
 	}
 }
 
