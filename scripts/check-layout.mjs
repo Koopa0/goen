@@ -4049,8 +4049,8 @@ const provePdpAdd = async (label, scriptingOff) => {
   }
 
   const cartCount = () => `(() => {
-    const badge = document.querySelector('.goen-header__cart .ui-badge--count');
-    return badge ? parseInt(badge.textContent.trim(), 10) : 0;
+    const count = document.querySelector('#cart-link .goen-header__count');
+    return count ? parseInt(count.textContent.trim(), 10) : 0;
   })()`;
 
   const before = await evalPage(`({
@@ -4063,7 +4063,7 @@ const provePdpAdd = async (label, scriptingOff) => {
     return;
   }
   if (before.cartUnits < 1) {
-    fail(label, 'the header cart badge did not reflect the add-to-cart write');
+    fail(label, 'the header cart count did not reflect the add-to-cart write');
   }
 
   await send(ws, 'Page.reload', { ignoreCache: false });

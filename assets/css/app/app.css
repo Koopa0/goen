@@ -1381,18 +1381,11 @@ body:has(.goen-hero) .goen-header {
   outline-offset: 2px;
 }
 
-/* The count is figures beside the word, not a badge. `check-layout.mjs` reads
-   its text through this exact pair of names after an add to cart. */
-.goen-header__cart .ui-badge--count {
-  background: none;
-  border: none;
-  color: inherit;
-  font: inherit;
+/* The count is figures after the word and its space, not a badge, in
+   figures of one width so a count that changes does not move the word.
+   `check-layout.mjs` reads its text after an add to cart. */
+.goen-header__count {
   font-variant-numeric: tabular-nums lining-nums;
-  height: auto;
-  margin-left: 4px;
-  min-width: 0;
-  padding: 0;
 }
 
 /* The language control, in the footer: two plain words, the current one set. */

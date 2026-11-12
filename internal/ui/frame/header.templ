@@ -167,13 +167,14 @@ templ departmentPanel(p Page, n NavItem) {
 // cartLink carries an id because adding to the cart from a product page replaces
 // this element out of band, from the same response the buy column comes from. The
 // whole link is the unit: the accessible name says how many are in there, so swapping
-// the number alone would leave the sentence behind.
+// the number alone would leave the sentence behind. What it shows is the word and
+// the number, 「購物車 2」, and the name is the sentence 「購物車，2 件商品」.
 templ cartLink() {
 	{{ count := CartCount(ctx) }}
 	<a class="goen-header__tool goen-header__cart" id="cart-link" href="/cart" aria-label={ cartLabel(ctx, count) }>
 		{ i18n.T(ctx, i18n.KeyCart) }
 		if count > 0 {
-			<span class="ui-badge--count" aria-hidden="true">{ strconv.Itoa(count) }</span>
+			<span class="goen-header__count">{ strconv.Itoa(count) }</span>
 		}
 	</a>
 }

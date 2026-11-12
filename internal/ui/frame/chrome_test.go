@@ -637,17 +637,22 @@ func TestHeaderFooterDepartmentsLabel(t *testing.T) {
 	}
 }
 
-// TestHeaderCartCount: the cart count sits beside the word and only when there is something in it.
+// TestHeaderCartCount: the cart says 購物車 and its count, and its name says the count in a sentence.
+//
+// The count is the lasting answer to an add to cart, so it is shown as the
+// word and a number after it, never alone and never once the cart is empty;
+// the link's name is the sentence, which the number by itself does not make.
 func TestHeaderCartCount(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		count int
+		name  string
 		want  string
 	}{
-		{0, ""},
-		{1, `<span class="ui-badge--count" aria-hidden="true">1</span>`},
-		{12, `<span class="ui-badge--count" aria-hidden="true">12</span>`},
+		{0, "購物車，目前是空的", ""},
+		{1, "購物車，1 件商品", `購物車 <span class="goen-header__count">1</span>`},
+		{12, "購物車，12 件商品", `購物車 <span class="goen-header__count">12</span>`},
 	} {
 		ctx := frame.WithCartCount(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.count)
 		var b strings.Builder
@@ -656,17 +661,20 @@ func TestHeaderCartCount(t *testing.T) {
 		}
 		_, cart, _ := strings.Cut(b.String(), `id="cart-link"`)
 		cart, _, _ = strings.Cut(cart, "</a>")
-		if !strings.Contains(cart, ">購物車") {
-			t.Errorf("count %d: the cart link does not say 購物車: %s", tc.count, cart)
+		if !strings.Contains(cart, `aria-label="`+tc.name+`">購物車`) {
+			t.Errorf("count %d: the cart link is %s, want the name %q and the word 購物車", tc.count, cart, tc.name)
+		}
+		if strings.Contains(cart, "<svg") || strings.Contains(cart, "badge") {
+			t.Errorf("count %d: the cart link draws a glyph or a badge: %s", tc.count, cart)
 		}
 		if tc.want == "" {
-			if strings.Contains(cart, "ui-badge--count") {
+			if strings.Contains(cart, "goen-header__count") {
 				t.Errorf("count %d: an empty cart prints a count", tc.count)
 			}
 			continue
 		}
 		if !strings.Contains(cart, tc.want) {
-			t.Errorf("count %d: the cart link lacks %s", tc.count, tc.want)
+			t.Errorf("count %d: the cart link is %s, want %s", tc.count, cart, tc.want)
 		}
 	}
 }
