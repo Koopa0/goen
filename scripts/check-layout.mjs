@@ -582,14 +582,29 @@ const ACCESSIBILITY = `
       .slice(0, 3).map((e) => e.tagName.toLowerCase() + '#' + (e.id || e.name || '?')),
     // A link or button announced as nothing. Text, an aria-label, or an image with
     // alt text inside it all count.
-    unnamedTargets: [...document.querySelectorAll('a[href], button')]
-      .filter((e) => !(
+    //
+    // One link is not announced at all rather than announced as nothing: a
+    // photograph's link that repeats a named link beside it, taken out of the tab
+    // order (tabindex="-1") and out of the accessibility tree (aria-hidden), so a
+    // pointer can press the picture and nobody hears the destination twice. It
+    // passes only with all three: both attributes, and another link on the page to
+    // the same href that is itself exposed and named. A hidden link with no named
+    // twin is a destination nobody without a pointer can reach, and still fails.
+    unnamedTargets: (() => {
+      const named = (e) => !!(
         e.textContent.trim() || e.getAttribute('aria-label') ||
         e.getAttribute('aria-labelledby') ||
         [...e.querySelectorAll('img')].some((i) => i.getAttribute('alt')) ||
         [...e.querySelectorAll('svg')].some((sv) => sv.getAttribute('aria-label') || sv.querySelector('title'))
-      ))
-      .slice(0, 3).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
+      );
+      const hiddenTwin = (e) => e.matches('a[href][aria-hidden="true"][tabindex="-1"]') &&
+        [...document.querySelectorAll('a[href]')].some((o) => o !== e &&
+          o.getAttribute('href') === e.getAttribute('href') &&
+          !o.closest('[aria-hidden="true"]') && named(o));
+      return [...document.querySelectorAll('a[href], button')]
+        .filter((e) => !named(e) && !hiddenTwin(e))
+        .slice(0, 3).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]);
+    })(),
     // A POSITIVE tabindex reorders the whole document's focus order, not just its
     // own — which is why it is a defect rather than a preference.
     positiveTabindex: [...document.querySelectorAll('[tabindex]')]
