@@ -2491,11 +2491,15 @@ body:has(.goen-hero) .goen-header {
   width: 100%;
 }
 
+/* A third of the well's width: about 33px at 375, 32px at 768 and 45px at
+   1024. The widest wells, about 200px across at 1440 or in a three-column row
+   just under 40rem, would draw it at 62 to 65px, above the display size, so it
+   stops at 3.5rem there. */
 .goen-cat__mark {
   background: var(--tone-ground);
   color: var(--tone-text);
   display: grid;
-  font-size: 32cqi;
+  font-size: min(32cqi, 3.5rem);
   font-weight: var(--fw-display);
   height: 100%;
   line-height: 1;
