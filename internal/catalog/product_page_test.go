@@ -631,7 +631,7 @@ func TestProductBuyBarSale(t *testing.T) {
 	}
 	bar := buyBarMarkup(t, &view)
 	for _, want := range []string{
-		`<span class="goen-buybar__price">NT$11,900</span> <span class="goen-buybar__was"><span class="goen-sr-only">原價</span><s>NT$12,900</s></span>`,
+		`<span class="goen-buybar__price goen-buybar__price--sale">NT$11,900</span> <span class="goen-buybar__was"><span class="goen-sr-only">原價</span><s>NT$12,900</s></span>`,
 		`<span class="goen-buybar__chosen">玫瑰金 · 45mm</span>`,
 	} {
 		if !strings.Contains(bar, want) {

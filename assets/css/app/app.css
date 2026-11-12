@@ -349,7 +349,6 @@ h1,
 h2,
 h3,
 h4,
-.goen-pdp__title,
 .goen-pdp__sectiontitle,
 .goen-pdp__score {
   font-family: var(--font-sans);
@@ -4791,11 +4790,11 @@ input.goen-check {
   gap: 0.5rem 0.75rem;
 }
 
+/* The name is 40px in the editorial face, a step and more above the 28px
+   price. */
 .goen-pdp__title {
   color: var(--n-900);
-  font-size: 1.75rem;
-  font-weight: var(--fw-display);
-  line-height: 1.3;
+  font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
   margin: 0;
   text-wrap: balance;
 }
@@ -4918,6 +4917,12 @@ input.goen-check {
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: var(--fw-medium);
   line-height: 1.2;
+}
+
+/* A price with a struck original comes from a campaign, which ends: vermilion,
+   the colour of what ends, as on the product card. */
+.goen-pdp__price--sale {
+  color: var(--sys-tertiary);
 }
 
 /* A phone at 200% text leaves the box under 20rem, where "NT$19,900" at its own
@@ -5288,6 +5293,10 @@ input.goen-check {
     font-weight: var(--fw-medium);
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  .goen-buybar__price--sale {
+    color: var(--sys-tertiary);
   }
 
   .goen-buybar__was {

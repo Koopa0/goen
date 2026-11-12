@@ -269,7 +269,7 @@ templ productBuy(v *ProductView) {
 		</div>
 		if v.SelectionOK || v.FallbackPrice {
 			<div class="goen-pdp__pricebox">
-				<span class="goen-pdp__price">
+				<span class={ "goen-pdp__price", templ.KV("goen-pdp__price--sale", v.OnSale) }>
 					if v.PriceFrom() {
 						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), v.Price()) }
 					} else {
@@ -569,7 +569,7 @@ templ productBuyBar(v *ProductView) {
 			// together. The struck price is a sibling of .goen-buybar__price, whose text has to equal
 			// the buy box's price.
 			<p class="goen-buybar__sum">
-				<span class="goen-buybar__price">{ v.Price() }</span>
+				<span class={ "goen-buybar__price", templ.KV("goen-buybar__price--sale", v.OnSale) }>{ v.Price() }</span>
 				if v.OnSale {
 					<span class="goen-buybar__was"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span><s>{ v.Compare() }</s></span>
 				}

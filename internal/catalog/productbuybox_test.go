@@ -417,3 +417,28 @@ func markupFrom(t *testing.T, markup, start, end string) string {
 	}
 	return start + before
 }
+
+// TestProductBuyBoxSalePrice holds that only a price with a struck original
+// takes the sale class, which paints it in the colour of what ends; an
+// ordinary price keeps the plain class.
+func TestProductBuyBoxSalePrice(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		compare     int64
+		onSale      bool
+		price, gone string
+	}{
+		{"campaign", 1290000, true, `<span class="goen-pdp__price goen-pdp__price--sale">`, `<span class="goen-pdp__price">`},
+		{"ordinary", 0, false, `<span class="goen-pdp__price">`, `goen-pdp__price--sale`},
+	} {
+		v := ProductView{
+			Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
+			VariantID: "v1", Available: 5, PriceCents: 1190000, CompareCents: tc.compare, OnSale: tc.onSale,
+		}
+		box := buyBox(t, i18n.ZhHant, &v)
+		if !strings.Contains(box, tc.price) || strings.Contains(box, tc.gone) {
+			t.Errorf("%s: the buy box price is not %s: %s", tc.name, tc.price, markupFrom(t, box, `class="goen-pdp__pricebox"`, "</div>"))
+		}
+	}
+}
