@@ -464,6 +464,137 @@ body {
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2366666d' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
+/* ---------- Roles ----------
+
+   The colours a component asks for by what it does (--sys-*), each drawn from
+   a day value and a night value. Every value is a six-digit hex on a line of
+   its own, the one shape assets/contrast_test.go reads, so each scheme's
+   pairs are measured rather than trusted.
+
+   The day values the ramp above lacks. 朱 (vermilion) is the seal's ink: it
+   says only that a price or a condition has an end, never an error. */
+
+:root {
+  --day-primary-container: #dfe6f3;
+  --day-on-primary-container: #1d3359;
+  --day-secondary: #4f5868;
+  --day-secondary-container: #e6e8ec;
+  --day-on-secondary-container: #262b33;
+  --day-tertiary: #a8321c;
+  --day-tertiary-container: #f7e2dc;
+  --day-on-tertiary-container: #5c1a0d;
+  --day-on-error-container: #7f1414;
+  --day-surface-container-high: #eeeef0;
+  /* A control's boundary on the storefront. --edge is 2.97:1 on --n-200;
+     this holds 3:1 on every surface. --edge stays: the back office reads it. */
+  --day-outline: #7c7c84;
+  --day-inverse-surface: #2f2f33;
+  --day-inverse-on-surface: #f2f2f4;
+
+  /* The night. The neutrals carry no chroma, for the reason the day's do. */
+  --night-primary: #a9c0ea;
+  --night-on-primary: #132a50;
+  --night-primary-container: #2a3f63;
+  --night-on-primary-container: #dbe4f6;
+  --night-secondary: #bcc3d0;
+  --night-on-secondary: #262b33;
+  --night-secondary-container: #3a404b;
+  --night-on-secondary-container: #e1e5ec;
+  --night-tertiary: #f2a08c;
+  --night-on-tertiary: #4f160a;
+  --night-tertiary-container: #6e2616;
+  --night-on-tertiary-container: #fde3dc;
+  --night-error: #f2a7a7;
+  --night-on-error: #5c0f0f;
+  --night-error-container: #7a1c1c;
+  --night-on-error-container: #fde2e2;
+  --night-surface: #131315;
+  --night-surface-container-lowest: #0e0e10;
+  --night-surface-container-low: #1b1b1e;
+  --night-surface-container: #202023;
+  --night-surface-container-high: #2a2a2e;
+  --night-surface-container-highest: #353539;
+  --night-on-surface: #e6e6e9;
+  --night-on-surface-variant: #b0b0b8;
+  --night-outline: #8a8a93;
+  --night-outline-variant: #404046;
+  --night-inverse-surface: #e6e6e9;
+  --night-inverse-on-surface: #2f2f33;
+  --night-inverse-primary: #2a56a0;
+}
+
+/* Each role's day value is a colour a page already draws, so a sheet that
+   switches a rule to its role changes no pixel by day. The color-scheme at
+   the top of this file is light, so the back office resolves every role to
+   its day value. */
+:root {
+  --sys-primary: light-dark(var(--accent), var(--night-primary));
+  --sys-on-primary: light-dark(var(--on-accent), var(--night-on-primary));
+  --sys-primary-container: light-dark(var(--day-primary-container), var(--night-primary-container));
+  --sys-on-primary-container: light-dark(var(--day-on-primary-container), var(--night-on-primary-container));
+  --sys-secondary: light-dark(var(--day-secondary), var(--night-secondary));
+  --sys-on-secondary: light-dark(var(--on-accent), var(--night-on-secondary));
+  --sys-secondary-container: light-dark(var(--day-secondary-container), var(--night-secondary-container));
+  --sys-on-secondary-container: light-dark(var(--day-on-secondary-container), var(--night-on-secondary-container));
+  --sys-tertiary: light-dark(var(--day-tertiary), var(--night-tertiary));
+  --sys-on-tertiary: light-dark(var(--on-accent), var(--night-on-tertiary));
+  --sys-tertiary-container: light-dark(var(--day-tertiary-container), var(--night-tertiary-container));
+  --sys-on-tertiary-container: light-dark(var(--day-on-tertiary-container), var(--night-on-tertiary-container));
+  --sys-error: light-dark(var(--error), var(--night-error));
+  --sys-on-error: light-dark(var(--on-accent), var(--night-on-error));
+  --sys-error-container: light-dark(var(--error-tint), var(--night-error-container));
+  --sys-on-error-container: light-dark(var(--day-on-error-container), var(--night-on-error-container));
+  --sys-surface: light-dark(var(--n-0), var(--night-surface));
+  --sys-surface-container-lowest: light-dark(var(--n-0), var(--night-surface-container-lowest));
+  --sys-surface-container-low: light-dark(var(--n-50), var(--night-surface-container-low));
+  --sys-surface-container: light-dark(var(--n-100), var(--night-surface-container));
+  --sys-surface-container-high: light-dark(var(--day-surface-container-high), var(--night-surface-container-high));
+  --sys-surface-container-highest: light-dark(var(--n-200), var(--night-surface-container-highest));
+  --sys-on-surface: light-dark(var(--ink), var(--night-on-surface));
+  --sys-on-surface-variant: light-dark(var(--muted), var(--night-on-surface-variant));
+  --sys-outline: light-dark(var(--day-outline), var(--night-outline));
+  --sys-outline-variant: light-dark(var(--n-300), var(--night-outline-variant));
+  --sys-inverse-surface: light-dark(var(--day-inverse-surface), var(--night-inverse-surface));
+  --sys-inverse-on-surface: light-dark(var(--day-inverse-on-surface), var(--night-inverse-on-surface));
+  --sys-inverse-primary: light-dark(var(--on-ink-accent), var(--night-inverse-primary));
+}
+
+/* Without light-dark() every role above is invalid where a rule reads it, and
+   the rule falls back to its initial colour; such a browser gets the day. */
+@supports not (color: light-dark(#000, #fff)) {
+  :root {
+    --sys-primary: var(--accent);
+    --sys-on-primary: var(--on-accent);
+    --sys-primary-container: var(--day-primary-container);
+    --sys-on-primary-container: var(--day-on-primary-container);
+    --sys-secondary: var(--day-secondary);
+    --sys-on-secondary: var(--on-accent);
+    --sys-secondary-container: var(--day-secondary-container);
+    --sys-on-secondary-container: var(--day-on-secondary-container);
+    --sys-tertiary: var(--day-tertiary);
+    --sys-on-tertiary: var(--on-accent);
+    --sys-tertiary-container: var(--day-tertiary-container);
+    --sys-on-tertiary-container: var(--day-on-tertiary-container);
+    --sys-error: var(--error);
+    --sys-on-error: var(--on-accent);
+    --sys-error-container: var(--error-tint);
+    --sys-on-error-container: var(--day-on-error-container);
+    --sys-surface: var(--n-0);
+    --sys-surface-container-lowest: var(--n-0);
+    --sys-surface-container-low: var(--n-50);
+    --sys-surface-container: var(--n-100);
+    --sys-surface-container-high: var(--day-surface-container-high);
+    --sys-surface-container-highest: var(--n-200);
+    --sys-on-surface: var(--ink);
+    --sys-on-surface-variant: var(--muted);
+    --sys-outline: var(--day-outline);
+    --sys-outline-variant: var(--n-300);
+    --sys-inverse-surface: var(--day-inverse-surface);
+    --sys-inverse-on-surface: var(--day-inverse-on-surface);
+    --sys-inverse-primary: var(--on-ink-accent);
+  }
+}
+
 /* ---------- Charts ----------
 
    One data colour, the accent's blue: "this period" on a chart and the
