@@ -43,14 +43,14 @@ func TestHeaderBackOfficeEntrance(t *testing.T) {
 
 // TestHeaderDesktopBackOfficeLink asserts what the bar itself offers, not
 // the drawer's copy: a staff member sees a visible text link to /admin with no
-// aria-label to override it, and both staff and customer keep the wishlist heart.
+// aria-label to override it, and both staff and customer keep the wishlist.
 func TestHeaderDesktopBackOfficeLink(t *testing.T) {
 	t.Parallel()
 	base := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	const wishlist = `goen-header__action--wide" href="/account/wishlist"`
+	const wishlist = `goen-header__wide" href="/account/wishlist"`
 
 	staff := renderComponent(t, frame.WithStaff(base, true), frame.Header(frame.Page{}))
-	if !strings.Contains(staff, `class="ui-btn ui-btn--ghost goen-header__backoffice" href="/admin">`+i18n.T(base, i18n.KeyBackOffice)+`</a>`) {
+	if !strings.Contains(staff, `class="goen-header__tool goen-header__backoffice" href="/admin">`+i18n.T(base, i18n.KeyBackOffice)+`</a>`) {
 		t.Error("the bar offers a staff member no visible-text back office link, so a " +
 			"desktop staff member reaches it only through /account")
 	}
@@ -58,12 +58,12 @@ func TestHeaderDesktopBackOfficeLink(t *testing.T) {
 		t.Error("the staff entrance has an aria-label that overrides its visible text")
 	}
 	if !strings.Contains(staff, wishlist) {
-		t.Error("the bar lost the wishlist heart for a staff member")
+		t.Error("the bar lost the wishlist for a staff member")
 	}
 
 	customer := renderComponent(t, base, frame.Header(frame.Page{}))
 	if !strings.Contains(customer, wishlist) {
-		t.Error("the bar lost the customer's wishlist heart")
+		t.Error("the bar lost the customer's wishlist")
 	}
 	if strings.Contains(customer, `href="/admin"`) {
 		t.Error("the bar offers a customer the back office")
