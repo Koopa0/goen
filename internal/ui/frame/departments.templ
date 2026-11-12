@@ -1,0 +1,44 @@
+package frame
+
+// DepartmentIndex lists the departments the header lists as the home page
+// indexes them, each with its photograph, its name and its sub-categories: the
+// way on from a page with nothing to show (a search with no results, a missing
+// page). The photograph repeats the name's link, so it is out of the tab order
+// and hidden from a screen reader. The caller gives it its heading; it draws
+// nothing outside the middleware that carries the header's row.
+templ DepartmentIndex() {
+	if items := TopNavFrom(ctx); len(items) > 0 {
+		<ul class="goen-deptindex" role="list">
+			for _, n := range items {
+				<li class="goen-deptindex__item">
+					if n.PhotoURL != "" {
+						<a class="goen-deptindex__photo" href={ templ.URL(n.Href) } tabindex="-1" aria-hidden="true">
+							<img
+								src={ n.PhotoURL }
+								srcset={ n.PhotoSrcset }
+								sizes="(min-width: 48rem) 12rem, 7rem"
+								alt=""
+								width="800"
+								height="600"
+								loading="lazy"
+								decoding="async"
+							/>
+						</a>
+					}
+					<h3 class="goen-deptindex__name"><a href={ templ.URL(n.Href) }>{ n.Name }</a></h3>
+					if len(n.Children) > 0 {
+						<p class="goen-deptindex__subs">
+							for i, c := range n.Children {
+								if i > 0 {
+									<span class="goen-sep" aria-hidden="true">·</span><a href={ templ.URL(c.Href) }>{ c.Name }</a>
+								} else {
+									<a href={ templ.URL(c.Href) }>{ c.Name }</a>
+								}
+							}
+						</p>
+					}
+				</li>
+			}
+		</ul>
+	}
+}
