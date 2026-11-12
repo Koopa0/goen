@@ -559,6 +559,12 @@ body {
   --sys-inverse-primary: light-dark(var(--on-ink-accent), var(--night-inverse-primary));
 }
 
+/* Without light-dark() every role above is invalid where a rule reads it, and
+   the rule falls back to its initial colour; such a browser gets the day. */
+@supports not (color: light-dark(#000, #fff)) {
+  :root {
+  }
+}
 
 /* ---------- Charts ----------
 
