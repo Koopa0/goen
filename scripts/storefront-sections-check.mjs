@@ -315,7 +315,8 @@ try {
 
   // The header's and the footer's controls and the filter chips are still a
   // pill with one corner, in rem so it grows with the text. A button is a seal,
-  // --r-lg (0.5rem), and a field --r-field (0.25rem), in rem too. The wishlist
+  // --r-lg (0.5rem), in rem too; the quantity field is a field, 4px at any text
+  // size, as the field corners below are. The wishlist
   // heart and the hero arrows are circles, and the footer's button sits 4px
   // inside its field.
   {
@@ -351,7 +352,7 @@ try {
       const cart = await measure([...cartPills, filled, stepper, submit, heart], rootSize);
       for (const selector of [...cartPills, filled, stepper, submit, heart]) assert.ok(cart[selector]?.height > 0, `${label}: ${selector} is not drawn in the cart at ${scale}`);
       assert.equal(length(cart[filled], filled), cart[filled].rem * 0.5, `${label}: the filled button has a ${cart[filled].radius} corner at ${scale}, not --r-lg (${cart[filled].rem * 0.5}px)`);
-      assert.equal(length(cart[stepper], stepper), cart[stepper].rem * 0.25, `${label}: the quantity field has a ${cart[stepper].radius} corner at ${scale}, not --r-field (${cart[stepper].rem * 0.25}px)`);
+      assert.equal(length(cart[stepper], stepper), 4, `${label}: the quantity field has a ${cart[stepper].radius} corner at ${scale}, not a field's 4px`);
       corner[scale] = length(cart[field], field);
       for (const selector of cartPills) {
         assert.equal(length(cart[selector], selector), corner[scale], `${label}: ${selector} has a ${cart[selector].radius} corner at ${scale}, not the footer field's ${corner[scale]}px`);
@@ -1032,7 +1033,7 @@ try {
   // A chosen option, a chosen delivery card and a refused field are marked in
   // one language: a tinted fill, a 2px edge and a check for what is chosen; a
   // white face and a 1px edge for what is not; the error colour and an icon for
-  // what was refused. Fields share one 12px corner, and the checkout is two
+  // what was refused. Fields share one 4px corner, and the checkout is two
   // layers, a white page and the groups on it.
   {
     const label = 'selected state';
@@ -1086,7 +1087,7 @@ try {
       const expectCorners = (got, page) => {
         for (const [selector, radii] of Object.entries(got)) {
           assert.ok(radii, `${where}: ${selector} is not on ${page}`);
-          assert.deepEqual(radii, Array(4).fill('12px'), `${where}: ${selector} on ${page} has corners ${radii}, not 12px`);
+          assert.deepEqual(radii, Array(4).fill('4px'), `${where}: ${selector} on ${page} has corners ${radii}, not 4px`);
         }
       };
       await open('/checkout', 1440);
@@ -1099,7 +1100,7 @@ try {
       await rootSize(size);
       expectCorners(await measure(['#min-price']), '/c/audio');
     }
-    console.log(`${label}: inputs, textarea, selects and the filter and sort controls have 12px corners at 100% and 200% text`);
+    console.log(`${label}: inputs, textarea, selects and the filter and sort controls have 4px corners at 100% and 200% text`);
 
     // A refused field: its name takes the error colour, the sentence that says
     // why leads with an icon, and a field nobody refused is left alone.

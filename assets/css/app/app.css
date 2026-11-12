@@ -130,8 +130,10 @@ a:hover {
      and a photograph is square. base.css's --r-* stay as they are: the back
      office uses them too. */
   --r-press: 1.625rem;
-  /* The corner of a field a shopper types or chooses in: barely rounded. */
-  --r-field: var(--r-sm);
+  /* The corner of a field a shopper types or chooses in: barely rounded, and
+     in px, because a corner in rem would grow with the text and turn a tall
+     textarea into a pill. */
+  --r-field: 4px;
   /* The outer corner of the hero, of a department's head and of the home
      page's shelf, in px so it stays 24 at any text size. A panel's copy sits
      at least one corner in from its edge and a photograph is clipped by its

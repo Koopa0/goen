@@ -934,7 +934,7 @@ func TestAppCSSFocusRingContrast(t *testing.T) {
 		selectors := strings.Join(selectorList(r[1]), ", ")
 		if _, isRole := roles[decl[1]]; isRole {
 			g := roleGround.FindStringSubmatch(";" + r[2])
-			if g == nil || roles[g[1]].day == "" {
+			if len(g) < 2 || roles[g[1]].day == "" {
 				t.Errorf("%s re-points --ring to the role %s without painting a role ground of its own to hold it on", selectors, decl[1])
 				continue
 			}
@@ -1058,7 +1058,7 @@ func TestAppCSSFilledControlFocusHalo(t *testing.T) {
 			if !ring.MatchString(decls[focus]) {
 				t.Errorf("%s: %s draws no 2px solid var(--ring) outline", AppCSS, focus)
 			}
-			if m := halo.FindStringSubmatch(decls[focus]); m == nil || m[1] != want {
+			if m := halo.FindStringSubmatch(decls[focus]); len(m) < 2 || m[1] != want {
 				t.Errorf("%s: %s has no box-shadow band of var(%s) between the ring and the fill", AppCSS, focus, want)
 			}
 		}
