@@ -182,10 +182,10 @@ try {
   }
 
   // Only the script that moves between slides marks a tab aria-current, so the
-  // current tab exists, and is marked by a pill, only where scripting runs: the
-  // script sets data-pill on the row and the stylesheet draws the pill on its
-  // ::before. Without script no tab is current, and the first two stand in for
-  // the current and another tab.
+  // current tab exists, and is underlined, only where scripting runs: the
+  // script sets data-pill on the row and the stylesheet draws the 2px line on
+  // its ::before, as every current page is marked. Without script no tab is
+  // current, and the first two stand in for the current and another tab.
   const tabsEvaluated = () => evaluate(`(() => {
     const row = document.querySelector('.goen-hero__tabs');
     const current = row?.querySelector('a[aria-current="true"]');
@@ -206,8 +206,8 @@ try {
     };
     const pill = getComputedStyle(row, '::before');
     return { scripting: matchMedia('(scripting: enabled)').matches, current: look(current), other: look(other),
-      currents: marked, marked: row.hasAttribute('data-pill'), accent: colour('var(--accent)'), deep: colour('var(--accent-deep)'), muted: colour('var(--fg-muted)'), faint: colour('var(--accent-faint)'),
-      pill: { display: pill.display, background: pill.backgroundColor, width: pill.borderTopWidth, style: pill.borderTopStyle, colour: pill.borderTopColor } };
+      currents: marked, marked: row.hasAttribute('data-pill'), ink: colour('var(--sys-on-surface)'), muted: colour('var(--sys-on-surface-variant)'),
+      pill: { display: pill.display, background: pill.backgroundColor, top: pill.borderTopWidth, width: pill.borderBottomWidth, style: pill.borderBottomStyle, colour: pill.borderBottomColor } };
   })()`);
   // Whether (scripting: none) holds cannot be read without running script, so
   // the page is asserted by what it draws: a current tab drawn apart, or a row
@@ -242,11 +242,11 @@ try {
     } else {
       assert.equal(drawn.scripting, true, `${label}: the page does not report scripting on`);
       assert.equal(drawn.marked, true, `${label}: the script did not mark the row for the pill`);
-      assert.equal(drawn.pill.background, drawn.faint, `${label}: the pill has no fill`);
-      assert.deepEqual([drawn.pill.width, drawn.pill.style, drawn.pill.colour], ['1px', 'solid', drawn.accent], `${label}: the pill has no 1px accent edge`);
+      assert.equal(drawn.pill.background, 'rgba(0, 0, 0, 0)', `${label}: the current tab's mark has a fill`);
+      assert.deepEqual([drawn.pill.top, drawn.pill.width, drawn.pill.style, drawn.pill.colour], ['0px', '2px', 'solid', drawn.ink], `${label}: the current tab is not underlined 2px in the ink`);
       assert.deepEqual([drawn.current.weight, drawn.other.weight], ['500', '500'], `${label}: the tabs' weight`);
-      assert.equal(drawn.current.color, drawn.deep, `${label}: the current tab's text is not --accent-deep`);
-      assert.equal(drawn.other.color, drawn.muted, `${label}: another tab's text is not --fg-muted`);
+      assert.equal(drawn.current.color, drawn.ink, `${label}: the current tab's text is not --sys-on-surface`);
+      assert.equal(drawn.other.color, drawn.muted, `${label}: another tab's text is not --sys-on-surface-variant`);
     }
     await media([{ name: 'forced-colors', value: 'active' }]);
     const forced = await tabs();
@@ -254,7 +254,7 @@ try {
     assert.ok(forced, `${label}: no current and other tab in forced colours`);
     assert.equal(forced.current.outline === 'solid', !scriptingOff, `${label}: forced colours ${scriptingOff ? 'draw' : 'do not draw'} the current tab's edge`);
     if (!scriptingOff) assert.equal(forced.pill.display, 'none', `${label}: forced colours draw the pill`);
-    console.log(`${label}: ${scriptingOff ? 'no pill' : 'pill drawn'}, forced-colours edge ${forced.current.outline}${scriptingOff ? '' : `, pill ${forced.pill.display}`}`);
+    console.log(`${label}: ${scriptingOff ? 'no line' : 'current tab underlined'}, forced-colours edge ${forced.current.outline}${scriptingOff ? '' : `, pill ${forced.pill.display}`}`);
   }
   await send('Emulation.setScriptExecutionDisabled', { value: false });
 
@@ -470,193 +470,112 @@ try {
     console.log(`${label}: footer links and the subscribe word in ink`);
   }
 
-  // The home hero is two rounded panels inside the page column, the copy on its
-  // tone and the photograph, with a seam of page white between them: side by
-  // side from 64rem, the photograph above the copy below it, one layout at
-  // every width. Boxes are read relative to their own slide, so a slide the
-  // track has not scrolled to needs no scrolling.
+  // The home hero is a printed page: each slide's photograph square and across
+  // the window, a quarter of it tall from 768 (never more than 40% of the
+  // screen) and 15:8 of it on a phone; under it, in the page column, the tabs,
+  // then the name in the display size, the end and its days in vermilion, and
+  // the campaign's products, beside the words where the column is 64rem. The
+  // page has no filled button. Boxes are read relative to their own slide, so a
+  // slide the track has not scrolled to needs no scrolling.
   {
-    const corner = '24px';
-    const seam = 8;
     const near = (got, want, tolerance = 0.5) => Math.abs(got - want) <= tolerance;
     for (const width of [375, 800, 1024, 1440]) {
-      const label = `hero panels ${width}px`;
+      const label = `hero ${width}px`;
       await open('/home', width);
       const hero = await evaluate(`(() => {
-        const number = value => parseFloat(value);
         const box = element => {
           const r = element.getBoundingClientRect();
           return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+        };
+        const colour = value => {
+          const probe = document.createElement('i');
+          probe.style.color = value;
+          document.body.append(probe);
+          const resolved = getComputedStyle(probe).color;
+          probe.remove();
+          return resolved;
         };
         const corners = style => [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
         const home = document.querySelector('.goen-home');
         const homeStyle = getComputedStyle(home);
         const homeBox = box(home);
+        const tabs = document.querySelector('.goen-hero__tabs');
+        const firstTab = tabs.querySelector('a');
         const slides = [...document.querySelectorAll('.goen-hero__slide')].map(slide => {
-          const slideStyle = getComputedStyle(slide);
-          const body = slide.querySelector('.goen-hero__body');
+          const style = getComputedStyle(slide);
           const media = slide.querySelector('.goen-hero__media');
+          const mediaStyle = getComputedStyle(media);
+          const img = media.querySelector('img');
+          const body = slide.querySelector('.goen-hero__body');
           const bodyStyle = getComputedStyle(body);
-          const got = {
-            tone: slide.dataset.tone,
-            slide: box(slide),
-            background: slideStyle.backgroundColor,
-            padding: slideStyle.padding,
-            body: box(body),
-            bodyCorners: corners(bodyStyle),
-            bodyBackground: bodyStyle.backgroundColor,
-            bodyShadow: bodyStyle.boxShadow,
-            bodyPadding: [bodyStyle.paddingTop, bodyStyle.paddingRight, bodyStyle.paddingBottom, bodyStyle.paddingLeft].map(number),
-            focusableOutsideBody: [...slide.querySelectorAll('a, button, input, select, textarea, [tabindex]')].filter(element => !body.contains(element)).length,
-            media: null,
+          const bodyBox = box(body);
+          const title = slide.querySelector('.goen-hero__title');
+          const tiles = slide.querySelector('.goen-hero__tiles');
+          const inner = slide.querySelector('.goen-hero__inner');
+          const days = slide.querySelector('.goen-days');
+          const ends = slide.querySelector('.goen-hero__ends');
+          return {
+            slide: box(slide), background: style.backgroundColor, padding: style.padding,
+            media: box(media), corners: corners(mediaStyle), img: img && box(img),
+            // Relative to the slide, which the track may hold beside the window.
+            column: { left: bodyBox.left + parseFloat(bodyStyle.paddingLeft) - slide.getBoundingClientRect().left,
+              right: bodyBox.right - parseFloat(bodyStyle.paddingRight) - slide.getBoundingClientRect().left },
+            title: { top: box(title).top - box(slide).top, size: getComputedStyle(title).fontSize, family: getComputedStyle(title).fontFamily },
+            ends: ends && getComputedStyle(ends).color,
+            days: days && { hidden: days.getAttribute('aria-hidden'), cells: [...days.children].map(cell => [cell.dataset.cell || '', getComputedStyle(cell).backgroundColor]) },
+            tiles: tiles && { columns: getComputedStyle(tiles).gridTemplateColumns.trim().split(/\\s+/).length, beside: Math.abs(box(inner).top - box(tiles).top) < 1 && box(tiles).left > box(inner).right },
           };
-          if (media) {
-            const mediaStyle = getComputedStyle(media);
-            got.media = {
-              box: box(media),
-              img: box(media.querySelector('img')),
-              corners: corners(mediaStyle),
-              background: mediaStyle.backgroundColor,
-              shadow: mediaStyle.boxShadow,
-              overflow: mediaStyle.overflow,
-              border: [mediaStyle.borderTopWidth, mediaStyle.borderRightWidth, mediaStyle.borderBottomWidth, mediaStyle.borderLeftWidth].join(' '),
-              pseudo: ['::before', '::after'].map(pseudo => getComputedStyle(media, pseudo).content),
-            };
-          }
-          return got;
-        });
-        const ground = [...document.querySelectorAll('.goen-hero__slide')].map(slide => {
-          const probe = document.createElement('i');
-          probe.style.position = 'absolute';
-          probe.style.backgroundColor = 'var(--tone-ground)';
-          slide.append(probe);
-          const color = getComputedStyle(probe).backgroundColor;
-          probe.remove();
-          return color;
         });
         return {
-          viewport: innerWidth,
-          column: { left: homeBox.left + number(homeStyle.paddingLeft), right: homeBox.right - number(homeStyle.paddingRight) },
+          viewport: document.documentElement.clientWidth,
+          column: { left: homeBox.left + parseFloat(homeStyle.paddingLeft), right: homeBox.right - parseFloat(homeStyle.paddingRight) },
           track: box(document.querySelector('.goen-hero__track')),
-          slides, ground,
+          tabs: { top: box(tabs).top - box(document.querySelector('.goen-hero__slide')).top, bottom: box(tabs).bottom - box(document.querySelector('.goen-hero__slide')).top,
+            words: box(firstTab).left + parseFloat(getComputedStyle(firstTab).paddingLeft), padding: [getComputedStyle(tabs).paddingTop, getComputedStyle(tabs).paddingBottom] },
+          vermilion: colour('var(--sys-tertiary)'), quiet: colour('var(--sys-outline-variant)'),
+          buttons: document.querySelectorAll('main .goen-btn, main .ui-btn, .goen-btn--primary').length,
+          slides,
         };
       })()`);
       assert.equal(hero.slides.length, 5, `${label}: five slides drawn`);
-      assert.deepEqual(hero.slides.map(slide => slide.tone), ['stone', 'ink', 'sage', 'sage', 'ink'], `${label}: tones of the slides`);
-      assert.equal(hero.slides.filter(slide => slide.media).length, 3, `${label}: three slides carry a photograph`);
-
-      // Inside the page column, the slides one track wide and touching.
-      assert.ok(near(hero.track.left, hero.column.left) && near(hero.track.right, hero.column.right),
-        `${label}: the track is ${hero.track.left}-${hero.track.right}, the page column ${hero.column.left}-${hero.column.right}`);
+      assert.equal(hero.buttons, 0, `${label}: the home page draws ${hero.buttons} filled buttons, want none`);
+      // Across the window, the slides one track wide and touching.
+      assert.ok(near(hero.track.left, 0) && near(hero.track.right, hero.viewport), `${label}: the track is ${hero.track.left}-${hero.track.right} in a ${hero.viewport}px window`);
+      const tall = width >= 768 ? Math.min(hero.viewport * 0.25, 900 * 0.4) : hero.viewport * 8 / 15;
       hero.slides.forEach((slide, index) => {
-        assert.ok(near(slide.slide.width, hero.track.width), `${label}: slide ${index + 1} is ${slide.slide.width}px in a ${hero.track.width}px track`);
-        if (index > 0) {
-          const gap = slide.slide.left - hero.slides[index - 1].slide.right;
-          assert.ok(near(gap, 0), `${label}: ${gap}px between slides ${index} and ${index + 1}`);
+        const name = `${label}: slide ${index + 1}`;
+        assert.ok(near(slide.slide.width, hero.track.width), `${name} is ${slide.slide.width}px in a ${hero.track.width}px track`);
+        if (index > 0) assert.ok(near(slide.slide.left - hero.slides[index - 1].slide.right, 0), `${name} does not touch the one before`);
+        assert.equal(slide.background, 'rgba(0, 0, 0, 0)', `${name} has a ground of ${slide.background}`);
+        assert.equal(slide.padding, '0px', `${name} has padding ${slide.padding}`);
+        assert.deepEqual(slide.corners, ['0px', '0px', '0px', '0px'], `${name}: the photograph's corners are ${slide.corners}`);
+        assert.ok(near(slide.media.left, slide.slide.left) && near(slide.media.right, slide.slide.right), `${name}: the photograph does not span the slide`);
+        assert.ok(near(slide.media.height, tall, 1), `${name}: the photograph is ${slide.media.height}px tall, want ${tall}`);
+        if (slide.img) for (const edge of ['left', 'right', 'top', 'bottom']) {
+          assert.ok(near(slide.img[edge], slide.media[edge], 1), `${name}: the picture's ${edge} is ${slide.img[edge]}, its frame's ${slide.media[edge]}`);
         }
+        assert.ok(near(slide.column.left, hero.column.left) && near(slide.column.right, hero.column.right),
+          `${name}: the words stand in ${slide.column.left}-${slide.column.right}, the page column is ${hero.column.left}-${hero.column.right}`);
+        assert.ok(slide.title.top >= hero.tabs.bottom - 0.5, `${name}: the name starts at ${slide.title.top}, over the tabs that end at ${hero.tabs.bottom}`);
       });
+      assert.ok(hero.tabs.top >= hero.slides[0].media.height - 0.5, `${label}: the tabs start at ${hero.tabs.top}, over the photograph that ends at ${hero.slides[0].media.height}`);
+      assert.ok(near(hero.tabs.words, hero.column.left), `${label}: the first tab's words start at ${hero.tabs.words}, want ${hero.column.left}`);
+      assert.deepEqual(hero.tabs.padding, ['4px', '4px'], `${label}: the tab row's padding above and below`);
 
-      const wide = width >= 1024;
-      const rgb = /^rgb\((\d+), (\d+), (\d+)\)$/;
-      hero.slides.forEach((slide, index) => {
-        const name = `${label}: slide ${index + 1} (${slide.tone}${slide.media ? '' : ', no photograph'})`;
-        const ground = hero.ground[index];
-        const [, red, green, blue] = rgb.exec(ground) ?? [];
-        assert.ok(red !== undefined, `${name}: tone ground ${ground}`);
-        const sum = Number(red) + Number(green) + Number(blue);
-        if (slide.tone === 'ink') assert.ok(sum < 150, `${name}: ink ground is ${ground}`);
-        else assert.ok(sum > 500 && sum < 765, `${name}: ground is ${ground}, not a light tone`);
+      const first = hero.slides[0];
+      if (width >= 1440) assert.equal(first.title.size, '56px', `${label}: the campaign's name is ${first.title.size}, not the display size`);
+      assert.match(first.title.family, /Noto Serif TC/, `${label}: the campaign's name is set in ${first.title.family}`);
+      assert.equal(first.ends, hero.vermilion, `${label}: the end is ${first.ends}, not vermilion`);
+      assert.equal(first.days?.hidden, 'true', `${label}: the days are read aloud`);
+      assert.deepEqual(first.days.cells, [['past', hero.quiet], ['past', hero.quiet], ['', hero.vermilion], ['', hero.vermilion], ['', hero.vermilion]],
+        `${label}: the days are drawn ${JSON.stringify(first.days.cells)}`);
+      assert.equal(first.tiles?.columns, width >= 768 ? 4 : 2, `${label}: the campaign's products stand in ${first.tiles?.columns} columns`);
+      assert.equal(first.tiles.beside, width >= 1440, `${label}: the products ${first.tiles.beside ? 'stand beside' : 'stand under'} the words`);
 
-        // The seam is page white: the slide itself has no ground, padding or ring.
-        assert.equal(slide.background, 'rgba(0, 0, 0, 0)', `${name}: the slide has a ground of ${slide.background}`);
-        assert.equal(slide.padding, '0px', `${name}: the slide has padding ${slide.padding}`);
-        assert.deepEqual(slide.bodyCorners, [corner, corner, corner, corner], `${name}: body corners`);
-        assert.equal(slide.bodyBackground, ground, `${name}: body is ${slide.bodyBackground}, the tone ground is ${ground}`);
-        assert.equal(slide.bodyShadow, 'none', `${name}: body has a ring: ${slide.bodyShadow}`);
-        assert.equal(slide.focusableOutsideBody, 0, `${name}: something focusable lies outside the body, off the tone`);
-        const inline = wide ? Math.min(56, Math.max(32, hero.viewport * 0.04)) : 24;
-        const block = wide ? 48 : 24;
-        assert.ok(near(slide.bodyPadding[1], inline) && near(slide.bodyPadding[3], inline) && near(slide.bodyPadding[0], block),
-          `${name}: body padding ${slide.bodyPadding.join(' ')}, want ${block} ${inline} ${slide.bodyPadding[2]} ${inline}`);
-
-        if (!slide.media) {
-          assert.ok(near(slide.body.left, slide.slide.left) && near(slide.body.right, slide.slide.right), `${name}: the body does not fill the slide`);
-          return;
-        }
-        const { media } = slide;
-        assert.deepEqual(media.corners, [corner, corner, corner, corner], `${name}: photograph corners`);
-        assert.equal(media.background, ground, `${name}: photograph panel is ${media.background}, the tone ground is ${ground}`);
-        assert.equal(media.shadow, 'none', `${name}: photograph panel has a ring: ${media.shadow}`);
-        assert.equal(media.overflow, 'hidden', `${name}: photograph panel overflow is ${media.overflow}, so its corners do not clip the photograph`);
-        assert.equal(media.border, '0px 0px 0px 0px', `${name}: photograph panel has a border: ${media.border}`);
-        assert.ok(media.pseudo.every(content => content === 'none' || content === 'normal'), `${name}: photograph panel draws a pseudo-element: ${media.pseudo}`);
-        for (const edge of ['left', 'right', 'top', 'bottom']) {
-          assert.ok(near(media.img[edge], media.box[edge], 1), `${name}: the photograph's ${edge} is ${media.img[edge]}, its panel's ${media.box[edge]}`);
-        }
-        if (wide) {
-          assert.ok(media.box.left > slide.body.left, `${name}: the photograph is not to the right of the copy`);
-          assert.ok(near(slide.body.top, media.box.top, 1) && near(slide.body.bottom, media.box.bottom, 1), `${name}: the two panels are not the same height`);
-          assert.ok(near(media.box.left - slide.body.right, seam), `${name}: ${media.box.left - slide.body.right}px between the panels, want ${seam}px`);
-          assert.ok(near(slide.body.left, slide.slide.left) && near(media.box.right, slide.slide.right), `${name}: the panels do not span the slide`);
-          assert.ok(near(slide.body.width, (slide.slide.width - seam) * 5 / 12, 1), `${name}: copy is ${slide.body.width}px of ${slide.slide.width}px, not 5 of 12`);
-        } else {
-          assert.ok(media.box.top < slide.body.top, `${name}: the photograph is not above the copy`);
-          assert.ok(near(slide.body.top - media.box.bottom, seam), `${name}: ${slide.body.top - media.box.bottom}px between the panels, want ${seam}px`);
-          for (const panel of [slide.body, media.box]) {
-            assert.ok(near(panel.left, slide.slide.left) && near(panel.right, slide.slide.right), `${name}: a panel does not span the slide`);
-          }
-        }
-      });
-
-      // A focus ring pushed 2px off a tab needs 4px of the scrolling row above
-      // and below it, or the row clips it; the words stay where they were.
-      const tabs = await evaluate(`(() => {
-        const box = element => { const r = element.getBoundingClientRect(); return { left: r.left, top: r.top, bottom: r.bottom }; };
-        const probe = document.createElement('i');
-        probe.style.color = 'var(--accent)';
-        document.body.append(probe);
-        const accent = getComputedStyle(probe).color;
-        probe.remove();
-        const row = document.querySelector('.goen-hero__tabs');
-        const rowStyle = getComputedStyle(row);
-        const current = row.querySelector('a[aria-current="true"]');
-        const other = row.querySelector('a:not([aria-current="true"])');
-        const pill = getComputedStyle(row, '::before');
-        return { accent, pill: [pill.borderTopWidth, pill.borderTopStyle, pill.borderTopColor], row: box(row), current: box(current), words: box(current).left + parseFloat(getComputedStyle(current).paddingLeft),
-          padding: [rowStyle.paddingTop, rowStyle.paddingBottom],
-          currentShadow: getComputedStyle(current).boxShadow, otherShadow: getComputedStyle(other).boxShadow };
-      })()`);
-      // From 48rem the first tab hangs 16px into the gutter so its words sit on the column edge.
-      const hang = width >= 768 ? 0 : 16;
-      assert.ok(near(tabs.words, hero.column.left + hang), `${label}: the first tab's words start at ${tabs.words}, want ${hero.column.left + hang}`);
-      assert.deepEqual(tabs.padding, ['4px', '4px'], `${label}: the tab row's padding above and below`);
-      assert.ok(tabs.current.top - tabs.row.top >= 4 - 0.5 && tabs.row.bottom - tabs.current.bottom >= 4 - 0.5,
-        `${label}: the current tab sits closer than 4px to the row's top or bottom, which would clip its focus ring`);
-      assert.equal(tabs.currentShadow, 'none', `${label}: the current tab draws its own edge: ${tabs.currentShadow}`);
-      assert.deepEqual(tabs.pill, ['1px', 'solid', tabs.accent], `${label}: the pill's edge`);
-      assert.equal(tabs.otherShadow, 'none', `${label}: another tab has an edge: ${tabs.otherShadow}`);
       await force('.goen-hero__tabs a[aria-current="true"]', ['focus', 'focus-visible']);
       assert.equal(await evaluate(`getComputedStyle(document.querySelector('.goen-hero__tabs a[aria-current="true"]')).outlineOffset`), '2px', `${label}: the focused tab's ring offset`);
       await force('.goen-hero__tabs a[aria-current="true"]', []);
-
-      // The white ring of an ink slide is drawn on its body, which is ink, and
-      // never on the white around it: the call to action sits, ring and all,
-      // inside the body.
-      const ctaSelector = '.goen-hero__slide[data-tone="ink"] .goen-hero__actions a';
-      await force(ctaSelector, ['focus', 'focus-visible']);
-      const cta = await evaluate(`(() => {
-        const link = document.querySelector(${JSON.stringify(ctaSelector)});
-        const style = getComputedStyle(link);
-        const r = link.getBoundingClientRect();
-        const body = link.closest('.goen-hero__body').getBoundingClientRect();
-        const reach = parseFloat(style.outlineWidth) + Math.max(0, parseFloat(style.outlineOffset));
-        return { colour: style.outlineColor, style: style.outlineStyle,
-          room: Math.min(r.left - reach - body.left, body.right - (r.right + reach), r.top - reach - body.top, body.bottom - (r.bottom + reach)) };
-      })()`);
-      await force(ctaSelector, []);
-      assert.deepEqual([cta.style, cta.colour], ['solid', 'rgb(255, 255, 255)'], `${label}: the ink slide's focus ring`);
-      assert.ok(cta.room >= 0, `${label}: the ink slide's ring leaves the body by ${-cta.room}px, onto the page white`);
-      console.log(`${label}: ${hero.slides.length} slides, ${wide ? 'side by side' : 'stacked'}, panels ${corner} apart by ${seam}px`);
+      console.log(`${label}: ${hero.slides.length} slides across the window, photograph ${Math.round(tall)}px and square, products ${first.tiles.beside ? 'beside' : 'under'} the words in ${first.tiles.columns} columns`);
     }
   }
 
@@ -966,71 +885,89 @@ try {
     console.log(`${label}: six names on one line`);
   }
 
-  // The home page's shelf is one rounded panel on the department's tone inside
-  // the page column, and its sideways scroller of products is cut at the
-  // panel's straight edge.
+  // The home page's band is the department's shelf on its tone, square and
+  // across the window, its words and products in the page column, the products
+  // a grid at every width. A Chinese name stands upright beside the products
+  // where the column is 64rem, and lies down over them at a narrower column,
+  // at 200% text or in English, without widening the page. A struck price says
+  // its last day under it in vermilion, its comma read and not shown.
   {
-    const corner = '24px';
     const near = (got, want, tolerance = 0.5) => Math.abs(got - want) <= tolerance;
+    const measure = () => evaluate(`(() => {
+      const box = element => { const r = element.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
+      const home = document.querySelector('.goen-home');
+      const homeStyle = getComputedStyle(home);
+      const homeBox = box(home);
+      const band = document.querySelector('.goen-band');
+      const style = getComputedStyle(band);
+      const body = band.querySelector('.goen-band__body');
+      const bodyStyle = getComputedStyle(body);
+      const bodyBox = box(body);
+      const name = band.querySelector('.goen-band__name');
+      const tiles = band.querySelector('.goen-band__tiles');
+      const probe = document.createElement('i');
+      probe.style.backgroundColor = 'var(--tone-ground)';
+      probe.style.color = 'var(--sys-tertiary)';
+      probe.style.position = 'absolute';
+      band.append(probe);
+      const ground = getComputedStyle(probe).backgroundColor, vermilion = getComputedStyle(probe).color;
+      probe.remove();
+      const until = band.querySelector('.goen-tile__until');
+      return {
+        viewport: document.documentElement.clientWidth, page: document.documentElement.scrollWidth,
+        column: { left: homeBox.left + parseFloat(homeStyle.paddingLeft), right: homeBox.right - parseFloat(homeStyle.paddingRight) },
+        band: box(band), background: style.backgroundColor, ground,
+        corners: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius],
+        words: { left: bodyBox.left + parseFloat(bodyStyle.paddingLeft), right: bodyBox.right - parseFloat(bodyStyle.paddingRight) },
+        writing: getComputedStyle(name).writingMode, name: box(name), tiles: box(tiles),
+        overflowX: getComputedStyle(tiles).overflowX, columns: getComputedStyle(tiles).gridTemplateColumns.trim().split(/\\s+/).length,
+        until: until && { shown: (() => { const copy = until.cloneNode(true); copy.querySelectorAll('.goen-sr-only').forEach(e => e.remove()); return copy.textContent.replace(/\\s+/g, ' ').trim(); })(), text: until.textContent.replace(/\\s+/g, ' ').trim(), colour: getComputedStyle(until).color, vermilion,
+          datetime: until.querySelector('time')?.getAttribute('datetime') },
+      };
+    })()`);
     for (const width of [375, 800, 1024, 1440]) {
-      for (const tone of ['ink', 'sage']) {
-        const label = `home shelf ${tone} ${width}px`;
-        await open(`/home?band=${tone}`, width);
-        const shelf = await evaluate(`(() => {
-          const box = element => { const r = element.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top }; };
-          const home = document.querySelector('.goen-home');
-          const homeStyle = getComputedStyle(home);
-          const homeBox = box(home);
-          const panel = document.querySelector('.goen-band--shelf');
-          const style = getComputedStyle(panel);
-          const body = panel.querySelector('.goen-band__body');
-          const bodyStyle = getComputedStyle(body);
-          const tiles = panel.querySelector('.goen-band__tiles');
-          const probe = document.createElement('i');
-          probe.style.backgroundColor = 'var(--tone-ground)';
-          probe.style.position = 'absolute';
-          panel.append(probe);
-          const ground = getComputedStyle(probe).backgroundColor;
-          probe.remove();
-          return {
-            viewport: innerWidth,
-            column: { left: homeBox.left + parseFloat(homeStyle.paddingLeft), right: homeBox.right - parseFloat(homeStyle.paddingRight) },
-            panel: box(panel), width: panel.getBoundingClientRect().width,
-            corners: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius],
-            background: style.backgroundColor, ground,
-            padding: [bodyStyle.paddingTop, bodyStyle.paddingRight, bodyStyle.paddingBottom, bodyStyle.paddingLeft].map(parseFloat),
-            tiles: { box: box(tiles), overflowX: getComputedStyle(tiles).overflowX },
-            columns: bodyStyle.gridTemplateColumns.trim().split(' ').length,
-          };
-        })()`);
-        assert.ok(near(shelf.panel.left, shelf.column.left) && near(shelf.panel.right, shelf.column.right),
-          `${label}: the shelf is ${shelf.panel.left}-${shelf.panel.right}, the page column ${shelf.column.left}-${shelf.column.right}`);
-        assert.ok(shelf.panel.left > 0 && shelf.panel.right < shelf.viewport, `${label}: the shelf runs edge to edge`);
-        assert.deepEqual(shelf.corners, [corner, corner, corner, corner], `${label}: corners ${shelf.corners}`);
-        assert.equal(shelf.background, shelf.ground, `${label}: the shelf is ${shelf.background}, the tone ground is ${shelf.ground}`);
-        const inline = Math.min(48, Math.max(24, shelf.viewport * 0.04));
-        assert.ok(shelf.padding[0] >= 24 && shelf.padding[2] >= 24, `${label}: padding above and below ${shelf.padding}, less than the corner`);
-        assert.ok(near(shelf.padding[1], inline) && near(shelf.padding[3], inline), `${label}: padding beside ${shelf.padding}, want ${inline}px`);
-        // The layout switches at the window widths it did before the shelf had a panel: a row of four from 768px, six columns from 960px.
-        assert.equal(shelf.tiles.overflowX === 'auto', width < 768, `${label}: the products ${shelf.tiles.overflowX === 'auto' ? 'scroll' : 'are a grid'}`);
-        assert.equal(shelf.columns, width >= 960 ? 6 : 1, `${label}: ${shelf.columns} columns`);
-        if (shelf.tiles.overflowX === 'auto') {
-          assert.ok(near(shelf.tiles.box.left, shelf.panel.left) && near(shelf.tiles.box.right, shelf.panel.right),
-            `${label}: the scroller is ${shelf.tiles.box.left}-${shelf.tiles.box.right}, the shelf ${shelf.panel.left}-${shelf.panel.right}`);
+      for (const [query, lang] of [['band=ink', 'en'], ['band=sage', 'en'], ['band=stone&zh=1', 'zh']]) {
+        const label = `home band ${query} ${width}px`;
+        await open(`/home?${query}`, width);
+        const got = await measure();
+        assert.ok(near(got.band.left, 0) && near(got.band.right, got.viewport), `${label}: the band is ${got.band.left}-${got.band.right} in a ${got.viewport}px window`);
+        assert.deepEqual(got.corners, ['0px', '0px', '0px', '0px'], `${label}: corners ${got.corners}`);
+        assert.equal(got.background, got.ground, `${label}: the band is ${got.background}, the tone ground is ${got.ground}`);
+        assert.ok(near(got.words.left, got.column.left) && near(got.words.right, got.column.right),
+          `${label}: the band's words stand in ${got.words.left}-${got.words.right}, the page column is ${got.column.left}-${got.column.right}`);
+        assert.equal(got.overflowX, 'visible', `${label}: the products scroll`);
+        assert.equal(got.columns, width >= 768 ? 4 : 2, `${label}: the products stand in ${got.columns} columns`);
+        const upright = lang === 'zh' && width >= 1440;
+        assert.equal(got.writing, upright ? 'vertical-rl' : 'horizontal-tb', `${label}: the name is set ${got.writing}`);
+        if (upright) assert.ok(got.name.right <= got.tiles.left && got.name.top >= got.tiles.top - 0.5, `${label}: the upright name is not beside the products: ${JSON.stringify([got.name, got.tiles])}`);
+        else assert.ok(got.name.bottom <= got.tiles.top, `${label}: the name does not lie over the products: ${JSON.stringify([got.name, got.tiles])}`);
+        assert.equal(got.page, got.viewport, `${label}: the page scrolls sideways`);
+        if (lang === 'zh') {
+          assert.equal(got.until?.shown, '特價至 11 月 22 日', `${label}: the sale's end reads ${JSON.stringify(got.until)}`);
         } else {
-          assert.ok(shelf.tiles.box.left >= shelf.panel.left + inline - 0.5 && shelf.tiles.box.right <= shelf.panel.right - inline + 0.5,
-            `${label}: the products reach the shelf's padding`);
+          assert.deepEqual([got.until?.shown, got.until?.text], ['On sale until Nov 22', 'On sale until Nov 22,'], `${label}: the sale's end reads ${JSON.stringify(got.until)}`);
         }
-        await media([{ name: 'forced-colors', value: 'active' }]);
-        const edge = await evaluate(`(() => {
-          const style = getComputedStyle(document.querySelector('.goen-band--shelf'));
-          return [style.outlineStyle, style.outlineWidth, style.outlineOffset, style.borderTopWidth, style.borderBottomWidth].join(' ');
-        })()`);
-        await media([]);
-        assert.equal(edge, 'solid 1px -1px 0px 0px', `${label}: the shelf's edge in forced colours is ${edge}`);
-        console.log(`${label}: panel ${corner} in the page column, ${shelf.tiles.overflowX === 'auto' ? 'products scroll to its edge' : 'products in a grid'}`);
+        assert.equal(got.until.datetime, '2026-11-22', `${label}: the sale's last day is not a time`);
+        if (query !== 'band=ink') assert.equal(got.until.colour, got.until.vermilion, `${label}: the sale's end is ${got.until.colour}, not vermilion`);
+        console.log(`${label}: square across the window, ${got.columns} columns, name ${got.writing}`);
       }
     }
+    // At 200% text the 64rem column is out of reach: the name lies down again
+    // and the page stays the window's width.
+    await open('/home?band=stone&zh=1', 1440);
+    await evaluate(`document.documentElement.style.fontSize = '200%'`);
+    const large = await measure();
+    assert.equal(large.writing, 'horizontal-tb', 'home band 1440px at 200% text: the name stays upright');
+    assert.equal(large.page, large.viewport, 'home band 1440px at 200% text: the page scrolls sideways');
+    await evaluate(`document.documentElement.style.fontSize = ''`);
+    await media([{ name: 'forced-colors', value: 'active' }]);
+    const edge = await evaluate(`(() => {
+      const style = getComputedStyle(document.querySelector('.goen-band'));
+      return [style.outlineStyle, style.outlineWidth, style.outlineOffset].join(' ');
+    })()`);
+    await media([]);
+    assert.equal(edge, 'solid 1px -1px', `home band: the band's edge in forced colours is ${edge}`);
+    console.log('home band at 200% text: the name lies down, the page keeps its width; forced colours draw its edge');
   }
 
   // A chosen option, a chosen delivery card and a refused field are marked in

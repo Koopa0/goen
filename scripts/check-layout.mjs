@@ -89,17 +89,18 @@ const reflowBaseline = reflowBaselineFile.routes || {};
 
 // What the two artboards fold into. The seeded six departments are 4:3
 // photographs, three to a line on a phone and six from 768; the seeded campaign
-// has four products, and its row is the shared tile grid at any count: two to a
-// line on a phone, three at 768 with the fourth not drawn (the link carries
-// it), four from 1024. Column counts are read off the rendered
-// boxes — how many children share the top row — not off the CSS, so a rule that
-// stops applying is caught rather than a rule that stops existing. tileRows is
-// how many lines the drawn tiles stand on: at 768 the row is one.
+// that ends first has four products, drawn in its slide of the hero under its
+// name: two to a line on a phone, four in a row from 768. The hero's copy
+// stands beside its products only where the page column is 64rem, so at 1440
+// and not at 1024. Column counts are read off the rendered boxes — how many
+// children share the top row — not off the CSS, so a rule that stops applying
+// is caught rather than a rule that stops existing. tileRows is how many lines
+// the drawn tiles stand on.
 const EXPECTED = [
   { label: '375 (artboard)', width: 375, height: 812, cats: 3, tiles: 2, tileRows: 2, hero: 'stacked' },
-  { label: '768 (md)', width: 768, height: 1024, cats: 6, tiles: 3, tileRows: 1, hero: 'stacked' },
-  { label: '1024 (lg)', width: 1024, height: 900, cats: 6, tiles: 4, tileRows: 1, hero: 'side-by-side' },
-  { label: '1440 (artboard)', width: 1440, height: 900, cats: 6, tiles: 4, tileRows: 1, hero: 'side-by-side' },
+  { label: '768 (md)', width: 768, height: 1024, cats: 6, tiles: 4, tileRows: 1, hero: 'stacked' },
+  { label: '1024 (lg)', width: 1024, height: 900, cats: 6, tiles: 4, tileRows: 1, hero: 'stacked' },
+  { label: '1440 (artboard)', width: 1440, height: 900, cats: 6, tiles: 4, tileRows: 1, hero: 'side-by-side', firstScreen: true },
 ];
 
 // Every page that renders a document, at a phone width and at the artboard.
@@ -673,10 +674,11 @@ const PROBE = `(() => {
     .slice(0, 6)
     .map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]);
 
-  // A slide with no photograph is colour and type and has no media to compare.
-  const photoSlide = document.querySelector('.goen-hero__slide:has(.goen-hero__media)');
-  const body = photoSlide.querySelector('.goen-hero__body').getBoundingClientRect();
-  const media = photoSlide.querySelector('.goen-hero__media').getBoundingClientRect();
+  // The first slide's words and its products: side by side, or the products
+  // under the words.
+  const firstSlide = document.querySelector('.goen-hero__slide');
+  const body = firstSlide.querySelector('.goen-hero__inner').getBoundingClientRect();
+  const media = firstSlide.querySelector('.goen-hero__tiles').getBoundingClientRect();
 
   // The content column has to line up across the three landmarks, or the page
   // reads as three documents stacked.
@@ -687,7 +689,7 @@ const PROBE = `(() => {
              +(r.right - parseFloat(cs.paddingRight)).toFixed(1) ];
   };
 
-  const taps = [...document.querySelectorAll('.goen-cat, .goen-hero__actions .ui-btn')]
+  const taps = [...document.querySelectorAll('.goen-cat, .goen-hero .goen-home__more')]
     .map((e) => e.getBoundingClientRect().height);
 
   // Every rendered <img> must have laid out with real pixels. A 404 leaves a
@@ -703,10 +705,16 @@ const PROBE = `(() => {
     overflowing,
     heroSplit: Math.abs(body.y - media.y) < 2 ? 'side-by-side' : 'stacked',
     cats: cols('.goen-cats__grid > li'),
-    tiles: cols('.goen-tiles__grid > li'),
-    tileRows: rows('.goen-tiles__grid > li'),
+    tiles: cols('#hero-1 .goen-hero__tiles > li'),
+    tileRows: rows('#hero-1 .goen-hero__tiles > li'),
     header: edges('.goen-header__bar'),
     main: edges('.goen-home'),
+    heroBody: edges('#hero-1 .goen-hero__body'),
+    // How far down the first slide's last price ends, against the window.
+    pricesEnd: Math.max(0, ...[...document.querySelectorAll('#hero-1 .goen-hero__tiles .goen-tile__price')]
+      .map((e) => e.getBoundingClientRect().bottom)),
+    viewportHeight: innerHeight,
+    bandBody: edges('.goen-band__body'),
     footer: edges('.goen-footer__grid'),
     minTap: taps.length ? Math.min(...taps) : 0,
     images,
@@ -1026,9 +1034,13 @@ for (const want of EXPECTED) {
   if (got.tiles !== want.tiles) fail(at, `product grid has ${got.tiles} columns, want ${want.tiles}`);
   if (got.tileRows !== want.tileRows) fail(at, `product row stands on ${got.tileRows} lines, want ${want.tileRows}`);
   if (got.heroSplit !== want.hero) fail(at, `hero is ${got.heroSplit}, want ${want.hero}`);
+  // At the artboard the campaign's products and their prices are in the first screen.
+  if (want.firstScreen && !(got.pricesEnd > 0 && got.pricesEnd <= got.viewportHeight)) {
+    fail(at, `the hero's last price ends at ${got.pricesEnd}px, below the ${got.viewportHeight}px first screen`);
+  }
   if (got.minTap < MIN_TAP) fail(at, `smallest tap target is ${got.minTap}px, want >= ${MIN_TAP}`);
 
-  for (const [name, edge] of [['header', got.header], ['footer', got.footer]]) {
+  for (const [name, edge] of [['header', got.header], ['footer', got.footer], ['hero', got.heroBody], ['band', got.bandBody]]) {
     if (!edge || !got.main) continue;
     if (Math.abs(edge[0] - got.main[0]) > 1 || Math.abs(edge[1] - got.main[1]) > 1) {
       fail(at, `${name} content column [${edge}] does not line up with main [${got.main}]`);
@@ -1180,7 +1192,10 @@ async function periodPass(route, extra = false) {
   }
 }
 
-for (const route of ['/', '/s/layout-campaign']) await periodPass(route);
+// The home page draws its campaign's days as a row of cells beside the words
+// that say them, hidden from a screen reader, not as this labelled period; the
+// campaign page still draws the period, and its pass stays.
+for (const route of ['/s/layout-campaign']) await periodPass(route);
 
 // Whether the filter shell exposes its menus, and whether the sort shows. On
 // desktop a closed <details> keeps ::details-content at
