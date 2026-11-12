@@ -6613,9 +6613,17 @@ input.goen-check {
    lead, and the ways on as a row of words. The next step is the section's one
    blue link with its arrow, underlined only under the pointer; any other is ink
    with the faint underline. */
-.goen-cart .goen-empty__title {
+.goen-cart .goen-empty__title,
+.goen-wishlist .goen-empty__title {
   color: var(--sys-on-surface);
   font: var(--type-headline-s);
+  max-width: none;
+}
+
+/* The wishlist's one sentence teaches where its button is. */
+.goen-wishlist .goen-empty__text {
+  color: var(--sys-on-surface-variant);
+  font: var(--type-body-m);
   max-width: none;
 }
 
@@ -7213,16 +7221,18 @@ input.goen-check {
   gap: 12px;
 }
 
-/* The cart's and the checkout's names in the editorial face, one step under
+/* The cart's, the checkout's and the wishlist's names in the editorial face, one step under
    the display size, as the catalogue's pages are named. */
 .goen-cart .goen-pagehead__title,
-.goen-checkout .goen-pagehead__title {
+.goen-checkout .goen-pagehead__title,
+.goen-wishlist .goen-pagehead__title {
   font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
   letter-spacing: 0.02em;
 }
 
 .goen-cart .goen-pagehead__title:lang(en),
-.goen-checkout .goen-pagehead__title:lang(en) {
+.goen-checkout .goen-pagehead__title:lang(en),
+.goen-wishlist .goen-pagehead__title:lang(en) {
   letter-spacing: 0;
 }
 

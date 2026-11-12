@@ -316,7 +316,8 @@ func TestPageRemoveIsText(t *testing.T) {
 	}
 }
 
-// TestPageEmptyHasNoPicture: an empty wishlist says so in words alone.
+// TestPageEmptyHasNoPicture: an empty wishlist says so in words alone, and its
+// way on is the cart's 去逛逛 as the section's next-step link, not a button.
 func TestPageEmptyHasNoPicture(t *testing.T) {
 	t.Parallel()
 	page := renderToString(t, Page(frame.Page{Title: "願望清單"}, View{}))
@@ -325,9 +326,12 @@ func TestPageEmptyHasNoPicture(t *testing.T) {
 		t.Fatal("empty wishlist renders no ui-empty box")
 	}
 	box, _, _ := strings.Cut(rest, `</div>`)
-	for _, picture := range []string{`<img`, `goen-medallion`} {
-		if strings.Contains(box, picture) {
-			t.Errorf("empty wishlist draws %q", picture)
+	for _, unwanted := range []string{`<img`, `goen-medallion`, `goen-btn`, `<button`} {
+		if strings.Contains(box, unwanted) {
+			t.Errorf("empty wishlist draws %q", unwanted)
 		}
+	}
+	if want := `<a class="goen-empty__next" href="/">去逛逛<span aria-hidden="true">&nbsp;→</span></a>`; !strings.Contains(box, want) {
+		t.Errorf("empty wishlist's way on is not %s:\n%s", want, box)
 	}
 }
