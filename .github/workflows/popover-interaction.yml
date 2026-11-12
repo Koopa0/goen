@@ -88,3 +88,5 @@ jobs:
           exit 1
       - name: Native pointer and keyboard regression
         run: go test -count=1 -v -run '^TestListingPopoverNative$' ./internal/catalog
+
+# This line only starts the check on main; the branch is not merged.
