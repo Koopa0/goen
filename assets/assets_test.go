@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -403,6 +405,25 @@ func TestAppCSSPageTransition(t *testing.T) {
 		if !strings.Contains(sheet, rule) {
 			t.Errorf("served %s does not contain %q", assets.AppCSS, rule)
 		}
+	}
+
+	// A product's photo is the one that travels. The department's retired with
+	// the department head's photograph, its landing place: a name left behind
+	// would be given to a photo on one page with nothing to arrive at.
+	script := requestAsset(t, assets.TransitionsJS, "", "")
+	if script.Code != http.StatusOK {
+		t.Fatalf("GET %s = %d, want %d", assets.TransitionsJS, script.Code, http.StatusOK)
+	}
+	photo := regexp.MustCompile(`"([a-z]+-photo)"`)
+	var names []string
+	for _, m := range photo.FindAllStringSubmatch(script.Body.String(), -1) {
+		names = append(names, m[1])
+	}
+	if !slices.Equal(names, []string{"product-photo"}) {
+		t.Errorf("served %s names the photos %q, want only \"product-photo\"", assets.TransitionsJS, names)
+	}
+	if strings.Contains(sheet, "department-photo") {
+		t.Errorf("served %s still styles the retired department-photo transition", assets.AppCSS)
 	}
 }
 

@@ -9236,10 +9236,6 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
   border-radius: 16px;
 }
 
-::view-transition-image-pair(department-photo) {
-  border-radius: var(--r-hero);
-}
-
 /* The global reduce block at the top of this file matches elements, and these
    snapshots are not elements, so reduced motion is spelled again. Motion that
    moves, scales or resizes is dropped and the two pages dissolve at the base

@@ -2561,7 +2561,7 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
   if (!got.revealed) { fail(label, 'the arriving page had no view transition: ' + JSON.stringify(got)); return; }
   if (got.ready !== 'resolved') { fail(label, 'the transition was skipped: ' + JSON.stringify(got)); return; }
   if (got.swapped !== true) fail(label, 'the page being left never saw its own pageswap: ' + JSON.stringify(got));
-  const photoGroups = (got.groups || []).filter((g) => /^::view-transition-group\((product|department)-photo\)$/.test(g));
+  const photoGroups = (got.groups || []).filter((g) => /^::view-transition-group\(product-photo\)$/.test(g));
   // The step each group takes is part of the design: the photo travels in the
   // move step, the page dissolves in the slow one, and reduced motion in the base one.
   const takes = (group, ms) => {
@@ -2625,7 +2625,6 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
   const tile = 'a.goen-tile[href^="/p/"]';
   await proveMorph('morph tile 1440', { from: '/c/phones', link: tile, name: 'product-photo', viewport: desk });
   await proveMorph('morph tile 375', { from: '/c/phones', link: tile, name: 'product-photo', viewport: { width: 375, height: 812 } });
-  await proveMorph('morph department 1440', { from: '/', link: 'a.goen-cat[href^="/c/"]', name: 'department-photo', viewport: desk });
   await proveMorph('morph related 1440', { from: '/p/' + process.env.PRODUCT_SLUG, link: '.goen-pdp__related ' + tile, name: 'product-photo', viewport: desk });
   await proveMorph('morph back visible', { from: '/c/phones', link: tile, name: 'product-photo', viewport: desk, back: 'visible' });
   await proveMorph('morph back hidden', { from: '/c/phones', link: tile, name: 'product-photo', viewport: { width: 1440, height: 400 }, back: 'hidden' });

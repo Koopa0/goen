@@ -1,6 +1,8 @@
 /*
- * A photo that is clicked on one page and shown on the next travels between
- * the two (cross-document view transitions). The names are set from here by
+ * A product's photo that is clicked on one page and shown on the next travels
+ * between the two (cross-document view transitions): a card's photo becomes the
+ * product page's, and back. A department has no photo on its page to land on,
+ * so a department's link only dissolves. The names are set from here by
  * CSSOM, because the page's CSP refuses inline styles, and only for the one
  * navigation: a name left on an element, or two elements sharing one, would
  * make the browser skip the transition. Without support, or with reduced
@@ -15,12 +17,12 @@
 
   if (!("onpageswap" in window) || !("onpagereveal" in window)) return;
 
-  const links = 'a[href^="/p/"], a[href^="/c/"]';
+  const links = 'a[href^="/p/"]';
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   const named = new Set();
   let pressed = null;
 
-  const kind = (path) => (path.startsWith("/p/") ? "product-photo" : path.startsWith("/c/") ? "department-photo" : "");
+  const kind = (path) => (path.startsWith("/p/") ? "product-photo" : "");
   const name = (img, photo) => {
     if (!img || !photo) return;
     img.style.viewTransitionName = photo;
@@ -34,14 +36,11 @@
     }
     named.clear();
   };
-  // The photo this page shows for itself: the chosen shot of a product, the
-  // photo of a department's head.
+  // The photo this page shows for itself: the chosen shot of a product.
   const own = () => {
-    if (location.pathname.startsWith("/p/")) {
-      return [...document.querySelectorAll("#gallery .goen-pdp__shotimg")]
-        .find((img) => getComputedStyle(img.closest(".goen-pdp__shot") ?? img).visibility !== "hidden");
-    }
-    if (location.pathname.startsWith("/c/")) return document.querySelector("img.goen-pagehead__photo");
+    if (!location.pathname.startsWith("/p/")) return undefined;
+    return [...document.querySelectorAll("#gallery .goen-pdp__shotimg")]
+      .find((img) => getComputedStyle(img.closest(".goen-pdp__shot") ?? img).visibility !== "hidden");
   };
   const inView = (el) => {
     const box = el.getBoundingClientRect();
