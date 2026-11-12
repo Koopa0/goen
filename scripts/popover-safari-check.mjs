@@ -80,10 +80,9 @@ try {
     await evaluate("checkedPopover.querySelector('summary').focus(); return true");
     await key('\uE007'); await key('\uE004'); await key('\uE00C');
     assert.equal(await evaluate("return !checkedPopover.open && document.activeElement === checkedPopover.querySelector('summary')"), true, at + ': Escape restores summary focus');
-    await evaluate("window.checkedPopover = [...document.querySelectorAll('.goen-langmenu')].find(e => e.getBoundingClientRect().width > 0); checkedPopover.querySelector('summary').focus(); return true");
-    await key('\uE007');
+    // From 1024 the bar's language is one button that posts the other language.
     const language = locale === 'en' ? 'zh-Hant' : 'en';
-    const buttonPoint = await evaluate(`const r = checkedPopover.querySelector('button[value="${language}"]').getBoundingClientRect(); return {x:Math.round(r.x+r.width/2), y:Math.round(r.y+r.height/2)}`);
+    const buttonPoint = await evaluate(`const r = document.querySelector('.goen-header__lang button[value="${language}"]').getBoundingClientRect(); return {x:Math.round(r.x+r.width/2), y:Math.round(r.y+r.height/2)}`);
     await pointer(buttonPoint, at + ': native language button', true);
     await until(`return document.readyState === 'complete' && document.documentElement.lang === '${language}'`, at + ': native language POST did not follow its 303');
     console.log('PASS Safari pointer, keyboard and locale POST ' + at);
