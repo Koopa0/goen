@@ -173,7 +173,7 @@ func TestProductRowCampaignEnds(t *testing.T) {
 		if !strings.Contains(head, tt.datetime) {
 			t.Errorf("%s: the heading lacks %s: %s", tt.name, tt.datetime, head)
 		}
-		if dot := strings.Index(head, `<span class="goen-ends__dot"`); tt.not == "" && !strings.HasSuffix(head[:max(dot, 0)], "&nbsp;") {
+		if dot := strings.Index(head, `<span class="goen-sep"`); tt.not == "" && !strings.HasSuffix(head[:max(dot, 0)], "&nbsp;") {
 			t.Errorf("%s: the dot does not follow a no-break space inside the day's span: %s", tt.name, head)
 		}
 		if tt.not != "" && strings.Contains(text(head), tt.not) {

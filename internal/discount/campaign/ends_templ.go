@@ -121,7 +121,7 @@ func Ends(e End) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</span>&nbsp;<span class=\"goen-ends__dot\" aria-hidden=\"true\">·</span></span> <span class=\"goen-ends__left\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</span>&nbsp;<span class=\"goen-sep\" aria-hidden=\"true\">·</span></span> <span class=\"goen-ends__left\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -27,6 +27,15 @@ a:hover {
   text-decoration-color: currentcolor;
 }
 
+/* Han beside a Latin letter or a figure gets a little air of its own, so
+   「逛逛3C 數位」 reads as two words without a space written into the string. A
+   browser without text-autospace sets the text as written. It is the
+   storefront's: the back office loads base.css too and keeps its text as it
+   is set. */
+:root {
+  text-autospace: normal;
+}
+
 /* An author display (a flex or grid class) must not undo hidden: a control
    that needs script stays away without it. */
 [hidden] {
@@ -115,11 +124,16 @@ a:hover {
   --page-gutter: clamp(16px, 3.4vw, 48px);
   /* Read by the product grid and the footer grid once they are rebuilt. */
   --col-gap: clamp(16px, 1.7vw, 24px);
-  /* The corner of anything that can be pressed, in rem so it grows with the
-     text. base.css's --r-* stay as they are: the back office uses them. */
+  /* The round corner the header, the footer, the chips and the swatches
+     still draw until each is rebuilt, in rem so it grows with the text. A
+     button no longer reads it: a button is a seal, base.css's --r-lg (8px),
+     and a photograph is square. base.css's --r-* stay as they are: the back
+     office uses them too. */
   --r-press: 1.625rem;
-  /* The corner of a field a shopper types or chooses in. */
-  --r-field: 12px;
+  /* The corner of a field a shopper types or chooses in: barely rounded, and
+     in px, because a corner in rem would grow with the text and turn a tall
+     textarea into a pill. */
+  --r-field: 4px;
   /* The outer corner of the hero, of a department's head and of the home
      page's shelf, in px so it stays 24 at any text size. A panel's copy sits
      at least one corner in from its edge and a photograph is clipped by its
@@ -173,15 +187,19 @@ a:hover {
 /* ---------- Promo banner ----------
 
    One row above the header and IN FLOW, not fixed: it is rendered on first
-   paint and removed by a form, so it never moves the page after load. The bar
-   carries the accent because it is the shop speaking in its own voice, and its
-   dismiss control is a full 44px because `check-layout.mjs:1300` sweeps every
-   button outside the header and the footer.
+   paint and removed by a form, so it never moves the page after load. It is a
+   notification, so it is drawn inverse, as the notice that confirms an action
+   is: dark by day and light by night, never the action's colour. Its focus
+   ring is the inverse blue, 7.25:1 on the day's ground and 5.74:1 on the
+   night's. The link and the dismiss control are each a full 44px tall, because
+   `check-layout.mjs:1300` sweeps every button outside the header and the
+   footer.
    ------------------------------------------------------------------------ */
 
 .goen-promo {
-  background: var(--n-900);
-  color: var(--on-accent);
+  --ring: var(--sys-inverse-primary);
+  background: var(--sys-inverse-surface);
+  color: var(--sys-inverse-on-surface);
   display: block;
   font-size: var(--fs-14);
   margin: 0;
@@ -207,6 +225,12 @@ a:hover {
   min-width: 0;
   padding: 8px 0;
   text-decoration: none;
+}
+
+/* The page's link hover is the ink blue, which the inverse ground would
+   swallow; the call to action's underline is what answers the pointer. */
+.goen-promo__link:hover {
+  color: inherit;
 }
 
 /* One line, clipped rather than wrapped: a two-line bar changes the page's
@@ -238,16 +262,16 @@ a:hover {
 }
 
 /* The discount code reads as something to be copied rather than as part of the
-   sentence, and user-select: all makes one tap take the whole of it. */
+   sentence, and user-select: all makes one tap take the whole of it. Its edge
+   is the bar's own text colour, so it holds what the text holds on either
+   ground. */
 .goen-promo__code {
-  background: var(--n-0);
+  border: 1px solid currentcolor;
   border-radius: var(--r-sm);
-  color: var(--n-900);
   flex: none;
-  font-size: var(--fs-12);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-medium);
-  padding: 2px 6px;
+  font: var(--fw-medium) var(--fs-12)/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  padding: 4px 6px;
   -webkit-user-select: all;
   user-select: all;
 }
@@ -286,7 +310,11 @@ a:hover {
 }
 
 .goen-promo__close:hover {
-  background: var(--n-700);
+  background: color-mix(in srgb, currentcolor var(--state-hover), transparent);
+}
+
+.goen-promo__close:active {
+  background: color-mix(in srgb, currentcolor var(--state-press), transparent);
 }
 
 @media (min-width: 768px) {
@@ -366,7 +394,7 @@ th {
 .goen-btn {
   align-items: center;
   border: 1px solid transparent;
-  border-radius: var(--r-press);
+  border-radius: var(--r-lg);
   box-sizing: border-box;
   cursor: pointer;
   display: inline-flex;
@@ -429,17 +457,32 @@ th {
   width: 100%;
 }
 
-/* One filled control to a surface. Everything else is quieter on purpose: a
-   row of equally weighted buttons makes the shopper choose before they act. */
+/* One filled control to a surface, in the one solid action colour: ink by day,
+   warm stone by night. Everything else is quieter on purpose: a row of equally
+   weighted buttons makes the shopper choose before they act. Hover and press
+   lay the label's colour over the ground. */
 .goen-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--sys-action);
+  border-color: var(--sys-action);
+  color: var(--sys-on-action);
 }
 
 .goen-btn--primary:hover {
-  background: var(--accent-deep);
-  border-color: var(--accent-deep);
+  background: color-mix(in srgb, var(--sys-on-action) var(--state-hover), var(--sys-action));
+  border-color: color-mix(in srgb, var(--sys-on-action) var(--state-hover), var(--sys-action));
+}
+
+.goen-btn--primary:active {
+  background: color-mix(in srgb, var(--sys-on-action) var(--state-press), var(--sys-action));
+  border-color: color-mix(in srgb, var(--sys-on-action) var(--state-press), var(--sys-action));
+}
+
+/* The ring alone is 1.21:1 on the night's stone button, so a band of the
+   page's own ground parts the two; without it the focus is not seen. */
+.goen-btn--primary:focus-visible {
+  box-shadow: 0 0 0 6px var(--sys-surface);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* Tonal: a step forward that is not the surface's own action, alone or once a row. The
@@ -506,6 +549,19 @@ th {
 .goen-btn[aria-disabled='true'] {
   opacity: 0.5;
   pointer-events: none;
+}
+
+/* The filled control that cannot act yet keeps its place in the tab order
+   (aria-disabled, with the reason beside it) and steps back to the text colour
+   at 12% under its label at 50%. A form in flight is the exception: the button
+   just pressed only dims. WCAG asks no contrast of a disabled control. */
+.goen-btn--primary:disabled,
+.goen-btn--primary[aria-disabled='true']:not([data-request-pending] *) {
+  background: color-mix(in srgb, var(--sys-on-surface) 12%, transparent);
+  border-color: transparent;
+  color: color-mix(in srgb, var(--sys-on-surface) 50%, transparent);
+  cursor: not-allowed;
+  opacity: 1;
 }
 
 .goen-badge {
@@ -624,7 +680,7 @@ th {
 .goen-stepper {
   align-items: stretch;
   border: 1px solid var(--control-boundary);
-  border-radius: var(--r-press);
+  border-radius: var(--r-field);
   display: inline-flex;
   height: 3rem;
   overflow: hidden;
@@ -1131,7 +1187,7 @@ body:has(.goen-hero) .goen-header {
 .goen-dept__well {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: 12px;
+  border-radius: 0;
   display: block;
   margin-bottom: 0.5rem;
   overflow: hidden;
@@ -1213,7 +1269,7 @@ body:has(.goen-hero) .goen-header {
   .goen-dept__photo {
     aspect-ratio: 4 / 3;
     background: var(--photo);
-    border-radius: 12px;
+    border-radius: 0;
     display: block;
     object-fit: cover;
     width: 15rem;
@@ -2055,6 +2111,13 @@ body:has(.goen-hero) .goen-header {
    dot are one unit that does not break, and the days left do not break inside
    the number. Where the box is narrower than that, at large text on a phone, the
    unit may wrap instead of widening the page. */
+/* A middle dot between two phrases, as in 「至 11 月 16 日 · 剩 4 天」. Beside Han
+   at 13 to 15px the Latin face's spaces around it are thin enough to read as
+   「日·剩」, so the dot keeps a margin of its own in every language. */
+.goen-sep {
+  margin-inline: 0.2em;
+}
+
 .goen-ends__until {
   position: relative; /* its screen-reader text is absolute; a scroller clips it only when it is positioned inside */
   white-space: nowrap;
@@ -2064,10 +2127,6 @@ body:has(.goen-hero) .goen-header {
   .goen-ends__until {
     white-space: normal;
   }
-}
-
-.goen-ends__dot {
-  margin-inline: 0.25em;
 }
 
 .goen-ends__left {
@@ -2276,16 +2335,30 @@ body:has(.goen-hero) .goen-header {
   white-space: normal;
 }
 
-/* The blue is 2.5:1 on the ink tone; the light blue with dark text is 9.6:1. */
+/* The day's ink action is 1.2:1 on the ink tone, so the slide takes the action
+   the night draws on its own dark ground, warm stone with a dark label. The
+   band that parts the ring from the stone is the slide's ground, not the
+   page's, because the ring is white here. */
 .goen-hero__slide[data-tone="ink"] .goen-btn--primary {
-  background: var(--on-ink-accent);
-  border-color: var(--on-ink-accent);
-  color: var(--n-900);
+  background: var(--night-action);
+  border-color: var(--night-action);
+  color: var(--night-on-action);
 }
 
 .goen-hero__slide[data-tone="ink"] .goen-btn--primary:hover {
-  background: var(--n-0);
-  border-color: var(--n-0);
+  background: color-mix(in srgb, var(--night-on-action) var(--state-hover), var(--night-action));
+  border-color: color-mix(in srgb, var(--night-on-action) var(--state-hover), var(--night-action));
+}
+
+.goen-hero__slide[data-tone="ink"] .goen-btn--primary:active {
+  background: color-mix(in srgb, var(--night-on-action) var(--state-press), var(--night-action));
+  border-color: color-mix(in srgb, var(--night-on-action) var(--state-press), var(--night-action));
+}
+
+.goen-hero__slide[data-tone="ink"] .goen-btn--primary:focus-visible {
+  box-shadow: 0 0 0 6px var(--tone-ground);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .goen-hero__controls {
@@ -3133,15 +3206,9 @@ body:has(.goen-hero) .goen-header {
 .goen-tile__media {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: 12px;
+  border-radius: 0;
   overflow: hidden;
   position: relative;
-}
-
-@media (min-width: 48rem) {
-  .goen-tile__media {
-    border-radius: 16px;
-  }
 }
 
 .goen-tile__img {
@@ -4332,7 +4399,7 @@ input.goen-check {
 .goen-story__well {
   aspect-ratio: 4 / 3;
   background: var(--well);
-  border-radius: 12px;
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -4446,17 +4513,11 @@ input.goen-check {
 .goen-compare__suggestmedia {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: 12px;
+  border-radius: 0;
   display: block;
   margin-bottom: 0.75rem;
   overflow: hidden;
   width: 100%;
-}
-
-@media (min-width: 48rem) {
-  .goen-compare__suggestmedia {
-    border-radius: 16px;
-  }
 }
 
 .goen-compare__suggestmedia img {
@@ -5297,6 +5358,35 @@ input.goen-check {
   text-decoration: underline;
 }
 
+/* The notice that confirms an action, adding to the cart or asking to be told
+   of a restock, is drawn inverse like the promotional strip: in the place the
+   action was taken, never floating and never timed away. Its link is the
+   inverse blue, underlined, and so is its focus ring. A refusal in the same
+   place keeps the error colour. */
+.goen-pdp__added.goen-notice--accent,
+.goen-pdp__notify > .goen-notice--accent {
+  --ring: var(--sys-inverse-primary);
+  align-items: center;
+  background: var(--sys-inverse-surface);
+  border-radius: var(--r-sm);
+  box-sizing: border-box;
+  color: var(--sys-inverse-on-surface);
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 48px;
+  padding: var(--s-2) var(--s-4);
+}
+
+.goen-pdp__added .goen-pdp__addedlink,
+.goen-pdp__added .goen-pdp__addedlink:hover {
+  align-items: center;
+  color: var(--sys-inverse-primary);
+  display: inline-flex;
+  min-height: 32px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .goen-pdp__notify {
   border-top: 1px solid var(--n-200);
   display: flex;
@@ -6088,7 +6178,6 @@ input.goen-check {
   --tone-mark: light-dark(var(--mark), var(--night-primary));
 }
 
-.goen-promo,
 .goen-campaign__band .goen-pagehead[data-tone="ink"],
 .goen-listing__head .goen-pagehead[data-tone="ink"] .goen-band__body,
 .goen-hero__slide[data-tone="ink"],
