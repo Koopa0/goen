@@ -3156,24 +3156,52 @@ body:has(.goen-hero) .goen-header {
 .goen-tile__compare {
   align-items: center;
   align-self: flex-start;
-  color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
   font: var(--type-body-s);
-  gap: 8px;
+  gap: var(--s-2);
   min-height: 44px;
 }
 
 .goen-tile__compare:has(:checked) {
-  color: var(--fg);
+  font-weight: var(--fw-medium);
 }
 
-/* .goen-check is also the 44px row of a labelled checkbox; here it is only the box,
-   in rem so it grows with the reader's text. */
+/* .goen-check is also the 44px row of a labelled checkbox; here it is only the
+   box, drawn rather than the platform's: square on the page ground, ink when
+   ticked. In rem so it grows with the reader's text (18px at 100%). */
 .goen-tile__compare input.goen-check {
-  height: 1rem;
+  appearance: none;
+  background: var(--sys-surface);
+  border: 1px solid var(--sys-outline);
+  border-radius: 2px;
+  display: grid;
+  height: 1.125rem;
+  margin: 0;
   min-height: 0;
-  width: 1rem;
+  place-items: center;
+  width: 1.125rem;
+}
+
+.goen-tile__compare input.goen-check:checked {
+  background: var(--sys-on-surface);
+  border-color: var(--sys-on-surface);
+}
+
+/* The check is a border, so forced colours redraw it in the text colour. */
+.goen-tile__compare input.goen-check:checked::after {
+  border: solid var(--sys-surface);
+  border-width: 0 0 2px 2px;
+  content: '';
+  height: 0.3125rem;
+  rotate: -45deg;
+  translate: 0 -1px;
+  width: 0.5625rem;
+}
+
+.goen-tile__compare input.goen-check:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* The bare checkbox; a label that carries the same name (the back office's)
@@ -3188,14 +3216,19 @@ input.goen-check {
 .goen-compare-pick {
   display: flex;
   flex-direction: column;
-  gap: 24px;
 }
 
+/* The compare bar: a tool strip under the grid, not a notification, so it is
+   not inverse, and it stays where the grid ends rather than following the
+   reader. */
 .goen-compare-pick__go {
   align-items: center;
+  background: var(--sys-surface-container-high);
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--s-3) var(--s-5);
+  margin-top: var(--s-6);
+  padding: var(--s-3) var(--s-5);
 }
 
 /* The button offers an action only once there is something to act on. Where
@@ -3205,30 +3238,9 @@ input.goen-check {
 }
 
 .goen-compare-pick__note {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-}
-
-/* Ticked boxes can sit a screen above the grid's end, so the action follows the
-   reader while the grid is in view. Not where the window is too short for it
-   (large text, zoom), and not without :has(), where the bar would never leave. */
-@media (min-height: 32rem) {
-  @supports selector(:has(*)) {
-    .goen-compare-pick__go {
-      background: var(--bg);
-      border-top: 1px solid var(--line);
-      bottom: 0;
-      margin-inline: calc(-1 * var(--page-gutter));
-      padding: 12px var(--page-gutter) calc(12px + env(safe-area-inset-bottom));
-      position: sticky;
-      z-index: 5;
-    }
-
-    /* A box focused under the bar is scrolled clear of it (WCAG 2.4.11). */
-    html:has(.goen-compare-pick :checked) {
-      scroll-padding-block-end: 6rem;
-    }
-  }
+  color: var(--sys-on-surface-variant);
+  font: var(--type-body-s);
+  margin-inline-start: auto;
 }
 
 @media (min-width: 768px) {

@@ -13,14 +13,16 @@ templ compareForm(offered bool) {
 	if offered {
 		<form class="goen-compare-pick" id="compare-pick" method="get" action="/compare">
 			{ children... }
+			// The bar: with no script this is the whole component, the limit and the
+			// submit; the row of ticked products is goen.js's, put before them.
 			<div class="goen-compare-pick__go">
+				<span class="goen-compare-pick__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareLimit), MaxCompare) }</span>
 				@widget.Button(widget.ButtonProps{
 					ButtonStyle: widget.ButtonStyleSecondary,
 					Size:        widget.SizeSmall,
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyCompareSelected) }
 				}
-				<span class="goen-compare-pick__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareLimit), MaxCompare) }</span>
 			</div>
 		</form>
 	} else {

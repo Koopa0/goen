@@ -72,6 +72,7 @@ var assetReaders = map[string]string{
 	"assets/precompress_test.go#TestCompressibleExplicitExtensions":       "contract: the precompressed bytes must decode to the embedded file",
 	"assets/tiles_test.go#TestAppCSSRelatedProductsGap":                   "T14b",
 	"assets/typescale_test.go#TestAppCSSTypeCap":                          "contract: every size a rule can compute to, the bound of a clamp() or a viewport unit with none, is read from the rules: no single window draws them all",
+	"assets/tiles_test.go#TestAppCSSCompareBarAsDrawn":                    "contract: the compare box and bar are drawn from roles the night redefines, and the bar must never be pinned to the window, so the rules themselves are what the design signs off",
 	"assets/tiles_test.go#TestAppCSSTileAsDrawn":                          "contract: a tile's sale colour and its sold-out line are drawn at night only while the color-scheme is dark, so the roles the tile reads are held on its rules",
 	"cmd/goen/main_integration_test.go#TestNewRouterAssetsStateless":      "contract: the served asset bytes and their headers are the contract",
 	"cmd/goen/server_test.go#FuzzAssetAndDynamicGzipNegotiationAgree":     "contract: the served asset bytes, their headers and the middleware around them are the contract",

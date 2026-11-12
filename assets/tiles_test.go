@@ -79,3 +79,67 @@ func TestAppCSSTileAsDrawn(t *testing.T) {
 		}
 	}
 }
+
+// TestAppCSSCompareBarAsDrawn checks the compare box and bar as the design
+// draws them: the box is a square of the control boundary on the page ground,
+// ink when ticked, with the ring on focus and a 44px label; the bar is a tool
+// strip on the high container, under the grid and never pinned to the window.
+// Each reads a role, so the night takes its value from the same rule.
+func TestAppCSSCompareBarAsDrawn(t *testing.T) {
+	t.Parallel()
+
+	body, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	sheet := cssComment.ReplaceAllString(string(body), "")
+	rules := cssRule.FindAllStringSubmatch(sheet, -1)
+	declared := func(selector string) []string {
+		var blocks []string
+		for _, rule := range rules {
+			for _, s := range strings.Split(rule[1], ",") {
+				if strings.Join(strings.Fields(s), " ") == selector {
+					blocks = append(blocks, rule[2])
+				}
+			}
+		}
+		return blocks
+	}
+	box := ".goen-tile__compare input.goen-check"
+	for _, want := range []struct{ selector, decl string }{
+		{".goen-tile__compare", `min-height:\s*44px;`},
+		{".goen-tile__compare", `font:\s*var\(--type-body-s\);`},
+		{".goen-tile__compare:has(:checked)", `font-weight:\s*var\(--fw-medium\);`},
+		{box, `appearance:\s*none;`},
+		{box, `background:\s*var\(--sys-surface\);`},
+		{box, `border:\s*1px solid var\(--sys-outline\);`},
+		{box, `border-radius:\s*2px;`},
+		{box, `height:\s*1\.125rem;`},
+		{box, `width:\s*1\.125rem;`},
+		{box + ":checked", `background:\s*var\(--sys-on-surface\);`},
+		{box + ":checked::after", `border:\s*solid var\(--sys-surface\);`},
+		{box + ":focus-visible", `outline:\s*2px solid var\(--ring\);`},
+		{box + ":focus-visible", `outline-offset:\s*2px;`},
+		{".goen-compare-pick__go", `background:\s*var\(--sys-surface-container-high\);`},
+		{".goen-compare-pick__go", `padding:\s*var\(--s-3\) var\(--s-5\);`},
+		{".goen-compare-pick__go", `margin-top:\s*var\(--s-6\);`},
+		{".goen-compare-pick__go", `flex-wrap:\s*wrap;`},
+		{".goen-compare-pick__note", `color:\s*var\(--sys-on-surface-variant\);`},
+	} {
+		found := false
+		for _, block := range declared(want.selector) {
+			if regexp.MustCompile(want.decl).MatchString(block) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s: no rule for %s declares %s", AppCSS, want.selector, want.decl)
+		}
+	}
+	pinned := regexp.MustCompile(`position:\s*(sticky|fixed)`)
+	for _, rule := range rules {
+		if strings.Contains(rule[1], "goen-compare-pick") && pinned.MatchString(rule[2]) {
+			t.Errorf("%s: %s pins the compare bar to the window: %s", AppCSS, strings.TrimSpace(rule[1]), pinned.FindString(rule[2]))
+		}
+	}
+}
