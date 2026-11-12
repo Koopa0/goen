@@ -33,3 +33,19 @@ templ Period(p PeriodSpec) {
 		}
 	</div>
 }
+
+// DayTrack is the period as a row of days and nothing else: no labels, no
+// today word, and hidden from a screen reader, because it is drawn only beside
+// words that say the same (the end and the days left). The days to come are the
+// campaign's colour and the days gone a quiet line.
+templ DayTrack(p PeriodSpec) {
+	<div class="goen-days" aria-hidden="true">
+		for _, c := range p.Cells {
+			<i
+				if c.State == CellPast {
+					data-cell="past"
+				}
+			></i>
+		}
+	</div>
+}

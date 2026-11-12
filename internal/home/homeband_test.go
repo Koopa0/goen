@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tone"
 )
 
@@ -55,19 +57,27 @@ func TestDepartmentBandNoFact(t *testing.T) {
 	}
 }
 
-// TestPageSectionOrder holds the order of the home page's sections: the product
-// row, then the departments, then the band.
+// TestPageSectionOrder holds the order of the home page's sections: the hero
+// with its campaign's products, the product row when one is drawn, then the
+// departments, the band and the shop rules last.
 func TestPageSectionOrder(t *testing.T) {
 	t.Parallel()
 	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{
+		Slides:     []hero.Slide{{Source: hero.SourceCampaign, Title: "茶與咖啡週", CTA: hero.CTA{Label: "看全部商品", Href: "/s/tea"}, Tiles: tiledShelf(4)}},
 		Categories: departmentsOf(2),
 		Row:        ProductRow{Title: "新到貨", Href: "/search", Tiles: tiledShelf(4)},
 		Band:       &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(4)},
+		Rules:      policy.Rules{FreeDeliveryCents: 300000},
 	}))
-	row := strings.Index(page, `id="row-heading"`)
-	cats := strings.Index(page, `id="cats-heading"`)
-	band := strings.Index(page, `id="band-heading"`)
-	if row < 0 || cats < row || band < cats {
-		t.Errorf("section order is row %d, departments %d, band %d; want the row, then the departments, then the band", row, cats, band)
+	at := func(marker string) int { return strings.Index(page, marker) }
+	order := []string{`class="goen-hero__tiles"`, `id="row-heading"`, `id="cats-heading"`, `id="band-heading"`, `id="rules-heading"`}
+	previous := ""
+	for _, marker := range order {
+		if at(marker) < 0 {
+			t.Errorf("the page draws no %s", marker)
+		} else if previous != "" && at(marker) < at(previous) {
+			t.Errorf("%s comes before %s; want %v", marker, previous, order)
+		}
+		previous = marker
 	}
 }

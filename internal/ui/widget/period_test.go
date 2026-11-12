@@ -123,3 +123,25 @@ func TestDayPeriodSaysHowItStandsToday(t *testing.T) {
 		}
 	}
 }
+
+// TestDayTrackHidesItsDays holds that the track drawn beside a campaign's words
+// is a row of its days and nothing a screen reader reads: one cell a day, the
+// days gone marked past and today and the days to come alike, with no label,
+// no today word and no sentence.
+func TestDayTrackHidesItsDays(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	p, ok := widget.DayPeriod(ctx, "茶與咖啡週", shopDay(5), endOf(16), shopDay(12))
+	if !ok {
+		t.Fatal("no period for twelve days")
+	}
+	var b strings.Builder
+	if err := widget.DayTrack(p).Render(ctx, &b); err != nil {
+		t.Fatal(err)
+	}
+	got := b.String()
+	want := `<div class="goen-days" aria-hidden="true">` + strings.Repeat(`<i data-cell="past"></i>`, 7) + strings.Repeat(`<i></i>`, 5) + `</div>`
+	if got != want {
+		t.Errorf("the track of 5 to 16 October on the 12th is\n%s\nwant\n%s", got, want)
+	}
+}
