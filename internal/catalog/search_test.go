@@ -71,7 +71,7 @@ func TestHandler_SearchWithoutQueryReadsNewest(t *testing.T) {
 			if got := conn.reads.Load(); got != 1 {
 				t.Errorf("reads = %d, want 1: the newest products", got)
 			}
-			if !strings.Contains(res.Body.String(), `<a class="goen-pagehead__chip" href="/c/tech">3C</a>`) {
+			if !strings.Contains(res.Body.String(), `<h3 class="goen-deptindex__name"><a href="/c/tech">3C</a></h3>`) {
 				t.Error("the search page with nothing typed offers no department")
 			}
 		})
@@ -86,8 +86,8 @@ func TestSearchPromptNext(t *testing.T) {
 	newest := shelf(2)
 	html := renderComponent(t, ctx, Search(frame.Page{}, SearchView{Newest: newest}))
 	for _, want := range []string{
-		`<a class="goen-pagehead__chip" href="/c/tech">3C</a>`,
-		`<h2 class="goen-listing__subhead">Newest products</h2>`,
+		`<h3 class="goen-deptindex__name"><a href="/c/tech">3C</a></h3>`,
+		`<h2 class="goen-listing__subhead" id="search-newest">Newest products</h2>`,
 		newest[0].Name,
 	} {
 		if !strings.Contains(html, want) {

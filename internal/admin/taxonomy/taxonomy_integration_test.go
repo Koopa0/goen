@@ -328,8 +328,8 @@ func TestStore_CreateCategoryInheritsTheme(t *testing.T) {
 	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	view, err := store.Listing(ctx, child, catalog.Filters{})
-	if err != nil || view.Theme.ToneAttr() != "sage" || view.Theme.Image().Shown() {
-		t.Fatalf("sub-category before any photograph: tone %q photo %+v (err %v), want sage and none", view.Theme.ToneAttr(), view.Theme.Image(), err)
+	if err != nil || view.Theme.Tone.Attr() != "sage" || view.Theme.Image().Shown() {
+		t.Fatalf("sub-category before any photograph: tone %q photo %+v (err %v), want sage and none", view.Theme.Tone.Attr(), view.Theme.Image(), err)
 	}
 
 	// Without alt text the photograph is refused at that field and nothing is stored.
@@ -359,8 +359,8 @@ func TestStore_CreateCategoryInheritsTheme(t *testing.T) {
 		t.Fatalf("set the sub-category's tone: %v", err)
 	}
 	view, err = store.Listing(ctx, child, catalog.Filters{})
-	if err != nil || view.Theme.ToneAttr() != "ink" {
-		t.Fatalf("sub-category tone = %q (err %v), want its own ink", view.Theme.ToneAttr(), err)
+	if err != nil || view.Theme.Tone.Attr() != "ink" {
+		t.Fatalf("sub-category tone = %q (err %v), want its own ink", view.Theme.Tone.Attr(), err)
 	}
 	if err = s.Rename(ctx, "category", child, "子分類", "", "", "neon", false); err == nil {
 		t.Error("a tone outside the set was accepted")
@@ -425,8 +425,8 @@ func TestStore_RenameEveryTone(t *testing.T) {
 		t.Fatalf("create: %v %v", errs, err)
 	}
 	view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Listing(ctx, slug, catalog.Filters{})
-	if err != nil || view.Theme.ToneAttr() != "stone" {
-		t.Fatalf("a root with no tone = %q (err %v), want stone", view.Theme.ToneAttr(), err)
+	if err != nil || view.Theme.Tone.Attr() != "stone" {
+		t.Fatalf("a root with no tone = %q (err %v), want stone", view.Theme.Tone.Attr(), err)
 	}
 
 	camp := "tone-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]

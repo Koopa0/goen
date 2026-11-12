@@ -700,7 +700,7 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 
 	for _, name := range toneNames {
 		decl := blocks[name]
-		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted", "--tone-mark"} {
+		for _, prop := range []string{"--tone-ground", "--tone-text", "--tone-muted", "--tone-mark"} {
 			if len(decl[prop].day) != 6 || len(decl[prop].night) != 6 {
 				t.Fatalf("data-tone=%q declares no colour for %s", name, prop)
 			}

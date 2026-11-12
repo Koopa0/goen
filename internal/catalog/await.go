@@ -7,11 +7,3 @@ func awaiting(p frame.Page, a frame.Await) frame.Page {
 	p.Await = a
 	return p
 }
-
-// awaitingIf is awaiting when the element is drawn, and p unchanged when it is not.
-func awaitingIf(p frame.Page, drawn bool, a frame.Await) frame.Page {
-	if !drawn {
-		return p
-	}
-	return awaiting(p, a)
-}

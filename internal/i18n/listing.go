@@ -33,11 +33,6 @@ var (
 
 	KeyFilters = key("listing.filters", Message{ZhHant: "篩選", En: "Filters"})
 
-	KeyFiltersAndSort = key("listing.filters.and.sort", Message{
-		ZhHant: "篩選與排序",
-		En:     "Filters & sort",
-	})
-
 	KeyFiltersActive = key("listing.filters.active", Message{
 		ZhHant: "已套用篩選",
 		En:     "Active filters",

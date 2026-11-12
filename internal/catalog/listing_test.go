@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	nethtml "golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -84,22 +86,45 @@ func TestListingMobileFilters(t *testing.T) {
 		Products: []tile.Tile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 		Facets:   []FacetGroup{{Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}}}},
 	}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
+	page := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 
-	if !strings.Contains(html, `<div class="goen-listing__filters">`) {
+	if !strings.Contains(page, `<div class="goen-listing__filters">`) {
 		t.Error("the filter rail is not grouped into one layout column")
 	}
-	if !strings.Contains(html, `<details class="goen-filters__shell">`) {
+	if !strings.Contains(page, `<details class="goen-filters__shell">`) {
 		t.Error("the listing carries no mobile filter disclosure")
 	}
-	if !strings.Contains(html, `class="goen-filters__shell-summary"`) {
+	if !strings.Contains(page, `class="goen-filters__shell-summary"`) {
 		t.Error("the disclosure has no labelled summary control")
 	}
-	if strings.Contains(html, `<details class="goen-filters__shell" open`) {
+	if strings.Contains(page, `<details class="goen-filters__shell" open`) {
 		t.Error("the filter shell is open by default")
 	}
-	if !strings.Contains(html, `action="/c/audio#listing-results"`) {
+	if !strings.Contains(page, `action="/c/audio#listing-results"`) {
 		t.Error("the filter form does not land on the results region")
+	}
+	// One 「篩選」 control folds the filters; the sort stays outside it, in the
+	// same form, so a phone sorts without opening anything.
+	if want := `<summary class="goen-filters__shell-summary">篩選</summary>`; !strings.Contains(page, want) {
+		t.Errorf("the disclosure is not named %s", want)
+	}
+	doc, err := nethtml.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := findDescendant(doc, func(n *nethtml.Node) bool { return hasClass(n, "goen-filters") })
+	shell := findDescendant(doc, func(n *nethtml.Node) bool { return hasClass(n, "goen-filters__shell") })
+	if form == nil || shell == nil {
+		t.Fatal("the listing has no filter form or no disclosure")
+	}
+	isSort := func(n *nethtml.Node) bool {
+		return n.Type == nethtml.ElementNode && n.Data == "select" && attrValue(n, "id") == "sort"
+	}
+	if findDescendant(form, isSort) == nil || findDescendant(shell, isSort) != nil {
+		t.Error("the sort is not in the filter form outside the disclosure")
+	}
+	if findDescendant(shell, func(n *nethtml.Node) bool { return hasClass(n, "goen-filters__menus") }) == nil {
+		t.Error("the filter menus are not inside the disclosure")
 	}
 }
 
@@ -436,10 +461,11 @@ func TestListingOneGrid(t *testing.T) {
 }
 
 // TestListingHeadSubcategories holds that the head offers its subcategories and
-// photograph.
+// no photograph.
 //
-// The head offers the department's sub-categories, marks the one the shopper is
-// in, and draws the department's photograph only when it has one.
+// The head offers the department's sub-categories as one row of words and marks
+// the one the shopper is in. It draws no photograph, even for a department that
+// has one: the products are the page's pictures.
 func TestListingHeadSubcategories(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -452,23 +478,28 @@ func TestListingHeadSubcategories(t *testing.T) {
 		},
 	}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
-	if !strings.Contains(html, `<a class="goen-pagehead__chip" href="/c/chargers">Chargers</a>`) {
-		t.Error("a sibling sub-category is not a chip")
+	row := `<a class="goen-subindex__link" href="/c/chargers">Chargers</a>` +
+		`<a class="goen-subindex__link" href="/c/cases" aria-current="page">Cases</a></nav>`
+	if !strings.Contains(html, row) {
+		t.Errorf("the head does not offer the sub-categories as one row with the current one marked:\n%s", html)
 	}
-	if !strings.Contains(html, `<a class="goen-pagehead__chip" href="/c/cases" aria-current="page">Cases</a>`) {
-		t.Error("the current sub-category is not marked")
+	if strings.Contains(html, "/img/d.webp") || strings.Contains(html, `alt="a desk"`) {
+		t.Error("the head draws the department photograph")
 	}
-	if !strings.Contains(html, `class="goen-pagehead__photo" src="/img/d.webp"`) || !strings.Contains(html, `alt="a desk"`) {
-		t.Error("the department photograph is not drawn with its alt text")
+	if strings.Contains(html, `rel="expect"`) {
+		t.Error("the page holds its first paint for a photograph it no longer draws")
+	}
+	if title := `<h1 class="goen-pagehead__title">Cases</h1>`; !strings.Contains(html, title) {
+		t.Errorf("the head lacks %s", title)
 	}
 
 	bare := ListingView{Slug: "audio", Name: "Audio"}
-	if h := renderToString(t, Listing(ListingMeta(ctx, bare), bare, nil, nil)); strings.Contains(h, "goen-pagehead__photo") || strings.Contains(h, "goen-pagehead__chips") {
-		t.Error("a head with no photograph or children draws them anyway")
+	if h := renderToString(t, Listing(ListingMeta(ctx, bare), bare, nil, nil)); strings.Contains(h, "goen-subindex") {
+		t.Error("a head with no children draws a row of them anyway")
 	}
 
 	only := ListingView{Slug: "tea", Name: "Tea", Theme: &Theme{Children: []Crumb{{Slug: "tea", Name: "Tea"}}}}
-	if h := renderToString(t, Listing(ListingMeta(ctx, only), only, nil, nil)); strings.Contains(h, "goen-pagehead__chips") {
+	if h := renderToString(t, Listing(ListingMeta(ctx, only), only, nil, nil)); strings.Contains(h, "goen-subindex") {
 		t.Error("a head with a single sub-category draws it as a choice")
 	}
 }
@@ -485,7 +516,13 @@ func TestSearchEmptyDepartments(t *testing.T) {
 	})
 	view := SearchView{Query: "zzqxv"}
 	html := renderComponent(t, ctx, Search(frame.Page{}, view))
-	for _, want := range []string{`<a class="goen-pagehead__chip" href="/c/tech">3C</a>`, `href="/c/fashion">服飾</a>`, "搜尋「zzqxv」"} {
+	for _, want := range []string{
+		`<h2 class="goen-search__heading" id="search-departments">館別</h2>`,
+		`<h3 class="goen-deptindex__name"><a href="/c/tech">3C</a></h3>`,
+		`<a href="/c/fashion">服飾</a>`,
+		`<h1 class="goen-pagehead__title">找不到「zzqxv」</h1>`,
+		`<p class="goen-search__lead">試試更短的關鍵字，或從下面的館別開始逛。</p>`,
+	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the empty search lacks %q:\n%s", want, html)
 		}
@@ -620,7 +657,7 @@ func TestSearchEmptyNewest(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	newest := shelf(2)
 	html := renderComponent(t, ctx, Search(SearchMeta(ctx, "zzqxv"), SearchView{Query: "zzqxv", Newest: newest}))
-	if !strings.Contains(html, `<h2 class="goen-listing__subhead">Newest products</h2>`) || !strings.Contains(html, newest[0].Name) {
+	if !strings.Contains(html, `<h2 class="goen-listing__subhead" id="search-newest">Newest products</h2>`) || !strings.Contains(html, newest[0].Name) {
 		t.Errorf("the empty search does not show the newest products:\n%s", html)
 	}
 	if strings.Contains(html, `name="sort"`) {

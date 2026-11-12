@@ -1,8 +1,6 @@
 package catalog
 
 import (
-	"strconv"
-
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -14,17 +12,6 @@ type Theme struct {
 	Children []Crumb
 	// Comparable is the department's answer to whether its products are put side by side.
 	Comparable bool
-}
-
-func (t *Theme) ToneAttr() string {
-	if t == nil {
-		return string(tone.Stone)
-	}
-	return t.Tone.Attr()
-}
-
-func (t *Theme) ComparableAttr() string {
-	return strconv.FormatBool(t != nil && t.Comparable)
 }
 
 func (t *Theme) Image() widget.Photo {
