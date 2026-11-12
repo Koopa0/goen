@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 
 // A valid query can have no word boundaries. Measure its actual text runs,
 // including text clipped by an ancestor, rather than accepting a hidden scroll.
+// With nothing found the heading itself says so, the term inside it, and the
+// lead under it offers the way on; there is no results grid.
 export async function checkSearchReflow({ origin, send, evaluate, navigate }) {
   const query = 'x'.repeat(100);
   const { cookies } = await send('Network.getCookies', { urls: [origin] });
@@ -25,7 +27,8 @@ export async function checkSearchReflow({ origin, send, evaluate, navigate }) {
           await evaluate(`document.documentElement.style.fontSize = '${scale}%'`);
           const got = await evaluate(`(() => {
             const title = document.querySelector('h1.goen-pagehead__title');
-            const empty = document.querySelector('p.goen-empty__title');
+            const empty = document.querySelector('p.goen-search__lead');
+            const found = !!document.getElementById('search-results');
             const rendered = [title, empty].every((element) => element
               && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0
               && getComputedStyle(element).visibility === 'visible');
@@ -41,12 +44,12 @@ export async function checkSearchReflow({ origin, send, evaluate, navigate }) {
               }
             }
             return { lang: document.documentElement.lang, title: title?.textContent,
-              empty: empty?.textContent, rendered, width: document.documentElement.clientWidth, scroll: document.body.scrollWidth, outside };
+              empty: empty?.textContent, found, rendered, width: document.documentElement.clientWidth, scroll: document.body.scrollWidth, outside };
           })()`);
           const label = `${locale} ${scale}% scripting=${!disabled}`;
           assert.equal(got.lang, locale, label + ': wrong locale');
           assert.ok(got.title?.includes(query), label + ': full query missing from title');
-          assert.ok(got.empty?.includes(query), label + ': no-results feedback missing');
+          assert.ok(got.empty && !got.found, label + ': no-results feedback missing');
           assert.ok(got.rendered, label + ': search text is hidden or missing');
           assert.equal(got.width, 320, label + ': wrong viewport');
           if (got.scroll > 321 || got.outside.length) {

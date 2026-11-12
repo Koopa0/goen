@@ -144,8 +144,8 @@ const PAGES = [
   { label: 'search 1440', width: 1440, height: 900, path: '/search?q=pixelight', marker: '.goen-listing' },
   // A query of only NBSP is the empty prompt, not a no-results heading for an
   // invisible term. Measuring /search?q=pixelight never visits that state.
-  { label: 'search nbsp 375', width: 375, height: 812, path: '/search?q=%C2%A0', marker: '.ui-empty' },
-  { label: 'search nbsp 1440', width: 1440, height: 900, path: '/search?q=%C2%A0', marker: '.ui-empty' },
+  { label: 'search nbsp 375', width: 375, height: 812, path: '/search?q=%C2%A0', marker: '.goen-search__lead' },
+  { label: 'search nbsp 1440', width: 1440, height: 900, path: '/search?q=%C2%A0', marker: '.goen-search__lead' },
   // The same Unicode trim at the edges of a real term: heading and ILIKE both
   // see "pixelight". The grid is the surface that term produces.
   { label: 'search edge-trim 375', width: 375, height: 812, path: '/search?q=%C2%A0%E3%80%80pixelight%E2%80%83', marker: '.goen-listing' },
@@ -1167,12 +1167,14 @@ async function periodPass(route, extra = false) {
 
 for (const route of ['/', '/s/layout-campaign']) await periodPass(route);
 
-// Whether the filter shell exposes its form and a control. On desktop a closed
-// <details> keeps ::details-content at content-visibility:hidden until the
-// stylesheet opens it; display:flex on the form alone is not enough.
+// Whether the filter shell exposes its menus, and whether the sort shows. On
+// desktop a closed <details> keeps ::details-content at
+// content-visibility:hidden until the stylesheet opens it; display:flex on the
+// menus alone is not enough. The sort is outside the shell, so it shows on a
+// phone while the menus are folded away.
 const FILTER_SHELL_PROBE = `(() => {
   const shell = document.querySelector('.goen-filters__shell');
-  const form = document.querySelector('.goen-filters');
+  const form = document.querySelector('.goen-filters__menus');
   const input = document.querySelector('.goen-filters #sort');
   const summary = document.querySelector('.goen-filters__shell-summary');
   const formRect = form ? form.getBoundingClientRect() : null;
@@ -1190,8 +1192,8 @@ const FILTER_SHELL_PROBE = `(() => {
     open: shell ? shell.open : null,
     summaryDisplay: summaryStyle ? summaryStyle.display : null,
     summaryVisible: !!(summary && summary.getBoundingClientRect().height > 0),
-    formVisible: !!(formRect && formRect.height > 0 && formRect.width > 0),
-    inputVisible: !!(inputRect && inputRect.height > 0 && inputRect.width > 0),
+    menusVisible: !!(formRect && formRect.height > 0 && formRect.width > 0),
+    sortVisible: !!(inputRect && inputRect.height > 0 && inputRect.width > 0),
     contentVisibility,
     products: document.querySelectorAll('.goen-tiles__grid > li').length,
     viewport: document.documentElement.clientWidth,
@@ -1199,11 +1201,11 @@ const FILTER_SHELL_PROBE = `(() => {
 })()`;
 
 const assertDesktopFiltersVisible = (at, got) => {
-  if (!got.formVisible) {
-    fail(at, `desktop filter form is not visible — ${JSON.stringify(got)}`);
+  if (!got.menusVisible) {
+    fail(at, `desktop filter menus are not visible — ${JSON.stringify(got)}`);
   }
-  if (!got.inputVisible) {
-    fail(at, `desktop filter controls are not visible — ${JSON.stringify(got)}`);
+  if (!got.sortVisible) {
+    fail(at, `desktop sort is not visible — ${JSON.stringify(got)}`);
   }
   if (got.contentVisibility === 'hidden') {
     fail(at, `desktop ::details-content is still hidden — ${JSON.stringify(got)}`);
@@ -1382,7 +1384,8 @@ for (const want of LISTING) {
     }
     const filters = await evalPage(FILTER_SHELL_PROBE);
     if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
-    if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
+    if (filters.menusVisible) fail(at, 'filter menus are visible while the shell is collapsed on mobile');
+    if (filters.products > 0 && !filters.sortVisible) fail(at, 'the sort is folded away with the filters on mobile');
   }
   if (want.toolbar) {
     const filters = await evalPage(FILTER_SHELL_PROBE);
@@ -1448,7 +1451,8 @@ for (const want of LISTING_AUDIO) {
     if (!got.firstTileInView) fail(at, 'the first product is not visible on entry');
     const filters = await evalPage(FILTER_SHELL_PROBE);
     if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
-    if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
+    if (filters.menusVisible) fail(at, 'filter menus are visible while the shell is collapsed on mobile');
+    if (filters.products > 0 && !filters.sortVisible) fail(at, 'the sort is folded away with the filters on mobile');
   }
   if (want.toolbar) {
     const filters = await evalPage(FILTER_SHELL_PROBE);
@@ -1826,26 +1830,26 @@ const proveListingDesktopResize = async (label, locale) => {
   const mobileCollapsed = await evalPage(FILTER_SHELL_PROBE);
   if (mobileCollapsed.threw) fail(label, mobileCollapsed.why || 'mobile resize probe failed');
   if (mobileCollapsed.open) fail(label, 'filter shell is open after resize to mobile');
-  if (mobileCollapsed.formVisible) {
-    fail(label, 'filter form is visible while the shell is closed on mobile after resize');
+  if (mobileCollapsed.menusVisible) {
+    fail(label, 'filter menus are visible while the shell is closed on mobile after resize');
   }
 
   const expanded = await evalPage(`(() => {
     const summary = document.querySelector('.goen-filters__shell-summary');
     if (!summary) return { ok: false, why: 'mobile summary missing after resize' };
     summary.click();
-    const form = document.querySelector('.goen-filters');
-    const formRect = form ? form.getBoundingClientRect() : null;
+    const menus = document.querySelector('.goen-filters__menus');
+    const menusRect = menus ? menus.getBoundingClientRect() : null;
     return {
       ok: true,
-      formVisible: !!(formRect && formRect.height > 0 && formRect.width > 0),
+      menusVisible: !!(menusRect && menusRect.height > 0 && menusRect.width > 0),
     };
   })()`);
   if (expanded.threw || !expanded.ok) {
     fail(label, expanded.why || 'mobile expand after resize failed');
     return;
   }
-  if (!expanded.formVisible) fail(label, 'filter form did not open after summary click on mobile');
+  if (!expanded.menusVisible) fail(label, 'filter menus did not open after summary click on mobile');
 
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
@@ -1926,11 +1930,12 @@ for (const want of [
 // The departments' row on a phone scrolls sideways and shows that it does:
 // at 320, 375 and 414 the screen's right edge cuts a department at least 12px
 // in, rather than falling in a gap between two. Read at the row's start, as a
-// page with no current department opens (goen.js centres a current one).
-// English is not held to it: its names are of every length.
-const DEPARTMENT_CUT_PROBE = `(async () => {
-  const nav = document.querySelector('.goen-header__nav');
-  if (!nav) return { ok: false, why: 'the header has no departments row' };
+// page with no current department opens (goen.js centres a current one). A
+// department's sub-categories are the same kind of row and held to the same
+// cut. English is not held to it: its names are of every length.
+const rowCutProbe = (row) => `(async () => {
+  const nav = document.querySelector(${JSON.stringify(row)});
+  if (!nav) return { ok: false, why: 'the page has no ${row} row' };
   nav.scrollLeft = 0;
   await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
   const edge = document.documentElement.clientWidth;
@@ -1940,12 +1945,12 @@ const DEPARTMENT_CUT_PROBE = `(async () => {
 })()`;
 
 await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
-for (const width of [320, 375, 414]) {
-  const label = `department cut ${width}`;
+for (const [what, path, row] of [['department', '/', '.goen-header__nav'], ['sub-category', '/c/phones', '.goen-subindex']]) for (const width of [320, 375, 414]) {
+  const label = `${what} cut ${width}`;
   await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height: 812, deviceScaleFactor: 1, mobile: true });
-  await send(ws, 'Page.navigate', { url: ORIGIN + '/' });
-  await settled(ws, label, ORIGIN + '/');
-  const got = await evalPage(DEPARTMENT_CUT_PROBE);
+  await send(ws, 'Page.navigate', { url: ORIGIN + path });
+  await settled(ws, label, ORIGIN + path);
+  const got = await evalPage(rowCutProbe(row));
   if (got.threw || !got.ok) {
     fail(label, `the probe did not run — ${got.why}`);
     continue;
@@ -1955,9 +1960,9 @@ for (const width of [320, 375, 414]) {
     continue;
   }
   if (got.into === null || got.into < 12) {
-    fail(label, `the right edge cuts no department at least 12px in (${got.into === null ? 'it falls between two' : got.into + 'px'})`);
+    fail(label, `the right edge cuts no ${what} at least 12px in (${got.into === null ? 'it falls between two' : got.into + 'px'})`);
   }
-  console.log(`${label.padEnd(24)} the edge cuts a department ${got.into}px in`);
+  console.log(`${label.padEnd(24)} the edge cuts a ${what} ${got.into}px in`);
 }
 
 const HEADER_EN_PROBE = `(() => {
