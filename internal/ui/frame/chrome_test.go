@@ -566,6 +566,11 @@ func TestDepartmentPanelProducts(t *testing.T) {
 	if !strings.Contains(imgs[0], `loading="lazy"`) {
 		t.Errorf("a panel picture is fetched before the panel opens: %s", imgs[0])
 	}
+	// The middle track is about 240px wide at 1440 and shrinks with the page
+	// below that, so a 144px or a fixed size would fetch the wrong file.
+	if !strings.Contains(imgs[0], `sizes="(min-width:90rem) 240px, 18vw"`) {
+		t.Errorf("a panel picture does not size itself to the middle track: %s", imgs[0])
+	}
 }
 
 // TestBaseAdminStylesheetLinks: only the back office links its stylesheet.

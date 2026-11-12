@@ -140,7 +140,7 @@ templ departmentPanel(p Page, n NavItem) {
 								<a class="goen-dept__pick" href={ templ.URL("/p/" + pick.Slug) }>
 									<span class="goen-dept__well">
 										if pick.ImageURL != "" {
-											<img src={ pick.ImageURL } srcset={ pick.ImageSrcset } sizes="144px" alt="" loading="lazy" decoding="async"/>
+											<img src={ pick.ImageURL } srcset={ pick.ImageSrcset } sizes="(min-width:90rem) 240px, 18vw" alt="" loading="lazy" decoding="async"/>
 										}
 									</span>
 									<span class="goen-dept__name">{ pick.Name }</span>
@@ -152,7 +152,7 @@ templ departmentPanel(p Page, n NavItem) {
 				}
 				<a class="goen-dept__browse" href={ templ.URL(n.Href) }>
 					if n.PhotoURL != "" {
-						<img class="goen-dept__photo" src={ n.PhotoURL } srcset={ n.PhotoSrcset } sizes="240px" alt="" loading="lazy" decoding="async"/>
+						<img class="goen-dept__photo" src={ n.PhotoURL } srcset={ n.PhotoSrcset } sizes="280px" alt="" loading="lazy" decoding="async"/>
 					}
 					<span class="goen-dept__caption">
 						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseDepartment), n.Name) }
