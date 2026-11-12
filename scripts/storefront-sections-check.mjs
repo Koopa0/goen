@@ -1012,7 +1012,8 @@ try {
     const sides = ['Top', 'Right', 'Bottom', 'Left'];
     const corners = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'];
     const rootSize = size => evaluate(`document.documentElement.style.fontSize = ${JSON.stringify(size)}`);
-    const names = ['--n-0', '--n-50', '--n-500', '--accent', '--accent-faint', '--accent-deep', '--control-boundary', '--error', '--fg'];
+    const names = ['--n-0', '--n-50', '--n-500', '--accent', '--accent-faint', '--accent-deep', '--control-boundary', '--error', '--fg',
+      '--sys-surface', '--sys-on-surface', '--sys-outline'];
 
     // Fields share one corner, in px: a corner in rem would grow with the text
     // and turn a tall textarea into a pill.
@@ -1081,11 +1082,14 @@ try {
         return colour;
       })()`);
       assert.equal(strokeColour, t['--error'], `${where}: the icon is drawn in ${stroke[1]} (${strokeColour}), not the error colour ${t['--error']}`);
-      assert.equal(got.ground, t['--n-50'], `${where}: the group the field sits in is ${got.ground}`);
+      // The checkout's groups are words on the page, so the field's group is the
+      // page's own ground; what is measured is the refusal against it.
+      assert.equal(got.ground, 'rgba(0, 0, 0, 0)', `${where}: the group the field sits in paints ${got.ground}, not the page's ground`);
+      got.ground = t['--sys-surface'];
       for (const [what, colour] of [['name', got.refused], ['sentence', got.sentence]]) {
         assert.ok(ratio(colour, got.ground) >= 4.5, `${where}: the refused ${what} ${colour} on ${got.ground} is ${ratio(colour, got.ground).toFixed(2)}:1, under 4.5:1`);
       }
-      console.log(`${where}: name and sentence ${ratio(got.refused, got.ground).toFixed(2)}:1 in the error colour on the group, icon drawn`);
+      console.log(`${where}: name and sentence ${ratio(got.refused, got.ground).toFixed(2)}:1 in the error colour on the page, icon drawn`);
     }
 
     // The text option: white with a 1px edge, or tinted with a 2px edge and a
@@ -1211,8 +1215,9 @@ try {
       }
     }
 
-    // The delivery card: the same language, with its radio drawn in every
-    // scheme, and a name that keeps room for words at any text size.
+    // The delivery card: a 2px ink edge on the page's own ground when chosen,
+    // a 1px outline when not, with its radio drawn in every scheme, and a name
+    // that keeps room for words at any text size.
     const cards = ids => evaluate(`${JSON.stringify(ids)}.map(id => {
       const radio = document.getElementById(id);
       const card = radio?.closest('.goen-checkout__ship');
@@ -1243,12 +1248,14 @@ try {
         assert.ok(chosen && plain, `${where}: the two cards are not on the page`);
         assert.equal(chosen.checked, true, `${where}: the first card is not the chosen one`);
         assert.equal(chosen.forced, false, `${where}: forced colours are on, so this does not measure the ordinary look`);
-        assert.equal(chosen.background, t['--accent-faint'], `${where}: the chosen card is ${chosen.background}, not the tint`);
+        assert.equal(chosen.background, t['--sys-surface'], `${where}: the chosen card is ${chosen.background}, not the page's ground`);
         assert.deepEqual(chosen.widths, Array(4).fill('2px'), `${where}: the chosen edge is ${chosen.widths}`);
-        assert.deepEqual(chosen.colours, Array(4).fill(t['--accent']), `${where}: the chosen edge is ${chosen.colours}, not the accent`);
+        assert.deepEqual(chosen.colours, Array(4).fill(t['--sys-on-surface']), `${where}: the chosen edge is ${chosen.colours}, not ink`);
         assert.equal(chosen.shadow, 'none', `${where}: a shadow draws the chosen edge: ${chosen.shadow}`);
-        assert.equal(plain.background, t['--n-0'], `${where}: an unchosen card is ${plain.background}, not white`);
+        assert.equal(plain.background, t['--sys-surface'], `${where}: an unchosen card is ${plain.background}, not the page's ground`);
         assert.deepEqual(plain.widths, Array(4).fill('1px'), `${where}: an unchosen edge is ${plain.widths}`);
+        assert.deepEqual(plain.colours, Array(4).fill(t['--sys-outline']), `${where}: an unchosen edge is ${plain.colours}, not the outline`);
+        assert.ok(ratio(plain.colours[0], t['--sys-surface']) >= 3, `${where}: an unchosen edge on the page is ${ratio(plain.colours[0], t['--sys-surface']).toFixed(2)}:1, under 3:1`);
         assert.equal(chosen.radioDrawn && plain.radioDrawn, true, `${where}: a radio is not drawn: chosen ${chosen.radioDrawn}, unchosen ${plain.radioDrawn}`);
         assert.ok(Math.abs(chosen.nameLeft - plain.nameLeft) < 0.5, `${where}: choosing moves the name from ${plain.nameLeft}px to ${chosen.nameLeft}px`);
         for (const [what, card] of [['chosen', chosen], ['unchosen', plain]]) {
@@ -1269,7 +1276,7 @@ try {
         for (const card of choices) {
           assert.ok(card.width >= 2.5 * card.em, `${where}: the card "${card.text}" leaves its name ${card.width}px, under two and a half letters of ${card.em}px`);
         }
-        console.log(`${where}: tint, 2px accent edge, radio drawn, name ${chosen.nameWidth.toFixed(0)}px wide, narrowest of ${choices.length} cards ${Math.min(...choices.map(card => card.width)).toFixed(0)}px`);
+        console.log(`${where}: 2px ink edge on the page, 1px outline unchosen, radio drawn, name ${chosen.nameWidth.toFixed(0)}px wide, narrowest of ${choices.length} cards ${Math.min(...choices.map(card => card.width)).toFixed(0)}px`);
       }
     }
     // Forced colours replace the fills, so the chosen card is the 2px edge
@@ -1322,8 +1329,9 @@ try {
       await send('Emulation.setFocusEmulationEnabled', { enabled: false });
     }
 
-    // The checkout is two layers: a white page, and the form's groups and the
-    // summary on it as panels with a 16px corner and an edge forced colours draw.
+    // The checkout is one layer: a white page, and the form's groups and the
+    // summary on it as words, with no ground, corner, edge or shadow of their
+    // own, so nothing stacks a second layer on the page.
     for (const width of [375, 1440]) {
       const where = `checkout layers ${width}px`;
       await open('/checkout', width);
@@ -1360,16 +1368,87 @@ try {
       assert.equal(got.main, 'rgba(0, 0, 0, 0)', `${where}: the form is a block of ${got.main}`);
       for (const [index, panel] of [...got.groups, got.summary].entries()) {
         assert.ok(panel, `${where}: panel ${index} is not on the page`);
-        assert.equal(panel.background, t['--n-50'], `${where}: panel ${index} is ${panel.background}, not ${t['--n-50']}`);
-        assert.deepEqual(panel.layers, [t['--n-50'], t['--n-0']], `${where}: panel ${index} sits on ${panel.layers}, not a white page and its own ${t['--n-50']}`);
-        assert.deepEqual(panel.corners, Array(4).fill('16px'), `${where}: panel ${index} has corners ${panel.corners}`);
-        assert.deepEqual(panel.shadows, [], `${where}: panel ${index} or what holds it draws a shadow, so the page is not white: ${panel.shadows}`);
-        assert.deepEqual(panel.edges, Array(4).fill('1px solid rgba(0, 0, 0, 0)'), `${where}: panel ${index} has edges ${panel.edges}`);
+        assert.equal(panel.background, 'rgba(0, 0, 0, 0)', `${where}: group ${index} paints ${panel.background}`);
+        assert.deepEqual(panel.layers, [t['--n-0']], `${where}: group ${index} sits on ${panel.layers}, not the white page alone`);
+        assert.deepEqual(panel.corners, Array(4).fill('0px'), `${where}: group ${index} has corners ${panel.corners}`);
+        assert.deepEqual(panel.shadows, [], `${where}: group ${index} or what holds it draws a shadow, so the page is not one layer: ${panel.shadows}`);
+        assert.ok(panel.edges.every(edge => edge.startsWith('0px ')), `${where}: group ${index} has edges ${panel.edges}`);
       }
-      // A field is white on the group, so its edge is read against the group.
-      const edge = ratio(got.field, t['--n-50']);
-      assert.ok(edge >= 3, `${where}: a field's edge on the group is ${edge.toFixed(2)}:1, under 3:1`);
-      console.log(`${where}: white page, ${got.groups.length} groups and the summary on ${t['--n-50']}, 16px corners, field edge ${edge.toFixed(2)}:1`);
+      // A field sits on the page, so its edge is read against the page.
+      const edge = ratio(got.field, t['--n-0']);
+      assert.ok(edge >= 3, `${where}: a field's edge on the page is ${edge.toFixed(2)}:1, under 3:1`);
+      console.log(`${where}: one white layer, ${got.groups.length} groups and the summary as words on it, field edge ${edge.toFixed(2)}:1`);
+    }
+  }
+
+  // The ways on. An empty cart, an empty wishlist and a missing page offer their
+  // next step as the section's one blue link, unlined until hovered, with its
+  // arrow; any other way on is ink with the faint underline. None of them draws
+  // a solid button, and the checkout draws exactly one, the one that pays.
+  {
+    const label = 'ways on';
+    const read = () => evaluate(`(() => {
+      const resolve = value => {
+        const probe = document.createElement('div');
+        probe.style.color = value;
+        document.body.append(probe);
+        const got = getComputedStyle(probe).color;
+        probe.remove();
+        return got;
+      };
+      const action = (() => {
+        const probe = document.createElement('div');
+        probe.style.backgroundColor = 'var(--sys-action)';
+        document.body.append(probe);
+        const got = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return got;
+      })();
+      const link = selector => {
+        const element = document.querySelector(selector);
+        if (!element || !element.getClientRects().length) return null;
+        const style = getComputedStyle(element);
+        return { text: element.textContent.replace(/\\s+/g, ' ').trim(), colour: style.color, line: style.textDecorationLine,
+          lineColour: style.textDecorationColor, height: element.getBoundingClientRect().height };
+      };
+      return {
+        blue: resolve('var(--accent-text)'), ink: resolve('var(--sys-on-surface)'),
+        next: link('.goen-empty__next, .notice__next'), more: link('.goen-empty__more'),
+        solid: [...document.querySelectorAll('a, button, span[role="link"]')]
+          .filter(element => !element.closest('.goen-header, .goen-footer') && element.getClientRects().length > 0 &&
+            getComputedStyle(element).backgroundColor === action)
+          .map(element => element.textContent.trim()),
+      };
+    })()`);
+    for (const [path, more] of [['/cart/empty', true], ['/wishlist', false], ['/missing', false]]) {
+      for (const width of [375, 1440]) {
+        const where = `${label} ${path} ${width}px`;
+        await open(path, width);
+        const got = await read();
+        assert.ok(got.next, `${where}: no next-step link`);
+        assert.equal(got.next.colour, got.blue, `${where}: the next step ${JSON.stringify(got.next.text)} is ${got.next.colour}, not the blue ${got.blue}`);
+        assert.equal(got.next.line, 'none', `${where}: the next step is underlined (${got.next.line}) before it is hovered`);
+        assert.match(got.next.text, /→$/, `${where}: the next step ${JSON.stringify(got.next.text)} has no arrow`);
+        assert.ok(got.next.height >= 44, `${where}: the next step is ${got.next.height}px tall, under 44px`);
+        if (more) {
+          assert.ok(got.more, `${where}: no secondary link`);
+          assert.equal(got.more.colour, got.ink, `${where}: the secondary link is ${got.more.colour}, not ink ${got.ink}`);
+          assert.equal(got.more.line, 'underline', `${where}: the secondary link is not underlined`);
+          assert.notEqual(got.more.lineColour, got.more.colour, `${where}: the secondary link's underline is not faint (${got.more.lineColour})`);
+          assert.ok(got.more.height >= 44, `${where}: the secondary link is ${got.more.height}px tall, under 44px`);
+        } else {
+          assert.equal(got.more, null, `${where}: a secondary link is drawn`);
+        }
+        assert.deepEqual(got.solid, [], `${where}: solid buttons are drawn: ${JSON.stringify(got.solid)}`);
+        console.log(`${where}: ${JSON.stringify(got.next.text)} blue and unlined${more ? `, ${JSON.stringify(got.more.text)} ink and faintly underlined` : ''}, no solid button`);
+      }
+    }
+    for (const width of [375, 1440]) {
+      await open('/checkout', width);
+      const got = await read();
+      assert.equal(got.solid.length, 1, `${label} /checkout ${width}px: ${got.solid.length} solid buttons, not one: ${JSON.stringify(got.solid)}`);
+      assert.match(got.solid[0], /^Place order/, `${label} /checkout ${width}px: the one solid button is ${JSON.stringify(got.solid[0])}, not the one that pays`);
+      console.log(`${label} /checkout ${width}px: one solid button, ${JSON.stringify(got.solid[0])}`);
     }
   }
 } finally {
