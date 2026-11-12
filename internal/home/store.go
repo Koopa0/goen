@@ -240,6 +240,7 @@ func (s *Store) tiles(ctx context.Context, campaignID, department uuid.NullUUID,
 			PriceVaries:    t.PriceVaries,
 			CompareCents:   t.CompareAtPriceCents.Int64, // 0 when NULL
 			OnSale:         campaign.OnSale(t.InCampaign, t.InStock, t.TilePriceCents, t.CompareAtPriceCents.Int64),
+			SaleEndsAt:     tile.SaleEnd(campaign.OnSale(t.InCampaign, t.InStock, t.TilePriceCents, t.CompareAtPriceCents.Int64), t.SaleEndsAt),
 			Rating:         t.Rating,
 			RatingCount:    t.RatingCount,
 			InStock:        t.InStock,

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -17,7 +18,8 @@ import (
 // carries the colours the product page's picker offers, the first option all of
 // whose values are colours, counting a value only while an active variant uses
 // it. Beside them it names each colour no in-stock variant carries, and only
-// those.
+// those, and when the sale ends: the soonest end of the running campaigns
+// the product is in.
 //
 // Each copy of the subquery is checked on its own, so none can drift.
 func TestTileQueriesColours(t *testing.T) {
@@ -106,7 +108,17 @@ func TestTileQueriesColours(t *testing.T) {
 		token + "-unlabelled": nil,
 	}
 
-	if err = tx.QueryRow(ctx, `INSERT INTO sale_campaigns(slug,title,ends_at) VALUES($1,'Tile colours',now()+interval '1 day') RETURNING id`, "camp-"+token).Scan(&campaign); err != nil {
+	var saleEnd time.Time
+	if err = tx.QueryRow(ctx, `INSERT INTO sale_campaigns(slug,title,ends_at) VALUES($1,'Tile colours',now()+interval '1 day') RETURNING id, ends_at`, "camp-"+token).Scan(&campaign, &saleEnd); err != nil {
+		t.Fatal(err)
+	}
+	// A second campaign that ends later holds one of the products: the card
+	// says the sooner end.
+	var later uuid.UUID
+	if err = tx.QueryRow(ctx, `INSERT INTO sale_campaigns(slug,title,ends_at) VALUES($1,'Tile colours later',now()+interval '9 days') RETURNING id`, "later-"+token).Scan(&later); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products(campaign_id,product_id,position) VALUES($1,$2,0)`, later, choice); err != nil {
 		t.Fatal(err)
 	}
 	if err = tx.QueryRow(ctx, `INSERT INTO users(email) VALUES($1) RETURNING id`, token+"@example.com").Scan(&user); err != nil {
@@ -130,6 +142,7 @@ func TestTileQueriesColours(t *testing.T) {
 	type tile struct {
 		slug             string
 		colours, soldOut []string
+		saleEndsAt       time.Time
 	}
 	tests := []struct {
 		query string
@@ -137,39 +150,39 @@ func TestTileQueriesColours(t *testing.T) {
 	}{
 		{"CategoryListing", func() ([]tile, error) {
 			rows, err := q.CategoryListing(ctx, db.CategoryListingParams{Locale: locale, CategoryIds: []uuid.UUID{category}, BrandIds: []uuid.UUID{}, PageSize: 50})
-			return mapTiles(rows, func(r db.CategoryListingRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
+			return mapTiles(rows, func(r db.CategoryListingRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 		{"SearchProducts", func() ([]tile, error) {
 			rows, err := q.SearchProducts(ctx, db.SearchProductsParams{Locale: locale, Patterns: terms, ExactPattern: exact, PageSize: 50})
-			return mapTiles(rows, func(r db.SearchProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
+			return mapTiles(rows, func(r db.SearchProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 		{"NewestProducts", func() ([]tile, error) {
 			rows, err := q.NewestProducts(ctx, db.NewestProductsParams{Locale: locale, PageSize: 500})
-			return mapTiles(rows, func(r db.NewestProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
+			return mapTiles(rows, func(r db.NewestProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 		{"DealProducts", func() ([]tile, error) {
 			rows, err := q.DealProducts(ctx, db.DealProductsParams{Locale: locale, PageSize: 500})
-			return mapTiles(rows, func(r db.DealProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
+			return mapTiles(rows, func(r db.DealProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 		{"CampaignProducts", func() ([]tile, error) {
 			rows, err := q.CampaignProducts(ctx, db.CampaignProductsParams{CampaignID: campaign, Locale: locale})
-			return mapTiles(rows, func(r db.CampaignProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
+			return mapTiles(rows, func(r db.CampaignProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 		{"HomeTiles", func() ([]tile, error) {
 			rows, err := q.HomeTiles(ctx, db.HomeTilesParams{Locale: locale, CampaignID: uuid.NullUUID{UUID: campaign, Valid: true}, MaxTiles: 50})
-			return mapTiles(rows, func(r db.HomeTilesRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
+			return mapTiles(rows, func(r db.HomeTilesRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 		{"RelatedProducts", func() ([]tile, error) {
 			rows, err := q.RelatedProducts(ctx, db.RelatedProductsParams{Locale: locale, CategoryID: category, ExcludeID: seed, RowLimit: 50})
-			return mapTiles(rows, func(r db.RelatedProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
+			return mapTiles(rows, func(r db.RelatedProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 		{"BoughtTogether", func() ([]tile, error) {
 			rows, err := q.BoughtTogether(ctx, db.BoughtTogetherParams{Locale: locale, ProductID: seed, MinOrders: 1, LimitTo: 50})
-			return mapTiles(rows, func(r db.BoughtTogetherRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
+			return mapTiles(rows, func(r db.BoughtTogetherRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 		{"WishlistItems", func() ([]tile, error) {
 			rows, err := q.WishlistItems(ctx, db.WishlistItemsParams{UserID: user, Locale: locale})
-			return mapTiles(rows, func(r db.WishlistItemsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut} }), err
+			return mapTiles(rows, func(r db.WishlistItemsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 	}
 	for _, tc := range tests {
@@ -190,6 +203,9 @@ func TestTileQueriesColours(t *testing.T) {
 				}
 				if !slices.Equal(got.soldOut, wantSoldOut[got.slug]) {
 					t.Errorf("%s: %s colours sold out = %q, want %q", tc.query, got.slug, got.soldOut, wantSoldOut[got.slug])
+				}
+				if !got.saleEndsAt.Equal(saleEnd) {
+					t.Errorf("%s: %s sale ends at %v, want %v", tc.query, got.slug, got.saleEndsAt, saleEnd)
 				}
 			}
 			if seen != len(want) {

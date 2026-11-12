@@ -3605,6 +3605,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -3731,6 +3741,7 @@ type BoughtTogetherRow struct {
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
+	SaleEndsAt          time.Time
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -3767,6 +3778,7 @@ func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) 
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
+			&i.SaleEndsAt,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -3925,6 +3937,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -4051,6 +4073,7 @@ type CampaignProductsRow struct {
 	PriceVaries         pgtype.Bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
+	SaleEndsAt          time.Time
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -4083,6 +4106,7 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
+			&i.SaleEndsAt,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -4907,6 +4931,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -5099,6 +5133,7 @@ type CategoryListingRow struct {
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
+	SaleEndsAt          time.Time
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -5146,6 +5181,7 @@ func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
+			&i.SaleEndsAt,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -7461,6 +7497,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -7590,6 +7636,7 @@ type DealProductsRow struct {
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
+	SaleEndsAt          time.Time
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -7624,6 +7671,7 @@ func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]D
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
+			&i.SaleEndsAt,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -9163,6 +9211,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string
@@ -9312,6 +9370,7 @@ type HomeTilesRow struct {
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
+	SaleEndsAt          time.Time
 	Rating              float64
 	RatingCount         int64
 	ImageDigest         string
@@ -9353,6 +9412,7 @@ func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTil
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
+			&i.SaleEndsAt,
 			&i.Rating,
 			&i.RatingCount,
 			&i.ImageDigest,
@@ -11490,6 +11550,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -11610,6 +11680,7 @@ type NewestProductsRow struct {
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
+	SaleEndsAt          time.Time
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -11642,6 +11713,7 @@ func (q *Queries) NewestProducts(ctx context.Context, arg NewestProductsParams) 
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
+			&i.SaleEndsAt,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -15773,6 +15845,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -15916,6 +15998,7 @@ type RelatedProductsRow struct {
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
+	SaleEndsAt          time.Time
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -15953,6 +16036,7 @@ func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
+			&i.SaleEndsAt,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -17396,6 +17480,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -17593,6 +17687,7 @@ type SearchProductsRow struct {
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
+	SaleEndsAt          time.Time
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -17638,6 +17733,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
+			&i.SaleEndsAt,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -20753,6 +20849,16 @@ SELECT
         JOIN listed_campaigns l ON l.id = fp.campaign_id
         WHERE fp.product_id = p.id
     ) AS in_campaign,
+    -- When the sale ends: the soonest end among the listed campaigns the product
+    -- is in, so a card can say how long its struck price holds. The epoch when
+    -- it is in none, which in_campaign already says; sqlc would type a NULL as
+    -- a time it cannot scan.
+    coalesce((
+        SELECT min(sc.ends_at) FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        JOIN sale_campaigns sc ON sc.id = l.id
+        WHERE fp.product_id = p.id
+    ), 'epoch')::timestamptz AS sale_ends_at,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -20881,6 +20987,7 @@ type WishlistItemsRow struct {
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
+	SaleEndsAt          time.Time
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -20914,6 +21021,7 @@ func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
+			&i.SaleEndsAt,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,

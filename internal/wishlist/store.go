@@ -57,6 +57,7 @@ func (s *Store) Items(ctx context.Context, userID string) ([]Item, error) {
 				PriceVaries:    r.PriceVaries,
 				CompareCents:   r.CompareAtPriceCents.Int64,
 				OnSale:         campaign.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
+				SaleEndsAt:     tile.SaleEnd(campaign.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64), r.SaleEndsAt),
 				Rating:         r.Rating,
 				RatingCount:    r.RatingCount,
 				InStock:        r.InStock,

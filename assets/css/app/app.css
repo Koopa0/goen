@@ -3196,6 +3196,12 @@ body:has(.goen-hero) .goen-header {
   color: var(--sys-tertiary);
 }
 
+/* How long the struck price holds, where a page says it, in the same colour. */
+.goen-tile__until {
+  color: var(--sys-tertiary);
+  font: var(--type-label-s);
+}
+
 .goen-tile--out .goen-tile__price {
   color: var(--n-500);
 }

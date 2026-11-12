@@ -7,10 +7,16 @@
 package tile
 
 import (
+	"context"
+	"fmt"
 	"slices"
 	"strconv"
+	"strings"
+	"time"
 
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 type Tile struct {
@@ -27,7 +33,13 @@ type Tile struct {
 	PriceVaries  bool
 	CompareCents int64 // 0 when the product is not on sale
 	// OnSale strikes CompareCents beside the price, as campaign.OnSale decides.
-	OnSale      bool
+	OnSale bool
+	// SaleEndsAt is when the struck price ends, the soonest end of the running
+	// campaigns the product is in; zero unless OnSale (SaleEnd).
+	SaleEndsAt time.Time
+	// SaleUntil is that end's last day where a page draws the line "on sale
+	// until" under the price; zero where it does not.
+	SaleUntil   shoptime.Date
 	Rating      float64
 	RatingCount int64
 	// InStock is stock above safety_stock, not stock_quantity > 0.
@@ -53,6 +65,35 @@ type Tile struct {
 // Sizes is the width the photograph is laid out at, for the browser's choice of file.
 func (t *Tile) Sizes() string {
 	return "(min-width: 1344px) 286px, (min-width: 1024px) calc((100vw - 136px) / 4), (min-width: 768px) calc((100vw - 96px) / 3), calc((100vw - 48px) / 2)"
+}
+
+// SaleEnd is endsAt for a tile on sale and zero for any other, so a tile carries
+// an end only for a price that ends.
+func SaleEnd(onSale bool, endsAt time.Time) time.Time {
+	if !onSale {
+		return time.Time{}
+	}
+	return endsAt
+}
+
+// DrawsSaleUntil reports that the line saying how long the sale lasts is drawn.
+func (t *Tile) DrawsSaleUntil() bool { return t.OnSale && t.SaleUntil.Day > 0 }
+
+// untilPhrase splits the campaign's phrase of its last day around the date,
+// which the card marks as a time; campaign.End.Until does the same for a
+// campaign's own end.
+func untilPhrase(ctx context.Context) (before, after string) {
+	const mark = "\x00"
+	before, after, _ = strings.Cut(fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignUntil), mark), mark)
+	return before, after
+}
+
+// wordSpace is what parts two words: nothing between Han, a space in English.
+func wordSpace(ctx context.Context) string {
+	if i18n.FromContext(ctx) == i18n.ZhHant {
+		return ""
+	}
+	return " "
 }
 
 func AnyComparable(tiles []Tile) bool {
