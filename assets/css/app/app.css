@@ -6049,43 +6049,43 @@ input.goen-check {
    assets/contrast_test.go holds the text and mark colours to their
    ratios on every ground. */
 [data-tone="paper"] {
-  --tone-ground: #eae1d6;
+  --tone-ground: light-dark(#eae1d6, #2b2722);
   --tone-rule: #ddd3c6;
-  --tone-text: var(--n-900);
-  --tone-muted: #4d4d53;
-  --tone-mark: var(--mark);
+  --tone-text: light-dark(var(--n-900), #e8e8e6);
+  --tone-muted: light-dark(#4d4d53, #b8b8b5);
+  --tone-mark: light-dark(var(--mark), var(--night-primary));
 }
 
 [data-tone="stone"] {
-  --tone-ground: #dddddc;
+  --tone-ground: light-dark(#dddddc, #29261f);
   --tone-rule: #cfcfce;
-  --tone-text: var(--n-900);
-  --tone-muted: #4d4d53;
-  --tone-mark: var(--mark);
+  --tone-text: light-dark(var(--n-900), #e8e8e6);
+  --tone-muted: light-dark(#4d4d53, #b8b8b5);
+  --tone-mark: light-dark(var(--mark), var(--night-primary));
 }
 
 [data-tone="mist"] {
-  --tone-ground: #d4e3f2;
+  --tone-ground: light-dark(#d4e3f2, #1f2933);
   --tone-rule: #c5d6e6;
-  --tone-text: var(--n-900);
-  --tone-muted: #4d4d53;
-  --tone-mark: var(--mark);
+  --tone-text: light-dark(var(--n-900), #e8e8e6);
+  --tone-muted: light-dark(#4d4d53, #b8b8b5);
+  --tone-mark: light-dark(var(--mark), var(--night-primary));
 }
 
 [data-tone="sage"] {
-  --tone-ground: #d5e2d2;
+  --tone-ground: light-dark(#d5e2d2, #1f2621);
   --tone-rule: #c7d6c4;
-  --tone-text: var(--n-900);
-  --tone-muted: #4d4d53;
-  --tone-mark: var(--mark);
+  --tone-text: light-dark(var(--n-900), #e8e8e6);
+  --tone-muted: light-dark(#4d4d53, #b8b8b5);
+  --tone-mark: light-dark(var(--mark), var(--night-primary));
 }
 
 [data-tone="blush"] {
-  --tone-ground: #f1d9d6;
+  --tone-ground: light-dark(#f1d9d6, #2b2224);
   --tone-rule: #e3cac6;
-  --tone-text: var(--n-900);
-  --tone-muted: #4d4d53;
-  --tone-mark: var(--mark);
+  --tone-text: light-dark(var(--n-900), #e8e8e6);
+  --tone-muted: light-dark(#4d4d53, #b8b8b5);
+  --tone-mark: light-dark(var(--mark), var(--night-primary));
 }
 
 .goen-promo,
@@ -6097,11 +6097,54 @@ input.goen-check {
 }
 
 [data-tone="ink"] {
-  --tone-ground: #18181b;
+  --tone-ground: light-dark(#18181b, var(--night-surface-container-high));
   --tone-rule: #27272a;
   --tone-text: #ffffff;
   --tone-muted: #a1a1aa;
   --tone-mark: var(--on-ink-accent);
+}
+
+/* Without light-dark() a tone's colours are invalid where a rule reads them,
+   and the rule falls back to its initial colour; such a browser gets the day. */
+@supports not (color: light-dark(#000, #fff)) {
+  [data-tone="paper"] {
+    --tone-ground: #eae1d6;
+    --tone-text: var(--n-900);
+    --tone-muted: #4d4d53;
+    --tone-mark: var(--mark);
+  }
+
+  [data-tone="stone"] {
+    --tone-ground: #dddddc;
+    --tone-text: var(--n-900);
+    --tone-muted: #4d4d53;
+    --tone-mark: var(--mark);
+  }
+
+  [data-tone="mist"] {
+    --tone-ground: #d4e3f2;
+    --tone-text: var(--n-900);
+    --tone-muted: #4d4d53;
+    --tone-mark: var(--mark);
+  }
+
+  [data-tone="sage"] {
+    --tone-ground: #d5e2d2;
+    --tone-text: var(--n-900);
+    --tone-muted: #4d4d53;
+    --tone-mark: var(--mark);
+  }
+
+  [data-tone="blush"] {
+    --tone-ground: #f1d9d6;
+    --tone-text: var(--n-900);
+    --tone-muted: #4d4d53;
+    --tone-mark: var(--mark);
+  }
+
+  [data-tone="ink"] {
+    --tone-ground: #18181b;
+  }
 }
 
 /* The ink blue of a price is 1.5:1 on this ground. */

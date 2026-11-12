@@ -348,18 +348,23 @@ body {
   /* The boundary of a control: 3:1 on white, --wash and --well. */
   --edge: #85858c;
 
-  /* The one hue, 藍 (blue): what a shopper can press, where they are, and
-     how far a period has run. 7.15:1 on white, so it is the link text as well
-     as the ring and the fill. --mark marks a stretch of time on the storefront;
-     a chart's dates are drawn in --ink-2. The second ring of the goen mark is
-     this blue too. 藍墨 (ink blue) is the same hue pressed: hover, text on a
-     blue tint, a price on a shelf, and a label that is not an action. The tints
-     are opaque so text on them is measured against one colour. */
+  /* The one hue, 藍 (blue), shows the way on and nothing else: a section's
+     next-step link, the focus ring and the second ring of the goen mark.
+     7.15:1 on white, so it is link text as well as the ring. It is not the
+     colour of a filled control: the one solid action colour is ink,
+     --sys-action, warm stone by night, so a filled button never reads as one
+     more link. The back office keeps its own blue primary button in
+     admin.css. --mark marks a stretch of time on the storefront; a chart's
+     dates are drawn in --ink-2. 藍墨 (ink blue) is the same hue pressed:
+     hover, text on a blue tint, a price on a shelf, and a label that is not an
+     action. The tints are opaque so text on them is measured against one
+     colour. */
   --accent: #2a56a0;
   --accent-deep: #26395a;
   /* A price on a shelf, a product page and the buy bar. Cart, checkout and
-     order amounts are the ledger and keep the text colour. */
-  --price: var(--accent-deep);
+     order amounts are the ledger and keep the text colour. By night the blue
+     is the link's own value, so the price takes the text colour. */
+  --price: light-dark(var(--accent-deep), var(--night-on-surface));
   --mark: #2a56a0;
   /* The part of a period still to come: the mark at 30%. Unlike the tints it
      stays translucent, so on a tone it is the tone's ground under the blue.
@@ -394,7 +399,7 @@ body {
 
   /* Functional colours: a status says what it is by its words and its icon,
      the colour only agrees. Each ink clears 4.5:1 on its own tint. */
-  --star: #b07c00;
+  --star: light-dark(var(--day-star), var(--night-star));
   --error: #b91c1c;
   --error-bg: #fef2f2;
   --error-bg-hover: #f7dddd;
@@ -429,6 +434,7 @@ body {
   --t-20: 1.25rem;
   --t-24: 1.5rem;
   --t-32: clamp(1.625rem, 1.2rem + 1.2vw, 2rem);
+  --t-40: clamp(2rem, 1.4rem + 1vw, 2.5rem);
   --t-44: clamp(2rem, 1.3rem + 2.2vw, 2.75rem);
 
   --s-1: 4px;
@@ -455,6 +461,11 @@ body {
   --sh-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --sh-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   --shadow-1: var(--sh-xs);
+
+  /* How much of its text colour a control lays over its own ground when
+     hovered and when pressed, one pair for every kind of control. */
+  --state-hover: 8%;
+  --state-press: 12%;
 
   /* The hairline a swatch needs so a near-white colour is still a disc on a
      white ground. */
@@ -490,6 +501,10 @@ body {
   --day-outline: #7c7c84;
   --day-inverse-surface: #2f2f33;
   --day-inverse-on-surface: #f2f2f4;
+  /* The one solid action colour, and the label on it. */
+  --day-action: #2f2f33;
+  --day-on-action: #ffffff;
+  --day-star: #b07c00;
 
   /* The night. The neutrals carry no chroma, for the reason the day's do. */
   --night-primary: #a9c0ea;
@@ -521,6 +536,11 @@ body {
   --night-inverse-surface: #e6e6e9;
   --night-inverse-on-surface: #2f2f33;
   --night-inverse-primary: #2a56a0;
+  /* Warm stone: 2.1:1 on --well, so a filled button by night is not taken
+     for a photograph's frame. */
+  --night-action: #b5ada0;
+  --night-on-action: #131315;
+  --night-star: #e0b25a;
 }
 
 /* Each role's day value is a colour a page already draws, so a sheet that
@@ -557,10 +577,13 @@ body {
   --sys-inverse-surface: light-dark(var(--day-inverse-surface), var(--night-inverse-surface));
   --sys-inverse-on-surface: light-dark(var(--day-inverse-on-surface), var(--night-inverse-on-surface));
   --sys-inverse-primary: light-dark(var(--on-ink-accent), var(--night-inverse-primary));
+  --sys-action: light-dark(var(--day-action), var(--night-action));
+  --sys-on-action: light-dark(var(--day-on-action), var(--night-on-action));
 }
 
-/* Without light-dark() every role above is invalid where a rule reads it, and
-   the rule falls back to its initial colour; such a browser gets the day. */
+/* Without light-dark() every role above, and each token of the ground drawn
+   with it, is invalid where a rule reads it, and the rule falls back to its
+   initial colour; such a browser gets the day. */
 @supports not (color: light-dark(#000, #fff)) {
   :root {
     --sys-primary: var(--accent);
@@ -592,6 +615,10 @@ body {
     --sys-inverse-surface: var(--day-inverse-surface);
     --sys-inverse-on-surface: var(--day-inverse-on-surface);
     --sys-inverse-primary: var(--on-ink-accent);
+    --sys-action: var(--day-action);
+    --sys-on-action: var(--day-on-action);
+    --price: var(--accent-deep);
+    --star: var(--day-star);
   }
 }
 
