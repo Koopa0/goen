@@ -1380,11 +1380,11 @@ body:has(.goen-hero) .goen-header {
   color: var(--n-900);
 }
 
+/* The current one is marked as the current department is: a 2px rule under
+   the text, in the text's own colour. */
 .goen-lang__item[aria-pressed='true'] {
-  color: var(--n-900);
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
-  text-decoration-thickness: 2px;
+  color: var(--sys-on-surface);
+  text-decoration: underline 2px;
   text-underline-offset: 6px;
 }
 
@@ -1747,15 +1747,20 @@ body:has(.goen-hero) .goen-header {
   padding: 0;
 }
 
+/* Ink with the faint underline every link but a section's next step wears;
+   the line takes the text's colour on hover. */
 .goen-footer__link {
-  color: var(--n-500);
+  color: var(--sys-on-surface);
   font-size: var(--fs-14);
-  text-decoration: none;
-  transition: color var(--dur-base) var(--ease-standard);
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
 .goen-footer__link:hover {
-  color: var(--n-900);
+  color: var(--sys-on-surface);
+  text-decoration-color: currentcolor;
 }
 
 .goen-footer__news {
@@ -1794,14 +1799,13 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-footer__field > .goen-input {
-  border-radius: var(--r-press);
   grid-area: 1 / 1 / 2 / 3;
   height: 3.25rem;
-  padding-right: 8.5rem;
+  padding-right: 7rem;
 }
 
 .goen-footer__field > .goen-btn {
-  border-radius: calc(var(--r-press) - 4px);
+  border-radius: calc(var(--r-field) - 4px);
   flex-wrap: wrap;
   grid-area: 1 / 2;
   margin: 4px;
@@ -1821,7 +1825,7 @@ body:has(.goen-hero) .goen-header {
   container-type: inline-size;
 }
 
-@container (max-width: 24rem) {
+@container (max-width: 18rem) {
   .goen-footer__field {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1843,33 +1847,20 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
+/* The subscribe button is a label in ink: a button never wears the link's
+   blue, and the field's edge is its shape. */
 .goen-footer__field > .goen-btn--ghost {
   background: none;
-  color: var(--accent);
-  font-weight: var(--fw-medium);
-  gap: 0.375rem;
-  padding-inline: 0.75rem 1rem;
+  color: var(--sys-on-surface);
+  font: var(--type-label-l);
+  padding-inline: 0.875rem;
 }
 
 .goen-footer__field > .goen-btn--ghost:hover {
   background: none;
-  color: var(--accent-deep);
+  color: var(--sys-on-surface);
   text-decoration: underline 1px;
   text-underline-offset: 3px;
-}
-
-.goen-footer__field > .goen-btn--ghost > [aria-hidden] {
-  transition: transform var(--dur-base) var(--ease-standard);
-}
-
-.goen-footer__field > .goen-btn--ghost:hover > [aria-hidden] {
-  transform: translateX(3px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .goen-footer__field > .goen-btn--ghost:hover > [aria-hidden] {
-    transform: none;
-  }
 }
 
 .goen-footer__signup-done {
