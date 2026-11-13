@@ -46,3 +46,35 @@ func TestProductNotifyFormLabel(t *testing.T) {
 		})
 	}
 }
+
+// TestProductNotifyFormStacked holds that the restock sign-up is the field and
+// under it one ink button, the only solid action of a face with nothing to
+// buy, both inside the row the stylesheet stacks.
+func TestProductNotifyFormStacked(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale)
+			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, productNotifyForm(&ProductView{Slug: "sold-out", VariantID: "v1", SelectionOK: true, Exact: true}))))
+			if err != nil {
+				t.Fatal(err)
+			}
+			row := findDescendant(doc, func(n *html.Node) bool {
+				return n.Type == html.ElementNode && n.Data == "div" && hasClass(n, "goen-pdp__notifyrow")
+			})
+			if row == nil {
+				t.Fatal("the sign-up has no row of field and button")
+			}
+			button := findDescendant(row, func(n *html.Node) bool { return n.Type == html.ElementNode && n.Data == "button" })
+			if button == nil || attrValue(button, "type") != "submit" || !hasClass(button, "goen-btn--primary") || nodeText(button) != i18n.T(ctx, i18n.KeyRestockSubmit) {
+				t.Errorf("the sign-up's button is not the primary submit %q: %v", i18n.T(ctx, i18n.KeyRestockSubmit), button)
+			}
+			if findDescendant(row, func(n *html.Node) bool {
+				return n.Type == html.ElementNode && n.Data == "input" && attrValue(n, "id") == "notify-email"
+			}) == nil {
+				t.Error("the field is not in the row with its button")
+			}
+		})
+	}
+}

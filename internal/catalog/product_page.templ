@@ -623,7 +623,8 @@ templ productNotifyForm(v *ProductView) {
 						"required": true, "maxlength": "254", "autocomplete": "email",
 					}, fieldrule.Message(i18n.KeyRestockBadEmail), fieldrule.ErrorID("notify-email-error")),
 				})
-				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
+				// The one action of a face with nothing to buy: the ink button, under its field.
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 					{ i18n.T(ctx, i18n.KeyRestockSubmit) }
 				}
 			</div>

@@ -5557,15 +5557,15 @@ input.goen-check {
   margin: 0;
 }
 
+/* The field takes the row, the button the row under it: stacked, as drawn, so
+   the sign-up reads as one thing to fill and one thing to press. */
 .goen-pdp__notifyrow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  display: grid;
+  gap: 0.75rem;
 }
 
 .goen-pdp__notifyrow .goen-input {
-  flex: 1 1 14ch;
-  min-width: min(14ch, 100%);
+  min-width: 0;
 }
 
 .goen-pdp__links,

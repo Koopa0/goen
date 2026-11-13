@@ -12,9 +12,9 @@ import (
 // with a struck original, a campaign's, is in the colour of what ends, in the
 // buy box and in the mobile buy bar alike; an option is a square box of the
 // control corner that is chosen by a 2px ink frame, and a colour says its name
-// on its box; a section is named in the editorial face. Each reads a role or a
-// step, not a value, so the night and the narrow screen take their own from the
-// same rule.
+// on its box; a section is named in the editorial face; the restock field and
+// its button are stacked. Each reads a role or a step, not a value, so the
+// night and the narrow screen take their own from the same rule.
 func TestAppCSSProductPageAsDrawn(t *testing.T) {
 	t.Parallel()
 
@@ -43,6 +43,7 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 		{".goen-swatch--on", `box-shadow:\s*inset 0 0 0 1px var\(--sys-on-surface\);`},
 		{".goen-swatch--dot", `flex-direction:\s*row;`},
 		{".goen-pdp__sectiontitle", `font:\s*var\(--type-headline-m\);`},
+		{".goen-pdp__notifyrow", `display:\s*grid;`},
 	} {
 		found := false
 		for _, block := range declared(want.selector) {
