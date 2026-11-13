@@ -848,9 +848,12 @@ func TestAppCSSStarPickerContrast(t *testing.T) {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
 	tokens := hexTokens(t)
-	// The picker is drawn by day only: its outline, --n-900, has no night.
-	for name, r := range lightDarkTokens(t) {
-		tokens[name] = r.day
+	// The picker is drawn by day only. Its outline is one of app.css's pairs,
+	// so each colour is read the way the storefront resolves it by day.
+	for name, c := range storefrontTokens(t) {
+		if c.day != "" {
+			tokens[name] = c.day
+		}
 	}
 	outline := regexp.MustCompile(`(?s)\.goen-pdp__starmark svg \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	fill := regexp.MustCompile(`(?s)\.goen-pdp__starrow:not\(:hover\)[^{]*\{\s*fill: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
@@ -917,13 +920,28 @@ func TestAppCSSFocusRingContrast(t *testing.T) {
 	roles := roleTokens(t)
 	ringDecl := regexp.MustCompile(`(?:^|;)\s*--ring:\s*var\((--[a-z0-9-]+)\);`)
 	roleGround := regexp.MustCompile(`(?:^|;)\s*background:\s*var\((--sys-[a-z0-9-]+)\);`)
-	dark := 0
+	dark, pageRing := 0, 0
 	for _, r := range cssRule.FindAllStringSubmatch(cssComment.ReplaceAllString(string(sheet), ""), -1) {
 		decl := ringDecl.FindStringSubmatch(";" + r[2])
 		if decl == nil {
 			continue
 		}
 		selectors := strings.Join(selectorList(r[1]), ", ")
+		// The page's own ring: every surface is a ground it may sit on.
+		if _, isRole := roles[decl[1]]; isRole && selectors == ":root" {
+			pageRing++
+			ring := roles[decl[1]]
+			for name, ground := range roles {
+				if !strings.HasPrefix(name, "--sys-surface") {
+					continue
+				}
+				if got := contrast(ring.day, ground.day); got < 3 {
+					t.Errorf("the page's focus ring %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+						decl[1], ring.day, name, ground.day, got)
+				}
+			}
+			continue
+		}
 		if _, isRole := roles[decl[1]]; isRole {
 			g := roleGround.FindStringSubmatch(";" + r[2])
 			if len(g) < 2 || roles[g[1]].day == "" {
@@ -956,6 +974,10 @@ func TestAppCSSFocusRingContrast(t *testing.T) {
 	}
 	if dark == 0 {
 		t.Fatal("app.css does not re-point --ring on any dark ground")
+	}
+	// The storefront's ring is a role, so the night can give it its own blue.
+	if pageRing != 1 {
+		t.Errorf("app.css re-points --ring on :root %d times, want once, to a role", pageRing)
 	}
 }
 
@@ -1425,7 +1447,9 @@ func TestAppCSSShelfPriceContrast(t *testing.T) {
 	if out == nil {
 		t.Fatalf("%s has no sold-out price rule", AppCSS)
 	}
-	grey := resolve(out[1], tokens, links)
+	// The grey is one of app.css's pairs, so it is read the way the
+	// storefront resolves it.
+	grey := storefrontTokens(t)[out[1]].day
 	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well"} {
 		if got := contrast(grey, tokens[name]); math.IsNaN(got) || got < 4.5 {
 			t.Errorf("a sold-out price %s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1", out[1], grey, name, tokens[name], got)

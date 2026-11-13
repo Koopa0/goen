@@ -12,6 +12,9 @@ templ Base(p Page) {
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
 		@documentHead(p, assets.AppCSS) {
 			<meta name="text-scale" content="scale"/>
+			// The storefront follows the visitor's light or dark setting from the
+			// first paint; the back office's head leaves this out and stays light.
+			<meta name="color-scheme" content="light dark"/>
 		}
 		<body class="goen-shell">
 			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
