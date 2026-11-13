@@ -35,7 +35,7 @@ templ comparePreview(p *ComparePreview) {
 		<header class="goen-deptcompare__head">
 			<h2 class="goen-deptcompare__title" id="dept-compare-title">{ i18n.T(ctx, i18n.KeyDeptCompareTitle) }</h2>
 			<p class="goen-deptcompare__meta">{ p.Category }</p>
-			<a class="goen-deptcompare__more" href={ templ.URL(p.Table.SelfHref()) }>{ i18n.T(ctx, i18n.KeyViewCompare) } <span aria-hidden="true">&rarr;</span></a>
+			<a class="goen-deptcompare__more" href={ templ.URL(p.Table.SelfHref()) }>{ i18n.T(ctx, i18n.KeyViewCompare) }<span aria-hidden="true">&nbsp;→</span></a>
 		</header>
 		@compareTable(p.Table, true)
 	</section>

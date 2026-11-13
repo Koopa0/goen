@@ -4278,7 +4278,9 @@ input.goen-check {
 
 /* The comparison table. It scrolls inside its own box so the PAGE never moves
    sideways, and the label column stays put while the products scroll past it —
-   without that a reader loses which row they are on the moment they move. */
+   without that a reader loses which row they are on the moment they move. The
+   box is a printed table's: a rule over it and one under each row, no frame and
+   no corner. */
 .goen-compare {
   display: flex;
   flex-direction: column;
@@ -4289,8 +4291,7 @@ input.goen-check {
 }
 
 .goen-compare__scroll {
-  border: 1px solid var(--rule-line);
-  border-radius: 16px;
+  border-top: 1px solid var(--rule-line);
   overflow-x: auto;
   position: relative;
 }
@@ -4329,7 +4330,6 @@ input.goen-check {
 }
 
 .goen-compare__image {
-  border-radius: 8px;
   height: 96px;
   margin: 0;
   object-fit: cover;
@@ -4461,8 +4461,7 @@ input.goen-check {
 }
 
 .goen-deptcompare__title {
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-display);
+  font: var(--type-headline-m);
   margin: 0;
 }
 
@@ -4472,12 +4471,22 @@ input.goen-check {
   margin: 0;
 }
 
+/* The section's one next step: blue with its arrow, underlined only under the
+   pointer. */
 .goen-deptcompare__more {
+  align-items: center;
   color: var(--sys-primary);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
+  display: inline-flex;
+  font: var(--type-label-l);
   margin-left: auto;
-  text-underline-offset: 3px;
+  min-height: 2.75rem;
+  text-decoration: none;
+}
+
+.goen-deptcompare__more:hover {
+  color: var(--primary-deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .goen-story {
@@ -4619,9 +4628,7 @@ input.goen-check {
 
 .goen-compare__suggesthead {
   color: var(--on-surface-strong);
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-display);
-  line-height: 1.35;
+  font: var(--type-headline-m);
   margin: 0;
 }
 
@@ -7770,18 +7777,20 @@ input.goen-check {
   gap: 12px;
 }
 
-/* The cart's, the checkout's and the wishlist's names in the editorial face, one step under
-   the display size, as the catalogue's pages are named. */
+/* The cart's, the checkout's, the wishlist's and the comparison's names in the editorial
+   face, one step under the display size, as the catalogue's pages are named. */
 .goen-cart .goen-pagehead__title,
 .goen-checkout .goen-pagehead__title,
-.goen-wishlist .goen-pagehead__title {
+.goen-wishlist .goen-pagehead__title,
+.goen-compare .goen-pagehead__title {
   font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
   letter-spacing: 0.02em;
 }
 
 .goen-cart .goen-pagehead__title:lang(en),
 .goen-checkout .goen-pagehead__title:lang(en),
-.goen-wishlist .goen-pagehead__title:lang(en) {
+.goen-wishlist .goen-pagehead__title:lang(en),
+.goen-compare .goen-pagehead__title:lang(en) {
   letter-spacing: 0;
 }
 

@@ -80,6 +80,7 @@ var assetReaders = map[string]string{
 	"assets/tiles_test.go#TestAppCSSCompareBarAsDrawn":                    "contract: the compare box and bar are drawn from roles the night redefines, and the bar must never be pinned to the window, so the rules themselves are what the design signs off",
 	"assets/productpage_test.go#TestAppCSSProductPageAsDrawn":             "contract: the campaign price is vermilion at night only while the color-scheme is dark and the name's step only shrinks on a narrow screen, so the role and the step the rules read are held on the rules",
 	"assets/tiles_test.go#TestAppCSSTileAsDrawn":                          "contract: a tile's sale colour and its sold-out line are drawn at night only while the color-scheme is dark, so the roles the tile reads are held on its rules",
+	"assets/comparepage_test.go#TestAppCSSComparePageAsDrawn":             "contract: the comparison is drawn from roles and a type step the night and the narrow screen redefine, and its box must carry no frame and no corner, so the rules themselves are what the design signs off",
 	"cmd/goen/main_integration_test.go#TestNewRouterAssetsStateless":      "contract: the served asset bytes and their headers are the contract",
 	"cmd/goen/server_test.go#FuzzAssetAndDynamicGzipNegotiationAgree":     "contract: the served asset bytes, their headers and the middleware around them are the contract",
 	"cmd/goen/server_test.go#TestSecurityHeadersAssetOneGzip":             "contract: the served asset bytes, their headers and the middleware around them are the contract",
