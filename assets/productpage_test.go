@@ -12,8 +12,9 @@ import (
 // with a struck original, a campaign's, is in the colour of what ends, in the
 // buy box and in the mobile buy bar alike; an option is a square box of the
 // control corner that is chosen by a 2px ink frame, and a colour says its name
-// on its box. Each reads a role or a step, not a value, so the night and the
-// narrow screen take their own from the same rule.
+// on its box; a section is named in the editorial face. Each reads a role or a
+// step, not a value, so the night and the narrow screen take their own from the
+// same rule.
 func TestAppCSSProductPageAsDrawn(t *testing.T) {
 	t.Parallel()
 
@@ -41,6 +42,7 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 		{".goen-swatch--on", `border-color:\s*var\(--sys-on-surface\);`},
 		{".goen-swatch--on", `box-shadow:\s*inset 0 0 0 1px var\(--sys-on-surface\);`},
 		{".goen-swatch--dot", `flex-direction:\s*row;`},
+		{".goen-pdp__sectiontitle", `font:\s*var\(--type-headline-m\);`},
 	} {
 		found := false
 		for _, block := range declared(want.selector) {
@@ -52,10 +54,18 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 			t.Errorf("%s: no rule for %s declares %s", AppCSS, want.selector, want.decl)
 		}
 	}
-	// No later rule gives the name a size or a family of its own.
-	for _, block := range declared(".goen-pdp__title") {
-		if regexp.MustCompile(`font-(size|family):`).MatchString(block) {
-			t.Errorf("%s: a rule for .goen-pdp__title overrides the 40px step: %s", AppCSS, strings.TrimSpace(block))
+	// No later rule gives the name a size or a family of its own, and none puts
+	// a section's title back in the body face or at a size of its own.
+	for selector, step := range map[string]string{".goen-pdp__title": "40px step", ".goen-pdp__sectiontitle": "headline step"} {
+		for _, block := range declared(selector) {
+			if regexp.MustCompile(`font-(size|family|weight):`).MatchString(block) {
+				t.Errorf("%s: a rule for %s overrides the %s: %s", AppCSS, selector, step, strings.TrimSpace(block))
+			}
+		}
+	}
+	for _, rule := range cssRule.FindAllStringSubmatch(sheet, -1) {
+		if strings.Contains(rule[1], ".goen-pdp__sectiontitle") && regexp.MustCompile(`font-family:\s*var\(--font-sans\)`).MatchString(rule[2]) {
+			t.Errorf("%s: %s sets a section's title in the body face", AppCSS, strings.TrimSpace(rule[1]))
 		}
 	}
 	// An option is no pill, is not chosen in blue, carries no check mark drawn

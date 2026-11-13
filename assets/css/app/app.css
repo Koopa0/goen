@@ -483,7 +483,6 @@ h1,
 h2,
 h3,
 h4,
-.goen-pdp__sectiontitle,
 .goen-pdp__score {
   font-family: var(--font-sans);
   letter-spacing: 0;
@@ -4809,12 +4808,16 @@ input.goen-check {
   gap: 2rem;
 }
 
+/* A section of the product page is named in the editorial face, as the
+   drawing's sub-headings are: the same step as a listing's section title. */
 .goen-pdp__sectiontitle {
   color: var(--on-surface-strong);
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-display);
-  line-height: 1.35;
+  font: var(--type-headline-m);
   margin: 0;
+  min-width: 0;
+  /* At 200% text a long word such as "Specifications" is wider than a phone's
+     line: it breaks inside the word rather than widen the page. */
+  overflow-wrap: anywhere;
 }
 
 /* Gallery. The stage and the thumbnails share one grid: every shot sits in the
@@ -5546,9 +5549,10 @@ input.goen-check {
   margin-left: -12px;
 }
 
-/* With the specs, not pulled up into the buy column's rhythm. */
+/* With the specs, not pulled up into the buy column's rhythm: the section's own
+   gap is the space above it. */
 .goen-pdp__similar {
-  margin: 0.5rem 0 0 0px;
+  margin: 0;
 }
 
 .goen-pdp__links .goen-btn {
@@ -5580,18 +5584,26 @@ input.goen-check {
   margin: 0;
 }
 
-/* Description, then the accordion. Never behind tabs, and the specifications
-   open: what a shopper compares is on the page without a press. */
+/* Description, then the specifications, the warranty and what delivery and
+   returns promise: every one open under its own heading, never behind a press
+   or a tab, so what a shopper compares is on the page. */
 .goen-pdp__more {
-  border-bottom: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
   min-width: 0;
+}
+
+.goen-pdp__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
 }
 
 .goen-pdp__desc {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  margin-bottom: 3rem;
   min-width: 0;
 }
 
@@ -5602,67 +5614,22 @@ input.goen-check {
   max-width: 68ch;
 }
 
-.goen-pdp__acc {
-  border-top: 1px solid var(--rule);
-}
-
-.goen-pdp__accsummary {
-  align-items: center;
-  cursor: pointer;
+.goen-pdp__block {
   display: flex;
+  flex-direction: column;
   gap: 1rem;
-  justify-content: space-between;
-  list-style: none;
-  min-height: 3.5rem;
-}
-
-.goen-pdp__accsummary::-webkit-details-marker {
-  display: none;
-}
-
-.goen-pdp__accsummary:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-
-/* The second value is the accessible text: the mark is a picture of a state the
-   open attribute already states. */
-.goen-pdp__accsummary::after {
-  color: var(--on-surface-quiet);
-  content: '+';
-  content: '+' / '';
-  font-size: 1.5rem;
-  line-height: 1;
-}
-
-.goen-pdp__acc[open] > .goen-pdp__accsummary::after {
-  content: '\2212';
-  content: '\2212' / '';
-}
-
-.goen-pdp__acctitle {
-  color: var(--on-surface-strong);
-  font-size: 1.125rem;
-  font-weight: var(--fw-medium);
-  line-height: 1.5;
-  margin: 0;
   min-width: 0;
-  overflow-wrap: anywhere;
 }
 
-.goen-pdp__accpanel {
+.goen-pdp__ship {
   max-width: 48rem;
-  padding-bottom: 1.5rem;
 }
 
 .goen-pdp__warranty {
   color: var(--on-surface-soft);
   line-height: 1.7;
   margin: 0;
-}
-
-.goen-pdp__warranty + .goen-pdp__warranty {
-  margin-top: 0.5rem;
+  max-width: 48rem;
 }
 
 .goen-pdp__policies {
@@ -5677,13 +5644,7 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-/* The table's hairlines run the accordion's full width, like the hairlines
-   between the sections above and below it; the panel's prose measure is for
-   paragraphs, and stopping these at it would stack two lengths of rule. */
-.goen-pdp__accpanel:has(> .goen-pdp__speclist) {
-  max-width: none;
-}
-
+/* The table's hairlines run the section's full width. */
 .goen-pdp__speclist {
   margin: 0;
 }

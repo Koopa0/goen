@@ -36,37 +36,29 @@ templ Product(p frame.Page, v *ProductView) {
 				if v.HasSpecs() || v.HasWarranty() || v.WarrantyNote != "" {
 					<div class="goen-pdp__detail">
 						if v.HasSpecs() {
-							<details class="goen-pdp__acc goen-pdp__specs" open>
-								<summary class="goen-pdp__accsummary">
-									<h2 id="specs-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionSpecs) }</h2>
-								</summary>
-								<div class="goen-pdp__accpanel">
-									<dl class="goen-pdp__speclist">
-										for _, s := range v.Specs {
-											<div class="goen-pdp__specrow">
-												<dt class="goen-pdp__specterm">{ s.Label }</dt>
-												<dd class="goen-pdp__specvalue">{ s.Value }</dd>
-											</div>
-										}
-									</dl>
-									@productCompare(v)
-								</div>
-							</details>
+							<section class="goen-pdp__block" aria-labelledby="specs-heading">
+								<h2 id="specs-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionSpecs) }</h2>
+								<dl class="goen-pdp__speclist">
+									for _, s := range v.Specs {
+										<div class="goen-pdp__specrow">
+											<dt class="goen-pdp__specterm">{ s.Label }</dt>
+											<dd class="goen-pdp__specvalue">{ s.Value }</dd>
+										</div>
+									}
+								</dl>
+								@productCompare(v)
+							</section>
 						}
 						if v.HasWarranty() || v.WarrantyNote != "" {
-							<details class="goen-pdp__acc">
-								<summary class="goen-pdp__accsummary">
-									<h2 id="warranty-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionWarranty) }</h2>
-								</summary>
-								<div class="goen-pdp__accpanel">
-									if v.HasWarranty() {
-										<p class="goen-pdp__warranty">{ v.WarrantyText(ctx) }</p>
-									}
-									if v.WarrantyNote != "" {
-										<p class="goen-pdp__warranty">{ v.WarrantyNote }</p>
-									}
-								</div>
-							</details>
+							<section class="goen-pdp__block" aria-labelledby="warranty-heading">
+								<h2 id="warranty-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionWarranty) }</h2>
+								if v.HasWarranty() {
+									<p class="goen-pdp__warranty">{ v.WarrantyText(ctx) }</p>
+								}
+								if v.WarrantyNote != "" {
+									<p class="goen-pdp__warranty">{ v.WarrantyNote }</p>
+								}
+							</section>
 						}
 					</div>
 				}
@@ -83,18 +75,14 @@ templ Product(p frame.Page, v *ProductView) {
 						</dl>
 					</section>
 				}
-				<details class="goen-pdp__acc" open>
-					<summary class="goen-pdp__accsummary">
-						<h2 id="delivery-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionDelivery) }</h2>
-					</summary>
-					<div class="goen-pdp__accpanel goen-pdp__ship">
-						@widget.StatLine(v.ShippingFacts(ctx), widget.StatLinePairs)
-						<ul class="goen-pdp__policies" role="list">
-							<li><a href="/shipping">{ i18n.T(ctx, i18n.KeyShippingPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
-							<li><a href="/returns">{ i18n.T(ctx, i18n.KeyReturnsPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
-						</ul>
-					</div>
-				</details>
+				<section class="goen-pdp__block goen-pdp__ship" aria-labelledby="delivery-heading">
+					<h2 id="delivery-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDelivery) }</h2>
+					@widget.StatLine(v.ShippingFacts(ctx), widget.StatLinePairs)
+					<ul class="goen-pdp__policies" role="list">
+						<li><a href="/shipping">{ i18n.T(ctx, i18n.KeyShippingPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
+						<li><a href="/returns">{ i18n.T(ctx, i18n.KeyReturnsPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
+					</ul>
+				</section>
 				if !v.HasSpecs() {
 					@productCompare(v)
 				}
