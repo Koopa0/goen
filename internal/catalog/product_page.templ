@@ -419,7 +419,7 @@ templ productLinks(v *ProductView) {
 		} else {
 			// A link to somewhere else, so the ink and the faint underline every such link wears; the
 			// heart is the signed-in toggle's, which is a button with a state.
-			<a class="goen-pdp__wishlink" href={ templ.SafeURL("/signin?next=/p/"+v.Slug+"%23wishlist") }>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</a>
+			<a class="goen-pdp__wishlink" href={ templ.SafeURL("/signin?next=/p/" + v.Slug + "%23wishlist") }>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</a>
 		}
 	</div>
 }

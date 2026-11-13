@@ -2036,7 +2036,7 @@ func productLinks(v *ProductView) templ.Component {
 			var templ_7745c5c3_Var100 string
 			templ_7745c5c3_Var100, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/signin?next=/p/" + v.Slug + "%23wishlist")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `catalog/product_page.templ`, Line: 422, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `catalog/product_page.templ`, Line: 422, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var100)
 			if templ_7745c5c3_Err != nil {
@@ -2049,7 +2049,7 @@ func productLinks(v *ProductView) templ.Component {
 			var templ_7745c5c3_Var101 string
 			templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyWishlistSignIn))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `catalog/product_page.templ`, Line: 422, Col: 134}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `catalog/product_page.templ`, Line: 422, Col: 138}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var101))
 			if templ_7745c5c3_Err != nil {
