@@ -27,10 +27,8 @@ templ compareForm(offered bool) {
 			// submit; the row of ticked products is goen.js's, put before them.
 			<div class="goen-compare-pick__go">
 				<span class="goen-compare-pick__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareLimit), MaxCompare) }</span>
-				@widget.Button(widget.ButtonProps{
-					ButtonStyle: widget.ButtonStyleSecondary,
-					Size:        widget.SizeSmall,
-				}, "submit") {
+				// The bar's one action, so the ink button the drawing sets there, at the control's own size.
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 					{ i18n.T(ctx, i18n.KeyCompareSelected) }
 				}
 			</div>

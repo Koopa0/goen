@@ -83,7 +83,8 @@ func TestAppCSSTileAsDrawn(t *testing.T) {
 // TestAppCSSCompareBarAsDrawn checks the compare box and bar as the design
 // draws them: the box is a square of the control boundary on the page ground,
 // ink when ticked, with the ring on focus and a 44px label; the bar is a tool
-// strip on the high container, under the grid and never pinned to the window.
+// strip on the high container, under the grid and never pinned to the window,
+// and its one action is the ink button, which no rule of the bar turns blue.
 // Each reads a role, so the night takes its value from the same rule.
 func TestAppCSSCompareBarAsDrawn(t *testing.T) {
 	t.Parallel()
@@ -137,9 +138,15 @@ func TestAppCSSCompareBarAsDrawn(t *testing.T) {
 		}
 	}
 	pinned := regexp.MustCompile(`position:\s*(sticky|fixed)`)
+	blue := regexp.MustCompile(`--sys-primary|--primary-faint|--primary-deep|--secondary`)
 	for _, rule := range rules {
 		if strings.Contains(rule[1], "goen-compare-pick") && pinned.MatchString(rule[2]) {
 			t.Errorf("%s: %s pins the compare bar to the window: %s", AppCSS, strings.TrimSpace(rule[1]), pinned.FindString(rule[2]))
+		}
+		// The bar's one action is the ink button the drawing sets there, so no
+		// rule of the bar lays blue on it.
+		if strings.Contains(rule[1], "goen-compare-pick") && blue.MatchString(rule[2]) {
+			t.Errorf("%s: %s draws the bar in blue: %s", AppCSS, strings.TrimSpace(rule[1]), blue.FindString(rule[2]))
 		}
 	}
 }

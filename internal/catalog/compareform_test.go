@@ -13,9 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-// TestCompareFormSubmitIsTonal: comparing the ticked products is a step forward, not the
-// listing's own action, so its submit is the tonal level.
-func TestCompareFormSubmitIsTonal(t *testing.T) {
+// TestCompareFormSubmitIsInk: the bar is the one place on a listing that asks for
+// anything, and the drawing sets its action as the ink button, at the control's own
+// size; the blue tonal level, and the small size that went with it, are not drawn.
+func TestCompareFormSubmitIsInk(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -31,8 +32,8 @@ func TestCompareFormSubmitIsTonal(t *testing.T) {
 			if submit == nil {
 				t.Fatal("the compare bar has no submit")
 			}
-			if class := attrValue(submit, "class"); !hasClass(submit, "goen-btn--secondary") || hasClass(submit, "goen-btn--outline") {
-				t.Errorf("the compare submit is drawn as %q, want the tonal level", class)
+			if class := attrValue(submit, "class"); !hasClass(submit, "goen-btn--primary") || hasClass(submit, "goen-btn--secondary") || hasClass(submit, "goen-btn--outline") || hasClass(submit, "goen-btn--sm") {
+				t.Errorf("the compare submit is drawn as %q, want the primary level at the control's own size", class)
 			}
 		})
 	}
