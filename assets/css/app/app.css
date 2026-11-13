@@ -4931,13 +4931,6 @@ input.goen-check {
   margin: 0;
 }
 
-.goen-pdp__titlerow {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-}
-
 /* The name is 40px in the editorial face, a step and more above the 28px
    price. The step is in rem, so at 200% text it is 64px and more, and a model
    number such as "10000mAh" is wider than a phone's line: the name breaks
@@ -5097,8 +5090,10 @@ input.goen-check {
   margin: 0.125rem 0 0;
 }
 
+/* What ends is vermilion, here as on the shelf and the home: the time left in
+   the campaign line, not the words around it. */
 .goen-pdp__source .goen-ends__left {
-  color: var(--primary-deep);
+  color: var(--sys-tertiary);
 }
 
 /* An option group. The fieldset keeps the legend, which is the only thing that
@@ -5252,9 +5247,12 @@ input.goen-check {
   stroke-width: 1;
 }
 
+/* Few left is a fact about the stock, not a thing that ends: ink, and medium
+   weight to be seen, never the vermilion of a deadline. */
 .goen-pdp__lowstock {
-  color: var(--warn-ink);
+  color: var(--on-surface-strong);
   font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 

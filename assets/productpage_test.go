@@ -13,8 +13,10 @@ import (
 // buy box and in the mobile buy bar alike; an option is a square box of the
 // control corner that is chosen by a 2px ink frame, and a colour says its name
 // on its box; a section is named in the editorial face; the restock field and
-// its button are stacked. Each reads a role or a step, not a value, so the
-// night and the narrow screen take their own from the same rule.
+// its button are stacked; the time left in a campaign's line is vermilion, as
+// what ends is everywhere, and the few left of a stock is ink. Each reads a
+// role or a step, not a value, so the night and the narrow screen take their
+// own from the same rule.
 func TestAppCSSProductPageAsDrawn(t *testing.T) {
 	t.Parallel()
 
@@ -44,6 +46,8 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 		{".goen-swatch--dot", `flex-direction:\s*row;`},
 		{".goen-pdp__sectiontitle", `font:\s*var\(--type-headline-m\);`},
 		{".goen-pdp__notifyrow", `display:\s*grid;`},
+		{".goen-pdp__source .goen-ends__left", `color:\s*var\(--sys-tertiary\);`},
+		{".goen-pdp__lowstock", `color:\s*var\(--on-surface-strong\);`},
 	} {
 		found := false
 		for _, block := range declared(want.selector) {
@@ -78,6 +82,13 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 		}
 		if bad := regexp.MustCompile(`--sys-primary|--primary-faint|--primary-deep|--r-press|--r-full|(?:^|[\s;{])content:|clip-path:`).FindString(rule[2]); bad != "" {
 			t.Errorf("%s: %s declares %q: an option is a square box chosen by its ink frame, its name shown", AppCSS, strings.TrimSpace(rule[1]), bad)
+		}
+	}
+	// Few left is not a thing that ends: no rule gives it the vermilion of a
+	// deadline or a warning's amber.
+	for _, block := range declared(".goen-pdp__lowstock") {
+		if regexp.MustCompile(`--sys-tertiary|--warn-ink|--accent`).MatchString(block) {
+			t.Errorf("%s: .goen-pdp__lowstock is drawn as a deadline or a warning: %s", AppCSS, strings.TrimSpace(block))
 		}
 	}
 }
