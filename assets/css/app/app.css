@@ -6276,9 +6276,12 @@ input.goen-check {
 }
 
 /* The checkout is one column of 720px: the form is read and filled from the
-   top down, and the order summary with the one button that pays closes it. */
-.goen-checkout {
-  max-width: calc(45rem + 2 * var(--page-gutter));
+   top down, and the order summary with the one button that pays closes it. The
+   box is the page's, as the cart's is, so the name and the column start where
+   the header's text does; the column is the box's own children, left on the
+   page's edge rather than centred in it. */
+.goen-checkout > * {
+  max-width: 45rem;
 }
 
 /* The order and the payment hand-off are one reading column: a wider page
