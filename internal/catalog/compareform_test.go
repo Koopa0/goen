@@ -60,6 +60,12 @@ func TestCompareFormWithoutScript(t *testing.T) {
 			if got := [3]string{attrValue(form, "id"), attrValue(form, "method"), attrValue(form, "action")}; got != [3]string{"compare-pick", "get", "/compare"} {
 				t.Errorf("compareForm(true) form id, method, action = %q, want compare-pick, get, /compare", got)
 			}
+			// What goen.js reads to draw the row: a comparison is two products, and a
+			// remove button is named with the applied-filter chip's sentence.
+			remove := map[string]string{"zh-Hant": "移除「%s」", "en": "Remove “%s”"}[locale.Tag()]
+			if got := [2]string{attrValue(form, "data-compare-min"), attrValue(form, "data-compare-remove")}; got != [2]string{"2", remove} {
+				t.Errorf("compareForm(true) data-compare-min, data-compare-remove = %q, want 2, %q", got, remove)
+			}
 
 			box := findDescendant(form, func(n *html.Node) bool { return n.Type == html.ElementNode && n.Data == "input" })
 			switch {
