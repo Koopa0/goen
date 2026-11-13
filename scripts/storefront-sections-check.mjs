@@ -107,78 +107,69 @@ try {
     console.log(`rules row ${width}px: content at the section's top`);
   }
 
-  // The department photographs keep the 4:3 they are shot in.
-  for (const width of [375, 768, 1440]) {
+  // The home page's departments are the index the missing page and the empty
+  // search draw: a square photograph keeping the 4:3 it is shot in beside the
+  // name in the editorial face, one above another on a phone, two across from
+  // 768 and three across a desktop. The heading over it is the editorial face
+  // too, and the photograph's link is out of the tab order beside the name's.
+  for (const [width, columns] of [[375, 1], [768, 2], [1024, 2], [1440, 3]]) {
     await open('/home', width);
-    const wells = await evaluate(`[...document.querySelectorAll('.goen-cat__well')].map(well => {
-      const box = well.getBoundingClientRect();
-      return { width: box.width, height: box.height };
-    })`);
-    assert.equal(wells.length, 3, `departments ${width}px: wells drawn`);
-    for (const well of wells) {
-      assert.ok(well.width > 0 && Math.abs(well.height - well.width * 3 / 4) <= 1, `departments ${width}px: a well is ${well.width}x${well.height}, not 4:3`);
+    const index = await evaluate(`(() => {
+      const items = [...document.querySelectorAll('.goen-deptindex__item')];
+      const photos = items.map(item => {
+        const link = item.querySelector('.goen-deptindex__photo');
+        const box = link.getBoundingClientRect();
+        return { width: box.width, height: box.height, radius: getComputedStyle(link).borderTopLeftRadius,
+          hidden: link.getAttribute('aria-hidden'), tabindex: link.getAttribute('tabindex'),
+          name: getComputedStyle(item.querySelector('.goen-deptindex__name')).fontFamily };
+      });
+      const heading = document.querySelector('#cats-heading');
+      const tops = new Set(items.map(item => Math.round(item.getBoundingClientRect().left)));
+      return { photos, columns: tops.size, heading: getComputedStyle(heading).fontFamily,
+        old: document.querySelectorAll('.goen-cats, .goen-cat').length };
+    })()`);
+    assert.equal(index.photos.length, 3, `departments ${width}px: entries drawn`);
+    assert.equal(index.columns, columns, `departments ${width}px: ${index.columns} columns, want ${columns}`);
+    assert.equal(index.old, 0, `departments ${width}px: the page still draws the grid the index replaced`);
+    assert.match(index.heading, /Noto Serif TC/, `departments ${width}px: the heading is set in ${index.heading}`);
+    for (const photo of index.photos) {
+      assert.ok(photo.width > 0 && Math.abs(photo.height - photo.width * 3 / 4) <= 1, `departments ${width}px: a photograph is ${photo.width}x${photo.height}, not 4:3`);
+      assert.equal(photo.radius, '0px', `departments ${width}px: a photograph has a ${photo.radius} corner, not square`);
+      assert.deepEqual([photo.hidden, photo.tabindex], ['true', '-1'], `departments ${width}px: the photograph's link is aria-hidden=${photo.hidden} tabindex=${photo.tabindex}`);
+      assert.match(photo.name, /Noto Serif TC/, `departments ${width}px: a name is set in ${photo.name}`);
     }
-    console.log(`departments ${width}px: ${wells.length} wells at 4:3`);
+    console.log(`departments ${width}px: ${index.photos.length} square photographs at 4:3 in ${columns} column${columns === 1 ? '' : 's'}, editorial names`);
   }
 
-  // Under a hovering pointer a department photograph grows a little instead of
-  // dimming, a press puts it straight back, and reduced motion keeps it still.
-  // A browser without a hovering pointer (headless Chrome on CI) never applies
-  // those rules, so there the rules are read from the parsed sheet instead.
-  {
-    const label = 'department zoom';
-    const measurable = await evaluate(`matchMedia('(hover: hover)').matches && matchMedia('(prefers-reduced-motion: no-preference)').matches`);
-    if (measurable) {
-      const photo = () => evaluate(`(() => {
-        const photo = document.querySelector('.goen-cat__photo');
-        getComputedStyle(photo).scale;
-        photo.getAnimations().forEach(animation => animation.finish());
-        const style = getComputedStyle(photo);
-        return { scale: style.scale, opacity: style.opacity };
-      })()`);
-      assert.deepEqual(await photo(), { scale: 'none', opacity: '1' }, `${label}: at rest`);
-      await force('.goen-cat', ['hover']);
-      assert.deepEqual(await photo(), { scale: '1.03', opacity: '1' }, `${label}: on hover`);
-      await force('.goen-cat', ['hover', 'active']);
-      assert.deepEqual(await photo(), { scale: '1', opacity: '1' }, `${label}: pressed`);
-      await force('.goen-cat', []);
-      await media([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
-      await force('.goen-cat', ['hover']);
-      assert.deepEqual(await photo(), { scale: 'none', opacity: '1' }, `${label}: on hover with reduced motion`);
-      await force('.goen-cat', []);
-      await media([]);
-      console.log(`${label}: measured in the page: 1.03 on hover, 1 pressed, none with reduced motion, never dimmed`);
-    } else {
-      const sheet = await evaluate(`(() => {
-        const rules = [];
-        const walk = (list, conditions) => {
-          for (const rule of list) {
-            const inner = rule.media?.mediaText;
-            if (rule.cssRules) walk(rule.cssRules, inner === undefined ? conditions : [...conditions, inner]);
-            if (rule.selectorText !== undefined) {
-              rules.push({ selector: rule.selectorText, conditions, scale: rule.style.scale,
-                opacity: rule.style.opacity, transition: rule.style.transition });
-            }
-          }
-        };
-        for (const sheet of document.styleSheets) {
-          try { walk(sheet.cssRules, []); } catch { /* a sheet from another origin cannot be read */ }
-        }
-        return rules;
-      })()`);
-      const gated = rule => rule.conditions.some(text => /\(hover:\s*hover\)/.test(text) && /\(prefers-reduced-motion:\s*no-preference\)/.test(text));
-      const find = selector => sheet.find(rule => rule.selector === selector && gated(rule));
-      const hover = find('.goen-cat:hover .goen-cat__photo');
-      assert.ok(hover, `${label}: no (hover: hover) and (prefers-reduced-motion: no-preference) rule for .goen-cat:hover .goen-cat__photo`);
-      assert.equal(hover.scale, '1.03', `${label}: on hover`);
-      const pressed = find('.goen-cat:active .goen-cat__photo');
-      assert.ok(pressed, `${label}: no (hover: hover) and (prefers-reduced-motion: no-preference) rule for .goen-cat:active .goen-cat__photo`);
-      assert.equal(pressed.scale, '1', `${label}: pressed`);
-      assert.match(pressed.transition, /\bnone\b/, `${label}: pressed still eases back`);
-      const dimming = sheet.filter(rule => rule.opacity !== '' && rule.selector.includes('goen-cat__photo'));
-      assert.deepEqual(dimming, [], `${label}: a rule dims the photograph`);
-      console.log(`${label}: this browser reports no hovering pointer; read the media rules instead: 1.03 on hover, 1 pressed without easing, no opacity on the photograph`);
-    }
+  // A department without a photograph shows its first letter on its tone, a
+  // picture rather than words in a link, so no underline runs under it, and its
+  // sub-categories are set apart with the dot between spaces that a screen reader
+  // skips.
+  for (const width of [375, 1440]) {
+    await open('/home?depts=mark', width);
+    const mark = await evaluate(`(() => {
+      const tile = document.querySelector('.goen-deptindex__photo--mark');
+      if (!tile) return null;
+      const box = tile.getBoundingClientRect(), style = getComputedStyle(tile);
+      const letter = tile.querySelector('.goen-deptindex__mark');
+      const subs = document.querySelector('.goen-deptindex__subs');
+      return { width: box.width, height: box.height, line: style.textDecorationLine, background: style.backgroundColor,
+        hidden: tile.getAttribute('aria-hidden'), tabindex: tile.getAttribute('tabindex'), letter: letter?.textContent,
+        letterLine: letter && getComputedStyle(letter).textDecorationLine, size: letter && parseFloat(getComputedStyle(letter).fontSize),
+        seps: subs ? [...subs.querySelectorAll('.goen-sep')].map(sep => sep.getAttribute('aria-hidden')) : [],
+        text: subs?.textContent.replace(/\\s+/g, ' ').trim() };
+    })()`);
+    const where = `department without a photograph ${width}px`;
+    assert.ok(mark, `${where}: no mark drawn`);
+    assert.equal(mark.letter, 'B', `${where}: the mark reads ${mark.letter}`);
+    assert.ok(Math.abs(mark.height - mark.width * 3 / 4) <= 1, `${where}: the mark is ${mark.width}x${mark.height}, not 4:3`);
+    assert.equal(mark.line, 'none', `${where}: the mark's link is ${mark.line}`);
+    assert.notEqual(mark.background, 'rgba(0, 0, 0, 0)', `${where}: the mark has no tone behind it`);
+    assert.ok(mark.size <= 56, `${where}: the letter is ${mark.size}px, past the 3.5rem cap`);
+    assert.deepEqual([mark.hidden, mark.tabindex], ['true', '-1'], `${where}: the mark's link is aria-hidden=${mark.hidden} tabindex=${mark.tabindex}`);
+    assert.deepEqual(mark.seps, ['true', 'true'], `${where}: the sub-categories' dots are ${JSON.stringify(mark.seps)}, want two hidden from a screen reader`);
+    assert.equal(mark.text, 'Wearables · Speakers · Cables and chargers', `${where}: the sub-categories read ${JSON.stringify(mark.text)}`);
+    console.log(`${where}: ${mark.letter} on its tone, no underline, sub-categories spaced around a dot`);
   }
 
   // Only the script that moves between slides marks a tab aria-current, so the

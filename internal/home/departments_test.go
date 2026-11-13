@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -169,11 +170,11 @@ func TestHeroCarouselCarriesItsProducts(t *testing.T) {
 			{Source: hero.SourceCampaign, Title: "Autumn", CTA: hero.CTA{Label: see, Href: "/s/autumn"}, Tiles: tiledShelf(4)},
 			{Source: hero.SourceScheduled, Title: "Editor", CTA: hero.CTA{Label: "Read on", Href: "/about"}},
 		}
-		page := renderComponent(t, ctx, Page(Meta(ctx), View{
-			Slides: slides, Categories: departmentsOf(2),
-			Row:   ProductRow{Title: "Tea", Href: "/s/tea", Tiles: tiledShelf(4), Campaign: &RowCampaign{Items: 4}},
-			Band:  &DepartmentBand{Name: "Home", Href: "/c/home", Items: 12, Tiles: tiledShelf(4)},
-			Rules: policy.Rules{FreeDeliveryCents: 300000},
+		page := renderComponent(t, frame.WithTopNav(ctx, departmentsOf(2)), Page(Meta(ctx), View{
+			Slides: slides,
+			Row:    ProductRow{Title: "Tea", Href: "/s/tea", Tiles: tiledShelf(4), Campaign: &RowCampaign{Items: 4}},
+			Band:   &DepartmentBand{Name: "Home", Href: "/c/home", Items: 12, Tiles: tiledShelf(4)},
+			Rules:  policy.Rules{FreeDeliveryCents: 300000},
 		}))
 		if strings.Contains(page, `id="row-heading"`) {
 			t.Errorf("%s: the row repeats the products its campaign's slide carries", locale)

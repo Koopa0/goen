@@ -16,7 +16,6 @@ import (
 
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/site"
@@ -75,7 +74,7 @@ func TestStore_LoadDepartmentPhotos(t *testing.T) {
 				t.Fatalf("store upload: %v", err)
 			}
 
-			store, nav := home.NewStore(tx), site.NewStore(tx)
+			nav := site.NewStore(tx)
 			listing := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 			for _, slug := range []string{"photo-department", "books-stationery"} {
 				if n, setErr := q.SetCategoryImage(ctx, db.SetCategoryImageParams{
@@ -85,17 +84,17 @@ func TestStore_LoadDepartmentPhotos(t *testing.T) {
 				}
 				url := "/media/" + obj.Digest
 				srcset := url + "/400 400w, " + url + " 600w"
-				assertDepartmentPhotograph(t, ctx, store, nav, listing, slug, url, srcset)
+				assertDepartmentPhotograph(t, ctx, nav, listing, slug, url, srcset)
 				if n, clearErr := q.ClearCategoryImage(ctx, slug); clearErr != nil || n != 1 {
 					t.Fatalf("clear %s photograph: rows=%d err=%v", slug, n, clearErr)
 				}
-				assertDepartmentPhotograph(t, ctx, store, nav, listing, slug, "", "")
+				assertDepartmentPhotograph(t, ctx, nav, listing, slug, "", "")
 			}
 		})
 	}
 }
 
-func assertDepartmentPhotograph(t *testing.T, ctx context.Context, store *home.Store, chrome *site.Store, listing *catalog.Store, slug, url, srcset string) {
+func assertDepartmentPhotograph(t *testing.T, ctx context.Context, chrome *site.Store, listing *catalog.Store, slug, url, srcset string) {
 	t.Helper()
 	nav, err := chrome.Nav(ctx)
 	if err != nil {
@@ -114,21 +113,26 @@ func assertDepartmentPhotograph(t *testing.T, ctx context.Context, store *home.S
 	if item.PhotoURL != url || item.PhotoSrcset != srcset {
 		t.Errorf("Nav() %s photograph = %q, %q; want %q, %q", slug, item.PhotoURL, item.PhotoSrcset, url, srcset)
 	}
-	view, err := store.Load(ctx)
-	if err != nil {
-		t.Fatalf("Load(): %v", err)
+	var index strings.Builder
+	if err = frame.DepartmentIndex().Render(frame.WithTopNav(ctx, nav), &index); err != nil {
+		t.Fatalf("render the home page's index: %v", err)
 	}
-	found := false
-	for _, category := range view.Categories {
-		if category.Slug == slug {
-			found = true
-			if category.Photo.URL != url || category.Photo.Srcset != srcset {
-				t.Errorf("home %s photograph = %+v; want %q, %q", slug, category.Photo, url, srcset)
-			}
+	var entry string
+	for _, item := range regexp.MustCompile(`(?s)<li class="goen-deptindex__item".*?</li>`).FindAllString(index.String(), -1) {
+		if strings.Contains(item, `href="/c/`+slug+`"`) {
+			entry = item
+			break
 		}
 	}
-	if !found {
-		t.Errorf("home omits %s", slug)
+	if entry == "" {
+		t.Fatalf("the home page's index omits %s", slug)
+	}
+	if url == "" {
+		if !strings.Contains(entry, "goen-deptindex__photo--mark") || strings.Contains(entry, "<img") {
+			t.Errorf("home %s has no photograph and does not show its mark: %s", slug, entry)
+		}
+	} else if !strings.Contains(entry, `src="`+url+`" srcset="`+srcset+`"`) {
+		t.Errorf("home %s photograph is not %q, %q: %s", slug, url, srcset, entry)
 	}
 	category, err := listing.Listing(ctx, slug, catalog.Filters{})
 	if err != nil {

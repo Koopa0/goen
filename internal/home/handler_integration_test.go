@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/site"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
 )
 
@@ -62,8 +63,14 @@ func TestHandler_IndexCategoriesProducts(t *testing.T) {
 	emptyHeroSlides(t)
 	stopCampaigns(t)
 
+	// The department index is the header's own list, which the site's middleware
+	// puts in the request's context; this request goes to the handler directly.
+	nav, err := site.NewStore(pool).Nav(i18n.WithLocale(t.Context(), i18n.ZhHant))
+	if err != nil {
+		t.Fatalf("read the header: %v", err)
+	}
 	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler))
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+	req := httptest.NewRequestWithContext(frame.WithTopNav(t.Context(), nav), http.MethodGet, "/", http.NoBody)
 	res := httptest.NewRecorder()
 	h.Index(res, req)
 
@@ -111,15 +118,12 @@ func TestHandler_IndexCategoriesProducts(t *testing.T) {
 	}
 }
 
-// TestStore_LoadAggregatesTiles holds that Load aggregates the six root
-// categories into tiles and the product row into four priced tiles.
+// TestStore_LoadAggregatesTiles holds that Load aggregates the product row into
+// four priced tiles.
 func TestStore_LoadAggregatesTiles(t *testing.T) {
 	v, err := home.NewStore(pool).Load(t.Context())
 	if err != nil {
 		t.Fatalf("load: %v", err)
-	}
-	if len(v.Categories) != 6 {
-		t.Errorf("got %d category tiles; want the 6 root categories", len(v.Categories))
 	}
 	if len(v.Row.Tiles) != 4 {
 		t.Fatalf("got %d product-row tiles; want 4", len(v.Row.Tiles))
@@ -137,58 +141,6 @@ func TestStore_LoadAggregatesTiles(t *testing.T) {
 		}
 		if tile.OnSale && tile.CompareCents <= tile.PriceCents {
 			t.Errorf("tile %q claims a sale but the compare price is not higher", tile.Slug)
-		}
-	}
-}
-
-// TestStore_LoadUnlistedDepartment holds that Load leaves a department with no
-// listed product out of the directory.
-func TestStore_LoadUnlistedDepartment(t *testing.T) {
-	ctx := t.Context()
-	before, err := home.NewStore(pool).Load(ctx)
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
-	if len(before.Categories) == 0 {
-		t.Fatal("the seed has no departments")
-	}
-	hidden := before.Categories[0].Slug
-
-	var ids []uuid.UUID
-	rows, err := pool.Query(ctx, `
-		WITH RECURSIVE tree AS (
-		    SELECT id FROM categories WHERE slug = $1
-		    UNION ALL
-		    SELECT k.id FROM categories k JOIN tree t ON k.parent_id = t.id
-		)
-		UPDATE products SET status = 'draft'
-		WHERE status = 'active' AND category_id IN (SELECT id FROM tree)
-		RETURNING id`, hidden)
-	if err != nil {
-		t.Fatalf("unlist the department's products: %v", err)
-	}
-	ids, err = pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
-	if err != nil {
-		t.Fatalf("read the unlisted products: %v", err)
-	}
-	t.Cleanup(func() {
-		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		if _, relistErr := pool.Exec(clean, `UPDATE products SET status = 'active' WHERE id = ANY($1)`, ids); relistErr != nil {
-			t.Errorf("list the products again: %v", relistErr)
-		}
-	})
-
-	after, err := home.NewStore(pool).Load(ctx)
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
-	if len(after.Categories) != len(before.Categories)-1 {
-		t.Errorf("%d departments listed, want %d", len(after.Categories), len(before.Categories)-1)
-	}
-	for i := range after.Categories {
-		if after.Categories[i].Slug == hidden {
-			t.Errorf("%s has no listed product and is still in the directory", hidden)
 		}
 	}
 }
@@ -726,11 +678,11 @@ func TestHandler_IndexLowestFeeNote(t *testing.T) {
 	}
 }
 
-// TestStore_LoadHeaderTilesOrder: The header and the home tiles read one query,
-// so their order cannot disagree, and two roots sharing a position is refused
-// at the schema: categories_position_key is NULLS NOT DISTINCT precisely
-// because the ROOT categories are the header, and a plain unique index would
-// treat their NULL parents as distinct and allow the pair.
+// TestStore_LoadHeaderTilesOrder: The header and the home page's index read one
+// list, so their order is the roots' positions, and two roots sharing a
+// position is refused at the schema: categories_position_key is NULLS NOT
+// DISTINCT precisely because the ROOT categories are the header, and a plain
+// unique index would treat their NULL parents as distinct and allow the pair.
 func TestStore_LoadHeaderTilesOrder(t *testing.T) {
 	ctx := t.Context()
 
@@ -755,33 +707,6 @@ func TestStore_LoadHeaderTilesOrder(t *testing.T) {
 		t.Errorf("refused by %q, want categories_position_key — bound to the "+
 			"constraint, because a statement meant to prove one rule often trips "+
 			"another first", pgErr.ConstraintName)
-	}
-
-	locale := i18n.WithLocale(ctx, i18n.ZhHant)
-	store := home.NewStore(pool)
-
-	nav, err := site.NewStore(pool).Nav(locale)
-	if err != nil {
-		t.Fatalf("read the header: %v", err)
-	}
-	view, err := store.Load(locale)
-	if err != nil {
-		t.Fatalf("read the home page: %v", err)
-	}
-	if len(nav) == 0 || len(view.Categories) == 0 {
-		t.Fatal("one of the two read nothing, so this compared nothing")
-	}
-
-	header := make([]string, 0, len(nav))
-	for i := range nav {
-		header = append(header, nav[i].Slug)
-	}
-	tiles := make([]string, 0, len(view.Categories))
-	for i := range view.Categories {
-		tiles = append(tiles, view.Categories[i].Slug)
-	}
-	if strings.Join(header, ">") != strings.Join(tiles, ">") {
-		t.Errorf("the header says %v and the tiles say %v, on one page", header, tiles)
 	}
 }
 

@@ -7,10 +7,21 @@ import (
 
 	"github.com/a-h/templ"
 	"golang.org/x/net/html"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // The helpers below are the ones the view tests call, with the bodies every
 // page package's tests keep; those are not importable from here.
+
+func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
+	t.Helper()
+	var b strings.Builder
+	if err := c.Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return b.String()
+}
 
 func renderComponent(t *testing.T, ctx context.Context, c templ.Component) string {
 	t.Helper()

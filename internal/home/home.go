@@ -3,7 +3,6 @@ package home
 import (
 	"context"
 	"slices"
-	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
@@ -12,28 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
-	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func Meta(ctx context.Context) frame.Page {
 	return frame.Page{Description: frame.DescribeDepartments(ctx, i18n.KeyHomeDescription)}
-}
-
-type Category struct {
-	Slug  string
-	Name  string
-	Tone  tone.Tone
-	Photo widget.Photo
-}
-
-// Initial is the first character of the name, which a department without a
-// photograph shows on its tone.
-func (c Category) Initial() string {
-	r, _ := utf8.DecodeRuneInString(c.Name)
-	if r == utf8.RuneError {
-		return ""
-	}
-	return string(r)
 }
 
 // ProductRow is the home page's one row of products: a running campaign's, or
@@ -60,7 +41,8 @@ type DepartmentBand struct {
 	Name string
 	// Items is the number of products the department holds.
 	Items int64
-	Fact  string
+	// Subs are the names of the department's sub-categories.
+	Subs  []string
 	Href  string
 	Tone  tone.Tone
 	Tiles []tile.Tile
@@ -69,7 +51,6 @@ type DepartmentBand struct {
 type View struct {
 	AccountErased bool
 	Slides        []hero.Slide
-	Categories    []Category
 	Row           ProductRow
 	Band          *DepartmentBand
 	Rules         policy.Rules
@@ -86,8 +67,10 @@ func heroCarries(slides []hero.Slide, row ProductRow) bool {
 	})
 }
 
-// ShowsDirectory reports whether the department list is drawn. With one
-// department the band is the department, unless no band is drawn.
-func (v *View) ShowsDirectory() bool {
-	return len(v.Categories) > 1 || len(v.Categories) == 1 && v.Band == nil
+// ShowsDirectory reports whether the department list is drawn: the header's
+// own row, which the context carries. With one department the band is the
+// department, unless no band is drawn.
+func (v *View) ShowsDirectory(ctx context.Context) bool {
+	departments := len(frame.TopNavFrom(ctx))
+	return departments > 1 || departments == 1 && v.Band == nil
 }

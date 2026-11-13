@@ -30,8 +30,8 @@ templ Page(p frame.Page, v View) {
 			if v.ShowsRow() {
 				@productRow(v.Row)
 			}
-			if v.ShowsDirectory() {
-				@departmentDirectory(v.Categories)
+			if v.ShowsDirectory(ctx) {
+				@departmentDirectory()
 			}
 		</div>
 		if v.Band != nil {
@@ -162,8 +162,15 @@ templ departmentBand(b *DepartmentBand) {
 			<div class="goen-band__grid">
 				<div class="goen-band__head">
 					<h2 id="band-heading" class="goen-band__name">{ b.Name }</h2>
-					if b.Fact != "" {
-						<p class="goen-band__fact">{ b.Fact }</p>
+					if len(b.Subs) > 0 {
+						<p class="goen-band__fact">
+							for i, name := range b.Subs {
+								if i > 0 {
+									&nbsp;<span class="goen-sep" aria-hidden="true">·</span>
+								}
+								{ name }
+							}
+						</p>
 					}
 					@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, b.Items, b.Items), b.Href)
 				</div>
@@ -177,42 +184,15 @@ templ departmentBand(b *DepartmentBand) {
 	</section>
 }
 
-templ departmentDirectory(cats []Category) {
-	<section class="goen-home__section goen-cats" aria-labelledby="cats-heading">
+// The departments are the index the missing page and the empty search draw
+// too (frame.DepartmentIndex), read from the header's own row.
+templ departmentDirectory() {
+	<section class="goen-home__section" aria-labelledby="cats-heading">
 		<div class="goen-home__head">
 			@heading("cats-heading", i18n.T(ctx, i18n.KeySectionCategories))
 		</div>
-		<ul class="goen-cats__grid" role="list">
-			for _, c := range cats {
-				<li>
-					@departmentTile(c)
-				</li>
-			}
-		</ul>
+		@frame.DepartmentIndex()
 	</section>
-}
-
-templ departmentTile(c Category) {
-	<a class="goen-cat" data-tone={ c.Tone.Attr() } href={ templ.URL("/c/" + c.Slug) }>
-		<span class="goen-cat__well">
-			if c.Photo.Shown() {
-				<img
-					class="goen-cat__photo"
-					src={ c.Photo.URL }
-					srcset={ c.Photo.Srcset }
-					sizes="(min-width: 64rem) 15vw, (min-width: 48rem) 16vw, 45vw"
-					alt=""
-					width="800"
-					height="600"
-					loading="lazy"
-					decoding="async"
-				/>
-			} else {
-				<span class="goen-cat__mark" aria-hidden="true">{ c.Initial() }</span>
-			}
-		</span>
-		<span class="goen-cat__name">{ c.Name }</span>
-	</a>
 }
 
 // A running campaign's row is its products under a heading that says which
