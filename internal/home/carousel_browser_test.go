@@ -36,7 +36,9 @@ func TestHeroCarouselCurrentTab(t *testing.T) {
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
 	mux.HandleFunc("GET /carousel", func(w http.ResponseWriter, r *http.Request) {
 		locale := i18n.ZhHant
-		titles := []string{"科技配件", "生活選物", "書籍文具"}
+		// Long enough that three tabs outrun a phone's width now that the arrows
+		// no longer stand in the row: the check needs a row that scrolls.
+		titles := []string{"秋季科技配件精選", "生活選物新品上市", "書籍與文具開學季"}
 		if r.URL.Query().Get("lang") == "en" {
 			locale = i18n.En
 			titles = []string{"Technology", "Everyday essentials", "Books & stationery"}

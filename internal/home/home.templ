@@ -58,11 +58,13 @@ templ seeAll(label, href string) {
 // the slides, and the arrows and the count are drawn by goen.js. With one slide
 // there is nothing to move between, so none of them are drawn. A slide is its
 // photograph across the window, then its name, its end and its products in the
-// page column; the tabs stand above the name. The page has no filled button: a
-// slide's way on is its one next-step link.
+// page column; the tabs stand above the name, at the photograph's foot. A slide
+// with no photograph draws none, so no slide is left holding an empty field;
+// then the tabs stand over the slides, where each begins. The page has no filled
+// button: a slide's way on is its one next-step link.
 templ heroCarousel(slides []hero.Slide) {
 	<section
-		class="goen-hero"
+		class={ "goen-hero", templ.KV("goen-hero--bare", !hero.AllPhotographed(slides)) }
 		aria-label={ i18n.T(ctx, i18n.KeyHomeFeatured) }
 		if len(slides) > 1 {
 			aria-roledescription={ i18n.T(ctx, i18n.KeyHeroCarouselRole) }
@@ -79,10 +81,8 @@ templ heroCarousel(slides []hero.Slide) {
 						aria-label={ fmt.Sprintf("%d / %d", i+1, len(slides)) }
 					}
 				>
-					// Drawn without a photograph too, as a field of the slide's tone, so
-					// every slide's name starts at one height under the tabs.
-					<div class="goen-hero__media">
-						if s.Photo.Shown() {
+					if s.Photo.Shown() {
+						<div class="goen-hero__media">
 							<img
 								src={ s.Photo.URL }
 								srcset={ s.Photo.Srcset }
@@ -97,8 +97,8 @@ templ heroCarousel(slides []hero.Slide) {
 									fetchpriority="high"
 								}
 							/>
-						}
-					</div>
+						</div>
+					}
 					<div class="goen-hero__body">
 						<div class="goen-hero__page">
 							<div class="goen-hero__inner">

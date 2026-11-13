@@ -69,8 +69,12 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 				Period: &period, CTA: hero.CTA{Label: "See all items", Href: "/s/tea"}, Tiles: products},
 			{Title: "Everyday essentials", Layout: hero.LayoutSplit, Tone: tone.Ink, Photo: photo, CTA: hero.CTA{Label: "Shop now", Href: "/c/audio"}},
 			{Title: "Books & stationery", Layout: hero.LayoutPhoto, Tone: tone.Sage, Photo: photo},
-			{Title: "Slow mornings", Layout: hero.LayoutSplit, Tone: tone.Sage, CTA: hero.CTA{Label: "See the range", Href: "/c/coffee"}},
-			{Title: "After dark", Layout: hero.LayoutSplit, Tone: tone.Ink},
+			{Title: "Slow mornings", Layout: hero.LayoutSplit, Tone: tone.Sage, Photo: photo, CTA: hero.CTA{Label: "See the range", Href: "/c/coffee"}},
+			{Title: "After dark", Layout: hero.LayoutSplit, Tone: tone.Ink, Photo: photo},
+		}
+		// ?bare=1 leaves the last two slides without a photograph.
+		if r.URL.Query().Get("bare") == "1" {
+			view.Slides[3].Photo, view.Slides[4].Photo = widget.Photo{}, widget.Photo{}
 		}
 		for _, c := range []struct{ slug, name, photo string }{
 			{"audio", "Audio", "nimbus-band-2-01.webp"},

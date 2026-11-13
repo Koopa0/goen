@@ -2636,10 +2636,13 @@ body:has(.goen-hero) .goen-header {
   margin-left: auto;
 }
 
+/* Two square outlines, not filled discs. They stand at the tabs' end from
+   48rem; on a phone the tabs have the whole row, and a slide is a swipe or a
+   tab away. The count for a screen reader stays. */
 .goen-hero__arrow {
-  background: var(--sys-surface-container);
-  border: 1px solid transparent;
-  border-radius: 50%;
+  background: none;
+  border: 1px solid var(--sys-outline);
+  border-radius: var(--r-sm);
   color: var(--sys-on-surface);
   cursor: pointer;
   display: grid;
@@ -2650,12 +2653,41 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__arrow:hover {
-  background: var(--sys-surface-container-highest);
+  background: color-mix(in srgb, currentcolor var(--state-hover), transparent);
 }
 
 .goen-hero__arrow svg {
   height: 1.25rem;
   width: 1.25rem;
+}
+
+@media (max-width: 47.99rem) {
+  .goen-hero__nav {
+    display: contents;
+  }
+
+  .goen-hero__arrow {
+    display: none;
+  }
+}
+
+/* A slide with no photograph leaves no one height to stand the tabs at, so
+   they stand over the slides instead, where every slide begins; a slide
+   with a photograph draws it below them. */
+.goen-hero--bare {
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-hero--bare .goen-hero__controls {
+  order: -1;
+  position: static;
+  /* Auto side margins stop a flex item stretching, so it is asked for. */
+  width: 100%;
+}
+
+.goen-hero--bare:has(> .goen-hero__controls) .goen-hero__body {
+  padding-top: var(--s-5);
 }
 
 /* ----- Departments: one square photograph each, the name under it. The

@@ -73,6 +73,32 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 	}
 }
 
+// A slide with no photograph draws no field for one, so no slide is left
+// holding an empty slab; the hero stands its tabs over the slides then, where
+// each begins, and keeps them at the photographs' foot when every slide has one.
+func TestHeroCarouselWithoutPhotograph(t *testing.T) {
+	t.Parallel()
+	photographed := hero.Slide{Layout: hero.LayoutPhoto, Tone: tone.Sage, Title: "A", Photo: widget.Photo{URL: "/static/a.webp", Alt: "a"}, PhotoWidth: 1600, PhotoHeight: 600}
+	bare := hero.Slide{Layout: hero.LayoutSplit, Tone: tone.Mist, Title: "B"}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		mixed := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{photographed, bare}}))
+		if !strings.Contains(mixed, `class="goen-hero goen-hero--bare"`) {
+			t.Errorf("%s: a hero with a slide that has no photograph is not marked bare", locale)
+		}
+		if got := strings.Count(mixed, `class="goen-hero__media"`); got != 1 {
+			t.Errorf("%s: %d photograph fields for one photograph", locale, got)
+		}
+		all := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{photographed, photographed}}))
+		if strings.Contains(all, "goen-hero--bare") {
+			t.Errorf("%s: a hero whose slides all have a photograph is marked bare", locale)
+		}
+		if got := strings.Count(all, `class="goen-hero__media"`); got != 2 {
+			t.Errorf("%s: %d photograph fields for two photographs", locale, got)
+		}
+	}
+}
+
 // The carousel moves only when the visitor asks (WCAG 2.2.2 does not apply),
 // so the markup holds no autoplay switch and no pause button.
 func TestHeroCarouselHasNoAutoplay(t *testing.T) {

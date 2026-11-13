@@ -319,7 +319,8 @@ try {
   // field and the footer's newsletter field are fields, 4px at any text size,
   // as the field corners below are, and the footer's button sits 4px inside
   // its field, so square. The header's words, the back office's among them,
-  // have no corner at all. The hero arrows are circles.
+  // have no corner at all. The hero arrows are square outlines, a field's corner,
+  // with no fill.
   {
     const label = 'pressable corners';
     const measure = (selectors, rootSize) => evaluate(`(() => {
@@ -368,13 +369,12 @@ try {
       await open('/home', 1440);
       const hero = await measure([arrow], rootSize);
       assert.ok(hero[arrow]?.height > 0, `${label}: no hero arrow is drawn at ${scale}`);
-      assert.equal(hero[arrow].radius, '50%', `${label}: a hero arrow at ${scale} is ${hero[arrow].radius}, not a circle`);
-      assert.equal(hero[arrow].border, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow's border at ${scale} is ${hero[arrow].border}, not transparent`);
-      assert.notEqual(hero[arrow].background, hero[arrow].page, `${label}: a hero arrow at ${scale} is the page's own ${hero[arrow].page}`);
-      assert.notEqual(hero[arrow].background, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow at ${scale} has no fill`);
+      assert.equal(length(hero[arrow], arrow), hero[arrow].rem * 0.25, `${label}: a hero arrow at ${scale} has a ${hero[arrow].radius} corner, not --r-sm (${hero[arrow].rem * 0.25}px)`);
+      assert.notEqual(hero[arrow].border, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow's edge at ${scale} is transparent, not an outline`);
+      assert.equal(hero[arrow].background, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow at ${scale} has a ${hero[arrow].background} fill`);
     }
     assert.equal(corner['200%'], corner['100%'] * 2, `${label}: ${corner['100%']}px at 100% text is ${corner['200%']}px at 200%, not double`);
-    console.log(`${label}: chips ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; fields 4px, footer button square inside its field, header words cornerless, hero arrows round`);
+    console.log(`${label}: chips ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; fields 4px, footer button square inside its field, header words cornerless, hero arrows square outlines`);
   }
 
   // The page frame. The header is one row of words in Chinese at 1440 and two
@@ -641,6 +641,38 @@ try {
     assert.ok(strip.close.width >= 44 && strip.close.right <= strip.viewport + 0.5, `${label}: the close is ${strip.close.width}px wide ending at ${strip.close.right} in a ${strip.viewport}px window`);
     assert.equal(strip.page, strip.viewport, `${label}: the page scrolls sideways`);
     console.log(`${label}: message, code, underlined "Shop now" and close${chevron ? ' and the arrow' : ', no arrow'}`);
+  }
+
+  // A campaign with no photograph draws no empty slab: the slide has no photograph
+  // field at all, and a hero with such a slide stands its tabs above the slides, in
+  // flow, so the name never sits under them nor the tabs over a blank field. The
+  // tabs are never clipped by the row's own ends at 320 or 375.
+  for (const width of [320, 375, 1440]) {
+    const label = `hero without photographs ${width}px`;
+    await open('/home?bare=1', width);
+    const bare = await evaluate(`(() => {
+      const hero = document.querySelector('.goen-hero');
+      const slides = [...hero.querySelectorAll('.goen-hero__slide')];
+      const tabs = hero.querySelector('.goen-hero__tabs');
+      const arrows = [...hero.querySelectorAll('.goen-hero__arrow')].map(arrow => arrow.getClientRects().length);
+      const box = element => element.getBoundingClientRect();
+      const first = box(slides[0]);
+      return {
+        bare: hero.classList.contains('goen-hero--bare'),
+        media: slides.map(slide => slide.querySelector('.goen-hero__media') !== null),
+        tabsBottom: box(tabs).bottom, tabsTop: box(tabs).top, slidesTop: first.top,
+        titles: slides.map(slide => box(slide.querySelector('.goen-hero__title')).top),
+        arrows, viewport: document.documentElement.clientWidth,
+        row: { left: box(tabs).left, right: box(tabs).right },
+      };
+    })()`);
+    assert.equal(bare.bare, true, `${label}: the hero is not marked bare`);
+    assert.deepEqual(bare.media, [true, true, true, false, false], `${label}: photograph fields ${bare.media}, want one only where there is a photograph`);
+    assert.ok(bare.tabsBottom <= bare.slidesTop + 0.5, `${label}: the tabs end at ${bare.tabsBottom}, under the slides that start at ${bare.slidesTop}`);
+    for (const top of bare.titles) assert.ok(top >= bare.tabsBottom - 0.5, `${label}: a name starts at ${top}, over the tabs that end at ${bare.tabsBottom}`);
+    if (width < 768) assert.deepEqual(bare.arrows, [0, 0], `${label}: the arrows are drawn on a phone and eat the tabs' room: ${bare.arrows}`);
+    assert.ok(bare.row.left >= -0.5 && bare.row.right <= bare.viewport + 0.5, `${label}: the tab row runs ${bare.row.left}-${bare.row.right} in a ${bare.viewport}px window`);
+    console.log(`${label}: tabs above the slides, photograph fields only where there is a photograph, ${bare.arrows.every(count => count === 0) ? 'no arrows' : 'arrows beside the tabs'}`);
   }
 
   // A product's main photograph sits on one square well in the photograph's
