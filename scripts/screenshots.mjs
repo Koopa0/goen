@@ -4,13 +4,14 @@
 //
 // SHOT_PAGES lists the entries, one per line or separated by commas:
 //
-//   path@width[@lang][@text200][@forced][@member][@noscript][@delivery-refused]
+//   path@width[@lang][@text200][@dark][@forced][@member][@noscript][@delivery-refused]
 //
 //   /p/{PRODUCT_SLUG}@375@en@text200
 //
 // lang is zh or en (default zh). text200 doubles the root font size, the way a
-// reader who zooms text to 200% sees the page (WCAG 1.4.4). forced emulates
-// forced-colors. member makes the visitor the signed-in customer (CUST_TOKEN)
+// reader who zooms text to 200% sees the page (WCAG 1.4.4). dark asks for the
+// dark colour scheme, which the storefront follows; without it the page is
+// shot light. forced emulates forced-colors. member makes the visitor the signed-in customer (CUST_TOKEN)
 // whatever the path, and the capture must end on the requested path. noscript
 // loads the page with JavaScript off, as a visitor without scripting gets it;
 // the runner's own measurements still run. {NAME} is replaced by the
@@ -156,7 +157,7 @@ async function shoot(entry, file) {
   }
   await send('Emulation.setEmulatedMedia', {
     features: [
-      { name: 'prefers-color-scheme', value: 'light' },
+      { name: 'prefers-color-scheme', value: entry.dark ? 'dark' : 'light' },
       ...(entry.forced ? [{ name: 'forced-colors', value: 'active' }] : []),
     ],
   });
