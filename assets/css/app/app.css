@@ -3254,6 +3254,22 @@ input.goen-check {
   min-width: 0;
   overflow-x: auto;
   padding: 0;
+  scroll-snap-type: x proximity;
+}
+
+/* The end's room is an item, not padding-right, which Safari drops from a
+   scrolling flex row; a scrolled row then still shows where it ends. */
+.goen-compare-pick__row::after {
+  content: '';
+  flex: 0 0 var(--s-4);
+}
+
+/* On a phone the row takes a line of its own, scrolling inside the bar, and
+   the limit and the submit wrap to the line under it. */
+@media (max-width: 47.99rem) {
+  .goen-compare-pick__row {
+    flex-basis: 100%;
+  }
 }
 
 .goen-compare-pick__item {
@@ -3262,6 +3278,8 @@ input.goen-check {
   flex: none;
   font: var(--type-body-s);
   gap: var(--s-2);
+  scroll-margin-inline: var(--s-4);
+  scroll-snap-align: start;
 }
 
 .goen-compare-pick__photo {
