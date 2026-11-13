@@ -1543,11 +1543,13 @@ body:has(.goen-hero) .goen-header {
   outline-offset: 2px;
 }
 
-/* The count is figures after the word and its space, not a badge, in
-   figures of one width so a count that changes does not move the word.
+/* The count is figures after the word, not a badge, in figures of one width so
+   a count that changes does not move the word. The link is a flex box, which
+   drops the space between them, so the 4px between 購物車 and 2 is a margin.
    `check-layout.mjs` reads its text after an add to cart. */
 .goen-header__count {
   font-variant-numeric: tabular-nums lining-nums;
+  margin-inline-start: 0.25rem;
 }
 
 /* The language control, in the footer: two plain words, the current one set. */

@@ -393,9 +393,15 @@ try {
       const current = nav.querySelector('[aria-current="page"]');
       const style = getComputedStyle(current);
       const count = document.querySelector('#cart-link .goen-header__count');
+      // The word and the figure are two flex items, so the space between them
+      // in the markup collapses; what a reader sees is the gap the box leaves.
+      const word = [...document.querySelector('#cart-link').childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+      const range = document.createRange();
+      if (word) range.selectNodeContents(word);
       return { bar: box(document.querySelector('.goen-header__bar')), nav: box(nav), search: box(document.querySelector('.goen-header__search')),
         actions: box(document.querySelector('.goen-header__actions')), cart: document.querySelector('#cart-link').textContent.replace(/\s+/g, ' ').trim(),
         figures: count && getComputedStyle(count).fontVariantNumeric,
+        gap: word && count ? count.getBoundingClientRect().left - range.getBoundingClientRect().right : null,
         current: { text: current.textContent.trim(), line: style.textDecorationLine, thickness: style.textDecorationThickness,
           lineColour: style.textDecorationColor, colour: style.color } };
     })()`);
@@ -408,6 +414,7 @@ try {
       if (rows === 2) assert.ok(got.nav.top >= got.search.bottom && got.nav.top >= got.actions.bottom - 0.5, `${where}: the departments' row is not under the others: ${JSON.stringify(got)}`);
       assert.equal(got.cart, cart, `${where}: the cart reads ${JSON.stringify(got.cart)}`);
       assert.match(got.figures, /tabular-nums/, `${where}: the cart's count is set in ${got.figures}, not tabular figures`);
+      assert.ok(got.gap >= 3.5, `${where}: the cart's word and its count are ${got.gap}px apart, run together`);
       assert.deepEqual([got.current.line, got.current.thickness, got.current.lineColour], ['underline', '2px', got.current.colour],
         `${where}: the current department ${got.current.text} is marked ${JSON.stringify(got.current)}, not a 2px underline in its own colour`);
       console.log(`${where}: ${rows} row${rows === 1 ? '' : 's'}, ${got.cart}, current department underlined 2px`);
