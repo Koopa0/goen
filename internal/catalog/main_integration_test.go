@@ -1142,6 +1142,11 @@ func TestStore_NewestProductsOnSale(t *testing.T) {
 					if got.OnSale != tt.want {
 						t.Errorf("%s: OnSale = %v, want %v", tt.name, got.OnSale, tt.want)
 					}
+					// The zero-result page says how long a struck price lasts, so the
+					// newest products carry the day: for a sale, never for a plain price.
+					if drawn := got.DrawsSaleUntil(); drawn != tt.want {
+						t.Errorf("%s: DrawsSaleUntil = %v, want %v", tt.name, drawn, tt.want)
+					}
 					return
 				}
 			}

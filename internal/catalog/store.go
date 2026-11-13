@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -249,7 +250,19 @@ func (s *Store) NewestProducts(ctx context.Context, n int32) ([]tile.Tile, error
 	for i := range rows {
 		asSearch[i] = db.SearchProductsRow(rows[i])
 	}
-	return searchTiles(asSearch, offers), nil
+	return withSaleUntil(searchTiles(asSearch, offers), s.now()), nil
+}
+
+// withSaleUntil has each struck price on the shelf say the last day of its
+// sale. Only the zero-result page draws the line today, so only its newest
+// products are filled in.
+func withSaleUntil(tiles []tile.Tile, now time.Time) []tile.Tile {
+	for i := range tiles {
+		if !tiles[i].SaleEndsAt.IsZero() {
+			tiles[i].SaleUntil = shoptime.LastDay(tiles[i].SaleEndsAt, now)
+		}
+	}
+	return tiles
 }
 
 func childCrumbs(rows []db.CategoryChildrenRow) []Crumb {
