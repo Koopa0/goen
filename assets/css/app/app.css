@@ -4791,11 +4791,14 @@ input.goen-check {
 }
 
 /* The name is 40px in the editorial face, a step and more above the 28px
-   price. */
+   price. The step is in rem, so at 200% text it is 64px and more, and a model
+   number such as "10000mAh" is wider than a phone's line: the name breaks
+   inside a word rather than widen the page. */
 .goen-pdp__title {
   color: var(--n-900);
   font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
   margin: 0;
+  overflow-wrap: anywhere;
   text-wrap: balance;
 }
 

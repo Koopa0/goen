@@ -172,6 +172,7 @@ check-layout-run:
 	@node --env-file=$(LAYOUT_DIR)/env --test scripts/reflow-staff-check.test.mjs
 	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestProductGalleryThumbnails$$' ./internal/catalog
 	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestCompareFormRowInBrowser$$' ./internal/catalog
+	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^(TestProductBuyBarMoments|TestProductPageReflow)$$' ./internal/catalog
 	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestStorefrontSectionsAsDrawn$$' ./internal/home
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs --staff /@1024@en@text200 /@1024@text200 /@320@en@text200 /@320@text200 /@1024@en
 	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/ui/frame -run '^TestDisclosuresWorkWithKeyboard$$'
