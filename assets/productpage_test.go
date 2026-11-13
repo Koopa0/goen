@@ -14,7 +14,9 @@ import (
 // control corner that is chosen by a 2px ink frame, and a colour says its name
 // on its box; a section is named in the editorial face; the restock field and
 // its button are stacked; the time left in a campaign's line is vermilion, as
-// what ends is everywhere, and the few left of a stock is ink. Each reads a
+// what ends is everywhere, and the few left of a stock is ink; a link to
+// another page is ink with its faint underline (the guest's wishlist, the
+// policies) and the one next step of a section is blue. Each reads a
 // role or a step, not a value, so the night and the narrow screen take their
 // own from the same rule.
 func TestAppCSSProductPageAsDrawn(t *testing.T) {
@@ -48,6 +50,11 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 		{".goen-pdp__notifyrow", `display:\s*grid;`},
 		{".goen-pdp__source .goen-ends__left", `color:\s*var\(--sys-tertiary\);`},
 		{".goen-pdp__lowstock", `color:\s*var\(--on-surface-strong\);`},
+		{".goen-pdp__wishlink", `color:\s*var\(--sys-on-surface\);`},
+		{".goen-pdp__wishlink", `text-decoration-line:\s*underline;`},
+		{".goen-pdp__policies a", `color:\s*var\(--sys-on-surface\);`},
+		{".goen-pdp__compare", `color:\s*var\(--sys-primary\);`},
+		{".goen-pdp__browse", `color:\s*var\(--sys-primary\);`},
 	} {
 		found := false
 		for _, block := range declared(want.selector) {

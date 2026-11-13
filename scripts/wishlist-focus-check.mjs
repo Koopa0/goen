@@ -1,7 +1,8 @@
 export async function checkWishlistFocus({ send, evaluate, navigate, fail, origin }) {
   const { cookies: priorCookies } = await send('Network.getCookies', { urls: [origin] });
-  // The wishlist control is a button in the buy column; the comparison entry is a text link in the details.
-  const selector = '.goen-pdp__links .goen-btn, a.goen-pdp__compare';
+  // The wishlist control is a text link to sign in for a guest (a button once signed in) in the buy column; the
+  // comparison entry is a text link in the details.
+  const selector = '.goen-pdp__links .goen-btn, a.goen-pdp__wishlink, a.goen-pdp__compare';
   try {
     await send('Network.clearBrowserCookies');
     for (const lang of ['zh-Hant', 'en']) for (const width of [320, 375, 1440])
@@ -27,7 +28,7 @@ export async function checkWishlistFocus({ send, evaluate, navigate, fail, origi
         await evaluate(`document.documentElement.style.fontSize = '${scale}%'`);
         await evaluate('document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))', true);
         const initial = await evaluate(`({
-          wishlist: document.querySelectorAll('.goen-pdp__links .goen-btn').length,
+          wishlist: document.querySelectorAll('.goen-pdp__links .goen-btn, a.goen-pdp__wishlink').length,
           compare: document.querySelectorAll('a.goen-pdp__compare').length,
           lang: document.documentElement.lang, root: getComputedStyle(document.documentElement).fontSize })`);
         if (initial.wishlist !== 1 || initial.compare !== 1 || initial.lang !== lang || initial.root !== `${16 * scale / 100}px`) {

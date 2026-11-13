@@ -79,8 +79,8 @@ templ Product(p frame.Page, v *ProductView) {
 					<h2 id="delivery-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDelivery) }</h2>
 					@widget.StatLine(v.ShippingFacts(ctx), widget.StatLinePairs)
 					<ul class="goen-pdp__policies" role="list">
-						<li><a href="/shipping">{ i18n.T(ctx, i18n.KeyShippingPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
-						<li><a href="/returns">{ i18n.T(ctx, i18n.KeyReturnsPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
+						<li><a href="/shipping">{ i18n.T(ctx, i18n.KeyShippingPolicy) }</a></li>
+						<li><a href="/returns">{ i18n.T(ctx, i18n.KeyReturnsPolicy) }</a></li>
 					</ul>
 				</section>
 				if !v.HasSpecs() {
@@ -227,7 +227,7 @@ templ productBuy(v *ProductView) {
 				<p class="goen-pdp__keyspecs">
 					for i, h := range highlights {
 						if i > 0 {
-							<span class="goen-sep" aria-hidden="true">·</span>
+							&nbsp;<span class="goen-sep" aria-hidden="true">·</span>
 						}
 						<span class="goen-pdp__keyspec">{ h }</span>
 					}
@@ -240,7 +240,7 @@ templ productBuy(v *ProductView) {
 						@icons.Star()
 					</span>
 					<a class="goen-pdp__ratinglink" href="#reviews">
-						<span aria-hidden="true">{ v.RatingText() }<span class="goen-sep">·</span>{ v.ReviewCount(ctx) }</span>
+						<span aria-hidden="true">{ v.RatingText() }&nbsp;<span class="goen-sep">·</span>{ " " }{ v.ReviewCount(ctx) }</span>
 						<span class="goen-sr-only">{ v.RatingLabel(ctx) }</span>
 					</a>
 				</p>
@@ -388,7 +388,7 @@ templ productBuy(v *ProductView) {
 }
 
 templ productLinks(v *ProductView) {
-	<div class="goen-pdp__links">
+	<div class={ "goen-pdp__links", templ.KV("goen-pdp__links--text", !v.SignedIn) }>
 		if v.SignedIn {
 			// Toggling swaps the form alone; the plain post and its redirect serve a browser without script.
 			<form
@@ -417,10 +417,9 @@ templ productLinks(v *ProductView) {
 				}
 			</form>
 		} else {
-			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug+"%23wishlist")) {
-				@icons.Heart()
-				<span>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</span>
-			}
+			// A link to somewhere else, so the ink and the faint underline every such link wears; the
+			// heart is the signed-in toggle's, which is a button with a state.
+			<a class="goen-pdp__wishlink" href={ templ.SafeURL("/signin?next=/p/"+v.Slug+"%23wishlist") }>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</a>
 		}
 	</div>
 }

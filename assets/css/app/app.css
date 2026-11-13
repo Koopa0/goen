@@ -4995,7 +4995,7 @@ input.goen-check {
 .goen-pdp__ratinglink,
 .goen-pdp__source a,
 .goen-pdp__policies a,
-.goen-pdp__browse,
+.goen-pdp__wishlink,
 .goen-pdp__hint a,
 .goen-pdp__reviewnote a {
   color: var(--sys-on-surface);
@@ -5008,7 +5008,7 @@ input.goen-check {
 .goen-pdp__ratinglink:hover,
 .goen-pdp__source a:hover,
 .goen-pdp__policies a:hover,
-.goen-pdp__browse:hover,
+.goen-pdp__wishlink:hover,
 .goen-pdp__hint a:hover,
 .goen-pdp__reviewnote a:hover {
   color: var(--sys-on-surface);
@@ -5595,9 +5595,25 @@ input.goen-check {
   padding: 0 11px;
 }
 
+/* A guest's way to the wishlist is a plain link, whose words start where the
+   column's do: nothing hangs outside. */
+.goen-pdp__links--text {
+  margin-left: 0;
+}
+
+.goen-pdp__wishlink {
+  align-items: center;
+  display: inline-flex;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  min-height: 2.75rem;
+}
+
 /* The section's one next step: blue with its arrow, underlined only under the
-   pointer. */
-.goen-pdp__compare {
+   pointer. The browse link that stands for the similar products when there are
+   none is the next step of its own section. */
+.goen-pdp__compare,
+.goen-pdp__browse {
   align-items: center;
   color: var(--sys-primary);
   display: inline-flex;
@@ -5608,7 +5624,8 @@ input.goen-check {
   text-decoration: none;
 }
 
-.goen-pdp__compare:hover {
+.goen-pdp__compare:hover,
+.goen-pdp__browse:hover {
   color: var(--sys-primary);
   text-decoration: underline;
   text-underline-offset: 4px;

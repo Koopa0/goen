@@ -380,15 +380,16 @@ func TestProductView_ShippingFacts(t *testing.T) {
 }
 
 // TestProductRatingRow holds that the rating row reads as one star, the
-// average and the count in words, and that a screen reader hears the sentence.
+// average and the count in words, with a space either side of the dot as the
+// drawing sets it, and that a screen reader hears the sentence.
 func TestProductRatingRow(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale       i18n.Locale
 		shown, heard string
 	}{
-		{i18n.ZhHant, `4.5<span class="goen-sep">·</span>2 則評價`, "評分 4.5 分，共 2 則評價"},
-		{i18n.En, `4.5<span class="goen-sep">·</span>2 reviews`, "Rated 4.5 out of 5, from 2 reviews"},
+		{i18n.ZhHant, `4.5&nbsp;<span class="goen-sep">·</span> 2 則評價`, "評分 4.5 分，共 2 則評價"},
+		{i18n.En, `4.5&nbsp;<span class="goen-sep">·</span> 2 reviews`, "Rated 4.5 out of 5, from 2 reviews"},
 	} {
 		v := ProductView{Slug: "book", Name: "Book", Rules: testRules, Rating: 4.5, RatingCount: 2}
 		box := buyBox(t, tc.locale, &v)
@@ -400,6 +401,44 @@ func TestProductRatingRow(t *testing.T) {
 		}
 		if got := strings.Count(row, "<svg"); got != 1 {
 			t.Errorf("%s: rating row draws %d stars, want 1", tc.locale, got)
+		}
+	}
+}
+
+// TestProductKeySpecsSeparated holds that the key specs under the name are
+// parted by a dot with a space either side, the first space one that holds, so
+// "常亮 · 心率" never closes up to "常亮· 心率" or breaks before the dot.
+func TestProductKeySpecsSeparated(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		v := ProductView{Slug: "watch", Name: "Watch", Rules: testRules, Comparable: true,
+			Specs: []ProductSpec{{Value: "AMOLED"}, {Value: "48h"}, {Value: "ECG"}}}
+		row := markupFrom(t, buyBox(t, locale, &v), `class="goen-pdp__keyspecs"`, "</p>")
+		want := `<span class="goen-pdp__keyspec">AMOLED</span>&nbsp;<span class="goen-sep" aria-hidden="true">·</span> <span class="goen-pdp__keyspec">48h</span>`
+		if !strings.Contains(row, want) {
+			t.Errorf("%s: the key specs lack a space either side of the dot, want %q in %s", locale, want, row)
+		}
+	}
+}
+
+// TestProductInkLinksHaveNoArrow holds that the delivery section's two policy
+// links are ink text links with no arrow: an arrow is the sign of the one blue
+// next step of a section, and the comparison and the browse link keep theirs.
+func TestProductInkLinksHaveNoArrow(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		v := ProductView{Slug: "book", Name: "Book", Rules: testRules, CategorySlug: "books", CategoryName: "Books"}
+		page := renderIn(t, locale, Product(ProductMeta(&v), &v))
+		policies := markupFrom(t, page, `class="goen-pdp__policies"`, "</ul>")
+		if strings.Contains(policies, "&rarr;") || strings.Contains(policies, "→") {
+			t.Errorf("%s: a policy link wears an arrow: %s", locale, policies)
+		}
+		if !strings.Contains(policies, `href="/shipping"`) || !strings.Contains(policies, `href="/returns"`) {
+			t.Errorf("%s: the policy links are gone: %s", locale, policies)
+		}
+		browse := markupFrom(t, page, `class="goen-pdp__browse"`, "</a>")
+		if !strings.Contains(browse, "&rarr;") {
+			t.Errorf("%s: the browse link lost its arrow: %s", locale, browse)
 		}
 	}
 }
