@@ -3243,6 +3243,71 @@ input.goen-check {
   margin-inline-start: auto;
 }
 
+/* goen.js's row of the ticked products, absent without it. It scrolls inside
+   the bar rather than widening the page. */
+.goen-compare-pick__row {
+  display: flex;
+  flex: 1 1 0;
+  gap: var(--s-4);
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0;
+}
+
+.goen-compare-pick__item {
+  align-items: center;
+  display: flex;
+  flex: none;
+  font: var(--type-body-s);
+  gap: var(--s-2);
+}
+
+.goen-compare-pick__photo {
+  background: var(--photo);
+  flex: none;
+  height: 56px;
+  width: 56px;
+}
+
+.goen-compare-pick__photo img {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+/* A bounded width, so one long name cannot take the row; the whole name is
+   still the text, and the remove button's name carries it too. */
+.goen-compare-pick__name {
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A 12px glyph on a 44px target: the margin gives back the 6px the target
+   takes on each side of the drawn 32px. */
+.goen-compare-pick__remove {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  flex: none;
+  height: 44px;
+  margin: -6px;
+  padding: 0;
+  place-items: center;
+  width: 44px;
+}
+
+.goen-compare-pick__remove:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
 @media (min-width: 768px) {
   .goen-tiles__grid {
     --tiles-gap-x: 1.5rem;
