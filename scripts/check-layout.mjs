@@ -2503,13 +2503,15 @@ const TRANSITION_RECORDER = `(() => {
       const running = document.getAnimations().filter((a) => pseudo(a).startsWith('::view-transition'));
       const moving = running.filter((a) => a.effect.getKeyframes().some((k) =>
         ['transform', 'translate', 'scale', 'rotate', 'width', 'height', 'inlineSize', 'blockSize', 'top', 'left'].some((p) => p in k)));
-      // The corner the photo lands on is its nearest clipping ancestor's; the
-      // image pair must already wear it.
+      // The corner the photo lands on is its nearest clipping ancestor's, square
+      // or rounded; the image pair must already wear it, or the corner jumps
+      // when the pair gives way to the page.
       const corners = (s) => [s.borderTopLeftRadius, s.borderTopRightRadius, s.borderBottomRightRadius, s.borderBottomLeftRadius];
       const pairs = named().map((n) => {
         const el = [...document.querySelectorAll('*')].find((e) => e.style.viewTransitionName === n);
         let clip = el && el.parentElement;
-        while (clip && (getComputedStyle(clip).overflowX === 'visible' || parseFloat(getComputedStyle(clip).borderTopLeftRadius) === 0)) clip = clip.parentElement;
+        while (clip && clip !== document.body && getComputedStyle(clip).overflowX === 'visible') clip = clip.parentElement;
+        if (clip === document.body) clip = null;
         const s = getComputedStyle(document.documentElement, '::view-transition-image-pair(' + n + ')');
         return { name: n, overflowX: s.overflowX, overflowY: s.overflowY, radius: corners(s), landing: clip ? corners(getComputedStyle(clip)) : null };
       });
@@ -2596,8 +2598,8 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
     const pair = (got.pairs || []).find((p) => p.name === name);
     if (!pair) fail(label, `no image pair was read for ${name}: ` + JSON.stringify(got.pairs));
     else if (pair.overflowX !== 'clip' || pair.overflowY !== 'clip') fail(label, `::view-transition-image-pair(${name}) overflows ${pair.overflowX}/${pair.overflowY}, want clip`);
-    else if (!pair.landing) fail(label, `${name} lands in no clipping, rounded ancestor to compare with`);
-    else if (pair.radius.some((r) => parseFloat(r) === 0) || JSON.stringify(pair.radius) !== JSON.stringify(pair.landing)) fail(label, `::view-transition-image-pair(${name}) has corners ${pair.radius}, the photo lands on ${pair.landing}`);
+    else if (!pair.landing) fail(label, `${name} lands in no clipping well to compare with`);
+    else if (JSON.stringify(pair.radius) !== JSON.stringify(pair.landing)) fail(label, `::view-transition-image-pair(${name}) has corners ${pair.radius}, the photo lands on ${pair.landing}`);
     const flight = (got.fades || []).find((f) => f.name === name);
     if (!flight) fail(label, `no fade was read for ${name}: ` + JSON.stringify(got.fades));
     else {
@@ -3986,7 +3988,10 @@ const provePdpAdd = async (label, scriptingOff) => {
   const pick = await evalPage(`(() => {
     const form = document.querySelector('.goen-pdp__form');
     const add = form && form.querySelector('.goen-pdp__add');
-    if (form && add && !add.disabled) return { ok: true, ready: true };
+    // Ready means a submit that can post: until every group is picked the
+    // button is a focusable aria-disabled type=button, not a disabled one.
+    if (form && add && add.type === 'submit' && !add.disabled
+      && add.getAttribute('aria-disabled') !== 'true') return { ok: true, ready: true };
     const swatch = document.querySelector('.goen-swatch:not(.goen-swatch--on):not(.goen-swatch--out)');
     if (!swatch) return { ok: false, why: 'no choosable swatch on the pdp' };
     const href = swatch.getAttribute('href');
@@ -4016,7 +4021,7 @@ const provePdpAdd = async (label, scriptingOff) => {
   const submit = await evalPage(`(() => {
     const form = document.querySelector('.goen-pdp__form');
     const add = form && form.querySelector('.goen-pdp__add');
-    if (!form || !add || add.disabled) {
+    if (!form || !add || add.disabled || add.type !== 'submit' || add.getAttribute('aria-disabled') === 'true') {
       return { ok: false, why: 'add-to-cart is not ready before submit' };
     }
     add.scrollIntoView({ block: 'center', behavior: 'instant' });

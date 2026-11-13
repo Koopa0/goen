@@ -83,11 +83,12 @@ templ Product(p frame.Page, v *ProductView) {
 						</dl>
 					</section>
 				}
-				<details class="goen-pdp__acc">
+				<details class="goen-pdp__acc" open>
 					<summary class="goen-pdp__accsummary">
 						<h2 id="delivery-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionDelivery) }</h2>
 					</summary>
-					<div class="goen-pdp__accpanel">
+					<div class="goen-pdp__accpanel goen-pdp__ship">
+						@widget.StatLine(v.ShippingFacts(ctx), widget.StatLinePairs)
 						<ul class="goen-pdp__policies" role="list">
 							<li><a href="/shipping">{ i18n.T(ctx, i18n.KeyShippingPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
 							<li><a href="/returns">{ i18n.T(ctx, i18n.KeyReturnsPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
@@ -117,7 +118,7 @@ templ Product(p frame.Page, v *ProductView) {
 					</ul>
 				</section>
 			} else if v.CategorySlug != "" {
-				<p><a href={ templ.URL("/c/" + v.CategorySlug) }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseCategory), v.CategoryName) } <span aria-hidden="true">&rarr;</span></a></p>
+				<p><a class="goen-pdp__browse" href={ templ.URL("/c/" + v.CategorySlug) }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseCategory), v.CategoryName) } <span aria-hidden="true">&rarr;</span></a></p>
 			}
 			if v.HasRecommendations() {
 				<section class="goen-pdp__also" aria-labelledby="also-heading">
@@ -245,22 +246,30 @@ templ productBuy(v *ProductView) {
 			</div>
 			if highlights := v.Highlights(); len(highlights) > 0 {
 				<p class="goen-pdp__keyspecs">
-					for _, h := range highlights {
-						<span>{ h }</span>
+					for i, h := range highlights {
+						if i > 0 {
+							<span class="goen-sep" aria-hidden="true">·</span>
+						}
+						<span class="goen-pdp__keyspec">{ h }</span>
 					}
 				</p>
 			}
 			if v.HasRating() {
-				<a class="goen-pdp__rating" href="#reviews">
-					@ratingStars(v.StarHalves())
-					<span class="goen-pdp__ratingcount" aria-hidden="true">{ v.RatingText() } ({ v.ReviewCountText() })</span>
-					<span class="goen-sr-only">{ v.RatingLabel(ctx) }</span>
-				</a>
+				// One star, the average and the count in words; a screen reader hears the sentence instead.
+				<p class="goen-pdp__rating">
+					<span class="goen-pdp__ratingstar" aria-hidden="true">
+						@icons.Star()
+					</span>
+					<a class="goen-pdp__ratinglink" href="#reviews">
+						<span aria-hidden="true">{ v.RatingText() }<span class="goen-sep">·</span>{ v.ReviewCount(ctx) }</span>
+						<span class="goen-sr-only">{ v.RatingLabel(ctx) }</span>
+					</a>
+				</p>
 			}
 		</div>
 		if v.SelectionOK || v.FallbackPrice {
 			<div class="goen-pdp__pricebox">
-				<span class="goen-pdp__price">
+				<span class={ "goen-pdp__price", templ.KV("goen-pdp__price--sale", v.OnSale) }>
 					if v.PriceFrom() {
 						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), v.Price()) }
 					} else {
@@ -277,12 +286,16 @@ templ productBuy(v *ProductView) {
 			</div>
 			if v.OnSale {
 				{{ before, after := v.Campaign.Source(ctx) }}
-				<p class="goen-pdp__source">{ before }<a href={ templ.SafeURL(v.Campaign.Href()) }>{ v.Campaign.Title }</a>{ after }&nbsp;<span aria-hidden="true">·</span>{ " " }@campaign.Ends(v.Campaign.End)</p>
+				<p class="goen-pdp__source">{ before }<a href={ templ.SafeURL(v.Campaign.Href()) }>{ v.Campaign.Title }</a>{ after }&nbsp;<span class="goen-sep" aria-hidden="true">·</span>{ " " }@campaign.Ends(v.Campaign.End)</p>
 			}
+		}
+		if who := v.SoldOutWho(); who != "" {
+			<p class="goen-pdp__status">{ who }{ v.SoldOutJoin(ctx) }<span class="goen-pdp__soldword">{ i18n.T(ctx, i18n.KeySoldOut) }</span></p>
 		}
 		if v.Summary != "" {
 			<p class="goen-pdp__lede">{ v.Summary }</p>
 		}
+		{{ firstInvalid := v.FirstInvalidOption() }}
 		for oi, o := range v.Options {
 			if o.Fixed() {
 				<p class="goen-pdp__fact">
@@ -334,6 +347,9 @@ templ productBuy(v *ProductView) {
 								if val.Selected {
 									aria-current="true"
 								}
+								if oi == firstInvalid && vi == 0 {
+									autofocus
+								}
 							>
 								if o.HasSwatches() {
 									// A presentation attribute, not a style, so the CSP has nothing to refuse. The
@@ -363,6 +379,9 @@ templ productBuy(v *ProductView) {
 							</a>
 						}
 					</div>
+					if oi == firstInvalid {
+						<p class="ui-error-text goen-pdp__opterror" id="notify-option-error">{ i18n.T(ctx, i18n.KeyRestockNoOption) }</p>
+					}
 				</fieldset>
 			}
 		}
@@ -467,23 +486,39 @@ templ productAddForm(v *ProductView) {
 						Class:         "goen-pdp__qty",
 					})
 				}
-				@widget.Button(widget.ButtonProps{
-					ButtonStyle: widget.ButtonStylePrimary,
-					Class:       "goen-pdp__add",
-					Attrs:       templ.Attributes{"id": "add-to-cart", "disabled": !v.CanBuy()},
-				}, "submit") {
-					@icons.Cart()
-					<span>
-						if v.AllSoldOut() || v.SoldOut() {
-							{ i18n.T(ctx, i18n.KeySoldOut) }
-						} else if v.NeedsChoice() {
-							{ i18n.T(ctx, i18n.KeyChooseOptions) }
-						} else {
-							{ i18n.T(ctx, i18n.KeyAddToCart) }
-						}
-					</span>
+				if v.AwaitsChoice() {
+					// Still in the tab order, with the reason under it. A plain button, not a submit: until every
+					// group is picked the form's variant is only the cheapest, and no key may post it.
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStylePrimary,
+						Class:       "goen-pdp__add",
+						Attrs:       templ.Attributes{"id": "add-to-cart", "aria-disabled": "true", "aria-describedby": "add-to-cart-why"},
+					}, "button") {
+						@icons.Cart()
+						<span>{ i18n.T(ctx, i18n.KeyAddToCart) }</span>
+					}
+				} else if v.SoldOutWho() == "" {
+					// Where the status line names the sold-out choice, the restock form is the one action and no
+					// dead button repeats the words.
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStylePrimary,
+						Class:       "goen-pdp__add",
+						Attrs:       templ.Attributes{"id": "add-to-cart", "disabled": !v.CanBuy()},
+					}, "submit") {
+						@icons.Cart()
+						<span>
+							if v.AllSoldOut() || v.SoldOut() {
+								{ i18n.T(ctx, i18n.KeySoldOut) }
+							} else {
+								{ i18n.T(ctx, i18n.KeyAddToCart) }
+							}
+						</span>
+					}
 				}
 			</div>
+			if v.AwaitsChoice() {
+				<p class="goen-pdp__why" id="add-to-cart-why">{ i18n.T(ctx, i18n.KeyChooseOptions) }</p>
+			}
 			if v.JustAdded() {
 				@widget.Notice(widget.NoticeProps{
 					Intent: widget.IntentAccent, ID: "added", Class: "goen-pdp__added",
@@ -529,7 +564,19 @@ templ productBuyBar(v *ProductView) {
 				}
 			}
 		} else if v.CanBuy() {
-			<p class="goen-buybar__price">{ v.Price() }</p>
+			// The price and the struck original show only once the buy box's own price has left the
+			// screen (goen.js sets data-price="hidden" while it is on it), so the two never stand
+			// together. The struck price is a sibling of .goen-buybar__price, whose text has to equal
+			// the buy box's price.
+			<p class="goen-buybar__sum">
+				<span class={ "goen-buybar__price", templ.KV("goen-buybar__price--sale", v.OnSale) }>{ v.Price() }</span>
+				if v.OnSale {
+					<span class="goen-buybar__was"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span><s>{ v.Compare() }</s></span>
+				}
+				if chosen := v.Chosen(); chosen != "" {
+					<span class="goen-buybar__chosen">{ chosen }</span>
+				}
+			</p>
 			@widget.Button(widget.ButtonProps{
 				ButtonStyle: widget.ButtonStylePrimary,
 				Class:       "goen-buybar__btn",
@@ -572,7 +619,9 @@ templ productCompareLink(href, label string) {
 templ productNotifyForm(v *ProductView) {
 	<form id="restock" class="goen-pdp__notify" method="post" action={ templ.SafeURL(v.NotifyAction()) }>
 		<input type="hidden" name="variant" value={ v.NotifyVariant() }/>
-		<p class="goen-pdp__notifyhead">{ v.RestockNote(ctx) }</p>
+		if note := v.RestockNote(ctx); note != "" {
+			<p class="goen-pdp__notifyhead">{ note }</p>
+		}
 		if v.NotifyTaken() {
 			@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}) {
 				{ v.NotifyConfirmation(ctx) }
@@ -593,9 +642,6 @@ templ productNotifyForm(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyRestockSubmit) }
 				}
 			</div>
-			if v.NotifyNeedsOption() {
-				<p class="ui-error-text" id="notify-option-error">{ i18n.T(ctx, i18n.KeyRestockNoOption) }</p>
-			}
 			if v.NotifyRefused() {
 				<p class="ui-error-text" id="notify-email-error">{ i18n.T(ctx, i18n.KeyRestockBadEmail) }</p>
 			} else {

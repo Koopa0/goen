@@ -579,7 +579,7 @@ try {
     }
   }
 
-  // A product's main photograph sits on one rounded well in the photograph's
+  // A product's main photograph sits on one square well in the photograph's
   // own ground. The product page carries no department tone, so nothing tones
   // the well: no tone frame around it, no white edge on the picture, and a
   // placeholder whose words can be read.
@@ -652,16 +652,16 @@ try {
         assert.equal(drawn.background, drawn.photo, `${label}: the well is ${drawn.background}, not the photograph ground ${drawn.photo}`);
         assert.deepEqual(drawn.padding, Array(4).fill('0px'), `${label}: the well has padding ${drawn.padding}`);
         assert.deepEqual(drawn.shotBorder, Array(4).fill('0px'), `${label}: the well has a border ${drawn.shotBorder}`);
-        assert.deepEqual(drawn.corners, Array(4).fill('16px'), `${label}: corners ${drawn.corners}, not 16px`);
+        assert.deepEqual(drawn.corners, Array(4).fill('0px'), `${label}: corners ${drawn.corners}, not square`);
         if (photo) {
           assert.deepEqual(drawn.imageBorder, Array(4).fill('0px'), `${label}: the picture has an edge ${drawn.imageBorder}`);
           assert.equal(drawn.imageClip, 'border-box', `${label}: the picture's background is clipped to ${drawn.imageClip}`);
           for (const gap of drawn.inset) assert.ok(Math.abs(gap) < 0.5, `${label}: the picture sits ${drawn.inset} inside the well`);
-          console.log(`${label}: ${drawn.background} well, 16px corners, picture edge to edge`);
+          console.log(`${label}: ${drawn.background} well, square corners, picture edge to edge`);
         } else {
           const contrast = ratio(channels(drawn.textColor), channels(drawn.background));
           assert.ok(contrast >= 4.5, `${label}: placeholder ${drawn.textColor} on ${drawn.background} is ${contrast.toFixed(2)}:1`);
-          console.log(`${label}: ${drawn.background} well, 16px corners, placeholder text ${contrast.toFixed(2)}:1`);
+          console.log(`${label}: ${drawn.background} well, square corners, placeholder text ${contrast.toFixed(2)}:1`);
         }
       }
     }

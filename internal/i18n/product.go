@@ -49,11 +49,6 @@ var (
 		En:     "Pick an option first.",
 	})
 
-	KeyRestockNote = key("pdp.restock.note", Message{
-		ZhHant: "有貨時通知你。",
-		En:     "We will tell you when it is available.",
-	})
-
 	KeyOptionChosen   = key("pdp.option.chosen", Message{ZhHant: "%s：", En: "%s: "})
 	KeyOptionChoose   = key("pdp.option.choose", Message{ZhHant: "請選擇", En: "Please choose"})
 	KeyBrowseCategory = key("pdp.category.browse", Message{ZhHant: "瀏覽「%s」全部商品", En: "Browse all %s products"})

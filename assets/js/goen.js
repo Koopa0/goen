@@ -878,19 +878,42 @@
    * <html>, which a swap does not replace, so a new bar is born in the state
    * the old one left and never slides in again.
    */
+  /*
+   * The buy box's price is watched too: while all of it is on screen above the
+   * bar, the bar carries data-price="hidden" and shows no second price. A price
+   * the bar covers is not on screen. A swapped-in bar takes the last answer at
+   * once, before the observer speaks again.
+   */
   function buyBar() {
     const root = document.documentElement;
     let observer = null;
+    let priceObserver = null;
+    let priceInView = false;
     const bind = () => {
       observer?.disconnect();
+      priceObserver?.disconnect();
       observer = null;
+      priceObserver = null;
       const bar = document.getElementById("buybar");
       const target = bar ? document.getElementById(bar.dataset.follows ?? "") : null;
       if (!bar || !target || !("IntersectionObserver" in window)) return;
+      const price = document.querySelector("#buybox .goen-pdp__price");
+      if (!price) priceInView = false;
+      const mark = () => {
+        if (priceInView) bar.dataset.price = "hidden";
+        else delete bar.dataset.price;
+      };
+      mark();
       observer = new IntersectionObserver((entries) => {
         root.dataset.buybar = entries[entries.length - 1].isIntersecting ? "in" : "out";
       });
       observer.observe(target);
+      if (!price) return;
+      priceObserver = new IntersectionObserver((entries) => {
+        priceInView = entries[entries.length - 1].isIntersecting;
+        mark();
+      }, { rootMargin: `0px 0px -${bar.offsetHeight}px 0px`, threshold: 1 });
+      priceObserver.observe(price);
     };
     bind();
     document.addEventListener("htmx:after:swap", bind);

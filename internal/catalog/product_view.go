@@ -304,6 +304,10 @@ func (v *ProductView) InStock() bool {
 
 func (v *ProductView) NeedsChoice() bool { return (v.SelectionOK || v.FallbackPrice) && !v.Exact }
 
+// AwaitsChoice is true where the shop still sells something and the visitor has not picked which: the
+// add button stays focusable and says why it does nothing yet.
+func (v *ProductView) AwaitsChoice() bool { return v.NeedsChoice() && !v.AllSoldOut() && !v.SoldOut() }
+
 func (v *ProductView) AllSoldOut() bool { return v.SelectionOK && !v.AnySellable }
 
 func (v *ProductView) SoldOut() bool { return v.SelectionOK && v.Exact && !v.Sellable }
@@ -579,29 +583,91 @@ func (v *ProductView) Highlights() []string {
 	return out
 }
 
-// BuyFacts are the terms the buyer is told beside the button: the warranty the product carries, the
-// shop's right to cancel, the stock hold only while there is stock to hold, and free delivery.
+// BuyFacts are the terms the buyer is told beside the button: the warranty the product carries, and the stock hold
+// only while there is stock to hold. Returns and delivery are the shipping section's (ShippingFacts).
 func (v *ProductView) BuyFacts(ctx context.Context) []widget.Stat {
-	stats := make([]widget.Stat, 0, 4)
+	stats := make([]widget.Stat, 0, 2)
 	if v.HasWarranty() {
 		stats = append(stats, widget.Stat{
 			Label: i18n.T(ctx, i18n.KeySectionWarranty),
 			Value: widget.StatCount(int64(v.WarrantyMonths), widget.CountUnit(ctx, i18n.KeyUnitMonths, int64(v.WarrantyMonths))),
 		})
 	}
-	stats = append(stats, v.Rules.RescissionStat(ctx))
 	if v.AnySellable {
 		stats = append(stats, v.Rules.PayStartStat(ctx))
 	}
-	return append(stats, v.Rules.FreeDeliveryStat(ctx))
+	return stats
 }
 
-// RestockNote is the sentence over the notify form, asking for a pick only while there is none.
+// ShippingFacts are the shipping and returns section's rows. The two return rules stay two rows: the
+// statutory window and goen's own are different promises, each counted from the point its note states.
+func (v *ProductView) ShippingFacts(ctx context.Context) []widget.Stat {
+	return []widget.Stat{
+		v.Rules.RescissionStat(ctx),
+		v.Rules.ReturnStat(ctx),
+		v.Rules.FreeDeliveryStat(ctx),
+	}
+}
+
+// RestockNote is the sentence over the notify form while a pick is still wanted; once one is made the
+// status line above the options already says what is sold out, so there is none.
 func (v *ProductView) RestockNote(ctx context.Context) string {
 	if v.NeedsChoice() {
 		return i18n.T(ctx, i18n.KeyRestockPick)
 	}
-	return i18n.T(ctx, i18n.KeyRestockNote)
+	return ""
+}
+
+// optionSeparator joins the chosen option values wherever they are written on one line.
+const optionSeparator = " · "
+
+// Chosen is the values picked in the groups that offer a choice, in the page's order, as the buy bar
+// writes them on one line.
+func (v *ProductView) Chosen() string {
+	var picked []string
+	for _, o := range v.Options {
+		if o.Fixed() {
+			continue
+		}
+		if l := o.SelectedLabel(); l != "" {
+			picked = append(picked, l)
+		}
+	}
+	return strings.Join(picked, optionSeparator)
+}
+
+// SoldOutWho is the chosen values a sold-out status line names before the words sold out; empty where the
+// product offers no choice, and the add button's own words already say it.
+func (v *ProductView) SoldOutWho() string {
+	if !v.SoldOut() {
+		return ""
+	}
+	return v.Chosen()
+}
+
+// SoldOutJoin is what stands between the values and the words sold out: nothing in Chinese, whose words
+// follow the value directly, and a space in English.
+func (v *ProductView) SoldOutJoin(ctx context.Context) string {
+	if i18n.FromContext(ctx) == i18n.En {
+		return " "
+	}
+	return ""
+}
+
+// FirstInvalidOption is the index of the first group a refused request left unpicked, or -1: that group
+// carries the error and takes focus when the page comes back.
+func (v *ProductView) FirstInvalidOption() int {
+	for i, o := range v.Options {
+		if !o.Fixed() && v.OptionInvalid(o) {
+			return i
+		}
+	}
+	return -1
+}
+
+// ReviewCount is the number of reviews in words, as the review section's summary says it.
+func (v *ProductView) ReviewCount(ctx context.Context) string {
+	return i18n.Count(ctx, i18n.KeyReviewCount, v.RatingCount, v.ReviewCountText())
 }
 
 // ValueSoldOut is the words an option value that leads to nothing buyable carries: sold out for the

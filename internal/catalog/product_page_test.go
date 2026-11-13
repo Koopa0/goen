@@ -603,12 +603,40 @@ func TestProductBuyBarSubmit(t *testing.T) {
 	if !strings.Contains(bar, `data-follows="add-to-cart"`) || !strings.Contains(page, `id="add-to-cart"`) {
 		t.Error("the bar does not follow the main add button")
 	}
-	if !strings.Contains(bar, "NT$") {
-		t.Errorf("the bar does not show the price: %s", bar)
+	if !strings.Contains(bar, `<span class="goen-buybar__price">NT$1,200</span>`) {
+		t.Errorf("the bar does not show the price, alone in its element: %s", bar)
+	}
+	if strings.Contains(bar, "goen-buybar__was") || strings.Contains(bar, "goen-buybar__chosen") {
+		t.Errorf("a product with no sale and no choice strikes a price or names options: %s", bar)
 	}
 	if en := renderProduct(t, &view, i18n.En); !strings.Contains(en, `form="pdp-add"`) ||
 		!strings.Contains(en, "<span>"+i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeyAddToCart)+"</span>") {
 		t.Error("the English bar does not offer the add button")
+	}
+}
+
+// TestProductBuyBarSale holds that the bottom bar strikes the original price
+// beside .goen-buybar__price, never inside it, whose text the purchase checks
+// compare with the buy box's price, and names the chosen options on one line.
+func TestProductBuyBarSale(t *testing.T) {
+	t.Parallel()
+	view := ProductView{
+		Slug: "book", Name: "Book", SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
+		VariantID: "v1", Available: 5, PriceCents: 1190000, CompareCents: 1290000, OnSale: true,
+		Options: []ProductOption{
+			{Name: "colour", Label: "顏色", Values: []ProductOptionValue{{Value: "rose", Label: "玫瑰金", Selected: true}, {Value: "silver", Label: "銀"}}},
+			{Name: "size", Label: "尺寸", Values: []ProductOptionValue{{Value: "45", Label: "45mm", Selected: true}, {Value: "41", Label: "41mm"}}},
+			{Name: "band", Label: "錶帶", Values: []ProductOptionValue{{Value: "nylon", Label: "尼龍", Selected: true}}},
+		},
+	}
+	bar := buyBarMarkup(t, &view)
+	for _, want := range []string{
+		`<span class="goen-buybar__price goen-buybar__price--sale">NT$11,900</span> <span class="goen-buybar__was"><span class="goen-sr-only">原價</span><s>NT$12,900</s></span>`,
+		`<span class="goen-buybar__chosen">玫瑰金 · 45mm</span>`,
+	} {
+		if !strings.Contains(bar, want) {
+			t.Errorf("the bar lacks %q: %s", want, bar)
+		}
 	}
 }
 
