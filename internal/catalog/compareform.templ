@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -9,18 +10,29 @@ import (
 
 // A GET, because the set is the URL and a comparison writes nothing. It wraps the
 // grid only when some tile carries a box: a bar with nothing to tick does nothing.
+// goen.js draws the row of ticked products once MinCompare are ticked, and names
+// each one's remove button with the applied-filter chip's sentence.
 templ compareForm(offered bool) {
 	if offered {
-		<form class="goen-compare-pick" id="compare-pick" method="get" action="/compare">
+		<form
+			class="goen-compare-pick"
+			id="compare-pick"
+			method="get"
+			action="/compare"
+			data-compare-min={ strconv.Itoa(MinCompare) }
+			data-compare-remove={ i18n.T(ctx, i18n.KeyRemoveFilter) }
+		>
 			{ children... }
+			// The bar: with no script this is the whole component, the limit and the
+			// submit; the row of ticked products is goen.js's, put before them.
 			<div class="goen-compare-pick__go">
+				<span class="goen-compare-pick__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareLimit), MaxCompare) }</span>
 				@widget.Button(widget.ButtonProps{
 					ButtonStyle: widget.ButtonStyleSecondary,
 					Size:        widget.SizeSmall,
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyCompareSelected) }
 				}
-				<span class="goen-compare-pick__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareLimit), MaxCompare) }</span>
 			</div>
 		</form>
 	} else {

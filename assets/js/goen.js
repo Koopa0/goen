@@ -1040,6 +1040,122 @@
   }
 
   /*
+   * The compare bar's row of ticked products. The bar is the form's own tail,
+   * which submits the ticked boxes to /compare without this; here, once the
+   * form's data-compare-min are ticked, a list of them is put before the limit
+   * and the submit: each one's photograph, its name, and a button that unticks
+   * its box. The row is always rebuilt from the boxes, never kept beside them,
+   * so a box unticked on its tile, a swap of the results or a page restored
+   * from the back-forward cache cannot leave an entry behind. Nothing is
+   * announced: the box's own state is what a screen reader hears.
+   */
+  function compareRow() {
+    const ticked = (form) => Array.from(form.elements).filter((el) =>
+      el instanceof HTMLInputElement && el.type === "checkbox" && el.name === "p" && el.checked);
+    const glyph = () => {
+      const ns = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(ns, "svg");
+      svg.setAttribute("width", "12");
+      svg.setAttribute("height", "12");
+      svg.setAttribute("viewBox", "0 0 14 14");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(ns, "path");
+      path.setAttribute("d", "M2 2l10 10M12 2 2 12");
+      path.setAttribute("stroke", "currentColor");
+      path.setAttribute("stroke-width", "1.5");
+      svg.append(path);
+      return svg;
+    };
+    // The tile's own photograph at its 400px rendition: the srcset's 400w
+    // candidate, else whatever the tile loaded.
+    const small = (img) => {
+      for (const candidate of (img.getAttribute("srcset") ?? "").split(",")) {
+        const [url, width] = candidate.trim().split(/\s+/);
+        if (url && width === "400w") return url;
+      }
+      return img.getAttribute("src") ?? "";
+    };
+    const entry = (form, box) => {
+      const cell = box.closest(".goen-tile__cell");
+      const name = cell?.querySelector(".goen-tile__name")?.textContent.trim() || box.value;
+      const item = document.createElement("li");
+      item.className = "goen-compare-pick__item";
+      item.dataset.slug = box.value;
+      const frame = document.createElement("span");
+      frame.className = "goen-compare-pick__photo";
+      const img = cell?.querySelector(".goen-tile__img");
+      if (img) {
+        const photo = document.createElement("img");
+        photo.src = small(img);
+        photo.alt = "";
+        photo.width = 56;
+        photo.height = 56;
+        photo.decoding = "async";
+        frame.append(photo);
+      }
+      const label = document.createElement("span");
+      label.className = "goen-compare-pick__name";
+      label.textContent = name;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "goen-compare-pick__remove";
+      remove.setAttribute("aria-label", (form.dataset.compareRemove ?? "%s").replace("%s", () => name));
+      remove.append(glyph());
+      item.append(frame, label, remove);
+      return item;
+    };
+    const sync = (form) => {
+      const bar = form.querySelector(".goen-compare-pick__go");
+      if (!bar) return;
+      const boxes = ticked(form);
+      let row = bar.querySelector(".goen-compare-pick__row");
+      if (boxes.length < (Number(form.dataset.compareMin) || 2)) {
+        row?.remove();
+        return;
+      }
+      if (!row) {
+        row = document.createElement("ul");
+        row.className = "goen-compare-pick__row";
+        bar.prepend(row);
+      }
+      const kept = new Map(Array.from(row.children, (item) => [item.dataset.slug, item]));
+      boxes.forEach((box, index) => {
+        const item = kept.get(box.value) ?? entry(form, box);
+        kept.delete(box.value);
+        if (row.children[index] !== item) row.insertBefore(item, row.children[index] ?? null);
+      });
+      kept.forEach((item) => item.remove());
+    };
+    const syncAll = () => {
+      const form = document.getElementById("compare-pick");
+      if (form instanceof HTMLFormElement) sync(form);
+    };
+    document.addEventListener("change", (event) => {
+      const box = event.target;
+      if (box instanceof HTMLInputElement && box.form?.id === "compare-pick") sync(box.form);
+    });
+    // Focus goes to the next remove button, else the one before, else the
+    // submit, so it never falls to <body> with the entry it was on.
+    document.addEventListener("click", (event) => {
+      const remove = event.target instanceof Element ? event.target.closest(".goen-compare-pick__remove") : null;
+      const form = remove?.form;
+      if (!remove || !form) return;
+      const slug = remove.closest(".goen-compare-pick__item")?.dataset.slug;
+      const before = Array.from(form.querySelectorAll(".goen-compare-pick__remove"));
+      const at = before.indexOf(remove);
+      for (const box of ticked(form)) {
+        if (box.value === slug) box.checked = false;
+      }
+      sync(form);
+      const after = Array.from(form.querySelectorAll(".goen-compare-pick__remove"));
+      (after[at] ?? after[at - 1] ?? form.querySelector('.goen-compare-pick__go [type="submit"]'))?.focus();
+    });
+    syncAll();
+    document.addEventListener("htmx:after:settle", syncAll);
+    window.addEventListener("pageshow", syncAll);
+  }
+
+  /*
    * A press that loads a new page is answered at once rather than when that
    * page paints: the pressed link is marked, and the root carries
    * data-navigating, from which app.css draws a bar if the load outlasts a
@@ -1108,5 +1224,6 @@
   stepper();
   carousel();
   chartReadout();
+  compareRow();
   navigationPending();
 })();
