@@ -433,10 +433,31 @@ try {
       assert.equal(row.page, row.edge, `${where}: the page scrolls sideways: ${JSON.stringify(row)}`);
       // proximity is the default strictness, so it computes to plain x.
       assert.match(row.snap, /^x( proximity)?$/, `${where}: the row snaps ${row.snap}, not x proximity`);
-      assert.equal(row.margin, '16px', `${where}: a link's scroll margin is ${row.margin}, not 16px`);
+      // The row's padding is the gutter; a margin at the start on top of it stood a link 32px in
+      // and left a sliver of the word before it at the edge.
+      assert.equal(row.margin, '0px', `${where}: a link's scroll margin at the start is ${row.margin}, not 0px`);
       assert.ok(row.into !== null && row.into >= 12, `${where}: the right edge cuts no department at least 12px in: ${JSON.stringify(row)}`);
       console.log(`${where}: the edge cuts a department ${row.into}px in`);
     }
+
+    // goen.js scrolls the row to the current department, whichever it is, in either language: the
+    // current one starts at the gutter or, among the last, wherever the row ends, and the edge
+    // never leaves half a word of another.
+    for (const width of [320, 375, 414]) for (const lang of ['', '&lang=en']) for (const slug of ['books-stationery', 'home-living', 'beauty', 'fashion', 'food-drink', 'tech']) {
+      await open(`/frame?nav=${slug}${lang}`, width, true);
+      const row = await evaluate(`(() => {
+        const nav = document.querySelector('.goen-header__nav');
+        const box = nav.getBoundingClientRect();
+        const at = link => { const r = link.getBoundingClientRect(); return { name: link.textContent.trim(), left: Math.round(r.left - box.left), right: Math.round(r.right - box.left) }; };
+        const links = [...nav.querySelectorAll(':scope > a, :scope > .goen-dept > a')].map(at);
+        return { width: box.width, scrolled: nav.scrollLeft, current: at(nav.querySelector('[aria-current="page"]')),
+          cut: links.filter(l => l.left < -0.5 && l.right > 0.5) };
+      })()`);
+      const where = `${label} /frame?nav=${slug}${lang} ${width}px`;
+      assert.deepEqual(row.cut, [], `${where}: the row's start cuts a department in half: ${JSON.stringify(row)}`);
+      assert.ok(row.current.left >= 0 && row.current.right <= row.width, `${where}: the current department is not whole in view: ${JSON.stringify(row)}`);
+    }
+    console.log(`${label}: the current department is whole and no other is cut at the row's start, 320, 375 and 414px, both languages`);
 
     await open('/frame', 1440);
     const panel = await evaluate(`(() => {

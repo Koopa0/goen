@@ -182,17 +182,30 @@
 
   /*
    * On a phone the department row scrolls sideways; the current department is
-   * brought to its middle so the visitor sees where they are. The row's width
-   * settles when the fonts arrive, so it is set again then.
+   * brought to its start, after the gutter, so the visitor sees where they are
+   * and no word is cut at the edge. The row's width settles when the fonts
+   * arrive, so it is set again then.
    */
   function departmentRow() {
     const row = document.querySelector(".goen-header__nav");
     const current = row?.querySelector('[aria-current="page"]');
     if (!row || !current) return;
+    const links = row.querySelectorAll(":scope > a, :scope > .goen-dept > a");
+    const start = (link) => link.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
+    // The current department starts where the row's own gutter does, with the
+    // one before it out of sight behind the edge: centring it left half a
+    // word of that one showing.
     const centre = () => {
-      if (row.scrollWidth <= row.clientWidth) return;
-      const at = current.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
-      row.scrollLeft = at - (row.clientWidth - current.offsetWidth) / 2;
+      const room = row.scrollWidth - row.clientWidth;
+      if (room <= 0) return;
+      const gutter = parseFloat(getComputedStyle(row).scrollPaddingInlineStart) || 0;
+      let to = Math.min(Math.max(start(current) - gutter, 0), room);
+      // Among the last the row cannot go as far, and a department can be left
+      // straddling the edge: that one starts at the gutter instead, while the
+      // current one stays whole in view.
+      const cut = Array.from(links).find((link) => start(link) < to - 0.5 && start(link) + link.offsetWidth > to + 0.5);
+      if (cut && start(current) + current.offsetWidth <= start(cut) - gutter + row.clientWidth) to = Math.max(start(cut) - gutter, 0);
+      row.scrollLeft = to;
     };
     centre();
     document.fonts?.ready.then(centre);

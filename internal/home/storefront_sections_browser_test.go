@@ -254,7 +254,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	})
 	// The page frame on its own: the seed's departments and deals, 3C 數位 with
 	// a panel, a cart of two, in either language (?lang=en), with 3C 數位
-	// current.
+	// current unless ?nav= names another department.
 	mux.HandleFunc("GET /frame", func(w http.ResponseWriter, r *http.Request) {
 		locale, names := i18n.ZhHant, []string{"書籍文具", "居家生活", "美妝保養", "服飾配件", "美食飲品", "3C 數位"}
 		if r.URL.Query().Get("lang") == "en" {
@@ -271,8 +271,12 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			nav[5].Picks = append(nav[5].Picks, frame.NavPick{Slug: "band", Name: name, Price: "NT$1,900", ImageURL: photo.URL(), ImageSrcset: photo.Srcset()})
 		}
 		ctx := frame.WithCartCount(frame.WithDeals(frame.WithTopNav(i18n.WithLocale(r.Context(), locale), nav), true), 2)
+		current := "tech"
+		if slug := r.URL.Query().Get("nav"); slug != "" {
+			current = slug
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := frame.Base(frame.Page{Title: "Frame", Nav: "tech"}).Render(templ.WithChildren(ctx, templ.NopComponent), w); renderErr != nil {
+		if renderErr := frame.Base(frame.Page{Title: "Frame", Nav: current}).Render(templ.WithChildren(ctx, templ.NopComponent), w); renderErr != nil {
 			t.Errorf("render frame fixture: %v", renderErr)
 		}
 	})
