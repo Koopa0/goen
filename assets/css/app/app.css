@@ -6610,6 +6610,32 @@ input.goen-check {
   margin-top: 1rem;
 }
 
+/* The figures are set as the cart board draws them: medium, and the count's 件
+   and the subtotal's NT$ at the figure's own size. Each fact is as wide as its
+   words, so on a phone a long one moves to the next row whole rather than
+   leaving a gap sized for a short one. */
+.goen-cart__facts .ui-statline {
+  --stat-gap: var(--s-8);
+  --stat-min: 0;
+}
+
+.goen-cart__facts .ui-statline dd {
+  font-weight: var(--fw-medium);
+}
+
+.goen-cart__facts .ui-statline dd small {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+@media (max-width: 639px) {
+  .goen-cart__facts .ui-statline {
+    --stat-gap: var(--s-6);
+  }
+}
+
 .goen-cart__alert {
   background: var(--warn-faint);
   border-radius: 12px;
