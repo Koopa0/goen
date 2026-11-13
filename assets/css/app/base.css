@@ -60,7 +60,8 @@
   --dur-move: 280ms;
 
   /* Form controls, scrollbars and the canvas a page has not painted all
-     follow this, and goen draws one ground. */
+     follow this. The back office draws one light ground; app.css lets the
+     storefront follow the visitor's setting. */
   color-scheme: light;
 }
 

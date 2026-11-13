@@ -11,7 +11,7 @@ const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700').replace(/\/$/, 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const staff = process.argv.includes('--staff');
 const entries = process.argv.slice(2).filter((arg) => arg !== '--staff');
-if (!entries.length) throw new Error('usage: node reflow-check.mjs [--staff] path@width[@en][@text200] ...');
+if (!entries.length) throw new Error('usage: node reflow-check.mjs [--staff] path@width[@en][@text200][@dark] ...');
 const evidence = process.env.REFLOW_EVIDENCE_DIR;
 if (evidence) mkdirSync(evidence, { recursive: true });
 
@@ -97,11 +97,22 @@ try {
       if (!process.env[visitor.token]) throw new Error(`${visitor.token} is required`);
       await send('Network.setCookie', { name: visitor.cookie, value: process.env[visitor.token], url: ORIGIN });
     }
+    // The storefront follows the visitor's colour scheme; an entry is measured
+    // light unless it asks for dark, whatever the machine's own setting.
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: entry.dark ? 'dark' : 'light' }] });
     // Keep a fixed-height layout viewport, including while taking evidence.
     await send('Emulation.setDeviceMetricsOverride', { width: entry.width, height: 800, deviceScaleFactor: 1, mobile: entry.width < 600 });
     await navigate(ORIGIN + entry.path);
     if (entry.text200) await evaluate("document.documentElement.style.fontSize = '200%'");
-    const facts = await evaluate(`({path: location.pathname + location.search, status: performance.getEntriesByType('navigation')[0]?.responseStatus, lang: document.documentElement.lang, rootFontSize: getComputedStyle(document.documentElement).fontSize})`);
+    const facts = await evaluate(`({path: location.pathname + location.search, status: performance.getEntriesByType('navigation')[0]?.responseStatus, lang: document.documentElement.lang, rootFontSize: getComputedStyle(document.documentElement).fontSize, dark: matchMedia('(prefers-color-scheme: dark)').matches, ground: getComputedStyle(document.body).backgroundColor})`);
+    if (facts.dark !== entry.dark) throw new Error(`${text}: the page sees prefers-color-scheme ${facts.dark ? 'dark' : 'light'}, want ${entry.dark ? 'dark' : 'light'}`);
+    // Asked for dark, the storefront draws the night's ground and the back
+    // office keeps its one light ground.
+    if (entry.dark) {
+      const light = facts.ground === 'rgb(255, 255, 255)';
+      const office = entry.path === '/admin' || entry.path.startsWith('/admin/');
+      if (light !== office) throw new Error(`${text}: the ${office ? 'back office' : 'storefront'} draws its ground ${facts.ground} in the dark scheme, want ${office ? 'white' : 'the night'}`);
+    }
     if (facts.status !== 200 || facts.lang !== entry.lang || !(facts.path === entry.path || (visitor && screenshotRouteMatches(entry.path, facts.path, visitor.prefix)))) throw new Error(`${text}: unexpected document ${JSON.stringify(facts)}`);
     const required = process.env.REFLOW_REQUIRED_SELECTOR;
     const marker = required ? await evaluate(`document.querySelector(${JSON.stringify(required)})?.textContent.trim() || ''`) : '';

@@ -19,6 +19,12 @@ test('member is a flag and is off by default', () => {
   assert.equal(parseEntry('/orders/{RETURN_FORM_ORDER}@375', env).member, false);
 });
 
+test('dark is a flag and is off by default', () => {
+  assert.equal(parseEntry('/@320@dark', env).dark, true);
+  assert.equal(parseEntry('/p/{PRODUCT_SLUG}@1024@en@dark', env).dark, true);
+  assert.equal(parseEntry('/@320', env).dark, false);
+});
+
 test('noscript is a flag and is off by default', () => {
   assert.equal(parseEntry('/cart@375@noscript', env).noscript, true);
   assert.equal(parseEntry('/cart@375@en@member@noscript', env).noscript, true);

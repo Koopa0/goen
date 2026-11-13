@@ -1058,6 +1058,7 @@ try {
           sentence: colour('#email-error'), text: sentence.textContent.trim(),
           invalid: document.querySelector('#email').getAttribute('aria-invalid'),
           content: icon.content, display: icon.display, image: icon.backgroundImage, width: parseFloat(icon.width),
+          mask: icon.maskImage || icon.webkitMaskImage, paint: icon.backgroundColor,
           ground: getComputedStyle(group).backgroundColor };
       })()`);
       assert.equal(got.invalid, 'true', `${where}: the email field is not marked refused`);
@@ -1067,21 +1068,29 @@ try {
       assert.equal(got.sentence, t['--error'], `${where}: the sentence is ${got.sentence}, not the error colour`);
       assert.equal(got.content, '""', `${where}: no icon before the sentence (content ${got.content})`);
       assert.ok(got.display === 'inline-block' && got.width > 0, `${where}: the icon is ${got.display} and ${got.width}px wide`);
-      assert.match(got.image, /^url\("data:image\/svg\+xml,/, `${where}: the icon is not a data: image: ${got.image}`);
-      // The icon is an image, so it cannot read --error: its stroke is decoded
-      // from the image itself and must paint as the error colour.
-      const drawn = /^url\("?data:image\/svg\+xml,(.*?)"?\)$/.exec(got.image);
-      const stroke = drawn && /stroke=['"]([^'"]+)['"]/.exec(decodeURIComponent(drawn[1]));
-      assert.ok(stroke, `${where}: the icon has no stroke colour to read: ${got.image}`);
-      const strokeColour = await evaluate(`(() => {
-        const probe = document.createElement('div');
-        probe.style.backgroundColor = ${JSON.stringify(stroke[1])};
-        document.body.append(probe);
-        const colour = getComputedStyle(probe).backgroundColor;
-        probe.remove();
-        return colour;
-      })()`);
-      assert.equal(strokeColour, t['--error'], `${where}: the icon is drawn in ${stroke[1]} (${strokeColour}), not the error colour ${t['--error']}`);
+      // The icon is a data: image, the one kind the policy admits. Used as a
+      // mask, the shape is painted in the ground under it, which has to be the
+      // error colour; used as an image, the colour is the stroke written into
+      // it, decoded and painted to compare.
+      const dataImage = /^url\("?data:image\/svg\+xml,(.*?)"?\)$/;
+      const masked = dataImage.exec(got.mask || '');
+      const drawn = masked || dataImage.exec(got.image);
+      assert.ok(drawn, `${where}: the icon is not a data: image: ${got.image}, mask ${got.mask}`);
+      const stroke = /stroke=['"]([^'"]+)['"]/.exec(decodeURIComponent(drawn[1]));
+      assert.ok(stroke, `${where}: the icon has no stroked shape: ${drawn[0]}`);
+      if (masked) {
+        assert.equal(got.paint, t['--error'], `${where}: the icon's mask is painted ${got.paint}, not the error colour ${t['--error']}`);
+      } else {
+        const strokeColour = await evaluate(`(() => {
+          const probe = document.createElement('div');
+          probe.style.backgroundColor = ${JSON.stringify(stroke[1])};
+          document.body.append(probe);
+          const colour = getComputedStyle(probe).backgroundColor;
+          probe.remove();
+          return colour;
+        })()`);
+        assert.equal(strokeColour, t['--error'], `${where}: the icon is drawn in ${stroke[1]} (${strokeColour}), not the error colour ${t['--error']}`);
+      }
       // The checkout's groups are words on the page, so the field's group is the
       // page's own ground; what is measured is the refusal against it.
       assert.equal(got.ground, 'rgba(0, 0, 0, 0)', `${where}: the group the field sits in paints ${got.ground}, not the page's ground`);

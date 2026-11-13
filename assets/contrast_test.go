@@ -203,9 +203,9 @@ func lightDarkTokens(t *testing.T) map[string]role {
 }
 
 // TestBaseCSSRoleContrast checks that each system role reads on the grounds it
-// is drawn on, by day and by night. Only the day is on screen while the
-// storefront's color-scheme is light, so no page the axe gate visits shows the
-// night; this is the only check it gets.
+// is drawn on, by day and by night. The axe gate visits its routes in the light
+// scheme, so the night is held here, on the token values, for every page at
+// once.
 func TestBaseCSSRoleContrast(t *testing.T) {
 	t.Parallel()
 
@@ -496,6 +496,19 @@ func TestBaseCSSTokenContrast(t *testing.T) {
 	for _, ground := range grounds {
 		checkPeriod(t, "the page", tokens["--mark"], track, ground, tokens[ground])
 	}
+	// The storefront lays the period with --period-mark on --period-ground,
+	// whose day halves are the two above.
+	{
+		store := storefrontTokens(t)
+		rgba := translucentTokens(t)
+		if store["--period-mark"].day != tokens["--mark"] || storefrontTrack(t, rgba, false) != track {
+			t.Errorf("the storefront's period by day is #%s on %s, want --mark (#%s) on --period-track (%s)",
+				store["--period-mark"].day, storefrontTrack(t, rgba, false), tokens["--mark"], track)
+		}
+		for _, ground := range []string{"--sys-surface", "--sys-surface-container-low", "--surface-wash"} {
+			checkPeriod(t, "the page by night", store["--period-mark"].night, storefrontTrack(t, rgba, true), ground, store[ground].night)
+		}
+	}
 
 	// A filled button is a block of colour like a photograph's frame, --well;
 	// under 2:1 against it, the night's light button reads as one more frame.
@@ -514,6 +527,71 @@ func TestBaseCSSTokenContrast(t *testing.T) {
 	if tokens["--well"] != "f9f9f9" {
 		t.Errorf("--well = #%s, want #f9f9f9, the ground the photographs carry", tokens["--well"])
 	}
+
+	// The storefront draws the text, tints and field edges above with roles
+	// and with app.css's light-dark() pairs, whose day halves are the tokens
+	// held above; each is held by night as by day.
+	store := storefrontTokens(t)
+	type pair struct {
+		ink, ground string
+		want        float64
+	}
+	checks := make([]pair, 0, 45)
+	for _, ink := range []string{
+		"--sys-on-surface", "--sys-on-surface-variant", "--sys-primary", "--primary-deep",
+		"--on-surface-strong", "--on-surface-firm", "--on-surface-soft", "--on-surface-quiet",
+		"--sys-error", "--warn-ink", "--success-ink",
+	} {
+		for _, ground := range []string{"--sys-surface", "--sys-surface-container-low", "--surface-wash"} {
+			checks = append(checks, pair{ink, ground, 4.5})
+		}
+	}
+	checks = append(checks,
+		pair{"--primary-deep", "--primary-faint", 4.5},
+		pair{"--primary-deep", "--primary-muted", 4.5},
+		pair{"--sys-primary", "--primary-faint", 4.5},
+		pair{"--sys-on-surface-variant", "--primary-faint", 4.5},
+		pair{"--sys-on-surface-variant", "--sys-surface-container", 4.5},
+		pair{"--sys-error", "--error-faint", 4.5},
+		pair{"--sys-on-surface", "--error-faint", 4.5},
+		pair{"--warn-ink", "--warn-faint", 4.5},
+		pair{"--sys-on-surface", "--warn-faint", 4.5},
+		// WCAG 1.4.11: a field's edge.
+		pair{"--field-edge", "--sys-surface", 3},
+		pair{"--field-edge", "--sys-surface-container-low", 3},
+		pair{"--field-edge", "--surface-wash", 3},
+	)
+	for _, c := range checks {
+		ink, ground := store[c.ink], store[c.ground]
+		for _, s := range []struct{ name, ink, ground string }{{"day", ink.day, ground.day}, {"night", ink.night, ground.night}} {
+			if got := contrast(s.ink, s.ground); got < c.want {
+				t.Errorf("%s: %s (#%s) on %s (#%s) = %.2f:1, want at least %g:1",
+					s.name, c.ink, s.ink, c.ground, s.ground, got, c.want)
+			}
+		}
+	}
+}
+
+// storefrontTrack is the translucent track app.css's --period-ground names for
+// the day or the night: light-dark() of two of base.css's rgb() tokens.
+func storefrontTrack(t *testing.T, rgba map[string]string, night bool) string {
+	t.Helper()
+	app, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	m := regexp.MustCompile(`--period-ground:\s*light-dark\(var\((--[a-z0-9-]+)\),\s*var\((--[a-z0-9-]+)\)\);`).FindStringSubmatch(string(app))
+	if m == nil {
+		t.Fatalf("%s declares no --period-ground as light-dark() of two tokens", AppCSS)
+	}
+	name := m[1]
+	if night {
+		name = m[2]
+	}
+	if rgba[name] == "" {
+		t.Fatalf("%s: --period-ground names %s, which base.css does not declare as rgb(r g b / alpha)", AppCSS, name)
+	}
+	return rgba[name]
 }
 
 // toneBlock finds a [data-tone="…"] rule and its declarations.
@@ -697,6 +775,8 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 	}
 
 	blocks := toneBlocks(t, string(sheet), tokens, aliasTokens(t))
+	store := storefrontTokens(t)
+	nightTrack := storefrontTrack(t, rgba, true)
 	vermilion, ok := roleTokens(t)["--sys-tertiary"]
 	if !ok {
 		t.Fatalf("%s declares no --sys-tertiary", BaseCSS)
@@ -722,8 +802,7 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 		}
 		// By night a tone that kept its day ground would be a lit block on a
 		// dark page, so each ground has a night of its own, and the text on it
-		// is held as by day. The period is held by day only: its track,
-		// --period-track, has no night value yet.
+		// and the period laid on it are held as by day.
 		if !decl["--tone-ground"].lightDark {
 			t.Errorf("data-tone=%q declares --tone-ground without light-dark(), so the night draws the day's ground", name)
 		}
@@ -757,6 +836,26 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 				}
 			}
 			checkPeriod(t, head, period["fill"], period["track"], "the "+name+" ground", ground)
+
+			night := map[string]string{"fill": store["--period-mark"].night, "track": nightTrack}
+			for _, m := range periodOverride.FindAllStringSubmatch(string(sheet), -1) {
+				if m[1] != head || (m[2] != "" && m[2] != name) {
+					continue
+				}
+				for _, d := range periodDecl.FindAllStringSubmatch(m[3], -1) {
+					switch {
+					case d[3] != "":
+						night[d[1]] = d[3]
+					case strings.HasPrefix(d[2], "--tone-"):
+						night[d[1]] = decl[d[2]].night
+					case rgba[d[2]] != "":
+						night[d[1]] = rgba[d[2]]
+					default:
+						night[d[1]] = store[d[2]].night
+					}
+				}
+			}
+			checkPeriod(t, "night: "+head, night["fill"], night["track"], "the "+name+" ground", decl["--tone-ground"].night)
 		}
 		if name == "ink" {
 			continue
@@ -772,11 +871,19 @@ func TestAppCSSToneGroundContrast(t *testing.T) {
 					scheme.name, scheme.ink, name, scheme.ground, got)
 			}
 		}
-		// A light ground is also where links and the plain text tokens land.
+		// A light ground is also where links and the plain text tokens land,
+		// and by night the roles that carry them.
 		for _, ink := range []string{"--muted", "--ink", "--accent"} {
 			if got := contrast(tokens[ink], ground); got < 4.5 {
 				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
 					ink, tokens[ink], name, ground, got)
+			}
+		}
+		for _, ink := range []string{"--sys-on-surface-variant", "--sys-on-surface", "--sys-primary"} {
+			night := decl["--tone-ground"].night
+			if got := contrast(store[ink].night, night); got < 4.5 {
+				t.Errorf("night: %s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
+					ink, store[ink].night, name, night, got)
 			}
 		}
 	}
@@ -839,7 +946,8 @@ func TestAppCSSToneFallback(t *testing.T) {
 // TestAppCSSStarPickerContrast checks that the star picker is visible on the
 // review form. The review form's star picker is a control with no text, so WCAG
 // 1.4.11 holds its outline and its selected fill to 3:1 against the ground the
-// form sits on, and the fill must stand out from the outline around it.
+// form sits on, and the fill must stand out from the outline around it, by day
+// and by night.
 func TestAppCSSStarPickerContrast(t *testing.T) {
 	t.Parallel()
 
@@ -847,25 +955,30 @@ func TestAppCSSStarPickerContrast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
-	tokens := hexTokens(t)
-	// The picker is drawn by day only: its outline, --n-900, has no night.
-	for name, r := range lightDarkTokens(t) {
-		tokens[name] = r.day
-	}
 	outline := regexp.MustCompile(`(?s)\.goen-pdp__starmark svg \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	fill := regexp.MustCompile(`(?s)\.goen-pdp__starrow:not\(:hover\)[^{]*\{\s*fill: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
-	if outline == nil || fill == nil {
-		t.Fatalf("%s has no star picker outline or selected fill rule with a token colour", AppCSS)
+	form := regexp.MustCompile(`(?s)\.goen-pdp__reviewform \{[^{}]*?background: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
+	if outline == nil || fill == nil || form == nil {
+		t.Fatalf("%s has no star picker outline, selected fill or review form ground rule with a token colour", AppCSS)
 	}
-	ground := tokens["--n-50"]
-	for _, c := range []struct{ what, token, against, on string }{
-		{"outline", outline[1], ground, "--n-50"},
-		{"selected fill", fill[1], ground, "--n-50"},
-		{"selected fill", fill[1], tokens[outline[1]], "the outline " + outline[1]},
+	store := storefrontTokens(t)
+	for _, scheme := range []struct {
+		name   string
+		colour func(schemed) string
+	}{
+		{"day", func(c schemed) string { return c.day }},
+		{"night", func(c schemed) string { return c.night }},
 	} {
-		if got := contrast(tokens[c.token], c.against); got < 3 {
-			t.Errorf("star %s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
-				c.what, c.token, tokens[c.token], c.on, c.against, got)
+		ground := scheme.colour(store[form[1]])
+		for _, c := range []struct{ what, token, against, on string }{
+			{"outline", outline[1], ground, form[1]},
+			{"selected fill", fill[1], ground, form[1]},
+			{"selected fill", fill[1], scheme.colour(store[outline[1]]), "the outline " + outline[1]},
+		} {
+			if got := contrast(scheme.colour(store[c.token]), c.against); got < 3 {
+				t.Errorf("%s: star %s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+					scheme.name, c.what, c.token, scheme.colour(store[c.token]), c.on, c.against, got)
+			}
 		}
 	}
 }
@@ -887,6 +1000,20 @@ func TestBaseCSSControlBoundary(t *testing.T) {
 		got := contrast(tokens["--control-boundary"], tokens[ground])
 		if math.IsNaN(got) || got < 3 {
 			t.Errorf("control boundary on %s = %.2f:1, want at least 3:1", ground, got)
+		}
+	}
+	// The storefront names the boundary again, for the night; by day it is
+	// the one above.
+	store := storefrontTokens(t)
+	edge := store["--control-boundary"]
+	if edge.day != tokens["--control-boundary"] {
+		t.Errorf("the storefront's control boundary by day is #%s, want base.css's #%s", edge.day, tokens["--control-boundary"])
+	}
+	for _, ground := range []string{"--sys-surface", "--sys-surface-container-low", "--sys-surface-container"} {
+		for _, s := range []struct{ name, edge, ground string }{{"day", edge.day, store[ground].day}, {"night", edge.night, store[ground].night}} {
+			if got := contrast(s.edge, s.ground); math.IsNaN(got) || got < 3 {
+				t.Errorf("%s: the storefront's control boundary (#%s) on %s (#%s) = %.2f:1, want at least 3:1", s.name, s.edge, ground, s.ground, got)
+			}
 		}
 	}
 }
@@ -917,13 +1044,32 @@ func TestAppCSSFocusRingContrast(t *testing.T) {
 	roles := roleTokens(t)
 	ringDecl := regexp.MustCompile(`(?:^|;)\s*--ring:\s*var\((--[a-z0-9-]+)\);`)
 	roleGround := regexp.MustCompile(`(?:^|;)\s*background:\s*var\((--sys-[a-z0-9-]+)\);`)
-	dark := 0
+	dark, pageRing := 0, 0
+	// The ink tone is dark in both schemes; by night it is a step above the page.
+	inkNight := toneBlocks(t, cssComment.ReplaceAllString(string(sheet), ""), tokens, aliasTokens(t))["ink"]["--tone-ground"].night
 	for _, r := range cssRule.FindAllStringSubmatch(cssComment.ReplaceAllString(string(sheet), ""), -1) {
 		decl := ringDecl.FindStringSubmatch(";" + r[2])
 		if decl == nil {
 			continue
 		}
 		selectors := strings.Join(selectorList(r[1]), ", ")
+		// The page's own ring: every surface is a ground it may sit on.
+		if _, isRole := roles[decl[1]]; isRole && selectors == ":root" {
+			pageRing++
+			ring := roles[decl[1]]
+			for name, ground := range roles {
+				if !strings.HasPrefix(name, "--sys-surface") {
+					continue
+				}
+				for _, s := range []struct{ name, ring, ground string }{{"day", ring.day, ground.day}, {"night", ring.night, ground.night}} {
+					if got := contrast(s.ring, s.ground); got < 3 {
+						t.Errorf("%s: the page's focus ring %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+							s.name, decl[1], s.ring, name, s.ground, got)
+					}
+				}
+			}
+			continue
+		}
 		if _, isRole := roles[decl[1]]; isRole {
 			g := roleGround.FindStringSubmatch(";" + r[2])
 			if len(g) < 2 || roles[g[1]].day == "" {
@@ -947,7 +1093,7 @@ func TestAppCSSFocusRingContrast(t *testing.T) {
 				t.Errorf("the white --ring override selects %q on any element; scope it to a dark ground", sel)
 			}
 		}
-		for _, bg := range []string{tokens["--n-900"], "18181b" /* [data-tone="ink"] */} {
+		for _, bg := range []string{tokens["--n-900"], "18181b" /* [data-tone="ink"] */, inkNight} {
 			if got := contrast(tokens[decl[1]], bg); math.IsNaN(got) || got < 3 {
 				t.Errorf("focus ring %s (#%s) on the dark ground #%s = %.2f:1, want at least 3:1",
 					decl[1], tokens[decl[1]], bg, got)
@@ -956,6 +1102,11 @@ func TestAppCSSFocusRingContrast(t *testing.T) {
 	}
 	if dark == 0 {
 		t.Fatal("app.css does not re-point --ring on any dark ground")
+	}
+	// The storefront's ring is a role, so it is the night's blue by night;
+	// base.css's --accent would be 2.5:1 on the night's page.
+	if pageRing != 1 {
+		t.Errorf("app.css re-points --ring on :root %d times, want once, to a role", pageRing)
 	}
 }
 
@@ -1266,15 +1417,22 @@ func TestAppCSSDepartmentPanelGround(t *testing.T) {
 
 // TestFieldBoundariesHoldContrast checks that the boundaries of invalid and
 // read-only fields hold their contrast. The state colours are read from the rules
-// that actually paint the boundary.
+// that actually paint the boundary. The back office is held by day, the one
+// scheme it draws; the storefront, which draws base.css's read-only field too,
+// by day and by night, each on the grounds a field sits on.
 func TestFieldBoundariesHoldContrast(t *testing.T) {
 	t.Parallel()
 	tokens := hexTokens(t)
 	links := aliasTokens(t)
-	for _, state := range []struct{ sheet, name, rule string }{
-		{AppCSS, "storefront invalid", `(?s)\.goen-input--invalid,\s*\.goen-input\[aria-invalid='true'\]\s*\{[^}]*?(?:border|outline)-color:\s*var\((--[a-z0-9-]+)\)`},
-		{AdminCSS, "admin invalid", `(?s)\.goen-input--invalid,\s*\.goen-input\[aria-invalid='true'\]\s*\{[^}]*?(?:border|outline)-color:\s*var\((--[a-z0-9-]+)\)`},
-		{BaseCSS, "read-only hover", `(?s)\.ui-input:read-only:hover\s*\{[^}]*?border-color:\s*var\((--[a-z0-9-]+)\)`},
+	store := storefrontTokens(t)
+	for _, state := range []struct {
+		sheet, name, rule string
+		storefront        bool
+	}{
+		{AppCSS, "storefront invalid", `(?s)\.goen-input--invalid,\s*\.goen-input\[aria-invalid='true'\]\s*\{[^}]*?(?:border|outline)-color:\s*var\((--[a-z0-9-]+)\)`, true},
+		{AdminCSS, "admin invalid", `(?s)\.goen-input--invalid,\s*\.goen-input\[aria-invalid='true'\]\s*\{[^}]*?(?:border|outline)-color:\s*var\((--[a-z0-9-]+)\)`, false},
+		{BaseCSS, "read-only hover", `(?s)\.ui-input:read-only:hover\s*\{[^}]*?border-color:\s*var\((--[a-z0-9-]+)\)`, false},
+		{BaseCSS, "storefront read-only hover", `(?s)\.ui-input:read-only:hover\s*\{[^}]*?border-color:\s*var\((--[a-z0-9-]+)\)`, true},
 	} {
 		sheet, readErr := fs.ReadFile(files, state.sheet)
 		if readErr != nil {
@@ -1284,14 +1442,28 @@ func TestFieldBoundariesHoldContrast(t *testing.T) {
 		if match == nil {
 			t.Fatalf("%s has no boundary colour rule", state.name)
 		}
-		colour := resolve(match[1], tokens, links)
-		if colour == "" {
-			t.Fatalf("%s: cannot resolve %s to a hex colour", state.name, match[1])
+		if !state.storefront {
+			colour := resolve(match[1], tokens, links)
+			if colour == "" {
+				t.Fatalf("%s: cannot resolve %s to a hex colour", state.name, match[1])
+			}
+			for _, ground := range []string{"--n-0", "--n-50"} {
+				got := contrast(colour, tokens[ground])
+				if math.IsNaN(got) || got < 3 {
+					t.Errorf("%s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1", state.name, match[1], colour, ground, tokens[ground], got)
+				}
+			}
+			continue
 		}
-		for _, ground := range []string{"--n-0", "--n-50"} {
-			got := contrast(colour, tokens[ground])
-			if math.IsNaN(got) || got < 3 {
-				t.Errorf("%s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1", state.name, match[1], colour, ground, tokens[ground], got)
+		colour := store[match[1]]
+		if colour.day == "" || colour.night == "" {
+			t.Fatalf("%s: cannot resolve %s to a hex colour by day and by night", state.name, match[1])
+		}
+		for _, ground := range []string{"--sys-surface", "--sys-surface-container-low"} {
+			for _, s := range []struct{ name, colour, ground string }{{"day", colour.day, store[ground].day}, {"night", colour.night, store[ground].night}} {
+				if got := contrast(s.colour, s.ground); math.IsNaN(got) || got < 3 {
+					t.Errorf("%s: %s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1", s.name, state.name, match[1], s.colour, ground, s.ground, got)
+				}
 			}
 		}
 	}
@@ -1425,10 +1597,19 @@ func TestAppCSSShelfPriceContrast(t *testing.T) {
 	if out == nil {
 		t.Fatalf("%s has no sold-out price rule", AppCSS)
 	}
-	grey := resolve(out[1], tokens, links)
+	store := storefrontTokens(t)
+	grey := store[out[1]]
 	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well"} {
-		if got := contrast(grey, tokens[name]); math.IsNaN(got) || got < 4.5 {
-			t.Errorf("a sold-out price %s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1", out[1], grey, name, tokens[name], got)
+		if got := contrast(grey.day, tokens[name]); math.IsNaN(got) || got < 4.5 {
+			t.Errorf("a sold-out price %s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1", out[1], grey.day, name, tokens[name], got)
+		}
+	}
+	for name, ground := range nightGrounds {
+		if strings.HasPrefix(name, "the ") {
+			continue // on a band the sold-out price takes the tone's muted colour, held below
+		}
+		if got := contrast(grey.night, ground); math.IsNaN(got) || got < 4.5 {
+			t.Errorf("night: a sold-out price %s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1", out[1], grey.night, name, ground, got)
 		}
 	}
 	if !regexp.MustCompile(`(?s)\.goen-band \.goen-tile--out \.goen-tile__price \{\s*color: var\(--tone-muted\);`).MatchString(sheet) {
