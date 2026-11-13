@@ -100,7 +100,15 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := home.Page(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
+		ctx := i18n.WithLocale(r.Context(), locale)
+		// ?promo=1 puts the strip above the header, with its code and its word.
+		if r.URL.Query().Get("promo") == "1" {
+			ctx = frame.WithBanner(ctx, frame.Banner{
+				ID: "autumn", Message: "Free delivery on orders over NT$999 this week", MessageShort: "Free delivery",
+				Code: "AUTUMN", CTALabel: "Shop now", CTAHref: "/s/tea",
+			})
+		}
+		if renderErr := home.Page(frame.Page{}, view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render home fixture: %v", renderErr)
 		}
 	})

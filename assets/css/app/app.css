@@ -378,6 +378,7 @@ a:hover {
 /* One line, clipped rather than wrapped: a two-line bar changes the page's
    height between one promotion and the next. */
 .goen-promo__message {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -387,7 +388,12 @@ a:hover {
 /* Container rem follows the root font size, so this fires only when text is
    enlarged; a media query's rem would fire on every phone. */
 @container (width < 20rem) {
+  .goen-promo__link {
+    flex-wrap: wrap;
+  }
+
   .goen-promo__message {
+    flex: 1 1 100%;
     overflow: visible;
     white-space: normal;
   }
@@ -419,7 +425,6 @@ a:hover {
 }
 
 .goen-promo__cta {
-  display: none;
   flex: none;
   font-weight: var(--fw-medium);
   text-decoration: underline;
@@ -427,9 +432,8 @@ a:hover {
 }
 
 .goen-promo__chevron {
-  display: inline-flex;
+  display: none;
   flex: none;
-  margin-left: auto;
 }
 
 /* 44 x 44, which is why the glyph inside it is 16px. A close control smaller
@@ -468,18 +472,9 @@ a:hover {
     display: none;
   }
 
-  /* The message takes the slack and the call to action sits at the right,
-     which is only possible once there is room for two targets on one row. */
-  .goen-promo__message {
-    flex: 1;
-  }
-
-  .goen-promo__cta {
-    display: inline;
-  }
-
+  /* The arrow after the word needs the room a phone's row does not have. */
   .goen-promo__chevron {
-    margin-left: 0;
+    display: inline-flex;
   }
 }
 

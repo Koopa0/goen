@@ -586,6 +586,37 @@ try {
     }
   }
 
+  // The promotion strip keeps its words on a phone: the message, the code, the
+  // call to action underlined, and the close. The arrow after the word needs the
+  // room a phone does not have, so it stands from 768 only. Nothing in the strip
+  // is cut by a hidden overflow other than the message's own ellipsis, which a
+  // 375 phone does not need for this copy.
+  for (const [width, chevron] of [[375, false], [1440, true]]) {
+    const label = `promotion strip ${width}px`;
+    await open('/home?promo=1', width);
+    const strip = await evaluate(`(() => {
+      const bar = document.querySelector('.goen-promo__bar');
+      const shown = selector => { const element = bar.querySelector(selector); return !!element && element.getClientRects().length > 0; };
+      const message = [...bar.querySelectorAll('.goen-promo__wide, .goen-promo__narrow')].find(element => element.getClientRects().length > 0);
+      const cta = bar.querySelector('.goen-promo__cta');
+      const close = bar.querySelector('.goen-promo__close').getBoundingClientRect();
+      const box = bar.getBoundingClientRect();
+      return { message: message && { text: message.textContent, cut: message.parentElement.scrollWidth > message.parentElement.clientWidth },
+        code: shown('.goen-promo__code'), cta: shown('.goen-promo__cta'), ctaLine: cta && getComputedStyle(cta).textDecorationLine,
+        chevron: shown('.goen-promo__chevron'), close: { width: close.width, right: close.right }, bar: { left: box.left, right: box.right },
+        page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth };
+    })()`);
+    assert.ok(strip.message, `${label}: no message is drawn`);
+    assert.equal(strip.message.cut, false, `${label}: the message ${JSON.stringify(strip.message.text)} is cut off`);
+    assert.equal(strip.code, true, `${label}: the code is not drawn`);
+    assert.equal(strip.cta, true, `${label}: the call to action is not drawn, the strip is a message and an arrow`);
+    assert.equal(strip.ctaLine, 'underline', `${label}: the call to action is ${strip.ctaLine}, not underlined`);
+    assert.equal(strip.chevron, chevron, `${label}: the arrow is ${strip.chevron ? 'drawn' : 'not drawn'}`);
+    assert.ok(strip.close.width >= 44 && strip.close.right <= strip.viewport + 0.5, `${label}: the close is ${strip.close.width}px wide ending at ${strip.close.right} in a ${strip.viewport}px window`);
+    assert.equal(strip.page, strip.viewport, `${label}: the page scrolls sideways`);
+    console.log(`${label}: message, code, underlined "Shop now" and close${chevron ? ' and the arrow' : ', no arrow'}`);
+  }
+
   // A product's main photograph sits on one square well in the photograph's
   // own ground. The product page carries no department tone, so nothing tones
   // the well: no tone frame around it, no white edge on the picture, and a
