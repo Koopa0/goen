@@ -475,6 +475,32 @@ try {
     assert.equal(footer.font, '15px', `${label}: the subscribe word is ${footer.font}, not label-l's 15px`);
     assert.deepEqual([footer.link, footer.line], [footer.ink, 'underline'], `${label}: a footer link is ${footer.link} with ${footer.line}, not ink and underlined`);
     console.log(`${label}: footer links and the subscribe word in ink`);
+
+    // On a phone the link groups stand two across, the brand and the newsletter
+    // across the whole width, as the board draws it; on a desktop each group
+    // takes a column of its own.
+    for (const width of [320, 375, 1440]) {
+      await open('/frame', width);
+      const grid = await evaluate(`(() => {
+        const box = element => element.getBoundingClientRect();
+        const groups = [...document.querySelectorAll('.goen-footer__grid > .goen-footer__links')].map(box);
+        const brand = box(document.querySelector('.goen-footer__brand')), news = box(document.querySelector('.goen-footer__news'));
+        const gridElement = document.querySelector('.goen-footer__grid'), gridStyle = getComputedStyle(gridElement);
+        const column = box(gridElement).width - parseFloat(gridStyle.paddingLeft) - parseFloat(gridStyle.paddingRight);
+        const top = Math.min(...groups.map(group => group.top));
+        return { groups: groups.length, first: groups.filter(group => Math.abs(group.top - top) < 1).length,
+          brand: Math.abs(brand.width - column) < 1, news: Math.abs(news.width - column) < 1,
+          page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth };
+      })()`);
+      const where = `footer ${width}px`;
+      assert.equal(grid.groups, 3, `${where}: ${grid.groups} link groups`);
+      assert.equal(grid.page, grid.viewport, `${where}: the page scrolls sideways`);
+      if (width < 768) {
+        assert.equal(grid.first, 2, `${where}: ${grid.first} link groups on the first row, want 2 across`);
+        assert.ok(grid.brand && grid.news, `${where}: the brand or the newsletter does not take the whole width`);
+      } else assert.equal(grid.first, 3, `${where}: ${grid.first} link groups on one row, want 3`);
+    }
+    console.log(`${label}: footer link groups two across on a phone, the brand and newsletter across the width`);
   }
 
   // The home hero is a printed page: each slide's photograph square and across

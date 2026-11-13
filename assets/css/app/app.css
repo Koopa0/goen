@@ -1892,12 +1892,20 @@ body:has(.goen-hero) .goen-header {
   border-top: 1px solid var(--rule-line);
 }
 
+/* On a phone the link groups stand two across, under the shop's name and over
+   the newsletter, which each take the whole row. */
 .goen-footer__grid {
   display: grid;
-  gap: 2.5rem;
+  gap: 2.5rem var(--s-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0 auto;
   max-width: var(--page-width);
   padding: 3rem var(--page-gutter);
+}
+
+.goen-footer__brand,
+.goen-footer__news {
+  grid-column: 1 / -1;
 }
 
 .goen-footer__brandline {
@@ -1930,6 +1938,7 @@ body:has(.goen-hero) .goen-header {
 .goen-footer__links {
   display: flex;
   flex-direction: column;
+  overflow-wrap: anywhere;
 }
 
 .goen-footer__heading {
@@ -2102,7 +2111,12 @@ body:has(.goen-hero) .goen-header {
 
 @media (min-width: 768px) {
   .goen-footer__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2.5rem;
+  }
+
+  .goen-footer__brand,
+  .goen-footer__news {
+    grid-column: auto;
   }
 
   .goen-footer__bottominner {
