@@ -1188,8 +1188,10 @@ try {
       console.log(`${where}: name and sentence ${ratio(got.refused, got.ground).toFixed(2)}:1 in the error colour on the page, icon drawn`);
     }
 
-    // The text option: white with a 1px edge, or tinted with a 2px edge and a
-    // check. Choosing one does not move the text or change the height.
+    // The text option: a square box of the field corner on the page's ground,
+    // chosen by a 2px ink frame (its 1px edge and an inset line of the same
+    // ink), with no tint, no blue and no check. Choosing one does not change
+    // the height.
     const swatches = ids => evaluate(`${JSON.stringify(ids)}.map(id => {
       const element = document.getElementById(id);
       if (!element) return null;
@@ -1213,6 +1215,7 @@ try {
       return { id, current: element.getAttribute('aria-current'), height: box.height, left: box.left,
         background: style.backgroundColor, color: style.color, shadow: style.boxShadow, outline: style.outlineStyle,
         radius: style.borderTopLeftRadius, borderStyle: style.borderTopStyle,
+        outlineWidth: style.outlineWidth, decoration: style.textDecorationLine,
         widths: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Width']),
         colours: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Color']),
         tick, textLeft: text.left, textRight: text.right, noteColour: note && getComputedStyle(note).color,
@@ -1224,9 +1227,9 @@ try {
         await open('/product?options=in', width);
         await rootSize(size);
         const t = await tokens(names);
-        const press = await evaluate(`(() => {
+        const corner = await evaluate(`(() => {
           const probe = document.createElement('div');
-          probe.style.borderTopLeftRadius = 'var(--r-press)';
+          probe.style.borderTopLeftRadius = 'var(--shape-xs)';
           document.body.append(probe);
           const got = getComputedStyle(probe).borderTopLeftRadius;
           probe.remove();
@@ -1235,58 +1238,43 @@ try {
         const [plain, chosen, soldOut] = await swatches(['swatch-0-0', 'swatch-0-1', 'swatch-0-2']);
         for (const [name, got] of [['plain', plain], ['chosen', chosen], ['sold out', soldOut]]) assert.ok(got, `${where}: no ${name} option`);
         assert.equal(chosen.current, 'true', `${where}: the second option is not the current one`);
-        assert.equal(plain.background, t['--n-0'], `${where}: an unchosen option is ${plain.background}, not white`);
+        assert.equal(corner, '4px', `${where}: --shape-xs is ${corner}, not the 4px control corner`);
+        assert.equal(plain.background, t['--sys-surface'], `${where}: an unchosen option is ${plain.background}, not the page's ground`);
         assert.deepEqual(plain.widths, Array(4).fill('1px'), `${where}: an unchosen edge is ${plain.widths}`);
         assert.deepEqual(plain.colours, Array(4).fill(t['--control-boundary']), `${where}: an unchosen edge is ${plain.colours}, not the control edge ${t['--control-boundary']}`);
-        assert.equal(plain.radius, press, `${where}: an unchosen option has corner ${plain.radius}, not --r-press ${press}`);
+        assert.equal(plain.radius, corner, `${where}: an unchosen option has corner ${plain.radius}, not ${corner}`);
         assert.equal(plain.tick, null, `${where}: an unchosen option is ticked`);
-        assert.equal(chosen.background, t['--accent-faint'], `${where}: the chosen option is ${chosen.background}, not the tint ${t['--accent-faint']}`);
-        assert.deepEqual(chosen.widths, Array(4).fill('2px'), `${where}: the chosen edge is ${chosen.widths}`);
-        assert.deepEqual(chosen.colours, Array(4).fill(t['--accent']), `${where}: the chosen edge is ${chosen.colours}, not the accent ${t['--accent']}`);
-        assert.equal(chosen.color, t['--accent-deep'], `${where}: the chosen text is ${chosen.color}, not ${t['--accent-deep']}`);
-        assert.equal(chosen.shadow, 'none', `${where}: the chosen option draws its edge with a shadow: ${chosen.shadow}`);
-        assert.equal(chosen.radius, press, `${where}: the chosen option has corner ${chosen.radius}, not --r-press ${press}`);
+        assert.equal(plain.shadow, 'none', `${where}: an unchosen option draws a shadow: ${plain.shadow}`);
+        assert.equal(chosen.background, plain.background, `${where}: the chosen option is ${chosen.background}, not the unchosen ground ${plain.background}: no tint`);
+        assert.deepEqual(chosen.colours, Array(4).fill(t['--sys-on-surface']), `${where}: the chosen edge is ${chosen.colours}, not the ink ${t['--sys-on-surface']}`);
+        assert.equal(chosen.shadow, `${t['--sys-on-surface']} 0px 0px 0px 1px inset`, `${where}: the chosen option's second pixel is ${chosen.shadow}, not an inset line of the ink`);
+        assert.equal(chosen.color, plain.color, `${where}: the chosen text is ${chosen.color}, not the unchosen text ${plain.color}`);
+        assert.equal(chosen.radius, corner, `${where}: the chosen option has corner ${chosen.radius}, not ${corner}`);
         assert.ok(Math.abs(chosen.height - plain.height) < 0.5, `${where}: choosing resizes the option from ${plain.height}px to ${chosen.height}px`);
-        assert.ok(chosen.tick, `${where}: the chosen option has no check`);
-        assert.deepEqual([chosen.tick.content, chosen.tick.position, chosen.tick.widths.slice(0, 2)], ['""', 'absolute', ['2px', '2px']], `${where}: the check is ${JSON.stringify(chosen.tick)}`);
-        assert.equal(chosen.tick.colour, chosen.color, `${where}: the check is ${chosen.tick.colour}, not the text colour ${chosen.color}`);
+        assert.equal(chosen.tick, null, `${where}: the chosen option is ticked: ${JSON.stringify(chosen.tick)}`);
         assert.ok(chosen.inside && plain.inside, `${where}: an option is cut by the edge of the screen`);
-        // Contrast, by the formula above: the edge against the page it sits
-        // on (1.4.11, at least 3:1), the text against the tint (1.4.3, at
-        // least 4.5:1) and the edge against the tint it encloses.
-        const edge = ratio(chosen.colours[0], chosen.ground), text = ratio(chosen.color, chosen.background), inner = ratio(chosen.colours[0], chosen.background);
-        assert.ok(edge >= 3, `${where}: the chosen edge on the page is ${edge.toFixed(2)}:1, under 3:1`);
-        assert.ok(text >= 4.5, `${where}: the chosen text on the tint is ${text.toFixed(2)}:1, under 4.5:1`);
-        assert.ok(inner >= 3, `${where}: the chosen edge on the tint is ${inner.toFixed(2)}:1, under 3:1`);
-        // The check is a box drawn after the turn: its left stays inside the
-        // option and its right stays clear of the words.
-        const tick = await evaluate(`(() => {
-          const element = document.getElementById('swatch-0-1');
-          const box = element.getBoundingClientRect();
-          const tick = getComputedStyle(element, '::before');
-          const inset = parseFloat(tick.left), width = parseFloat(tick.width), height = parseFloat(tick.height);
-          const left = box.left + parseFloat(getComputedStyle(element).borderLeftWidth) + inset;
-          const turned = (width + height) * Math.SQRT1_2;
-          return { left: left + width / 2 - turned / 2, right: left + width / 2 + turned / 2, box: box.left };
-        })()`);
-        assert.ok(tick.left >= tick.box, `${where}: the check starts ${tick.box - tick.left}px outside the option`);
-        assert.ok(tick.right <= chosen.textLeft - 2, `${where}: the check reaches ${tick.right}px, over the words that start at ${chosen.textLeft}px`);
-        console.log(`${where}: chosen edge ${edge.toFixed(2)}:1, text ${text.toFixed(2)}:1, edge on tint ${inner.toFixed(2)}:1, check clear of the words by ${(chosen.textLeft - tick.right).toFixed(1)}px`);
+        // Contrast, by the formula above: the frame against the page it sits
+        // on (1.4.11, at least 3:1) and the text against the ground (1.4.3, at
+        // least 4.5:1).
+        const edge = ratio(chosen.colours[0], chosen.ground), text = ratio(chosen.color, chosen.background);
+        assert.ok(edge >= 3, `${where}: the chosen frame on the page is ${edge.toFixed(2)}:1, under 3:1`);
+        assert.ok(text >= 4.5, `${where}: the chosen text on its ground is ${text.toFixed(2)}:1, under 4.5:1`);
+        console.log(`${where}: chosen frame ${edge.toFixed(2)}:1, text ${text.toFixed(2)}:1, no tint, no check`);
       }
     }
     {
       await open('/product?options=in', 1440);
       const t = await tokens(names);
-      const hovered = id => evaluate(`getComputedStyle(document.getElementById(${JSON.stringify(id)})).backgroundColor`);
+      const edge = id => evaluate(`getComputedStyle(document.getElementById(${JSON.stringify(id)})).borderTopColor`);
       await force('#swatch-0-1', ['hover']);
-      assert.equal(await hovered('swatch-0-1'), t['--accent-faint'], `${label}: the chosen option loses its tint under the pointer`);
+      assert.equal(await edge('swatch-0-1'), t['--sys-on-surface'], `${label}: the chosen option loses its ink frame under the pointer`);
       await force('#swatch-0-1', []);
-      console.log(`${label}: the chosen option keeps its tint under the pointer`);
+      console.log(`${label}: the chosen option keeps its ink frame under the pointer`);
     }
 
     // A chosen option that is sold out is chosen the same way, still dashed,
-    // and holds what product-options-check measures: a light fill, an edge of
-    // at least 3:1 and words of at least 4.5:1.
+    // and holds what product-options-check measures: a light ground, a frame
+    // of at least 3:1 and words of at least 4.5:1.
     for (const size of ['', '200%']) {
       for (const width of [320, 1440]) {
         const where = `sold-out chosen option ${width}px at ${size || '100%'}`;
@@ -1296,18 +1284,18 @@ try {
         const [got] = await swatches(['swatch-0-1']);
         assert.ok(got, `${where}: no chosen option`);
         assert.equal(got.current, 'true', `${where}: not the current option`);
-        assert.equal(got.background, t['--accent-faint'], `${where}: the fill is ${got.background}, not the tint`);
-        assert.ok(rgb(got.background).every(channel => channel > 200), `${where}: the fill ${got.background} is not light`);
-        assert.deepEqual(got.widths, Array(4).fill('2px'), `${where}: the edge is ${got.widths}`);
-        assert.deepEqual(got.colours, Array(4).fill(t['--accent']), `${where}: the edge is ${got.colours}, not the accent`);
+        assert.equal(got.background, t['--sys-surface'], `${where}: the ground is ${got.background}, not the page's`);
+        assert.ok(rgb(got.background).every(channel => channel > 200), `${where}: the ground ${got.background} is not light`);
+        assert.deepEqual(got.colours, Array(4).fill(t['--sys-on-surface']), `${where}: the frame is ${got.colours}, not the ink`);
         assert.equal(got.borderStyle, 'dashed', `${where}: the edge is ${got.borderStyle}, so a sold-out option no longer looks sold out`);
-        assert.equal(got.shadow, 'none', `${where}: a shadow draws the edge: ${got.shadow}`);
+        assert.equal(got.shadow, `${t['--sys-on-surface']} 0px 0px 0px 1px inset`, `${where}: the second pixel is ${got.shadow}`);
+        assert.equal(got.tick, null, `${where}: the option is ticked`);
         const edge = ratio(got.colours[0], got.ground), text = ratio(got.color, got.background), note = ratio(got.noteColour, got.background);
-        assert.ok(edge >= 3, `${where}: the edge on the page is ${edge.toFixed(2)}:1, under 3:1`);
-        assert.ok(text >= 4.5, `${where}: the words on the fill are ${text.toFixed(2)}:1, under 4.5:1`);
-        assert.ok(note >= 4.5, `${where}: the sold-out note on the fill is ${note.toFixed(2)}:1, under 4.5:1`);
+        assert.ok(edge >= 3, `${where}: the frame on the page is ${edge.toFixed(2)}:1, under 3:1`);
+        assert.ok(text >= 4.5, `${where}: the words on the ground are ${text.toFixed(2)}:1, under 4.5:1`);
+        assert.ok(note >= 4.5, `${where}: the sold-out note on the ground is ${note.toFixed(2)}:1, under 4.5:1`);
         assert.ok(got.inside, `${where}: the option is cut by the edge of the screen`);
-        console.log(`${where}: dashed accent edge ${edge.toFixed(2)}:1, words ${text.toFixed(2)}:1, note ${note.toFixed(2)}:1 on the tint`);
+        console.log(`${where}: dashed ink frame ${edge.toFixed(2)}:1, words ${text.toFixed(2)}:1, note ${note.toFixed(2)}:1`);
       }
     }
 
@@ -1389,13 +1377,15 @@ try {
     await media([{ name: 'forced-colors', value: 'active' }]);
     {
       const [plain, chosen] = await swatches(['swatch-0-0', 'swatch-0-1']);
-      assert.ok(chosen.tick, `${label}: forced colours: the chosen option has no check`);
-      assert.notEqual(chosen.tick.colour, 'rgba(0, 0, 0, 0)', `${label}: forced colours: the check is transparent`);
-      assert.deepEqual(chosen.tick.widths.slice(0, 2), ['2px', '2px'], `${label}: forced colours: the check is ${chosen.tick.widths}`);
-      assert.deepEqual([chosen.widths[0], plain.widths[0]], ['2px', '1px'], `${label}: forced colours: option edges ${chosen.widths[0]} and ${plain.widths[0]}`);
+      // The inset line is a shadow, which forced colours drop, so the chosen
+      // box is told by a 2px outline in the system's highlight and an underline.
+      assert.equal(chosen.tick, null, `${label}: forced colours: the chosen option is ticked`);
+      assert.deepEqual([chosen.outline, chosen.outlineWidth], ['solid', '2px'], `${label}: forced colours: the chosen option's outline is ${chosen.outline} ${chosen.outlineWidth}`);
+      assert.equal(plain.outline, 'none', `${label}: forced colours: an unchosen option draws an outline: ${plain.outline}`);
+      assert.match(chosen.decoration, /underline/, `${label}: forced colours: the chosen option is not underlined: ${chosen.decoration}`);
     }
     await media([]);
-    console.log(`${label}: forced colours keep the 2px edge, the check and the radio`);
+    console.log(`${label}: forced colours keep the 2px edge, the chosen option's outline and the radio`);
 
     // Keyboard focus shows one ring, on the card; the radio inside it draws
     // none. A real Tab key moves focus to the chosen radio, so :focus-visible is

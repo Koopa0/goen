@@ -111,18 +111,22 @@ try {
       assert.ok(state.text >= 4.5, `${choice}@${width}: selected unavailable text ${state.text}:1`);
       assert.ok(state.light && state.edge >= 3, `${choice}@${width}: selected unavailable option needs a light fill and a dark edge`);
       assert.equal(state.overflow, false, `${choice}@${width}: product options overflow`);
-      await evaluate(`document.querySelector('.goen-swatch--dot').focus()`);
-      const focused = await evaluate(`(() => {
-        const label = document.querySelector('.goen-swatch--dot .goen-swatch__label');
-        return { visible: getComputedStyle(label).clipPath === 'none' && label.getBoundingClientRect().width > 1,
-          overflow: document.documentElement.scrollWidth > innerWidth };
+      // A colour option says its name on the box at rest, not only under the
+      // pointer or focus: the shopper should not have to guess it.
+      const named = await evaluate(`(() => {
+        document.activeElement?.blur();
+        return [...document.querySelectorAll('.goen-swatch--dot')].map(box => {
+          const label = box.querySelector('.goen-swatch__label');
+          const rect = label?.getBoundingClientRect();
+          const inside = rect && box.getBoundingClientRect();
+          return { text: label?.textContent.trim() ?? '',
+            visible: !!rect && getComputedStyle(label).clipPath === 'none' && rect.width > 1 && rect.height > 1 &&
+              rect.left >= inside.left && rect.right <= inside.right };
+        });
       })()`);
-      assert.equal(focused.visible, true, `${choice}@${width}/${fontSize}: colour name missing on focus`);
-      assert.equal(focused.overflow, false, `${choice}@${width}/${fontSize}: focused colour name overflows`);
-      const box = await evaluate(`(() => { document.activeElement.blur(); const r = document.querySelector('.goen-swatch--dot').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()`);
-      await send('Input.dispatchMouseEvent', {type:'mouseMoved', ...box}, sessionId);
-      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.goen-swatch__label')).clipPath === 'none'`), true, 'colour name missing on hover');
-      await send('Input.dispatchMouseEvent', {type:'mouseMoved', x:width-1,y:899}, sessionId);
+      assert.ok(named.length > 0, `${choice}@${width}/${fontSize}: no colour option`);
+      for (const n of named) assert.equal(n.visible, true, `${choice}@${width}/${fontSize}: colour name ${JSON.stringify(n.text)} not shown on its box at rest`);
+      assert.equal(await evaluate(`document.documentElement.scrollWidth > innerWidth`), false, `${choice}@${width}/${fontSize}: colour names overflow`);
       console.log(`PASS ${choice}@${width}/${fontSize}: ring=${state.ring.toFixed(2)}, text=${state.text.toFixed(2)}, edge=${state.edge.toFixed(2)}`);
       }
     }

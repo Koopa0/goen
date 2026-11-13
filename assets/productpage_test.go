@@ -7,12 +7,13 @@ import (
 	"testing"
 )
 
-// TestAppCSSProductPageAsDrawn checks the product page's two type rules the
-// drawing fixes: the name is set by the 40px step, never a size of its own,
-// and a price with a struck original, a campaign's, is in the colour of what
-// ends, in the buy box and in the mobile buy bar alike. Each reads a role or a
-// step, not a value, so the night and the narrow screen take their own from
-// the same rule.
+// TestAppCSSProductPageAsDrawn checks what the drawing fixes on the product
+// page: the name is set by the 40px step, never a size of its own, and a price
+// with a struck original, a campaign's, is in the colour of what ends, in the
+// buy box and in the mobile buy bar alike; an option is a square box of the
+// control corner that is chosen by a 2px ink frame, and a colour says its name
+// on its box. Each reads a role or a step, not a value, so the night and the
+// narrow screen take their own from the same rule.
 func TestAppCSSProductPageAsDrawn(t *testing.T) {
 	t.Parallel()
 
@@ -36,6 +37,10 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 		{".goen-pdp__title", `font:\s*var\(--fw-medium\) var\(--t-40\)/1\.2 var\(--font-editorial\);`},
 		{".goen-pdp__price--sale", `color:\s*var\(--sys-tertiary\);`},
 		{".goen-buybar__price--sale", `color:\s*var\(--sys-tertiary\);`},
+		{".goen-swatch", `border-radius:\s*var\(--shape-xs\);`},
+		{".goen-swatch--on", `border-color:\s*var\(--sys-on-surface\);`},
+		{".goen-swatch--on", `box-shadow:\s*inset 0 0 0 1px var\(--sys-on-surface\);`},
+		{".goen-swatch--dot", `flex-direction:\s*row;`},
 	} {
 		found := false
 		for _, block := range declared(want.selector) {
@@ -51,6 +56,17 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 	for _, block := range declared(".goen-pdp__title") {
 		if regexp.MustCompile(`font-(size|family):`).MatchString(block) {
 			t.Errorf("%s: a rule for .goen-pdp__title overrides the 40px step: %s", AppCSS, strings.TrimSpace(block))
+		}
+	}
+	// An option is no pill, is not chosen in blue, carries no check mark drawn
+	// as content and never hides its name: the frame is the state and the name
+	// is on the box.
+	for _, rule := range cssRule.FindAllStringSubmatch(sheet, -1) {
+		if !strings.Contains(rule[1], ".goen-swatch") {
+			continue
+		}
+		if bad := regexp.MustCompile(`--sys-primary|--primary-faint|--primary-deep|--r-press|--r-full|(?:^|[\s;{])content:|clip-path:`).FindString(rule[2]); bad != "" {
+			t.Errorf("%s: %s declares %q: an option is a square box chosen by its ink frame, its name shown", AppCSS, strings.TrimSpace(rule[1]), bad)
 		}
 	}
 }

@@ -334,9 +334,6 @@ templ productBuy(v *ProductView) {
 								templ.KV("goen-swatch--on", val.Selected),
 								templ.KV("goen-swatch--out", !val.Available) }
 								href={ templ.URL(val.Href) }
-								if o.HasSwatches() {
-									title={ val.Label }
-								}
 								hx-get={ val.Href }
 								hx-select="#buybox"
 								hx-target="#buybox"
@@ -353,7 +350,7 @@ templ productBuy(v *ProductView) {
 							>
 								if o.HasSwatches() {
 									// A presentation attribute, not a style, so the CSP has nothing to refuse. The
-									// colour is the control; the name is what a screen reader is given.
+									// dot shows the colour and the name beside it says it, to the eye and the ear.
 									<svg class="goen-swatch__dot" viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
 										<circle cx="18" cy="18" r="17.5" fill={ val.SwatchHex }></circle>
 										if !val.Available {
