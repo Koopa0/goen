@@ -14,9 +14,10 @@
    Day and night follow the visitor's system setting, with no switch of
    goen's own: the colour-scheme rule below lets every light-dark() pick the
    night where the system asks for dark. A browser without light-dark() keeps
-   the light scheme and every day value. The back office does not load this
-   file, so base.css's `color-scheme: light` holds there and it keeps its
-   one light ground.
+   the light scheme and every day value. The back office's own pages do not
+   load this file, so base.css's `color-scheme: light` holds there and they
+   keep their one light ground; the sign-in page, drawn in the storefront's
+   frame, follows the visitor's setting like the pages around it.
    ============================================================ */
 
 /* ---------- Scheme ----------
@@ -26,8 +27,8 @@
    a night, so the day is unchanged pixel for pixel. A day-only token of the
    ramp (--n-*, --ink, --line, --accent-*, …) appears here only as the day
    half of a light-dark(); assets/scheme_test.go holds that, and
-   assets/contrast_test.go measures both halves of each pair. Photographs keep their frame, --well, in both
-   schemes: they were shot on it.
+   assets/contrast_test.go measures both halves of each pair. Photographs
+   keep their frame, --well, in both schemes: they were shot on it.
    ------------------------------------------------------------------------ */
 
 @supports (color: light-dark(#000, #fff)) {
