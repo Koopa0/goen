@@ -63,6 +63,13 @@
   --warn-ink: light-dark(var(--warn), var(--night-star));
   --success-ink: light-dark(var(--success), color-mix(in srgb, var(--success) 40%, var(--night-on-surface)));
 
+  /* The review form's star picker; see .goen-pdp__starmark. */
+  --star-pick-edge: light-dark(var(--n-900), var(--n-0));
+
+  /* A period's fill and the track under it; see .ui-period. */
+  --period-mark: light-dark(var(--mark), var(--night-primary));
+  --period-ground: light-dark(var(--period-track), var(--period-track-on-ink));
+
   /* The hairline that keeps a near-white swatch a disc on white keeps a
      near-black one a disc on the night's ground. */
   --swatch-edge: light-dark(var(--swatch-ring), color-mix(in srgb, var(--night-on-surface) 15%, transparent));
@@ -98,6 +105,25 @@
   }
 }
 
+/* A photograph of a setting (the home slide, a department's or a category's
+   picture, a campaign's header, the sign-in page's) is the brightest thing on
+   a night page, so by night it is dimmed. No text sits on any of them. A
+   product photograph is what the shopper is judging and keeps its own light,
+   on its light frame. A reader who asks for more contrast gets the
+   photographs as they were taken. */
+@media (prefers-color-scheme: dark) and (not (prefers-contrast: more)) {
+  @supports (color: light-dark(#000, #fff)) {
+    .goen-hero__media img,
+    .goen-cat__photo,
+    .goen-deptindex__photo img,
+    .goen-dept__photo,
+    .goen-campaign__header,
+    .goen-auth__media img {
+      filter: brightness(0.82);
+    }
+  }
+}
+
 /* Without light-dark() each pair above is invalid where a rule reads it, and
    the rule falls back to its initial colour; such a browser gets the day. */
 @supports not (color: light-dark(#000, #fff)) {
@@ -119,6 +145,9 @@
     --warn-ink: var(--warn);
     --success-ink: var(--success);
     --swatch-edge: var(--swatch-ring);
+    --star-pick-edge: var(--n-900);
+    --period-mark: var(--mark);
+    --period-ground: var(--period-track);
   }
 }
 
@@ -964,6 +993,44 @@ th {
   resize: vertical;
 }
 
+/* base.css's shared field and information notice name day colours of the
+   ramp, which do not follow the scheme; where the storefront still wears one
+   it takes the roles, each with base.css's own day value. The states keep
+   base.css's order, so a refusal still outranks focus. */
+.ui-input,
+.ui-textarea,
+.ui-select {
+  background-color: var(--sys-surface);
+}
+
+.ui-input:focus,
+.ui-textarea:focus {
+  border-color: var(--sys-primary);
+}
+
+.ui-input:focus-visible,
+.ui-textarea:focus-visible,
+.ui-select:focus-visible {
+  outline-color: var(--ring);
+}
+
+.ui-input:user-valid,
+.ui-textarea:user-valid {
+  border-color: var(--success-ink);
+}
+
+.ui-input[aria-invalid="true"],
+.ui-textarea[aria-invalid="true"],
+.ui-input:user-invalid,
+.ui-textarea:user-invalid {
+  border-color: var(--sys-error);
+}
+
+.ui-alert--info {
+  background: var(--primary-faint);
+  color: var(--primary-deep);
+}
+
 .ui-crumbs {
   align-items: center;
   color: var(--sys-on-surface-variant);
@@ -987,6 +1054,7 @@ th {
 }
 
 .ui-crumbs__sep {
+  color: var(--sys-outline-variant);
   opacity: 0.45;
 }
 
@@ -1103,6 +1171,15 @@ body:has(.goen-hero) .goen-header {
 
 .goen-header__brand:hover {
   color: var(--sys-on-surface);
+}
+
+/* The mark's rings are drawn with presentation attributes naming the day's
+   ink and blue; the ink ring reads --fg, which follows the scheme here, and
+   the blue ring takes the role so it is the night's blue by night. No
+   specificity, so base.css's forced-colours rule still draws both rings in
+   CanvasText. */
+:where(.goen-header__mark, .goen-footer__mark) :where(circle + circle) {
+  stroke: var(--sys-primary);
 }
 
 .goen-header__mark {
@@ -2365,6 +2442,14 @@ body:has(.goen-hero) .goen-header {
   .goen-days > i[data-cell="past"] {
     background: GrayText;
   }
+}
+
+/* base.css draws a period in the day's blue on the day's track. By night the
+   fill is the night's blue and the track that blue at the same 30%, the track
+   the ink tone already draws on its dark ground. */
+.ui-period {
+  --period-fill: var(--period-mark);
+  --period-track: var(--period-ground);
 }
 
 /* A department's or a campaign's head lays the period on its tone. */
@@ -6024,9 +6109,12 @@ input.goen-check {
 
 /* The outline carries the shape's 3:1 boundary on every state, and the fill is
    3:1 on the form's ground and on the outline, so a selected star differs from
-   an empty one by shape and by contrast, not by hue. */
+   an empty one by shape and by contrast, not by hue. By night a light outline
+   leaves no amber that is 3:1 on both it and the dark ground except the day's
+   deeper one under a white outline, so the picker keeps the day's amber and
+   its outline turns white. */
 .goen-pdp__starmark svg {
-  color: var(--on-surface-strong);
+  color: var(--star-pick-edge);
   display: block;
   fill: none;
   height: 1.75rem;
@@ -6037,7 +6125,7 @@ input.goen-check {
 .goen-pdp__starrow:not(:hover) .goen-pdp__star:has(~ .goen-pdp__star .goen-pdp__starinput:checked) .goen-pdp__starmark svg,
 .goen-pdp__starrow:hover .goen-pdp__star:hover .goen-pdp__starmark svg,
 .goen-pdp__starrow:hover .goen-pdp__star:has(~ .goen-pdp__star:hover) .goen-pdp__starmark svg {
-  fill: var(--star);
+  fill: var(--day-star);
 }
 
 @media (forced-colors: active) {
