@@ -6,21 +6,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
-func departmentsOf(n int) []Category {
-	cats := make([]Category, n)
-	for i := range cats {
-		cats[i] = Category{Slug: fmt.Sprintf("d%d", i), Name: fmt.Sprintf("館%d", i)}
+// departmentsOf is the header's row as the middleware carries it: the one
+// list the home page's index reads, as the missing page's does.
+func departmentsOf(n int) []frame.NavItem {
+	nav := make([]frame.NavItem, n)
+	for i := range nav {
+		nav[i] = frame.NavItem{Slug: fmt.Sprintf("d%d", i), Name: fmt.Sprintf("館%d", i), Href: fmt.Sprintf("/c/d%d", i)}
 	}
-	return cats
+	return nav
+}
+
+// renderWithNav draws c in Chinese as a page the header's row is read for.
+func renderWithNav(t *testing.T, nav []frame.NavItem, c templ.Component) string {
+	t.Helper()
+	var b strings.Builder
+	if err := c.Render(frame.WithTopNav(i18n.WithLocale(t.Context(), i18n.ZhHant), nav), &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return b.String()
 }
 
 // TestView_ShowsDirectory holds that the directory is drawn only when it lists
-// more than the band does.
+// more than the band does, and that it is the index the missing page draws.
 func TestView_ShowsDirectory(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -37,74 +52,89 @@ func TestView_ShowsDirectory(t *testing.T) {
 		{"six", 6, true, true},
 		{"ten", 10, true, true},
 	} {
-		view := View{Categories: departmentsOf(tt.departments)}
+		view := View{}
 		if tt.band {
 			view.Band = &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(4)}
 		}
-		if got := view.ShowsDirectory(); got != tt.want {
+		nav := departmentsOf(tt.departments)
+		ctx := frame.WithTopNav(i18n.WithLocale(t.Context(), i18n.ZhHant), nav)
+		if got := view.ShowsDirectory(ctx); got != tt.want {
 			t.Errorf("%s: ShowsDirectory() = %t, want %t", tt.name, got, tt.want)
 		}
-		page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, view))
-		if got := strings.Contains(page, "goen-cats__grid"); got != tt.want {
+		page := renderWithNav(t, nav, Page(frame.Page{}, view))
+		if got := strings.Contains(page, `class="goen-deptindex"`); got != tt.want {
 			t.Errorf("%s: directory drawn = %t, want %t", tt.name, got, tt.want)
 		}
 		if tt.want {
-			if got := strings.Count(page, `class="goen-cat"`); got != tt.departments {
-				t.Errorf("%s: %d tiles, want one per department (%d)", tt.name, got, tt.departments)
+			if got := strings.Count(page, `class="goen-deptindex__item"`); got != tt.departments {
+				t.Errorf("%s: %d departments, want one per department (%d)", tt.name, got, tt.departments)
 			}
 		}
-		for _, not := range []string{"goen-cat__stage", "goen-cat__subs", "goen-cat__count", "goen-cat__line", "goen-cats__grid--"} {
+		for _, not := range []string{"goen-cats", "goen-cat__", `class="goen-cat"`} {
 			if strings.Contains(page, not) {
-				t.Errorf("%s: the page still draws %s", tt.name, not)
+				t.Errorf("%s: the page still draws %s, the grid the shared index replaced", tt.name, not)
 			}
 		}
 	}
 }
 
 // TestDepartmentDirectoryOneTile: With one department and no band drawn, the
-// department is the directory's one tile: the home page never names it only in
+// department is the directory's one entry: the home page never names it only in
 // the header.
 func TestDepartmentDirectoryOneTile(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{Categories: departmentsOf(1)}))
-	if !strings.Contains(page, "goen-cats__grid") || !strings.Contains(page, `href="/c/d0"`) {
-		t.Error("the only department is not drawn as a tile")
+	page := renderWithNav(t, departmentsOf(1), Page(frame.Page{}, View{}))
+	if !strings.Contains(page, `class="goen-deptindex"`) || !strings.Contains(page, `<a href="/c/d0">館0</a>`) {
+		t.Error("the only department is not drawn in the index")
 	}
 }
 
-// TestDepartmentTilePictureName: A tile is the department's name and nothing
-// else: no number of products, no sub-categories.
-func TestDepartmentTilePictureName(t *testing.T) {
+// TestPage_DepartmentIndexLinks holds the index's accessibility pattern on the home
+// page: the photograph's link is out of the tab order and hidden from a screen
+// reader beside the name's own link, the photograph has an empty alt, and the
+// sub-categories are links set apart by a dot a screen reader skips.
+func TestPage_DepartmentIndexLinks(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{Categories: departmentsOf(2)}))
-	want := `<a class="goen-cat" data-tone="stone" href="/c/d0"><span class="goen-cat__well"><span class="goen-cat__mark" aria-hidden="true">館</span></span> <span class="goen-cat__name">館0</span></a>`
-	if !strings.Contains(page, want) {
-		t.Errorf("the tile is not its picture and name; want %s", want)
+	nav := []frame.NavItem{
+		{Slug: "tech", Name: "3C 數位", Href: "/c/tech", PhotoURL: "/static/media/products/department-tech.webp", PhotoSrcset: "/static/x-400.webp 400w", Tone: tone.Mist,
+			Children: []frame.NavItem{{Name: "手機", Href: "/c/phones"}, {Name: "筆電", Href: "/c/laptops"}}},
+	}
+	page := renderWithNav(t, nav, Page(frame.Page{}, View{}))
+	for _, want := range []string{
+		`<li class="goen-deptindex__item" data-tone="mist">`,
+		`<a class="goen-deptindex__photo" href="/c/tech" tabindex="-1" aria-hidden="true">`,
+		`alt="" width="800" height="600"`,
+		`<h3 class="goen-deptindex__name"><a href="/c/tech">3C 數位</a></h3>`,
+		`<a href="/c/phones">手機</a>&nbsp;<span class="goen-sep" aria-hidden="true">·</span> <a href="/c/laptops">筆電</a>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the home page's index lacks %s", want)
+		}
+	}
+	if strings.Contains(page, "goen-deptindex__mark") {
+		t.Error("a department with a photograph draws a mark as well")
 	}
 }
 
-// TestDepartmentTileNoPhoto: A department without a photograph is its tone and
+// TestPage_DepartmentIndexNoPhoto: A department without a photograph is its tone and
 // the first character of its name, hidden from a screen reader because the name
 // stands beside it; a department with no tone is stone.
-func TestDepartmentTileNoPhoto(t *testing.T) {
+func TestPage_DepartmentIndexNoPhoto(t *testing.T) {
 	t.Parallel()
-	cats := departmentsOf(3)
-	cats[1] = Category{Slug: "wood", Name: "棲木家居"}
-	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{Categories: cats}))
-	if !strings.Contains(page, `<span class="goen-cat__mark" aria-hidden="true">棲</span>`) {
-		t.Error("the department with no photograph lost its first-character square")
+	nav := []frame.NavItem{
+		{Slug: "wood", Name: "棲木家居", Href: "/c/wood"},
+		{Slug: "tea", Name: "Tea", Href: "/c/tea", Tone: tone.Sage},
+		{Slug: "none", Name: "", Href: "/c/none"},
 	}
-	if !strings.Contains(page, `data-tone="stone" href="/c/wood"`) {
-		t.Error("a department with no tone is not stone")
-	}
-	pair := departmentsOf(2)
-	pair[0].Name = "棲木家居"
-	tiles := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{Categories: pair}))
-	if !strings.Contains(tiles, `<span class="goen-cat__well"><span class="goen-cat__mark" aria-hidden="true">棲</span></span>`) {
-		t.Error("a tile with no photograph lost its first-character square")
-	}
-	if got := (Category{}).Initial(); got != "" {
-		t.Errorf("Initial of no name = %q, want none", got)
+	page := renderWithNav(t, nav, Page(frame.Page{}, View{}))
+	for _, want := range []string{
+		`<li class="goen-deptindex__item" data-tone="stone"><a class="goen-deptindex__photo goen-deptindex__photo--mark" href="/c/wood" tabindex="-1" aria-hidden="true"><span class="goen-deptindex__mark">棲</span></a>`,
+		`<li class="goen-deptindex__item" data-tone="sage"><a class="goen-deptindex__photo goen-deptindex__photo--mark" href="/c/tea" tabindex="-1" aria-hidden="true"><span class="goen-deptindex__mark">T</span></a>`,
+		`<span class="goen-deptindex__mark"></span>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("a department with no photograph lacks %s", want)
+		}
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -69,6 +70,32 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 		none := renderComponent(t, ctx, Page(Meta(ctx), View{}))
 		if strings.Contains(none, "goen-hero") {
 			t.Errorf("%s home with no slides draws an empty carousel", locale)
+		}
+	}
+}
+
+// A slide with no photograph draws no field for one, so no slide is left
+// holding an empty slab; the hero stands its tabs over the slides then, where
+// each begins, and keeps them at the photographs' foot when every slide has one.
+func TestHeroCarouselWithoutPhotograph(t *testing.T) {
+	t.Parallel()
+	photographed := hero.Slide{Layout: hero.LayoutPhoto, Tone: tone.Sage, Title: "A", Photo: widget.Photo{URL: "/static/a.webp", Alt: "a"}, PhotoWidth: 1600, PhotoHeight: 600}
+	bare := hero.Slide{Layout: hero.LayoutSplit, Tone: tone.Mist, Title: "B"}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		mixed := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{photographed, bare}}))
+		if !strings.Contains(mixed, `class="goen-hero goen-hero--bare"`) {
+			t.Errorf("%s: a hero with a slide that has no photograph is not marked bare", locale)
+		}
+		if got := strings.Count(mixed, `class="goen-hero__media"`); got != 1 {
+			t.Errorf("%s: %d photograph fields for one photograph", locale, got)
+		}
+		all := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{photographed, photographed}}))
+		if strings.Contains(all, "goen-hero--bare") {
+			t.Errorf("%s: a hero whose slides all have a photograph is marked bare", locale)
+		}
+		if got := strings.Count(all, `class="goen-hero__media"`); got != 2 {
+			t.Errorf("%s: %d photograph fields for two photographs", locale, got)
 		}
 	}
 }
@@ -143,11 +170,11 @@ func TestHeroCarouselCarriesItsProducts(t *testing.T) {
 			{Source: hero.SourceCampaign, Title: "Autumn", CTA: hero.CTA{Label: see, Href: "/s/autumn"}, Tiles: tiledShelf(4)},
 			{Source: hero.SourceScheduled, Title: "Editor", CTA: hero.CTA{Label: "Read on", Href: "/about"}},
 		}
-		page := renderComponent(t, ctx, Page(Meta(ctx), View{
-			Slides: slides, Categories: departmentsOf(2),
-			Row:   ProductRow{Title: "Tea", Href: "/s/tea", Tiles: tiledShelf(4), Campaign: &RowCampaign{Items: 4}},
-			Band:  &DepartmentBand{Name: "Home", Href: "/c/home", Items: 12, Tiles: tiledShelf(4)},
-			Rules: policy.Rules{FreeDeliveryCents: 300000},
+		page := renderComponent(t, frame.WithTopNav(ctx, departmentsOf(2)), Page(Meta(ctx), View{
+			Slides: slides,
+			Row:    ProductRow{Title: "Tea", Href: "/s/tea", Tiles: tiledShelf(4), Campaign: &RowCampaign{Items: 4}},
+			Band:   &DepartmentBand{Name: "Home", Href: "/c/home", Items: 12, Tiles: tiledShelf(4)},
+			Rules:  policy.Rules{FreeDeliveryCents: 300000},
 		}))
 		if strings.Contains(page, `id="row-heading"`) {
 			t.Errorf("%s: the row repeats the products its campaign's slide carries", locale)

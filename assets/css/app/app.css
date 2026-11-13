@@ -115,7 +115,6 @@
 @media (prefers-color-scheme: dark) and (not (prefers-contrast: more)) {
   @supports (color: light-dark(#000, #fff)) {
     .goen-hero__media img,
-    .goen-cat__photo,
     .goen-deptindex__photo img,
     .goen-dept__photo,
     .goen-campaign__header,
@@ -378,6 +377,7 @@ a:hover {
 /* One line, clipped rather than wrapped: a two-line bar changes the page's
    height between one promotion and the next. */
 .goen-promo__message {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -387,7 +387,12 @@ a:hover {
 /* Container rem follows the root font size, so this fires only when text is
    enlarged; a media query's rem would fire on every phone. */
 @container (width < 20rem) {
+  .goen-promo__link {
+    flex-wrap: wrap;
+  }
+
   .goen-promo__message {
+    flex: 1 1 100%;
     overflow: visible;
     white-space: normal;
   }
@@ -419,7 +424,6 @@ a:hover {
 }
 
 .goen-promo__cta {
-  display: none;
   flex: none;
   font-weight: var(--fw-medium);
   text-decoration: underline;
@@ -427,9 +431,8 @@ a:hover {
 }
 
 .goen-promo__chevron {
-  display: inline-flex;
+  display: none;
   flex: none;
-  margin-left: auto;
 }
 
 /* 44 x 44, which is why the glyph inside it is 16px. A close control smaller
@@ -468,18 +471,9 @@ a:hover {
     display: none;
   }
 
-  /* The message takes the slack and the call to action sits at the right,
-     which is only possible once there is room for two targets on one row. */
-  .goen-promo__message {
-    flex: 1;
-  }
-
-  .goen-promo__cta {
-    display: inline;
-  }
-
+  /* The arrow after the word needs the room a phone's row does not have. */
   .goen-promo__chevron {
-    margin-left: 0;
+    display: inline-flex;
   }
 }
 
@@ -489,7 +483,6 @@ h1,
 h2,
 h3,
 h4,
-.goen-pdp__sectiontitle,
 .goen-pdp__score {
   font-family: var(--font-sans);
   letter-spacing: 0;
@@ -1289,7 +1282,10 @@ body:has(.goen-hero) .goen-header {
   font-weight: var(--fw-regular);
   min-height: 2.75rem;
   padding: 0;
-  scroll-margin-inline: var(--s-4);
+  /* None at the start: the row's padding already leaves the gutter, and with a
+     margin on top the snap stands a link 32px in, 6px short of hiding the word
+     before it behind the edge. */
+  scroll-margin-inline: 0 var(--s-4);
   scroll-snap-align: start;
   text-decoration: none;
   white-space: nowrap;
@@ -1543,11 +1539,13 @@ body:has(.goen-hero) .goen-header {
   outline-offset: 2px;
 }
 
-/* The count is figures after the word and its space, not a badge, in
-   figures of one width so a count that changes does not move the word.
+/* The count is figures after the word, not a badge, in figures of one width so
+   a count that changes does not move the word. The link is a flex box, which
+   drops the space between them, so the 4px between 購物車 and 2 is a margin.
    `check-layout.mjs` reads its text after an add to cart. */
 .goen-header__count {
   font-variant-numeric: tabular-nums lining-nums;
+  margin-inline-start: 0.25rem;
 }
 
 /* The language control, in the footer: two plain words, the current one set. */
@@ -1895,12 +1893,20 @@ body:has(.goen-hero) .goen-header {
   border-top: 1px solid var(--rule-line);
 }
 
+/* On a phone the link groups stand two across, under the shop's name and over
+   the newsletter, which each take the whole row. */
 .goen-footer__grid {
   display: grid;
-  gap: 2.5rem;
+  gap: 2.5rem var(--s-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0 auto;
   max-width: var(--page-width);
   padding: 3rem var(--page-gutter);
+}
+
+.goen-footer__brand,
+.goen-footer__news {
+  grid-column: 1 / -1;
 }
 
 .goen-footer__brandline {
@@ -1933,6 +1939,7 @@ body:has(.goen-hero) .goen-header {
 .goen-footer__links {
   display: flex;
   flex-direction: column;
+  overflow-wrap: anywhere;
 }
 
 .goen-footer__heading {
@@ -2105,7 +2112,12 @@ body:has(.goen-hero) .goen-header {
 
 @media (min-width: 768px) {
   .goen-footer__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2.5rem;
+  }
+
+  .goen-footer__brand,
+  .goen-footer__news {
+    grid-column: auto;
   }
 
   .goen-footer__bottominner {
@@ -2165,10 +2177,7 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-home__heading {
-  font-size: var(--t-32);
-  font-weight: var(--fw-display);
-  letter-spacing: -0.01em;
-  line-height: 1.2;
+  font: var(--fw-medium) var(--t-32)/1.3 var(--font-editorial);
   margin: 0;
 }
 
@@ -2625,10 +2634,13 @@ body:has(.goen-hero) .goen-header {
   margin-left: auto;
 }
 
+/* Two square outlines, not filled discs. They stand at the tabs' end from
+   48rem; on a phone the tabs have the whole row, and a slide is a swipe or a
+   tab away. The count for a screen reader stays. */
 .goen-hero__arrow {
-  background: var(--sys-surface-container);
-  border: 1px solid transparent;
-  border-radius: 50%;
+  background: none;
+  border: 1px solid var(--sys-outline);
+  border-radius: var(--r-sm);
   color: var(--sys-on-surface);
   cursor: pointer;
   display: grid;
@@ -2639,7 +2651,7 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__arrow:hover {
-  background: var(--sys-surface-container-highest);
+  background: color-mix(in srgb, currentcolor var(--state-hover), transparent);
 }
 
 .goen-hero__arrow svg {
@@ -2647,133 +2659,33 @@ body:has(.goen-hero) .goen-header {
   width: 1.25rem;
 }
 
-/* ----- Departments: one square photograph each, the name under it. The
-   columns follow the section's own width in rem, so larger text folds them
-   sooner. ----- */
+@media (max-width: 47.99rem) {
+  .goen-hero__nav {
+    display: contents;
+  }
 
-.goen-cats {
-  container: cats / inline-size;
-}
-
-.goen-cats__grid {
-  --cols: 3;
-  display: grid;
-  gap: 1.25rem 1rem;
-  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-@container cats (inline-size < 40rem) {
-  .goen-cats__grid:not(:has(> li:nth-child(3))),
-  .goen-cats__grid:has(> li:nth-child(4):last-child) {
-    --cols: 2;
+  .goen-hero__arrow {
+    display: none;
   }
 }
 
-@container cats (inline-size < 17rem) {
-  .goen-cats__grid {
-    --cols: 2;
-  }
-}
-
-@container cats (inline-size >= 40rem) {
-  .goen-cats__grid {
-    --cols: 6;
-    column-gap: 1.5rem;
-  }
-}
-
-.goen-cat {
-  color: var(--on-surface-strong);
-  container-type: inline-size;
+/* A slide with no photograph leaves no one height to stand the tabs at, so
+   they stand over the slides instead, where every slide begins; a slide
+   with a photograph draws it below them. */
+.goen-hero--bare {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
-  text-decoration: none;
 }
 
-.goen-cat__well {
-  aspect-ratio: 4 / 3;
-  background: var(--photo);
-  border-radius: clamp(8px, 7cqi, 12px);
-  display: block;
-  overflow: hidden;
-}
-
-.goen-cat__photo {
-  display: block;
-  height: 100%;
-  object-fit: cover;
+.goen-hero--bare .goen-hero__controls {
+  order: -1;
+  position: static;
+  /* Auto side margins stop a flex item stretching, so it is asked for. */
   width: 100%;
 }
 
-/* A third of the well's width: about 33px at 375, 32px at 768 and 45px at
-   1024. The widest wells, about 200px across at 1440 or in a three-column row
-   just under 40rem, would draw it at 62 to 65px, above the display size, so it
-   stops at 3.5rem there. */
-.goen-cat__mark {
-  background: var(--tone-ground);
-  color: var(--tone-text);
-  display: grid;
-  font-size: min(32cqi, 3.5rem);
-  font-weight: var(--fw-display);
-  height: 100%;
-  line-height: 1;
-  place-items: center;
-}
-
-.goen-cat__name {
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  hyphens: auto;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-  text-wrap: balance;
-}
-
-.goen-cat:hover .goen-cat__name {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .goen-cat__photo {
-    transition: scale var(--dur-move) var(--ease-move);
-  }
-
-  .goen-cat:hover .goen-cat__photo {
-    scale: 1.03;
-  }
-
-  .goen-cat:active .goen-cat__photo {
-    scale: 1;
-    transition: none;
-  }
-}
-
-.goen-cat:focus-visible {
-  outline: none;
-}
-
-.goen-cat:focus-visible .goen-cat__well {
-  outline: 2px solid var(--ring);
-  outline-offset: 3px;
-}
-
-@container cats (inline-size >= 56rem) {
-  .goen-cats__grid {
-    row-gap: 2rem;
-  }
-
-  .goen-cat {
-    gap: 0.75rem;
-  }
-
-  .goen-cat__name {
-    font-size: var(--fs-15);
-  }
+.goen-hero--bare:has(> .goen-hero__controls) .goen-hero__body {
+  padding-top: var(--s-5);
 }
 
 /* ----- One department, the band: its shelf on the department's tone, square
@@ -3294,6 +3206,12 @@ body:has(.goen-hero) .goen-header {
   text-wrap: pretty;
 }
 
+/* An English name often runs to two lines where a Chinese one fits on one: the
+   box keeps room for the two, so the prices of a row of tiles stand level. */
+:lang(en) .goen-tile__name {
+  min-height: 3em;
+}
+
 .goen-tile__price {
   align-items: baseline;
   position: relative;
@@ -3662,6 +3580,26 @@ input.goen-check {
   height: 100%;
   object-fit: cover;
   width: 100%;
+}
+
+/* A department with no photograph shows its first character on its tone. A
+   third of the photograph's width: about 37px beside a phone's 112px and, from
+   48rem, the widest 192px would draw it above the display size, so it stops at
+   3.5rem. */
+.goen-deptindex__photo--mark {
+  background: var(--tone-ground);
+  color: var(--tone-text);
+  container-type: inline-size;
+  display: grid;
+  place-items: center;
+  /* The initial is a picture here, not words in a link. */
+  text-decoration: none;
+}
+
+.goen-deptindex__mark {
+  font-size: min(32cqi, 3.5rem);
+  font-weight: var(--fw-display);
+  line-height: 1;
 }
 
 .goen-deptindex__name {
@@ -4278,7 +4216,9 @@ input.goen-check {
 
 /* The comparison table. It scrolls inside its own box so the PAGE never moves
    sideways, and the label column stays put while the products scroll past it —
-   without that a reader loses which row they are on the moment they move. */
+   without that a reader loses which row they are on the moment they move. The
+   box is a printed table's: a rule over it and one under each row, no frame and
+   no corner. */
 .goen-compare {
   display: flex;
   flex-direction: column;
@@ -4289,8 +4229,7 @@ input.goen-check {
 }
 
 .goen-compare__scroll {
-  border: 1px solid var(--rule-line);
-  border-radius: 16px;
+  border-top: 1px solid var(--rule-line);
   overflow-x: auto;
   position: relative;
 }
@@ -4329,7 +4268,6 @@ input.goen-check {
 }
 
 .goen-compare__image {
-  border-radius: 8px;
   height: 96px;
   margin: 0;
   object-fit: cover;
@@ -4461,8 +4399,7 @@ input.goen-check {
 }
 
 .goen-deptcompare__title {
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-display);
+  font: var(--type-headline-m);
   margin: 0;
 }
 
@@ -4472,12 +4409,22 @@ input.goen-check {
   margin: 0;
 }
 
+/* The section's one next step: blue with its arrow, underlined only under the
+   pointer. */
 .goen-deptcompare__more {
+  align-items: center;
   color: var(--sys-primary);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
+  display: inline-flex;
+  font: var(--type-label-l);
   margin-left: auto;
-  text-underline-offset: 3px;
+  min-height: 2.75rem;
+  text-decoration: none;
+}
+
+.goen-deptcompare__more:hover {
+  color: var(--primary-deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .goen-story {
@@ -4619,9 +4566,7 @@ input.goen-check {
 
 .goen-compare__suggesthead {
   color: var(--on-surface-strong);
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-display);
-  line-height: 1.35;
+  font: var(--type-headline-m);
   margin: 0;
 }
 
@@ -4872,12 +4817,16 @@ input.goen-check {
   gap: 2rem;
 }
 
+/* A section of the product page is named in the editorial face, as the
+   drawing's sub-headings are: the same step as a listing's section title. */
 .goen-pdp__sectiontitle {
   color: var(--on-surface-strong);
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-display);
-  line-height: 1.35;
+  font: var(--type-headline-m);
   margin: 0;
+  min-width: 0;
+  /* At 200% text a long word such as "Specifications" is wider than a phone's
+     line: it breaks inside the word rather than widen the page. */
+  overflow-wrap: anywhere;
 }
 
 /* Gallery. The stage and the thumbnails share one grid: every shot sits in the
@@ -4991,13 +4940,6 @@ input.goen-check {
   margin: 0;
 }
 
-.goen-pdp__titlerow {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-}
-
 /* The name is 40px in the editorial face, a step and more above the 28px
    price. The step is in rem, so at 200% text it is 64px and more, and a model
    number such as "10000mAh" is wider than a phone's line: the name breaks
@@ -5062,7 +5004,7 @@ input.goen-check {
 .goen-pdp__ratinglink,
 .goen-pdp__source a,
 .goen-pdp__policies a,
-.goen-pdp__browse,
+.goen-pdp__wishlink,
 .goen-pdp__hint a,
 .goen-pdp__reviewnote a {
   color: var(--sys-on-surface);
@@ -5075,7 +5017,7 @@ input.goen-check {
 .goen-pdp__ratinglink:hover,
 .goen-pdp__source a:hover,
 .goen-pdp__policies a:hover,
-.goen-pdp__browse:hover,
+.goen-pdp__wishlink:hover,
 .goen-pdp__hint a:hover,
 .goen-pdp__reviewnote a:hover {
   color: var(--sys-on-surface);
@@ -5157,8 +5099,10 @@ input.goen-check {
   margin: 0.125rem 0 0;
 }
 
+/* What ends is vermilion, here as on the shelf and the home: the time left in
+   the campaign line, not the words around it. */
 .goen-pdp__source .goen-ends__left {
-  color: var(--primary-deep);
+  color: var(--sys-tertiary);
 }
 
 /* An option group. The fieldset keeps the legend, which is the only thing that
@@ -5186,13 +5130,8 @@ input.goen-check {
 
 /* A request refused for want of a pick comes back with the group framed in the
    error colour, the reason under it, and focus on its first choice. */
-.goen-pdp__option[aria-invalid='true'] .goen-swatch:not(.goen-swatch--dot) {
+.goen-pdp__option[aria-invalid='true'] .goen-swatch {
   border-color: var(--sys-error);
-}
-
-.goen-pdp__option[aria-invalid='true'] .goen-swatch--dot .goen-swatch__dot {
-  outline: 2px solid var(--sys-error);
-  outline-offset: 2px;
 }
 
 .goen-pdp__opterror {
@@ -5225,29 +5164,25 @@ input.goen-check {
   gap: 0.5rem;
 }
 
-.goen-pdp__values--swatches {
-  gap: 0.25rem;
-}
-
 /* An option value. A LINK, not a button: choosing navigates to the URL for
    that combination, so the choice survives a reload, a shared address and
-   scripting being off. */
+   scripting being off. A square box with a 4px corner, as every control on the
+   page is drawn; a colour is the same box with its dot before the name. */
 .goen-swatch {
   align-items: center;
   background: var(--sys-surface);
   border: 1px solid var(--field-edge);
-  border-radius: var(--r-press);
+  border-radius: var(--shape-xs);
   box-sizing: border-box;
   color: var(--on-surface-strong);
   display: inline-flex;
   flex-direction: column;
   font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-regular);
   justify-content: center;
   line-height: 1.3;
-  min-height: 3rem;
-  min-width: 6rem;
-  padding: 0.25rem 1rem;
+  min-height: 2.75rem;
+  padding: 0.25rem 0.875rem;
   text-decoration: none;
   transition:
     background-color var(--dur-base) var(--ease-standard),
@@ -5259,50 +5194,14 @@ input.goen-check {
   color: var(--on-surface-strong);
 }
 
-/* The choice is an outline, which forced colours keep where a fill is lost. */
+/* The choice is a 2px ink frame, the border and an inset line of the same ink,
+   so the box keeps its size and the text does not move. Not blue, which is for
+   the next step and the focus ring, and no check: the frame is the state. */
 .goen-swatch--on,
 .goen-swatch--on:hover {
-  border-color: var(--on-surface-strong);
-  outline: 2px solid var(--on-surface-strong);
-  outline-offset: 1px;
-}
-
-/* A text option is chosen as a tinted fill, a 2px accent edge and a check. The
-   edge is the border itself, not an outline, which would read as focus, so the
-   padding gives back the extra pixel and the text does not move; the check
-   takes room beside the text that the unchosen options do not need. A sold-out
-   option keeps its dashed edge, and is chosen the same way. Colour discs keep
-   the ink ring, which a blue ring would blur into a blue disc. */
-.goen-swatch--on:not(.goen-swatch--dot),
-.goen-swatch--on:not(.goen-swatch--dot):hover {
-  background: var(--primary-faint);
-  border-color: var(--sys-primary);
-  border-width: 2px;
-  color: var(--primary-deep);
-  outline: none;
-  padding: calc(0.25rem - 1px) calc(1.5rem - 1px);
-  position: relative;
-}
-
-/* The check is two borders of a turned box, so it is the text colour in every
-   scheme, forced colours included, and needs no image the policy would have to
-   admit. */
-.goen-swatch--on:not(.goen-swatch--dot)::before {
-  border: solid currentcolor;
-  border-width: 0 2px 2px 0;
-  box-sizing: border-box;
-  content: '';
-  height: 0.6em;
-  inset-block-start: 50%;
-  inset-inline-start: 0.625rem;
-  position: absolute;
-  transform: translateY(-65%) rotate(45deg);
-  width: 0.3em;
-}
-
-.goen-swatch--on:not(.goen-swatch--dot):focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  border-color: var(--sys-on-surface);
+  box-shadow: inset 0 0 0 1px var(--sys-on-surface);
+  font-weight: var(--fw-medium);
 }
 
 .goen-swatch__note {
@@ -5319,25 +5218,37 @@ input.goen-check {
   color: var(--on-surface-quiet);
 }
 
-/* A colour swatch: a 2rem disc inside a 44px target, so a thumb has the room a
-   finger needs and the colours still read as one row. The ring is an outline on
-   the disc, two pixels off its edge. */
-.goen-swatch--dot,
-.goen-swatch--dot:hover,
-.goen-swatch--dot.goen-swatch--on:hover {
-  background: transparent;
-  border: 0;
-  border-radius: 50%;
-  min-width: 2.75rem;
-  padding: 0;
-  width: 2.75rem;
+/* A colour: its dot, then its name, which is on the box and not left to a
+   tooltip. */
+.goen-swatch--dot {
+  flex-direction: row;
+  gap: 0.5rem;
 }
 
 .goen-swatch__dot {
   border-radius: 50%;
   display: block;
-  height: 2rem;
-  width: 2rem;
+  flex: none;
+  height: 1rem;
+  width: 1rem;
+}
+
+/* A colour that is sold out is struck on its name as on the dot, so the name
+   says it as the dot does, and its edge stays whole: two strikes and a dashed
+   edge are one signal too many on a box this size. */
+.goen-swatch--dot.goen-swatch--out {
+  border-style: solid;
+}
+
+.goen-swatch--dot.goen-swatch--out .goen-swatch__label {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* Strokes in pixels, not in the drawing's units, so a small dot keeps a hairline
+   ring and a strike that reads. */
+.goen-swatch__dot :is(circle, line) {
+  vector-effect: non-scaling-stroke;
 }
 
 .goen-swatch__dot circle {
@@ -5345,44 +5256,19 @@ input.goen-check {
   stroke-width: 1;
 }
 
-.goen-swatch__label {
-  clip-path: inset(50%);
-  height: 1px;
-  overflow: hidden;
-  position: absolute;
-  white-space: nowrap;
-  width: 1px;
-}
-
-.goen-swatch--dot:is(:hover, :focus-visible) .goen-swatch__label {
-  clip-path: none;
-  font-size: var(--fs-12);
-  height: auto;
-  overflow-wrap: anywhere;
-  position: static;
-  white-space: normal;
-  width: auto;
-}
-
+/* Few left is a fact about the stock, not a thing that ends: ink, and medium
+   weight to be seen, never the vermilion of a deadline. */
 .goen-pdp__lowstock {
-  color: var(--warn-ink);
+  color: var(--on-surface-strong);
   font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   margin: 0;
-}
-
-.goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
-  outline: 2px solid var(--on-surface-strong);
-  outline-offset: 2px;
 }
 
 /* Unavailable in this combination: struck rather than dimmed, because a fainter
    disc reads as a paler colour instead of one they cannot have. The strike is
    two lines on one diagonal, the wider in the page's ground and the narrower in
    its ink, so it reads on a near-white disc and a near-black one alike. */
-.goen-swatch--dot.goen-swatch--out {
-  border: 0;
-}
-
 .goen-swatch__bar,
 .goen-swatch__barground {
   stroke-linecap: round;
@@ -5390,12 +5276,12 @@ input.goen-check {
 
 .goen-swatch__barground {
   stroke: var(--sys-surface);
-  stroke-width: 4;
+  stroke-width: 3;
 }
 
 .goen-swatch__bar {
   stroke: var(--sys-on-surface);
-  stroke-width: 2;
+  stroke-width: 1.5;
 }
 
 .goen-pdp__note {
@@ -5537,6 +5423,43 @@ input.goen-check {
     margin: 0;
   }
 
+  /* After an add the bar is the notice under the button, inverse like the
+     promotional strip: the same sentence on the same ground, the way to the
+     cart an underlined link in the inverse blue, which is also its ring. */
+  .goen-buybar--added {
+    --ring: var(--sys-inverse-primary);
+    background: var(--sys-inverse-surface);
+    border-top-color: var(--sys-inverse-surface);
+    color: var(--sys-inverse-on-surface);
+    column-gap: var(--s-5);
+    min-height: 48px;
+  }
+
+  .goen-buybar--added .goen-buybar__msg {
+    color: inherit;
+    flex: 0 1 auto;
+    font: var(--type-body-m);
+  }
+
+  .goen-buybar__link,
+  .goen-buybar__link:hover {
+    align-items: center;
+    color: var(--sys-inverse-primary);
+    display: inline-flex;
+    font: var(--type-label-l);
+    min-height: 32px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* A band of the inverse ground outside the ring keeps it off the page where
+     the bar ends. */
+  .goen-buybar__link:focus-visible {
+    box-shadow: 0 0 0 4px var(--sys-inverse-surface);
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
   .goen-buybar__btn {
     flex: 1 1 9rem;
     height: auto;
@@ -5641,15 +5564,15 @@ input.goen-check {
   margin: 0;
 }
 
+/* The field takes the row, the button the row under it: stacked, as drawn, so
+   the sign-up reads as one thing to fill and one thing to press. */
 .goen-pdp__notifyrow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  display: grid;
+  gap: 0.75rem;
 }
 
 .goen-pdp__notifyrow .goen-input {
-  flex: 1 1 14ch;
-  min-width: min(14ch, 100%);
+  min-width: 0;
 }
 
 .goen-pdp__links,
@@ -5670,9 +5593,10 @@ input.goen-check {
   margin-left: -12px;
 }
 
-/* With the specs, not pulled up into the buy column's rhythm. */
+/* With the specs, not pulled up into the buy column's rhythm: the section's own
+   gap is the space above it. */
 .goen-pdp__similar {
-  margin: 0.5rem 0 0 0px;
+  margin: 0;
 }
 
 .goen-pdp__links .goen-btn {
@@ -5680,9 +5604,25 @@ input.goen-check {
   padding: 0 11px;
 }
 
+/* A guest's way to the wishlist is a plain link, whose words start where the
+   column's do: nothing hangs outside. */
+.goen-pdp__links--text {
+  margin-left: 0;
+}
+
+.goen-pdp__wishlink {
+  align-items: center;
+  display: inline-flex;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  min-height: 2.75rem;
+}
+
 /* The section's one next step: blue with its arrow, underlined only under the
-   pointer. */
-.goen-pdp__compare {
+   pointer. The browse link that stands for the similar products when there are
+   none is the next step of its own section. */
+.goen-pdp__compare,
+.goen-pdp__browse {
   align-items: center;
   color: var(--sys-primary);
   display: inline-flex;
@@ -5693,7 +5633,8 @@ input.goen-check {
   text-decoration: none;
 }
 
-.goen-pdp__compare:hover {
+.goen-pdp__compare:hover,
+.goen-pdp__browse:hover {
   color: var(--sys-primary);
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -5704,18 +5645,26 @@ input.goen-check {
   margin: 0;
 }
 
-/* Description, then the accordion. Never behind tabs, and the specifications
-   open: what a shopper compares is on the page without a press. */
+/* Description, then the specifications, the warranty and what delivery and
+   returns promise: every one open under its own heading, never behind a press
+   or a tab, so what a shopper compares is on the page. */
 .goen-pdp__more {
-  border-bottom: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
   min-width: 0;
+}
+
+.goen-pdp__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
 }
 
 .goen-pdp__desc {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  margin-bottom: 3rem;
   min-width: 0;
 }
 
@@ -5726,67 +5675,22 @@ input.goen-check {
   max-width: 68ch;
 }
 
-.goen-pdp__acc {
-  border-top: 1px solid var(--rule);
-}
-
-.goen-pdp__accsummary {
-  align-items: center;
-  cursor: pointer;
+.goen-pdp__block {
   display: flex;
+  flex-direction: column;
   gap: 1rem;
-  justify-content: space-between;
-  list-style: none;
-  min-height: 3.5rem;
-}
-
-.goen-pdp__accsummary::-webkit-details-marker {
-  display: none;
-}
-
-.goen-pdp__accsummary:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-
-/* The second value is the accessible text: the mark is a picture of a state the
-   open attribute already states. */
-.goen-pdp__accsummary::after {
-  color: var(--on-surface-quiet);
-  content: '+';
-  content: '+' / '';
-  font-size: 1.5rem;
-  line-height: 1;
-}
-
-.goen-pdp__acc[open] > .goen-pdp__accsummary::after {
-  content: '\2212';
-  content: '\2212' / '';
-}
-
-.goen-pdp__acctitle {
-  color: var(--on-surface-strong);
-  font-size: 1.125rem;
-  font-weight: var(--fw-medium);
-  line-height: 1.5;
-  margin: 0;
   min-width: 0;
-  overflow-wrap: anywhere;
 }
 
-.goen-pdp__accpanel {
+.goen-pdp__ship {
   max-width: 48rem;
-  padding-bottom: 1.5rem;
 }
 
 .goen-pdp__warranty {
   color: var(--on-surface-soft);
   line-height: 1.7;
   margin: 0;
-}
-
-.goen-pdp__warranty + .goen-pdp__warranty {
-  margin-top: 0.5rem;
+  max-width: 48rem;
 }
 
 .goen-pdp__policies {
@@ -5801,13 +5705,7 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-/* The table's hairlines run the accordion's full width, like the hairlines
-   between the sections above and below it; the panel's prose measure is for
-   paragraphs, and stopping these at it would stack two lengths of rule. */
-.goen-pdp__accpanel:has(> .goen-pdp__speclist) {
-  max-width: none;
-}
-
+/* The table's hairlines run the section's full width. */
 .goen-pdp__speclist {
   margin: 0;
 }
@@ -6269,9 +6167,12 @@ input.goen-check {
 }
 
 /* The checkout is one column of 720px: the form is read and filled from the
-   top down, and the order summary with the one button that pays closes it. */
-.goen-checkout {
-  max-width: calc(45rem + 2 * var(--page-gutter));
+   top down, and the order summary with the one button that pays closes it. The
+   box is the page's, as the cart's is, so the name and the column start where
+   the header's text does; the column is the box's own children, left on the
+   page's edge rather than centred in it. */
+.goen-checkout > * {
+  max-width: 45rem;
 }
 
 /* The order and the payment hand-off are one reading column: a wider page
@@ -6601,6 +6502,32 @@ input.goen-check {
   flex-direction: column;
   gap: 1rem;
   margin-top: 1rem;
+}
+
+/* The figures are set as the cart board draws them: medium, and the count's 件
+   and the subtotal's NT$ at the figure's own size. Each fact is as wide as its
+   words, so on a phone a long one moves to the next row whole rather than
+   leaving a gap sized for a short one. */
+.goen-cart__facts .ui-statline {
+  --stat-gap: var(--s-8);
+  --stat-min: 0;
+}
+
+.goen-cart__facts .ui-statline dd {
+  font-weight: var(--fw-medium);
+}
+
+.goen-cart__facts .ui-statline dd small {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+@media (max-width: 639px) {
+  .goen-cart__facts .ui-statline {
+    --stat-gap: var(--s-6);
+  }
 }
 
 .goen-cart__alert {
@@ -7770,18 +7697,20 @@ input.goen-check {
   gap: 12px;
 }
 
-/* The cart's, the checkout's and the wishlist's names in the editorial face, one step under
-   the display size, as the catalogue's pages are named. */
+/* The cart's, the checkout's, the wishlist's and the comparison's names in the editorial
+   face, one step under the display size, as the catalogue's pages are named. */
 .goen-cart .goen-pagehead__title,
 .goen-checkout .goen-pagehead__title,
-.goen-wishlist .goen-pagehead__title {
+.goen-wishlist .goen-pagehead__title,
+.goen-compare .goen-pagehead__title {
   font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
   letter-spacing: 0.02em;
 }
 
 .goen-cart .goen-pagehead__title:lang(en),
 .goen-checkout .goen-pagehead__title:lang(en),
-.goen-wishlist .goen-pagehead__title:lang(en) {
+.goen-wishlist .goen-pagehead__title:lang(en),
+.goen-compare .goen-pagehead__title:lang(en) {
   letter-spacing: 0;
 }
 
@@ -10156,9 +10085,10 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media (forced-colors: active) {
-  /* Weight and underline keep the chosen label distinct from ordinary links. */
-  .goen-swatch--on:not(.goen-swatch--dot),
-  .goen-swatch--on:not(.goen-swatch--dot):hover {
+  /* Forced colours drop the inset line, so the chosen box takes a Highlight
+     ring, and weight and underline keep its label distinct from ordinary links. */
+  .goen-swatch--on,
+  .goen-swatch--on:hover {
     font-weight: var(--fw-semibold);
     outline: 2px solid Highlight;
     outline-offset: 2px;
@@ -10166,15 +10096,10 @@ form[data-request-pending] [aria-disabled="true"] {
     text-decoration-thickness: 2px;
     text-underline-offset: 0.2em;
   }
-
-  /* SVG preserves author colours, so its selected ring must follow the palette. */
-  .goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
-    outline-color: Highlight;
-  }
 }
 
 @media (forced-colors: active) {
-  .goen-cat__well,
+  .goen-deptindex__photo,
   .goen-campaign__header {
     outline: 1px solid CanvasText;
   }

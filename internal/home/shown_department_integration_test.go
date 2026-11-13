@@ -82,33 +82,20 @@ func TestStore_LoadShownDepartments(t *testing.T) {
 				t.Fatalf("validate catalogue fixture: %v", err)
 			}
 
-			store := home.NewStore(tx)
 			assertShown := func(want []string) {
 				t.Helper()
 				nav, readErr := site.NewStore(tx).Nav(ctx)
 				if readErr != nil {
 					t.Fatalf("Nav(): %v", readErr)
 				}
-				view, readErr := store.Load(ctx)
-				if readErr != nil {
-					t.Fatalf("Load(): %v", readErr)
-				}
-				var navSlugs, directorySlugs []string
+				var navSlugs []string
 				for _, item := range nav {
 					if strings.HasPrefix(item.Slug, "shown-") {
 						navSlugs = append(navSlugs, item.Slug)
 					}
 				}
-				for _, category := range view.Categories {
-					if strings.HasPrefix(category.Slug, "shown-") {
-						directorySlugs = append(directorySlugs, category.Slug)
-					}
-				}
 				if diff := cmp.Diff(want, navSlugs); diff != "" {
 					t.Errorf("Nav() shown departments mismatch (-want +got):\n%s", diff)
-				}
-				if diff := cmp.Diff(want, directorySlugs); diff != "" {
-					t.Errorf("Load() shown departments mismatch (-want +got):\n%s", diff)
 				}
 
 				pageCtx := frame.WithTopNav(ctx, nav)
@@ -121,7 +108,7 @@ func TestStore_LoadShownDepartments(t *testing.T) {
 					{"desktop nav", frame.Header(frame.Page{}), "goen-header__nav", ""},
 					{"phone menu", frame.Header(frame.Page{}), "goen-header__drawer", ""},
 					{"footer", frame.Footer(frame.NewsletterState{}), "goen-footer__links", i18n.T(ctx, i18n.KeyCategoryNav)},
-					{"home directory", home.Page(frame.Page{}, view), "goen-cats__grid", ""},
+					{"home directory", home.Page(frame.Page{}, home.View{}), "goen-deptindex", ""},
 				} {
 					var output strings.Builder
 					if renderErr := region.component.Render(pageCtx, &output); renderErr != nil {

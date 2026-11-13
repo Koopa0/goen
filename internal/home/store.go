@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -117,26 +116,7 @@ func (s *Store) Load(ctx context.Context) (View, error) {
 		return View{}, err
 	}
 
-	view := View{
-		Slides:     slides,
-		Categories: make([]Category, 0, len(src.cats)),
-		Row:        row,
-		Band:       band,
-		Rules:      rules,
-	}
-	for i := range src.cats {
-		c := &src.cats[i]
-		if src.held[c.ID] == 0 {
-			continue
-		}
-		view.Categories = append(view.Categories, Category{
-			Slug:  c.Slug,
-			Name:  c.Name,
-			Tone:  tone.Resolve(c.Tone),
-			Photo: departmentPhoto(c),
-		})
-	}
-	return view, nil
+	return View{Slides: slides, Row: row, Band: band, Rules: rules}, nil
 }
 
 func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (ProductRow, error) {
@@ -195,7 +175,7 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []t
 		return &DepartmentBand{
 			Name:  c.Name,
 			Items: held[c.ID],
-			Fact:  subCategoryLine(subs[c.ID]),
+			Subs:  subs[c.ID],
 			Href:  "/c/" + c.Slug,
 			Tone:  tone.Resolve(c.Tone),
 			Tiles: s.saleUntil(tiles[:bandTiles]),
@@ -213,12 +193,6 @@ func (s *Store) saleUntil(tiles []tile.Tile) []tile.Tile {
 		}
 	}
 	return tiles
-}
-
-// subCategoryLine joins names with a no-break space before the dot, so a line
-// never starts with one.
-func subCategoryLine(names []string) string {
-	return strings.Join(names, "\u00a0· ")
 }
 
 // dayIndex counts days since the epoch, so every visitor on one shop day sees

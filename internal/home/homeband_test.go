@@ -18,12 +18,12 @@ func TestDepartmentBandShelf(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	page := renderComponent(t, ctx, Page(frame.Page{}, View{Band: &DepartmentBand{
-		Name: "居家生活與廚房", Fact: "廚房 · 寢具", Items: 12, Href: "/c/home", Tone: tone.Ink, Tiles: tiledShelf(4),
+		Name: "居家生活與廚房", Subs: []string{"廚房", "寢具"}, Items: 12, Href: "/c/home", Tone: tone.Ink, Tiles: tiledShelf(4),
 	}}))
 	for _, want := range []string{
 		`class="goen-band" data-tone="ink"`,
 		`<h2 id="band-heading" class="goen-band__name">居家生活與廚房</h2>`,
-		`<p class="goen-band__fact">廚房 · 寢具</p>`,
+		`廚房&nbsp;<span class="goen-sep" aria-hidden="true">·</span> 寢具</p>`,
 		`href="/c/home"`,
 	} {
 		if !strings.Contains(page, want) {
@@ -45,6 +45,23 @@ func TestDepartmentBandShelf(t *testing.T) {
 	}
 }
 
+// TestDepartmentBandSubsNoBreak holds that the band's sub-categories are set
+// apart as the design draws them: a space on each side of a dot that a screen
+// reader skips, and a no-break space before the dot, so a line never starts with
+// one.
+func TestDepartmentBandSubsNoBreak(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		page := renderIn(t, locale, Page(frame.Page{}, View{Band: &DepartmentBand{
+			Name: "Tech", Href: "/c/tech", Subs: []string{"Phones", "Laptops", "Accessories"}, Tiles: tiledShelf(4),
+		}}))
+		want := `Phones&nbsp;<span class="goen-sep" aria-hidden="true">·</span> Laptops&nbsp;<span class="goen-sep" aria-hidden="true">·</span> Accessories</p>`
+		if !strings.Contains(page, want) {
+			t.Errorf("%s: the band's sub-categories are not %s", locale, want)
+		}
+	}
+}
+
 // TestDepartmentBandNoFact holds that no fact line is drawn for a band whose
 // department has no sub-categories.
 func TestDepartmentBandNoFact(t *testing.T) {
@@ -62,12 +79,11 @@ func TestDepartmentBandNoFact(t *testing.T) {
 // departments, the band and the shop rules last.
 func TestPageSectionOrder(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{
-		Slides:     []hero.Slide{{Source: hero.SourceCampaign, Title: "茶與咖啡週", CTA: hero.CTA{Label: "看全部商品", Href: "/s/tea"}, Tiles: tiledShelf(4)}},
-		Categories: departmentsOf(2),
-		Row:        ProductRow{Title: "新到貨", Href: "/search", Tiles: tiledShelf(4)},
-		Band:       &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(4)},
-		Rules:      policy.Rules{FreeDeliveryCents: 300000},
+	page := renderWithNav(t, departmentsOf(2), Page(frame.Page{}, View{
+		Slides: []hero.Slide{{Source: hero.SourceCampaign, Title: "茶與咖啡週", CTA: hero.CTA{Label: "看全部商品", Href: "/s/tea"}, Tiles: tiledShelf(4)}},
+		Row:    ProductRow{Title: "新到貨", Href: "/search", Tiles: tiledShelf(4)},
+		Band:   &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(4)},
+		Rules:  policy.Rules{FreeDeliveryCents: 300000},
 	}))
 	at := func(marker string) int { return strings.Index(page, marker) }
 	order := []string{`class="goen-hero__tiles"`, `id="row-heading"`, `id="cats-heading"`, `id="band-heading"`, `id="rules-heading"`}

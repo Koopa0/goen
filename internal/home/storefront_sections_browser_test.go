@@ -69,18 +69,29 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 				Period: &period, CTA: hero.CTA{Label: "See all items", Href: "/s/tea"}, Tiles: products},
 			{Title: "Everyday essentials", Layout: hero.LayoutSplit, Tone: tone.Ink, Photo: photo, CTA: hero.CTA{Label: "Shop now", Href: "/c/audio"}},
 			{Title: "Books & stationery", Layout: hero.LayoutPhoto, Tone: tone.Sage, Photo: photo},
-			{Title: "Slow mornings", Layout: hero.LayoutSplit, Tone: tone.Sage, CTA: hero.CTA{Label: "See the range", Href: "/c/coffee"}},
-			{Title: "After dark", Layout: hero.LayoutSplit, Tone: tone.Ink},
+			{Title: "Slow mornings", Layout: hero.LayoutSplit, Tone: tone.Sage, Photo: photo, CTA: hero.CTA{Label: "See the range", Href: "/c/coffee"}},
+			{Title: "After dark", Layout: hero.LayoutSplit, Tone: tone.Ink, Photo: photo},
 		}
+		// ?bare=1 leaves the last two slides without a photograph.
+		if r.URL.Query().Get("bare") == "1" {
+			view.Slides[3].Photo, view.Slides[4].Photo = widget.Photo{}, widget.Photo{}
+		}
+		departments := make([]frame.NavItem, 0, 3)
 		for _, c := range []struct{ slug, name, photo string }{
 			{"audio", "Audio", "nimbus-band-2-01.webp"},
 			{"bags", "Bags", "orili-canvas-tote-02.webp"},
 			{"coffee", "Coffee", "dawnroast-drip-coffee-01.webp"},
 		} {
-			view.Categories = append(view.Categories, home.Category{
-				Slug: c.slug, Name: c.name, Tone: tone.Stone,
-				Photo: widget.Photo{URL: picture.Image{BundledKey: c.photo}.URL()},
+			departments = append(departments, frame.NavItem{
+				Slug: c.slug, Name: c.name, Href: "/c/" + c.slug, Tone: tone.Stone,
+				PhotoURL: picture.Image{BundledKey: c.photo}.URL(),
 			})
+		}
+		// ?depts=mark leaves the second department without a photograph, and gives
+		// the first its sub-categories.
+		if r.URL.Query().Get("depts") == "mark" {
+			departments[1].PhotoURL = ""
+			departments[0].Children = []frame.NavItem{{Name: "Wearables", Href: "/c/wearables"}, {Name: "Speakers", Href: "/c/speakers"}, {Name: "Cables and chargers", Href: "/c/cables"}}
 		}
 		// ?zh=1 draws the page in Chinese, the band's name upright where it fits.
 		locale, bandName := i18n.En, "Technology"
@@ -88,7 +99,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			locale, bandName = i18n.ZhHant, "居家生活"
 		}
 		if bandTone, ok := tones[r.URL.Query().Get("band")]; ok {
-			view.Band = &home.DepartmentBand{Name: bandName, Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: bandTone}
+			view.Band = &home.DepartmentBand{Name: bandName, Items: 12, Subs: []string{"Audio", "Phones"}, Href: "/c/tech", Tone: bandTone}
 			// The first two are on sale until 22 November.
 			until := shoptime.LastDay(time.Date(2026, 11, 22, 16, 0, 0, 0, time.UTC), now)
 			for i, name := range []string{"Canvas tote", "City tote", "Weekend tote", "Market tote"} {
@@ -100,7 +111,15 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := home.Page(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
+		ctx := frame.WithTopNav(i18n.WithLocale(r.Context(), locale), departments)
+		// ?promo=1 puts the strip above the header, with its code and its word.
+		if r.URL.Query().Get("promo") == "1" {
+			ctx = frame.WithBanner(ctx, frame.Banner{
+				ID: "autumn", Message: "Free delivery on orders over NT$999 this week", MessageShort: "Free delivery",
+				Code: "AUTUMN", CTALabel: "Shop now", CTAHref: "/s/tea",
+			})
+		}
+		if renderErr := home.Page(frame.Page{}, view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render home fixture: %v", renderErr)
 		}
 	})
@@ -235,7 +254,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	})
 	// The page frame on its own: the seed's departments and deals, 3C 數位 with
 	// a panel, a cart of two, in either language (?lang=en), with 3C 數位
-	// current.
+	// current unless ?nav= names another department.
 	mux.HandleFunc("GET /frame", func(w http.ResponseWriter, r *http.Request) {
 		locale, names := i18n.ZhHant, []string{"書籍文具", "居家生活", "美妝保養", "服飾配件", "美食飲品", "3C 數位"}
 		if r.URL.Query().Get("lang") == "en" {
@@ -252,8 +271,12 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			nav[5].Picks = append(nav[5].Picks, frame.NavPick{Slug: "band", Name: name, Price: "NT$1,900", ImageURL: photo.URL(), ImageSrcset: photo.Srcset()})
 		}
 		ctx := frame.WithCartCount(frame.WithDeals(frame.WithTopNav(i18n.WithLocale(r.Context(), locale), nav), true), 2)
+		current := "tech"
+		if slug := r.URL.Query().Get("nav"); slug != "" {
+			current = slug
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := frame.Base(frame.Page{Title: "Frame", Nav: "tech"}).Render(templ.WithChildren(ctx, templ.NopComponent), w); renderErr != nil {
+		if renderErr := frame.Base(frame.Page{Title: "Frame", Nav: current}).Render(templ.WithChildren(ctx, templ.NopComponent), w); renderErr != nil {
 			t.Errorf("render frame fixture: %v", renderErr)
 		}
 	})

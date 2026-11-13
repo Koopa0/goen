@@ -97,10 +97,10 @@ const reflowBaseline = reflowBaselineFile.routes || {};
 // is caught rather than a rule that stops existing. tileRows is how many lines
 // the drawn tiles stand on.
 const EXPECTED = [
-  { label: '375 (artboard)', width: 375, height: 812, cats: 3, tiles: 2, tileRows: 2, hero: 'stacked' },
-  { label: '768 (md)', width: 768, height: 1024, cats: 6, tiles: 4, tileRows: 1, hero: 'stacked' },
-  { label: '1024 (lg)', width: 1024, height: 900, cats: 6, tiles: 4, tileRows: 1, hero: 'stacked' },
-  { label: '1440 (artboard)', width: 1440, height: 900, cats: 6, tiles: 4, tileRows: 1, hero: 'side-by-side', firstScreen: true },
+  { label: '375 (artboard)', width: 375, height: 812, cats: 1, tiles: 2, tileRows: 2, hero: 'stacked' },
+  { label: '768 (md)', width: 768, height: 1024, cats: 2, tiles: 4, tileRows: 1, hero: 'stacked' },
+  { label: '1024 (lg)', width: 1024, height: 900, cats: 2, tiles: 4, tileRows: 1, hero: 'stacked' },
+  { label: '1440 (artboard)', width: 1440, height: 900, cats: 3, tiles: 4, tileRows: 1, hero: 'side-by-side', firstScreen: true },
 ];
 
 // Every page that renders a document, at a phone width and at the artboard.
@@ -689,7 +689,7 @@ const PROBE = `(() => {
              +(r.right - parseFloat(cs.paddingRight)).toFixed(1) ];
   };
 
-  const taps = [...document.querySelectorAll('.goen-cat, .goen-hero .goen-home__more')]
+  const taps = [...document.querySelectorAll('.goen-deptindex__photo, .goen-hero .goen-home__more')]
     .map((e) => e.getBoundingClientRect().height);
 
   // Every rendered <img> must have laid out with real pixels. A 404 leaves a
@@ -704,7 +704,7 @@ const PROBE = `(() => {
     scrollWidth: pageWidth,
     overflowing,
     heroSplit: Math.abs(body.y - media.y) < 2 ? 'side-by-side' : 'stacked',
-    cats: cols('.goen-cats__grid > li'),
+    cats: cols('.goen-deptindex__item'),
     tiles: cols('#hero-1 .goen-hero__tiles > li'),
     tileRows: rows('#hero-1 .goen-hero__tiles > li'),
     header: edges('.goen-header__bar'),
@@ -1030,7 +1030,7 @@ for (const want of EXPECTED) {
     fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
       (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
   }
-  if (got.cats !== want.cats) fail(at, `category grid has ${got.cats} columns, want ${want.cats}`);
+  if (got.cats !== want.cats) fail(at, `department index has ${got.cats} columns, want ${want.cats}`);
   if (got.tiles !== want.tiles) fail(at, `product grid has ${got.tiles} columns, want ${want.tiles}`);
   if (got.tileRows !== want.tileRows) fail(at, `product row stands on ${got.tileRows} lines, want ${want.tileRows}`);
   if (got.heroSplit !== want.hero) fail(at, `hero is ${got.heroSplit}, want ${want.hero}`);

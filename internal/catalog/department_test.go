@@ -87,7 +87,9 @@ func TestComparePreviewSpecsOnly(t *testing.T) {
 			t.Errorf("preview draws %q, which belongs to the comparison page", banned)
 		}
 	}
-	for _, want := range []string{`class="goen-compare__table"`, `href="/compare?p=p0&amp;p=p1"`, "Spec 2"} {
+	// The arrow is joined to the words by a no-break space, so it can neither be
+	// parted from them nor be eaten by the link's flex layout.
+	for _, want := range []string{`class="goen-compare__table"`, `href="/compare?p=p0&amp;p=p1"`, "Spec 2", `>View comparison<span aria-hidden="true">&nbsp;→</span></a>`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("preview omits %s", want)
 		}

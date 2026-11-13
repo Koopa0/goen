@@ -212,6 +212,15 @@ func TestProductLinksSignedOutWishlist(t *testing.T) {
 			if !strings.Contains(nodeText(doc), want) {
 				t.Errorf("signed-out wishlist action omits %q", want)
 			}
+			// It leads to another page, so it is the ink text link the drawing sets, with no
+			// heart and no button's frame; the heart and the button are the toggle's.
+			link := opinionElement(doc, "a", "class", "goen-pdp__wishlink")
+			if link == nil {
+				t.Fatal("signed-out wishlist action is not the plain text link")
+			}
+			if markup := renderComponent(t, ctx, productLinks(&ProductView{Slug: "sample"})); strings.Contains(markup, "<svg") || strings.Contains(markup, "goen-btn") {
+				t.Error("signed-out wishlist action is drawn as a button or carries an icon")
+			}
 		})
 	}
 }

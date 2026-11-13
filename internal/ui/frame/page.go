@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -92,8 +93,11 @@ type NavItem struct {
 	ProductCount int
 	PhotoURL     string
 	PhotoSrcset  string
-	Children     []NavItem
-	Picks        []NavPick
+	// Tone is the ground a department without a photograph shows its first
+	// character on.
+	Tone     tone.Tone
+	Children []NavItem
+	Picks    []NavPick
 }
 
 // NavPick carries a Price that is already rendered, "from" included where variants differ: the

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tile"
@@ -63,18 +62,19 @@ func TestPageImageLoading(t *testing.T) {
 			{Layout: hero.LayoutPhoto, Photo: widget.Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
 			{Layout: hero.LayoutPhoto, Photo: widget.Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
 		},
-		Categories: []Category{
-			{Slug: "a", Name: "A", Photo: widget.Photo{URL: "/img/a.webp"}},
-			{Slug: "b", Name: "B", Photo: widget.Photo{URL: "/img/b.webp"}},
-		},
 		Row: ProductRow{Title: "Row", Href: "/s/row", Tiles: tiledShelf(10)},
 	}
-	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, view))
+	page := renderWithNav(t, []frame.NavItem{
+		{Slug: "a", Name: "A", Href: "/c/a", PhotoURL: "/img/a.webp"},
+		{Slug: "b", Name: "B", Href: "/c/b", PhotoURL: "/img/b.webp"},
+	}, Page(frame.Page{}, view))
 
 	assertEveryImageReservesItsBox(t, page)
 	for _, tag := range imageTags(page) {
-		if strings.Contains(tag, `class="goen-cat__photo"`) && !strings.Contains(tag, `loading="lazy"`) {
-			t.Errorf("a department photograph, below the product row, is not lazy: %s", tag)
+		if strings.Contains(tag, `/img/a.webp`) || strings.Contains(tag, `/img/b.webp`) {
+			if !strings.Contains(tag, `loading="lazy"`) {
+				t.Errorf("a department photograph, below the product row, is not lazy: %s", tag)
+			}
 		}
 	}
 	tiles := tileImages(page)

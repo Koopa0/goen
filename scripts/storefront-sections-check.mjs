@@ -107,78 +107,69 @@ try {
     console.log(`rules row ${width}px: content at the section's top`);
   }
 
-  // The department photographs keep the 4:3 they are shot in.
-  for (const width of [375, 768, 1440]) {
+  // The home page's departments are the index the missing page and the empty
+  // search draw: a square photograph keeping the 4:3 it is shot in beside the
+  // name in the editorial face, one above another on a phone, two across from
+  // 768 and three across a desktop. The heading over it is the editorial face
+  // too, and the photograph's link is out of the tab order beside the name's.
+  for (const [width, columns] of [[375, 1], [768, 2], [1024, 2], [1440, 3]]) {
     await open('/home', width);
-    const wells = await evaluate(`[...document.querySelectorAll('.goen-cat__well')].map(well => {
-      const box = well.getBoundingClientRect();
-      return { width: box.width, height: box.height };
-    })`);
-    assert.equal(wells.length, 3, `departments ${width}px: wells drawn`);
-    for (const well of wells) {
-      assert.ok(well.width > 0 && Math.abs(well.height - well.width * 3 / 4) <= 1, `departments ${width}px: a well is ${well.width}x${well.height}, not 4:3`);
+    const index = await evaluate(`(() => {
+      const items = [...document.querySelectorAll('.goen-deptindex__item')];
+      const photos = items.map(item => {
+        const link = item.querySelector('.goen-deptindex__photo');
+        const box = link.getBoundingClientRect();
+        return { width: box.width, height: box.height, radius: getComputedStyle(link).borderTopLeftRadius,
+          hidden: link.getAttribute('aria-hidden'), tabindex: link.getAttribute('tabindex'),
+          name: getComputedStyle(item.querySelector('.goen-deptindex__name')).fontFamily };
+      });
+      const heading = document.querySelector('#cats-heading');
+      const tops = new Set(items.map(item => Math.round(item.getBoundingClientRect().left)));
+      return { photos, columns: tops.size, heading: getComputedStyle(heading).fontFamily,
+        old: document.querySelectorAll('.goen-cats, .goen-cat').length };
+    })()`);
+    assert.equal(index.photos.length, 3, `departments ${width}px: entries drawn`);
+    assert.equal(index.columns, columns, `departments ${width}px: ${index.columns} columns, want ${columns}`);
+    assert.equal(index.old, 0, `departments ${width}px: the page still draws the grid the index replaced`);
+    assert.match(index.heading, /Noto Serif TC/, `departments ${width}px: the heading is set in ${index.heading}`);
+    for (const photo of index.photos) {
+      assert.ok(photo.width > 0 && Math.abs(photo.height - photo.width * 3 / 4) <= 1, `departments ${width}px: a photograph is ${photo.width}x${photo.height}, not 4:3`);
+      assert.equal(photo.radius, '0px', `departments ${width}px: a photograph has a ${photo.radius} corner, not square`);
+      assert.deepEqual([photo.hidden, photo.tabindex], ['true', '-1'], `departments ${width}px: the photograph's link is aria-hidden=${photo.hidden} tabindex=${photo.tabindex}`);
+      assert.match(photo.name, /Noto Serif TC/, `departments ${width}px: a name is set in ${photo.name}`);
     }
-    console.log(`departments ${width}px: ${wells.length} wells at 4:3`);
+    console.log(`departments ${width}px: ${index.photos.length} square photographs at 4:3 in ${columns} column${columns === 1 ? '' : 's'}, editorial names`);
   }
 
-  // Under a hovering pointer a department photograph grows a little instead of
-  // dimming, a press puts it straight back, and reduced motion keeps it still.
-  // A browser without a hovering pointer (headless Chrome on CI) never applies
-  // those rules, so there the rules are read from the parsed sheet instead.
-  {
-    const label = 'department zoom';
-    const measurable = await evaluate(`matchMedia('(hover: hover)').matches && matchMedia('(prefers-reduced-motion: no-preference)').matches`);
-    if (measurable) {
-      const photo = () => evaluate(`(() => {
-        const photo = document.querySelector('.goen-cat__photo');
-        getComputedStyle(photo).scale;
-        photo.getAnimations().forEach(animation => animation.finish());
-        const style = getComputedStyle(photo);
-        return { scale: style.scale, opacity: style.opacity };
-      })()`);
-      assert.deepEqual(await photo(), { scale: 'none', opacity: '1' }, `${label}: at rest`);
-      await force('.goen-cat', ['hover']);
-      assert.deepEqual(await photo(), { scale: '1.03', opacity: '1' }, `${label}: on hover`);
-      await force('.goen-cat', ['hover', 'active']);
-      assert.deepEqual(await photo(), { scale: '1', opacity: '1' }, `${label}: pressed`);
-      await force('.goen-cat', []);
-      await media([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
-      await force('.goen-cat', ['hover']);
-      assert.deepEqual(await photo(), { scale: 'none', opacity: '1' }, `${label}: on hover with reduced motion`);
-      await force('.goen-cat', []);
-      await media([]);
-      console.log(`${label}: measured in the page: 1.03 on hover, 1 pressed, none with reduced motion, never dimmed`);
-    } else {
-      const sheet = await evaluate(`(() => {
-        const rules = [];
-        const walk = (list, conditions) => {
-          for (const rule of list) {
-            const inner = rule.media?.mediaText;
-            if (rule.cssRules) walk(rule.cssRules, inner === undefined ? conditions : [...conditions, inner]);
-            if (rule.selectorText !== undefined) {
-              rules.push({ selector: rule.selectorText, conditions, scale: rule.style.scale,
-                opacity: rule.style.opacity, transition: rule.style.transition });
-            }
-          }
-        };
-        for (const sheet of document.styleSheets) {
-          try { walk(sheet.cssRules, []); } catch { /* a sheet from another origin cannot be read */ }
-        }
-        return rules;
-      })()`);
-      const gated = rule => rule.conditions.some(text => /\(hover:\s*hover\)/.test(text) && /\(prefers-reduced-motion:\s*no-preference\)/.test(text));
-      const find = selector => sheet.find(rule => rule.selector === selector && gated(rule));
-      const hover = find('.goen-cat:hover .goen-cat__photo');
-      assert.ok(hover, `${label}: no (hover: hover) and (prefers-reduced-motion: no-preference) rule for .goen-cat:hover .goen-cat__photo`);
-      assert.equal(hover.scale, '1.03', `${label}: on hover`);
-      const pressed = find('.goen-cat:active .goen-cat__photo');
-      assert.ok(pressed, `${label}: no (hover: hover) and (prefers-reduced-motion: no-preference) rule for .goen-cat:active .goen-cat__photo`);
-      assert.equal(pressed.scale, '1', `${label}: pressed`);
-      assert.match(pressed.transition, /\bnone\b/, `${label}: pressed still eases back`);
-      const dimming = sheet.filter(rule => rule.opacity !== '' && rule.selector.includes('goen-cat__photo'));
-      assert.deepEqual(dimming, [], `${label}: a rule dims the photograph`);
-      console.log(`${label}: this browser reports no hovering pointer; read the media rules instead: 1.03 on hover, 1 pressed without easing, no opacity on the photograph`);
-    }
+  // A department without a photograph shows its first letter on its tone, a
+  // picture rather than words in a link, so no underline runs under it, and its
+  // sub-categories are set apart with the dot between spaces that a screen reader
+  // skips.
+  for (const width of [375, 1440]) {
+    await open('/home?depts=mark', width);
+    const mark = await evaluate(`(() => {
+      const tile = document.querySelector('.goen-deptindex__photo--mark');
+      if (!tile) return null;
+      const box = tile.getBoundingClientRect(), style = getComputedStyle(tile);
+      const letter = tile.querySelector('.goen-deptindex__mark');
+      const subs = document.querySelector('.goen-deptindex__subs');
+      return { width: box.width, height: box.height, line: style.textDecorationLine, background: style.backgroundColor,
+        hidden: tile.getAttribute('aria-hidden'), tabindex: tile.getAttribute('tabindex'), letter: letter?.textContent,
+        letterLine: letter && getComputedStyle(letter).textDecorationLine, size: letter && parseFloat(getComputedStyle(letter).fontSize),
+        seps: subs ? [...subs.querySelectorAll('.goen-sep')].map(sep => sep.getAttribute('aria-hidden')) : [],
+        text: subs?.textContent.replace(/\\s+/g, ' ').trim() };
+    })()`);
+    const where = `department without a photograph ${width}px`;
+    assert.ok(mark, `${where}: no mark drawn`);
+    assert.equal(mark.letter, 'B', `${where}: the mark reads ${mark.letter}`);
+    assert.ok(Math.abs(mark.height - mark.width * 3 / 4) <= 1, `${where}: the mark is ${mark.width}x${mark.height}, not 4:3`);
+    assert.equal(mark.line, 'none', `${where}: the mark's link is ${mark.line}`);
+    assert.notEqual(mark.background, 'rgba(0, 0, 0, 0)', `${where}: the mark has no tone behind it`);
+    assert.ok(mark.size <= 56, `${where}: the letter is ${mark.size}px, past the 3.5rem cap`);
+    assert.deepEqual([mark.hidden, mark.tabindex], ['true', '-1'], `${where}: the mark's link is aria-hidden=${mark.hidden} tabindex=${mark.tabindex}`);
+    assert.deepEqual(mark.seps, ['true', 'true'], `${where}: the sub-categories' dots are ${JSON.stringify(mark.seps)}, want two hidden from a screen reader`);
+    assert.equal(mark.text, 'Wearables · Speakers · Cables and chargers', `${where}: the sub-categories read ${JSON.stringify(mark.text)}`);
+    console.log(`${where}: ${mark.letter} on its tone, no underline, sub-categories spaced around a dot`);
   }
 
   // Only the script that moves between slides marks a tab aria-current, so the
@@ -319,7 +310,8 @@ try {
   // field and the footer's newsletter field are fields, 4px at any text size,
   // as the field corners below are, and the footer's button sits 4px inside
   // its field, so square. The header's words, the back office's among them,
-  // have no corner at all. The hero arrows are circles.
+  // have no corner at all. The hero arrows are square outlines, a field's corner,
+  // with no fill.
   {
     const label = 'pressable corners';
     const measure = (selectors, rootSize) => evaluate(`(() => {
@@ -368,13 +360,12 @@ try {
       await open('/home', 1440);
       const hero = await measure([arrow], rootSize);
       assert.ok(hero[arrow]?.height > 0, `${label}: no hero arrow is drawn at ${scale}`);
-      assert.equal(hero[arrow].radius, '50%', `${label}: a hero arrow at ${scale} is ${hero[arrow].radius}, not a circle`);
-      assert.equal(hero[arrow].border, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow's border at ${scale} is ${hero[arrow].border}, not transparent`);
-      assert.notEqual(hero[arrow].background, hero[arrow].page, `${label}: a hero arrow at ${scale} is the page's own ${hero[arrow].page}`);
-      assert.notEqual(hero[arrow].background, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow at ${scale} has no fill`);
+      assert.equal(length(hero[arrow], arrow), hero[arrow].rem * 0.25, `${label}: a hero arrow at ${scale} has a ${hero[arrow].radius} corner, not --r-sm (${hero[arrow].rem * 0.25}px)`);
+      assert.notEqual(hero[arrow].border, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow's edge at ${scale} is transparent, not an outline`);
+      assert.equal(hero[arrow].background, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow at ${scale} has a ${hero[arrow].background} fill`);
     }
     assert.equal(corner['200%'], corner['100%'] * 2, `${label}: ${corner['100%']}px at 100% text is ${corner['200%']}px at 200%, not double`);
-    console.log(`${label}: chips ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; fields 4px, footer button square inside its field, header words cornerless, hero arrows round`);
+    console.log(`${label}: chips ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; fields 4px, footer button square inside its field, header words cornerless, hero arrows square outlines`);
   }
 
   // The page frame. The header is one row of words in Chinese at 1440 and two
@@ -393,9 +384,15 @@ try {
       const current = nav.querySelector('[aria-current="page"]');
       const style = getComputedStyle(current);
       const count = document.querySelector('#cart-link .goen-header__count');
+      // The word and the figure are two flex items, so the space between them
+      // in the markup collapses; what a reader sees is the gap the box leaves.
+      const word = [...document.querySelector('#cart-link').childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+      const range = document.createRange();
+      if (word) range.selectNodeContents(word);
       return { bar: box(document.querySelector('.goen-header__bar')), nav: box(nav), search: box(document.querySelector('.goen-header__search')),
         actions: box(document.querySelector('.goen-header__actions')), cart: document.querySelector('#cart-link').textContent.replace(/\s+/g, ' ').trim(),
         figures: count && getComputedStyle(count).fontVariantNumeric,
+        gap: word && count ? count.getBoundingClientRect().left - range.getBoundingClientRect().right : null,
         current: { text: current.textContent.trim(), line: style.textDecorationLine, thickness: style.textDecorationThickness,
           lineColour: style.textDecorationColor, colour: style.color } };
     })()`);
@@ -408,6 +405,7 @@ try {
       if (rows === 2) assert.ok(got.nav.top >= got.search.bottom && got.nav.top >= got.actions.bottom - 0.5, `${where}: the departments' row is not under the others: ${JSON.stringify(got)}`);
       assert.equal(got.cart, cart, `${where}: the cart reads ${JSON.stringify(got.cart)}`);
       assert.match(got.figures, /tabular-nums/, `${where}: the cart's count is set in ${got.figures}, not tabular figures`);
+      assert.ok(got.gap >= 3.5, `${where}: the cart's word and its count are ${got.gap}px apart, run together`);
       assert.deepEqual([got.current.line, got.current.thickness, got.current.lineColour], ['underline', '2px', got.current.colour],
         `${where}: the current department ${got.current.text} is marked ${JSON.stringify(got.current)}, not a 2px underline in its own colour`);
       console.log(`${where}: ${rows} row${rows === 1 ? '' : 's'}, ${got.cart}, current department underlined 2px`);
@@ -435,10 +433,31 @@ try {
       assert.equal(row.page, row.edge, `${where}: the page scrolls sideways: ${JSON.stringify(row)}`);
       // proximity is the default strictness, so it computes to plain x.
       assert.match(row.snap, /^x( proximity)?$/, `${where}: the row snaps ${row.snap}, not x proximity`);
-      assert.equal(row.margin, '16px', `${where}: a link's scroll margin is ${row.margin}, not 16px`);
+      // The row's padding is the gutter; a margin at the start on top of it stood a link 32px in
+      // and left a sliver of the word before it at the edge.
+      assert.equal(row.margin, '0px', `${where}: a link's scroll margin at the start is ${row.margin}, not 0px`);
       assert.ok(row.into !== null && row.into >= 12, `${where}: the right edge cuts no department at least 12px in: ${JSON.stringify(row)}`);
       console.log(`${where}: the edge cuts a department ${row.into}px in`);
     }
+
+    // goen.js scrolls the row to the current department, whichever it is, in either language: the
+    // current one starts at the gutter or, among the last, wherever the row ends, and the edge
+    // never leaves half a word of another.
+    for (const width of [320, 375, 414]) for (const lang of ['', '&lang=en']) for (const slug of ['books-stationery', 'home-living', 'beauty', 'fashion', 'food-drink', 'tech']) {
+      await open(`/frame?nav=${slug}${lang}`, width, true);
+      const row = await evaluate(`(() => {
+        const nav = document.querySelector('.goen-header__nav');
+        const box = nav.getBoundingClientRect();
+        const at = link => { const r = link.getBoundingClientRect(); return { name: link.textContent.trim(), left: Math.round(r.left - box.left), right: Math.round(r.right - box.left) }; };
+        const links = [...nav.querySelectorAll(':scope > a, :scope > .goen-dept > a')].map(at);
+        return { width: box.width, scrolled: nav.scrollLeft, current: at(nav.querySelector('[aria-current="page"]')),
+          cut: links.filter(l => l.left < -0.5 && l.right > 0.5) };
+      })()`);
+      const where = `${label} /frame?nav=${slug}${lang} ${width}px`;
+      assert.deepEqual(row.cut, [], `${where}: the row's start cuts a department in half: ${JSON.stringify(row)}`);
+      assert.ok(row.current.left >= 0 && row.current.right <= row.width, `${where}: the current department is not whole in view: ${JSON.stringify(row)}`);
+    }
+    console.log(`${label}: the current department is whole and no other is cut at the row's start, 320, 375 and 414px, both languages`);
 
     await open('/frame', 1440);
     const panel = await evaluate(`(() => {
@@ -468,6 +487,32 @@ try {
     assert.equal(footer.font, '15px', `${label}: the subscribe word is ${footer.font}, not label-l's 15px`);
     assert.deepEqual([footer.link, footer.line], [footer.ink, 'underline'], `${label}: a footer link is ${footer.link} with ${footer.line}, not ink and underlined`);
     console.log(`${label}: footer links and the subscribe word in ink`);
+
+    // On a phone the link groups stand two across, the brand and the newsletter
+    // across the whole width, as the board draws it; on a desktop each group
+    // takes a column of its own.
+    for (const width of [320, 375, 1440]) {
+      await open('/frame', width);
+      const grid = await evaluate(`(() => {
+        const box = element => element.getBoundingClientRect();
+        const groups = [...document.querySelectorAll('.goen-footer__grid > .goen-footer__links')].map(box);
+        const brand = box(document.querySelector('.goen-footer__brand')), news = box(document.querySelector('.goen-footer__news'));
+        const gridElement = document.querySelector('.goen-footer__grid'), gridStyle = getComputedStyle(gridElement);
+        const column = box(gridElement).width - parseFloat(gridStyle.paddingLeft) - parseFloat(gridStyle.paddingRight);
+        const top = Math.min(...groups.map(group => group.top));
+        return { groups: groups.length, first: groups.filter(group => Math.abs(group.top - top) < 1).length,
+          brand: Math.abs(brand.width - column) < 1, news: Math.abs(news.width - column) < 1,
+          page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth };
+      })()`);
+      const where = `footer ${width}px`;
+      assert.equal(grid.groups, 3, `${where}: ${grid.groups} link groups`);
+      assert.equal(grid.page, grid.viewport, `${where}: the page scrolls sideways`);
+      if (width < 768) {
+        assert.equal(grid.first, 2, `${where}: ${grid.first} link groups on the first row, want 2 across`);
+        assert.ok(grid.brand && grid.news, `${where}: the brand or the newsletter does not take the whole width`);
+      } else assert.equal(grid.first, 3, `${where}: ${grid.first} link groups on one row, want 3`);
+    }
+    console.log(`${label}: footer link groups two across on a phone, the brand and newsletter across the width`);
   }
 
   // The home hero is a printed page: each slide's photograph square and across
@@ -577,6 +622,69 @@ try {
       await force('.goen-hero__tabs a[aria-current="true"]', []);
       console.log(`${label}: ${hero.slides.length} slides across the window, photograph ${Math.round(tall)}px and square, products ${first.tiles.beside ? 'beside' : 'under'} the words in ${first.tiles.columns} columns`);
     }
+  }
+
+  // The promotion strip keeps its words on a phone: the message, the code, the
+  // call to action underlined, and the close. The arrow after the word needs the
+  // room a phone does not have, so it stands from 768 only. Nothing in the strip
+  // is cut by a hidden overflow other than the message's own ellipsis, which a
+  // 375 phone does not need for this copy.
+  for (const [width, chevron] of [[375, false], [1440, true]]) {
+    const label = `promotion strip ${width}px`;
+    await open('/home?promo=1', width);
+    const strip = await evaluate(`(() => {
+      const bar = document.querySelector('.goen-promo__bar');
+      const shown = selector => { const element = bar.querySelector(selector); return !!element && element.getClientRects().length > 0; };
+      const message = [...bar.querySelectorAll('.goen-promo__wide, .goen-promo__narrow')].find(element => element.getClientRects().length > 0);
+      const cta = bar.querySelector('.goen-promo__cta');
+      const close = bar.querySelector('.goen-promo__close').getBoundingClientRect();
+      const box = bar.getBoundingClientRect();
+      return { message: message && { text: message.textContent, cut: message.parentElement.scrollWidth > message.parentElement.clientWidth },
+        code: shown('.goen-promo__code'), cta: shown('.goen-promo__cta'), ctaLine: cta && getComputedStyle(cta).textDecorationLine,
+        chevron: shown('.goen-promo__chevron'), close: { width: close.width, right: close.right }, bar: { left: box.left, right: box.right },
+        page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth };
+    })()`);
+    assert.ok(strip.message, `${label}: no message is drawn`);
+    assert.equal(strip.message.cut, false, `${label}: the message ${JSON.stringify(strip.message.text)} is cut off`);
+    assert.equal(strip.code, true, `${label}: the code is not drawn`);
+    assert.equal(strip.cta, true, `${label}: the call to action is not drawn, the strip is a message and an arrow`);
+    assert.equal(strip.ctaLine, 'underline', `${label}: the call to action is ${strip.ctaLine}, not underlined`);
+    assert.equal(strip.chevron, chevron, `${label}: the arrow is ${strip.chevron ? 'drawn' : 'not drawn'}`);
+    assert.ok(strip.close.width >= 44 && strip.close.right <= strip.viewport + 0.5, `${label}: the close is ${strip.close.width}px wide ending at ${strip.close.right} in a ${strip.viewport}px window`);
+    assert.equal(strip.page, strip.viewport, `${label}: the page scrolls sideways`);
+    console.log(`${label}: message, code, underlined "Shop now" and close${chevron ? ' and the arrow' : ', no arrow'}`);
+  }
+
+  // A campaign with no photograph draws no empty slab: the slide has no photograph
+  // field at all, and a hero with such a slide stands its tabs above the slides, in
+  // flow, so the name never sits under them nor the tabs over a blank field. The
+  // tabs are never clipped by the row's own ends at 320 or 375.
+  for (const width of [320, 375, 1440]) {
+    const label = `hero without photographs ${width}px`;
+    await open('/home?bare=1', width);
+    const bare = await evaluate(`(() => {
+      const hero = document.querySelector('.goen-hero');
+      const slides = [...hero.querySelectorAll('.goen-hero__slide')];
+      const tabs = hero.querySelector('.goen-hero__tabs');
+      const arrows = [...hero.querySelectorAll('.goen-hero__arrow')].map(arrow => arrow.getClientRects().length);
+      const box = element => element.getBoundingClientRect();
+      const first = box(slides[0]);
+      return {
+        bare: hero.classList.contains('goen-hero--bare'),
+        media: slides.map(slide => slide.querySelector('.goen-hero__media') !== null),
+        tabsBottom: box(tabs).bottom, tabsTop: box(tabs).top, slidesTop: first.top,
+        titles: slides.map(slide => box(slide.querySelector('.goen-hero__title')).top),
+        arrows, viewport: document.documentElement.clientWidth,
+        row: { left: box(tabs).left, right: box(tabs).right },
+      };
+    })()`);
+    assert.equal(bare.bare, true, `${label}: the hero is not marked bare`);
+    assert.deepEqual(bare.media, [true, true, true, false, false], `${label}: photograph fields ${bare.media}, want one only where there is a photograph`);
+    assert.ok(bare.tabsBottom <= bare.slidesTop + 0.5, `${label}: the tabs end at ${bare.tabsBottom}, under the slides that start at ${bare.slidesTop}`);
+    for (const top of bare.titles) assert.ok(top >= bare.tabsBottom - 0.5, `${label}: a name starts at ${top}, over the tabs that end at ${bare.tabsBottom}`);
+    if (width < 768) assert.deepEqual(bare.arrows, [0, 0], `${label}: the arrows are drawn on a phone and eat the tabs' room: ${bare.arrows}`);
+    assert.ok(bare.row.left >= -0.5 && bare.row.right <= bare.viewport + 0.5, `${label}: the tab row runs ${bare.row.left}-${bare.row.right} in a ${bare.viewport}px window`);
+    console.log(`${label}: tabs above the slides, photograph fields only where there is a photograph, ${bare.arrows.every(count => count === 0) ? 'no arrows' : 'arrows beside the tabs'}`);
   }
 
   // A product's main photograph sits on one square well in the photograph's
@@ -1101,8 +1209,10 @@ try {
       console.log(`${where}: name and sentence ${ratio(got.refused, got.ground).toFixed(2)}:1 in the error colour on the page, icon drawn`);
     }
 
-    // The text option: white with a 1px edge, or tinted with a 2px edge and a
-    // check. Choosing one does not move the text or change the height.
+    // The text option: a square box of the field corner on the page's ground,
+    // chosen by a 2px ink frame (its 1px edge and an inset line of the same
+    // ink), with no tint, no blue and no check. Choosing one does not change
+    // the height.
     const swatches = ids => evaluate(`${JSON.stringify(ids)}.map(id => {
       const element = document.getElementById(id);
       if (!element) return null;
@@ -1126,6 +1236,7 @@ try {
       return { id, current: element.getAttribute('aria-current'), height: box.height, left: box.left,
         background: style.backgroundColor, color: style.color, shadow: style.boxShadow, outline: style.outlineStyle,
         radius: style.borderTopLeftRadius, borderStyle: style.borderTopStyle,
+        outlineWidth: style.outlineWidth, decoration: style.textDecorationLine,
         widths: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Width']),
         colours: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Color']),
         tick, textLeft: text.left, textRight: text.right, noteColour: note && getComputedStyle(note).color,
@@ -1137,9 +1248,9 @@ try {
         await open('/product?options=in', width);
         await rootSize(size);
         const t = await tokens(names);
-        const press = await evaluate(`(() => {
+        const corner = await evaluate(`(() => {
           const probe = document.createElement('div');
-          probe.style.borderTopLeftRadius = 'var(--r-press)';
+          probe.style.borderTopLeftRadius = 'var(--shape-xs)';
           document.body.append(probe);
           const got = getComputedStyle(probe).borderTopLeftRadius;
           probe.remove();
@@ -1148,58 +1259,43 @@ try {
         const [plain, chosen, soldOut] = await swatches(['swatch-0-0', 'swatch-0-1', 'swatch-0-2']);
         for (const [name, got] of [['plain', plain], ['chosen', chosen], ['sold out', soldOut]]) assert.ok(got, `${where}: no ${name} option`);
         assert.equal(chosen.current, 'true', `${where}: the second option is not the current one`);
-        assert.equal(plain.background, t['--n-0'], `${where}: an unchosen option is ${plain.background}, not white`);
+        assert.equal(corner, '4px', `${where}: --shape-xs is ${corner}, not the 4px control corner`);
+        assert.equal(plain.background, t['--sys-surface'], `${where}: an unchosen option is ${plain.background}, not the page's ground`);
         assert.deepEqual(plain.widths, Array(4).fill('1px'), `${where}: an unchosen edge is ${plain.widths}`);
         assert.deepEqual(plain.colours, Array(4).fill(t['--control-boundary']), `${where}: an unchosen edge is ${plain.colours}, not the control edge ${t['--control-boundary']}`);
-        assert.equal(plain.radius, press, `${where}: an unchosen option has corner ${plain.radius}, not --r-press ${press}`);
+        assert.equal(plain.radius, corner, `${where}: an unchosen option has corner ${plain.radius}, not ${corner}`);
         assert.equal(plain.tick, null, `${where}: an unchosen option is ticked`);
-        assert.equal(chosen.background, t['--accent-faint'], `${where}: the chosen option is ${chosen.background}, not the tint ${t['--accent-faint']}`);
-        assert.deepEqual(chosen.widths, Array(4).fill('2px'), `${where}: the chosen edge is ${chosen.widths}`);
-        assert.deepEqual(chosen.colours, Array(4).fill(t['--accent']), `${where}: the chosen edge is ${chosen.colours}, not the accent ${t['--accent']}`);
-        assert.equal(chosen.color, t['--accent-deep'], `${where}: the chosen text is ${chosen.color}, not ${t['--accent-deep']}`);
-        assert.equal(chosen.shadow, 'none', `${where}: the chosen option draws its edge with a shadow: ${chosen.shadow}`);
-        assert.equal(chosen.radius, press, `${where}: the chosen option has corner ${chosen.radius}, not --r-press ${press}`);
+        assert.equal(plain.shadow, 'none', `${where}: an unchosen option draws a shadow: ${plain.shadow}`);
+        assert.equal(chosen.background, plain.background, `${where}: the chosen option is ${chosen.background}, not the unchosen ground ${plain.background}: no tint`);
+        assert.deepEqual(chosen.colours, Array(4).fill(t['--sys-on-surface']), `${where}: the chosen edge is ${chosen.colours}, not the ink ${t['--sys-on-surface']}`);
+        assert.equal(chosen.shadow, `${t['--sys-on-surface']} 0px 0px 0px 1px inset`, `${where}: the chosen option's second pixel is ${chosen.shadow}, not an inset line of the ink`);
+        assert.equal(chosen.color, plain.color, `${where}: the chosen text is ${chosen.color}, not the unchosen text ${plain.color}`);
+        assert.equal(chosen.radius, corner, `${where}: the chosen option has corner ${chosen.radius}, not ${corner}`);
         assert.ok(Math.abs(chosen.height - plain.height) < 0.5, `${where}: choosing resizes the option from ${plain.height}px to ${chosen.height}px`);
-        assert.ok(chosen.tick, `${where}: the chosen option has no check`);
-        assert.deepEqual([chosen.tick.content, chosen.tick.position, chosen.tick.widths.slice(0, 2)], ['""', 'absolute', ['2px', '2px']], `${where}: the check is ${JSON.stringify(chosen.tick)}`);
-        assert.equal(chosen.tick.colour, chosen.color, `${where}: the check is ${chosen.tick.colour}, not the text colour ${chosen.color}`);
+        assert.equal(chosen.tick, null, `${where}: the chosen option is ticked: ${JSON.stringify(chosen.tick)}`);
         assert.ok(chosen.inside && plain.inside, `${where}: an option is cut by the edge of the screen`);
-        // Contrast, by the formula above: the edge against the page it sits
-        // on (1.4.11, at least 3:1), the text against the tint (1.4.3, at
-        // least 4.5:1) and the edge against the tint it encloses.
-        const edge = ratio(chosen.colours[0], chosen.ground), text = ratio(chosen.color, chosen.background), inner = ratio(chosen.colours[0], chosen.background);
-        assert.ok(edge >= 3, `${where}: the chosen edge on the page is ${edge.toFixed(2)}:1, under 3:1`);
-        assert.ok(text >= 4.5, `${where}: the chosen text on the tint is ${text.toFixed(2)}:1, under 4.5:1`);
-        assert.ok(inner >= 3, `${where}: the chosen edge on the tint is ${inner.toFixed(2)}:1, under 3:1`);
-        // The check is a box drawn after the turn: its left stays inside the
-        // option and its right stays clear of the words.
-        const tick = await evaluate(`(() => {
-          const element = document.getElementById('swatch-0-1');
-          const box = element.getBoundingClientRect();
-          const tick = getComputedStyle(element, '::before');
-          const inset = parseFloat(tick.left), width = parseFloat(tick.width), height = parseFloat(tick.height);
-          const left = box.left + parseFloat(getComputedStyle(element).borderLeftWidth) + inset;
-          const turned = (width + height) * Math.SQRT1_2;
-          return { left: left + width / 2 - turned / 2, right: left + width / 2 + turned / 2, box: box.left };
-        })()`);
-        assert.ok(tick.left >= tick.box, `${where}: the check starts ${tick.box - tick.left}px outside the option`);
-        assert.ok(tick.right <= chosen.textLeft - 2, `${where}: the check reaches ${tick.right}px, over the words that start at ${chosen.textLeft}px`);
-        console.log(`${where}: chosen edge ${edge.toFixed(2)}:1, text ${text.toFixed(2)}:1, edge on tint ${inner.toFixed(2)}:1, check clear of the words by ${(chosen.textLeft - tick.right).toFixed(1)}px`);
+        // Contrast, by the formula above: the frame against the page it sits
+        // on (1.4.11, at least 3:1) and the text against the ground (1.4.3, at
+        // least 4.5:1).
+        const edge = ratio(chosen.colours[0], chosen.ground), text = ratio(chosen.color, chosen.background);
+        assert.ok(edge >= 3, `${where}: the chosen frame on the page is ${edge.toFixed(2)}:1, under 3:1`);
+        assert.ok(text >= 4.5, `${where}: the chosen text on its ground is ${text.toFixed(2)}:1, under 4.5:1`);
+        console.log(`${where}: chosen frame ${edge.toFixed(2)}:1, text ${text.toFixed(2)}:1, no tint, no check`);
       }
     }
     {
       await open('/product?options=in', 1440);
       const t = await tokens(names);
-      const hovered = id => evaluate(`getComputedStyle(document.getElementById(${JSON.stringify(id)})).backgroundColor`);
+      const edge = id => evaluate(`getComputedStyle(document.getElementById(${JSON.stringify(id)})).borderTopColor`);
       await force('#swatch-0-1', ['hover']);
-      assert.equal(await hovered('swatch-0-1'), t['--accent-faint'], `${label}: the chosen option loses its tint under the pointer`);
+      assert.equal(await edge('swatch-0-1'), t['--sys-on-surface'], `${label}: the chosen option loses its ink frame under the pointer`);
       await force('#swatch-0-1', []);
-      console.log(`${label}: the chosen option keeps its tint under the pointer`);
+      console.log(`${label}: the chosen option keeps its ink frame under the pointer`);
     }
 
     // A chosen option that is sold out is chosen the same way, still dashed,
-    // and holds what product-options-check measures: a light fill, an edge of
-    // at least 3:1 and words of at least 4.5:1.
+    // and holds what product-options-check measures: a light ground, a frame
+    // of at least 3:1 and words of at least 4.5:1.
     for (const size of ['', '200%']) {
       for (const width of [320, 1440]) {
         const where = `sold-out chosen option ${width}px at ${size || '100%'}`;
@@ -1209,18 +1305,18 @@ try {
         const [got] = await swatches(['swatch-0-1']);
         assert.ok(got, `${where}: no chosen option`);
         assert.equal(got.current, 'true', `${where}: not the current option`);
-        assert.equal(got.background, t['--accent-faint'], `${where}: the fill is ${got.background}, not the tint`);
-        assert.ok(rgb(got.background).every(channel => channel > 200), `${where}: the fill ${got.background} is not light`);
-        assert.deepEqual(got.widths, Array(4).fill('2px'), `${where}: the edge is ${got.widths}`);
-        assert.deepEqual(got.colours, Array(4).fill(t['--accent']), `${where}: the edge is ${got.colours}, not the accent`);
+        assert.equal(got.background, t['--sys-surface'], `${where}: the ground is ${got.background}, not the page's`);
+        assert.ok(rgb(got.background).every(channel => channel > 200), `${where}: the ground ${got.background} is not light`);
+        assert.deepEqual(got.colours, Array(4).fill(t['--sys-on-surface']), `${where}: the frame is ${got.colours}, not the ink`);
         assert.equal(got.borderStyle, 'dashed', `${where}: the edge is ${got.borderStyle}, so a sold-out option no longer looks sold out`);
-        assert.equal(got.shadow, 'none', `${where}: a shadow draws the edge: ${got.shadow}`);
+        assert.equal(got.shadow, `${t['--sys-on-surface']} 0px 0px 0px 1px inset`, `${where}: the second pixel is ${got.shadow}`);
+        assert.equal(got.tick, null, `${where}: the option is ticked`);
         const edge = ratio(got.colours[0], got.ground), text = ratio(got.color, got.background), note = ratio(got.noteColour, got.background);
-        assert.ok(edge >= 3, `${where}: the edge on the page is ${edge.toFixed(2)}:1, under 3:1`);
-        assert.ok(text >= 4.5, `${where}: the words on the fill are ${text.toFixed(2)}:1, under 4.5:1`);
-        assert.ok(note >= 4.5, `${where}: the sold-out note on the fill is ${note.toFixed(2)}:1, under 4.5:1`);
+        assert.ok(edge >= 3, `${where}: the frame on the page is ${edge.toFixed(2)}:1, under 3:1`);
+        assert.ok(text >= 4.5, `${where}: the words on the ground are ${text.toFixed(2)}:1, under 4.5:1`);
+        assert.ok(note >= 4.5, `${where}: the sold-out note on the ground is ${note.toFixed(2)}:1, under 4.5:1`);
         assert.ok(got.inside, `${where}: the option is cut by the edge of the screen`);
-        console.log(`${where}: dashed accent edge ${edge.toFixed(2)}:1, words ${text.toFixed(2)}:1, note ${note.toFixed(2)}:1 on the tint`);
+        console.log(`${where}: dashed ink frame ${edge.toFixed(2)}:1, words ${text.toFixed(2)}:1, note ${note.toFixed(2)}:1`);
       }
     }
 
@@ -1302,13 +1398,15 @@ try {
     await media([{ name: 'forced-colors', value: 'active' }]);
     {
       const [plain, chosen] = await swatches(['swatch-0-0', 'swatch-0-1']);
-      assert.ok(chosen.tick, `${label}: forced colours: the chosen option has no check`);
-      assert.notEqual(chosen.tick.colour, 'rgba(0, 0, 0, 0)', `${label}: forced colours: the check is transparent`);
-      assert.deepEqual(chosen.tick.widths.slice(0, 2), ['2px', '2px'], `${label}: forced colours: the check is ${chosen.tick.widths}`);
-      assert.deepEqual([chosen.widths[0], plain.widths[0]], ['2px', '1px'], `${label}: forced colours: option edges ${chosen.widths[0]} and ${plain.widths[0]}`);
+      // The inset line is a shadow, which forced colours drop, so the chosen
+      // box is told by a 2px outline in the system's highlight and an underline.
+      assert.equal(chosen.tick, null, `${label}: forced colours: the chosen option is ticked`);
+      assert.deepEqual([chosen.outline, chosen.outlineWidth], ['solid', '2px'], `${label}: forced colours: the chosen option's outline is ${chosen.outline} ${chosen.outlineWidth}`);
+      assert.equal(plain.outline, 'none', `${label}: forced colours: an unchosen option draws an outline: ${plain.outline}`);
+      assert.match(chosen.decoration, /underline/, `${label}: forced colours: the chosen option is not underlined: ${chosen.decoration}`);
     }
     await media([]);
-    console.log(`${label}: forced colours keep the 2px edge, the check and the radio`);
+    console.log(`${label}: forced colours keep the 2px edge, the chosen option's outline and the radio`);
 
     // Keyboard focus shows one ring, on the card; the radio inside it draws
     // none. A real Tab key moves focus to the chosen radio, so :focus-visible is

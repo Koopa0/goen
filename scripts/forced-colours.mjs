@@ -39,7 +39,7 @@ export async function measureSwatchState(dot = false) {
   const properties = ['color', 'backgroundColor', 'borderTopColor', 'borderTopWidth',
     'outlineColor', 'outlineWidth', 'outlineStyle', 'fontWeight', 'textDecorationLine'];
   const signature = () => {
-    const style = getComputedStyle(dot ? selected.querySelector('.goen-swatch__dot') : selected);
+    const style = getComputedStyle(selected);
     return Object.fromEntries(properties.map((key) => [key, style[key]]));
   };
   document.activeElement?.blur();

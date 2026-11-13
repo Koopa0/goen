@@ -64,6 +64,33 @@ func TestProductDescriptionPlain(t *testing.T) {
 	}
 }
 
+// TestProductDetailSectionsOpen holds that the specifications, the warranty and
+// delivery and returns are sections, each open under its own heading in the
+// editorial face's class, and not disclosures a shopper must press: what is
+// compared is on the page.
+func TestProductDetailSectionsOpen(t *testing.T) {
+	t.Parallel()
+	v := bandProduct(1)
+	v.WarrantyMonths = 24
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		page := renderProduct(t, v, locale)
+		details := between(t, page, `class="goen-pdp__more"`, `id="reviews"`)
+		for _, bad := range []string{"<details", "<summary", "goen-pdp__acc"} {
+			if strings.Contains(details, bad) {
+				t.Errorf("%s: the details hold %q: a section is behind a press", locale, bad)
+			}
+		}
+		for _, id := range []string{"specs-heading", "warranty-heading", "delivery-heading"} {
+			if !strings.Contains(details, `<h2 id="`+id+`" class="goen-pdp__sectiontitle">`) {
+				t.Errorf("%s: %s is not an h2 of the section title class", locale, id)
+			}
+			if !strings.Contains(details, `<section class="goen-pdp__block`) || !strings.Contains(details, `aria-labelledby="`+id+`"`) {
+				t.Errorf("%s: no section is labelled by %s", locale, id)
+			}
+		}
+	}
+}
+
 // TestProductDescriptionNone holds that a product with no description draws no
 // section for it.
 func TestProductDescriptionNone(t *testing.T) {

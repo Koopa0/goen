@@ -296,12 +296,6 @@ func (v *ProductView) Compare() string { return money.TWD(v.CompareCents) }
 
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
 
-// InStock is only ever shown once a variant is settled: on the bare product URL no
-// one variant's stock can be described.
-func (v *ProductView) InStock() bool {
-	return v.CanBuy() && !v.LowStock() && !v.SoldOut() && !v.AllSoldOut()
-}
-
 func (v *ProductView) NeedsChoice() bool { return (v.SelectionOK || v.FallbackPrice) && !v.Exact }
 
 // AwaitsChoice is true where the shop still sells something and the visitor has not picked which: the

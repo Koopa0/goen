@@ -3,6 +3,7 @@ package frame
 import (
 	"context"
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -25,4 +26,14 @@ func DescribeDepartments(ctx context.Context, k i18n.Key) string {
 		return ""
 	}
 	return fmt.Sprintf(i18n.T(ctx, k), list)
+}
+
+// Initial is the first character of the name, which a department without a
+// photograph shows on its tone.
+func (n NavItem) Initial() string {
+	r, _ := utf8.DecodeRuneInString(n.Name)
+	if r == utf8.RuneError {
+		return ""
+	}
+	return string(r)
 }

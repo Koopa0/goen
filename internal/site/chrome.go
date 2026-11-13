@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
@@ -216,7 +217,7 @@ func (s *Store) Nav(ctx context.Context) ([]frame.NavItem, error) {
 		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		items = append(items, frame.NavItem{
 			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, ProductCount: int(held[r.ID]), Children: children[r.ID], Picks: picks[r.ID],
-			PhotoURL: photo.URL(), PhotoSrcset: photo.Srcset(),
+			PhotoURL: photo.URL(), PhotoSrcset: photo.Srcset(), Tone: tone.Resolve(r.Tone),
 		})
 	}
 	return items, nil

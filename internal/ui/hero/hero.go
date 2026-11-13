@@ -5,6 +5,7 @@
 package hero
 
 import (
+	"slices"
 	"strconv"
 	"unicode/utf8"
 
@@ -59,6 +60,13 @@ type Slide struct {
 	CTA    CTA
 	// Tiles are a campaign slide's own products, drawn under its name.
 	Tiles []tile.Tile
+}
+
+// AllPhotographed reports whether every slide has a photograph, which is what
+// lets the carousel's tabs stand at the photographs' foot: with one slide that
+// has none, there is no one height to stand at.
+func AllPhotographed(slides []Slide) bool {
+	return !slices.ContainsFunc(slides, func(s Slide) bool { return !s.Photo.Shown() })
 }
 
 // TitleLong is a title that steps down a size so it keeps to two lines: over 8

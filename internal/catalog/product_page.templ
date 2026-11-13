@@ -36,37 +36,29 @@ templ Product(p frame.Page, v *ProductView) {
 				if v.HasSpecs() || v.HasWarranty() || v.WarrantyNote != "" {
 					<div class="goen-pdp__detail">
 						if v.HasSpecs() {
-							<details class="goen-pdp__acc goen-pdp__specs" open>
-								<summary class="goen-pdp__accsummary">
-									<h2 id="specs-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionSpecs) }</h2>
-								</summary>
-								<div class="goen-pdp__accpanel">
-									<dl class="goen-pdp__speclist">
-										for _, s := range v.Specs {
-											<div class="goen-pdp__specrow">
-												<dt class="goen-pdp__specterm">{ s.Label }</dt>
-												<dd class="goen-pdp__specvalue">{ s.Value }</dd>
-											</div>
-										}
-									</dl>
-									@productCompare(v)
-								</div>
-							</details>
+							<section class="goen-pdp__block" aria-labelledby="specs-heading">
+								<h2 id="specs-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionSpecs) }</h2>
+								<dl class="goen-pdp__speclist">
+									for _, s := range v.Specs {
+										<div class="goen-pdp__specrow">
+											<dt class="goen-pdp__specterm">{ s.Label }</dt>
+											<dd class="goen-pdp__specvalue">{ s.Value }</dd>
+										</div>
+									}
+								</dl>
+								@productCompare(v)
+							</section>
 						}
 						if v.HasWarranty() || v.WarrantyNote != "" {
-							<details class="goen-pdp__acc">
-								<summary class="goen-pdp__accsummary">
-									<h2 id="warranty-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionWarranty) }</h2>
-								</summary>
-								<div class="goen-pdp__accpanel">
-									if v.HasWarranty() {
-										<p class="goen-pdp__warranty">{ v.WarrantyText(ctx) }</p>
-									}
-									if v.WarrantyNote != "" {
-										<p class="goen-pdp__warranty">{ v.WarrantyNote }</p>
-									}
-								</div>
-							</details>
+							<section class="goen-pdp__block" aria-labelledby="warranty-heading">
+								<h2 id="warranty-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionWarranty) }</h2>
+								if v.HasWarranty() {
+									<p class="goen-pdp__warranty">{ v.WarrantyText(ctx) }</p>
+								}
+								if v.WarrantyNote != "" {
+									<p class="goen-pdp__warranty">{ v.WarrantyNote }</p>
+								}
+							</section>
 						}
 					</div>
 				}
@@ -83,18 +75,14 @@ templ Product(p frame.Page, v *ProductView) {
 						</dl>
 					</section>
 				}
-				<details class="goen-pdp__acc" open>
-					<summary class="goen-pdp__accsummary">
-						<h2 id="delivery-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionDelivery) }</h2>
-					</summary>
-					<div class="goen-pdp__accpanel goen-pdp__ship">
-						@widget.StatLine(v.ShippingFacts(ctx), widget.StatLinePairs)
-						<ul class="goen-pdp__policies" role="list">
-							<li><a href="/shipping">{ i18n.T(ctx, i18n.KeyShippingPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
-							<li><a href="/returns">{ i18n.T(ctx, i18n.KeyReturnsPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
-						</ul>
-					</div>
-				</details>
+				<section class="goen-pdp__block goen-pdp__ship" aria-labelledby="delivery-heading">
+					<h2 id="delivery-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDelivery) }</h2>
+					@widget.StatLine(v.ShippingFacts(ctx), widget.StatLinePairs)
+					<ul class="goen-pdp__policies" role="list">
+						<li><a href="/shipping">{ i18n.T(ctx, i18n.KeyShippingPolicy) }</a></li>
+						<li><a href="/returns">{ i18n.T(ctx, i18n.KeyReturnsPolicy) }</a></li>
+					</ul>
+				</section>
 				if !v.HasSpecs() {
 					@productCompare(v)
 				}
@@ -234,21 +222,12 @@ templ productBuy(v *ProductView) {
 			if v.Brand != "" {
 				<p class="goen-pdp__brand">{ v.Brand }</p>
 			}
-			<div class="goen-pdp__titlerow">
-				<h1 class="goen-pdp__title">{ v.Name }</h1>
-				if v.SelectionOK {
-					if v.InStock() {
-						@widget.Badge(widget.BadgeProps{}) {
-							{ i18n.T(ctx, i18n.KeyInStock) }
-						}
-					}
-				}
-			</div>
+			<h1 class="goen-pdp__title">{ v.Name }</h1>
 			if highlights := v.Highlights(); len(highlights) > 0 {
 				<p class="goen-pdp__keyspecs">
 					for i, h := range highlights {
 						if i > 0 {
-							<span class="goen-sep" aria-hidden="true">·</span>
+							&nbsp;<span class="goen-sep" aria-hidden="true">·</span>
 						}
 						<span class="goen-pdp__keyspec">{ h }</span>
 					}
@@ -261,7 +240,7 @@ templ productBuy(v *ProductView) {
 						@icons.Star()
 					</span>
 					<a class="goen-pdp__ratinglink" href="#reviews">
-						<span aria-hidden="true">{ v.RatingText() }<span class="goen-sep">·</span>{ v.ReviewCount(ctx) }</span>
+						<span aria-hidden="true">{ v.RatingText() }&nbsp;<span class="goen-sep">·</span>{ " " }{ v.ReviewCount(ctx) }</span>
 						<span class="goen-sr-only">{ v.RatingLabel(ctx) }</span>
 					</a>
 				</p>
@@ -269,6 +248,11 @@ templ productBuy(v *ProductView) {
 		</div>
 		if v.SelectionOK || v.FallbackPrice {
 			<div class="goen-pdp__pricebox">
+				if v.OnSale {
+					// Said, not drawn: the vermilion price and the struck original are the sign, and the
+					// words are for a screen reader.
+					<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyOnSale) }</span>
+				}
 				<span class={ "goen-pdp__price", templ.KV("goen-pdp__price--sale", v.OnSale) }>
 					if v.PriceFrom() {
 						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), v.Price()) }
@@ -279,9 +263,6 @@ templ productBuy(v *ProductView) {
 				if v.OnSale {
 					<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
 					<s class="goen-pdp__was">{ v.Compare() }</s>
-					@widget.Badge(widget.BadgeProps{}) {
-						{ i18n.T(ctx, i18n.KeyOnSale) }
-					}
 				}
 			</div>
 			if v.OnSale {
@@ -334,9 +315,6 @@ templ productBuy(v *ProductView) {
 								templ.KV("goen-swatch--on", val.Selected),
 								templ.KV("goen-swatch--out", !val.Available) }
 								href={ templ.URL(val.Href) }
-								if o.HasSwatches() {
-									title={ val.Label }
-								}
 								hx-get={ val.Href }
 								hx-select="#buybox"
 								hx-target="#buybox"
@@ -353,7 +331,7 @@ templ productBuy(v *ProductView) {
 							>
 								if o.HasSwatches() {
 									// A presentation attribute, not a style, so the CSP has nothing to refuse. The
-									// colour is the control; the name is what a screen reader is given.
+									// dot shows the colour and the name beside it says it, to the eye and the ear.
 									<svg class="goen-swatch__dot" viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
 										<circle cx="18" cy="18" r="17.5" fill={ val.SwatchHex }></circle>
 										if !val.Available {
@@ -410,7 +388,7 @@ templ productBuy(v *ProductView) {
 }
 
 templ productLinks(v *ProductView) {
-	<div class="goen-pdp__links">
+	<div class={ "goen-pdp__links", templ.KV("goen-pdp__links--text", !v.SignedIn) }>
 		if v.SignedIn {
 			// Toggling swaps the form alone; the plain post and its redirect serve a browser without script.
 			<form
@@ -439,10 +417,9 @@ templ productLinks(v *ProductView) {
 				}
 			</form>
 		} else {
-			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug+"%23wishlist")) {
-				@icons.Heart()
-				<span>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</span>
-			}
+			// A link to somewhere else, so the ink and the faint underline every such link wears; the
+			// heart is the signed-in toggle's, which is a button with a state.
+			<a class="goen-pdp__wishlink" href={ templ.SafeURL("/signin?next=/p/" + v.Slug + "%23wishlist") }>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</a>
 		}
 	</div>
 }
@@ -555,13 +532,13 @@ templ productAddForm(v *ProductView) {
 // descendants; rides every swap through hx-select-oob. It renders even when empty,
 // or a swap would leave the previous bar standing.
 templ productBuyBar(v *ProductView) {
-	<div id="buybar" class="goen-buybar" data-follows={ v.BuyBarFollows() }>
+	<div id="buybar" class={ "goen-buybar", templ.KV("goen-buybar--added", v.JustAdded() || v.AddAdjusted()) } data-follows={ v.BuyBarFollows() }>
 		if msg := v.BuyBarOutcome(ctx); msg != "" {
 			<p class="goen-buybar__msg" role="status">{ msg }</p>
 			if v.JustAdded() || v.AddAdjusted() {
-				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("/cart")) {
-					{ i18n.T(ctx, i18n.KeyViewCart) }
-				}
+				// The same sentence and the same link as the notice under the button: the bar
+				// turns inverse like it, and the way to the cart is a link, not a button.
+				<a class="goen-buybar__link" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 			}
 		} else if v.CanBuy() {
 			// The price and the struck original show only once the buy box's own price has left the
@@ -638,7 +615,8 @@ templ productNotifyForm(v *ProductView) {
 						"required": true, "maxlength": "254", "autocomplete": "email",
 					}, fieldrule.Message(i18n.KeyRestockBadEmail), fieldrule.ErrorID("notify-email-error")),
 				})
-				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
+				// The one action of a face with nothing to buy: the ink button, under its field.
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 					{ i18n.T(ctx, i18n.KeyRestockSubmit) }
 				}
 			</div>
