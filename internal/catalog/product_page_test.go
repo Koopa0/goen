@@ -683,6 +683,22 @@ func TestProductBuyBarAdded(t *testing.T) {
 	if !strings.Contains(bar, i18n.T(ctx, i18n.KeyAddedToCart)) || !strings.Contains(bar, `href="/cart"`) {
 		t.Errorf("the bar does not confirm the add: %s", bar)
 	}
+	// The same notice as the one under the button: the bar turns inverse and the
+	// way to the cart is a text link, not a button.
+	if !strings.Contains(bar, `class="goen-buybar goen-buybar--added"`) {
+		t.Errorf("the bar is not the inverse notice: %s", bar)
+	}
+	link := `<a class="goen-buybar__link" href="/cart">` + i18n.T(ctx, i18n.KeyViewCart) + `</a>`
+	if !strings.Contains(bar, link) {
+		t.Errorf("the way to the cart is not a plain link %s: %s", link, bar)
+	}
+	if strings.Contains(bar, "goen-btn") {
+		t.Errorf("the added bar draws a button: %s", bar)
+	}
+	view.AddedOutcome = ""
+	if bar := buyBarMarkup(t, &view); strings.Contains(bar, "goen-buybar--added") {
+		t.Errorf("a bar that has added nothing is the inverse notice: %s", bar)
+	}
 }
 
 // TestProductBuyBarSwap holds that every swap of the buy box replaces the

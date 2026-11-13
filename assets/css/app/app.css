@@ -5416,6 +5416,43 @@ input.goen-check {
     margin: 0;
   }
 
+  /* After an add the bar is the notice under the button, inverse like the
+     promotional strip: the same sentence on the same ground, the way to the
+     cart an underlined link in the inverse blue, which is also its ring. */
+  .goen-buybar--added {
+    --ring: var(--sys-inverse-primary);
+    background: var(--sys-inverse-surface);
+    border-top-color: var(--sys-inverse-surface);
+    color: var(--sys-inverse-on-surface);
+    column-gap: var(--s-5);
+    min-height: 48px;
+  }
+
+  .goen-buybar--added .goen-buybar__msg {
+    color: inherit;
+    flex: 0 1 auto;
+    font: var(--type-body-m);
+  }
+
+  .goen-buybar__link,
+  .goen-buybar__link:hover {
+    align-items: center;
+    color: var(--sys-inverse-primary);
+    display: inline-flex;
+    font: var(--type-label-l);
+    min-height: 32px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* A band of the inverse ground outside the ring keeps it off the page where
+     the bar ends. */
+  .goen-buybar__link:focus-visible {
+    box-shadow: 0 0 0 4px var(--sys-inverse-surface);
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
   .goen-buybar__btn {
     flex: 1 1 9rem;
     height: auto;

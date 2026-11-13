@@ -540,13 +540,13 @@ templ productAddForm(v *ProductView) {
 // descendants; rides every swap through hx-select-oob. It renders even when empty,
 // or a swap would leave the previous bar standing.
 templ productBuyBar(v *ProductView) {
-	<div id="buybar" class="goen-buybar" data-follows={ v.BuyBarFollows() }>
+	<div id="buybar" class={ "goen-buybar", templ.KV("goen-buybar--added", v.JustAdded() || v.AddAdjusted()) } data-follows={ v.BuyBarFollows() }>
 		if msg := v.BuyBarOutcome(ctx); msg != "" {
 			<p class="goen-buybar__msg" role="status">{ msg }</p>
 			if v.JustAdded() || v.AddAdjusted() {
-				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("/cart")) {
-					{ i18n.T(ctx, i18n.KeyViewCart) }
-				}
+				// The same sentence and the same link as the notice under the button: the bar
+				// turns inverse like it, and the way to the cart is a link, not a button.
+				<a class="goen-buybar__link" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 			}
 		} else if v.CanBuy() {
 			// The price and the struck original show only once the buy box's own price has left the

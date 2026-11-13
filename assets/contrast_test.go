@@ -1318,7 +1318,7 @@ func TestAppCSSPromoDeclaredOnce(t *testing.T) {
 // pressed, and its glyph, a graphical object, holds 3:1 on what that leaves
 // (WCAG 1.4.11) by day and by night. The confirming notice paints the same
 // ground, and its link is the inverse blue, underlined, with an inverse band
-// outside its focus ring.
+// outside its focus ring; the phone's bar, after an add, is that notice again.
 func TestAppCSSInverseNoticeParts(t *testing.T) {
 	t.Parallel()
 
@@ -1373,6 +1373,18 @@ func TestAppCSSInverseNoticeParts(t *testing.T) {
 	// inverse ground outside it, not the page's.
 	has(".goen-pdp__added .goen-pdp__addedlink:focus-visible", "outline: 2px solid var(--ring);")
 	has(".goen-pdp__added .goen-pdp__addedlink:focus-visible", "box-shadow: 0 0 0 4px var(--sys-inverse-surface);")
+
+	// The phone's bar, after an add, is the same notice: the inverse ground and
+	// text, the inverse blue as its ring, and a link that is underlined in it.
+	has(".goen-buybar--added", "--ring: var(--sys-inverse-primary);")
+	has(".goen-buybar--added", "background: var(--sys-inverse-surface);")
+	has(".goen-buybar--added", "color: var(--sys-inverse-on-surface);")
+	for _, sel := range []string{".goen-buybar__link", ".goen-buybar__link:hover"} {
+		has(sel, "color: var(--sys-inverse-primary);")
+		has(sel, "text-decoration: underline;")
+	}
+	has(".goen-buybar__link:focus-visible", "outline: 2px solid var(--ring);")
+	has(".goen-buybar__link:focus-visible", "box-shadow: 0 0 0 4px var(--sys-inverse-surface);")
 }
 
 // TestAppCSSDepartmentPanelGround checks the department panel's ground. By day
