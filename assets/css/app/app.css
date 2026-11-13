@@ -3203,6 +3203,12 @@ body:has(.goen-hero) .goen-header {
   text-wrap: pretty;
 }
 
+/* An English name often runs to two lines where a Chinese one fits on one: the
+   box keeps room for the two, so the prices of a row of tiles stand level. */
+:lang(en) .goen-tile__name {
+  min-height: 3em;
+}
+
 .goen-tile__price {
   align-items: baseline;
   position: relative;

@@ -33,10 +33,11 @@ func TestAppCSSRelatedProductsGap(t *testing.T) {
 	}
 }
 
-// TestAppCSSTileAsDrawn checks the four rules that make a product tile the
+// TestAppCSSTileAsDrawn checks the rules that make a product tile the
 // catalogue's: the brand is read with the link and not shown, the photograph is
 // square and uncornered on its well, a campaign price is in the colour of what
-// runs out, and a sold-out colour's line is in the text's ink. Each reads a
+// runs out, and a sold-out colour's line is in the text's ink; in English the
+// name keeps room for two lines so a row's prices stand level. Each reads a
 // role, not a hex, so the night takes its own value from the same rule.
 func TestAppCSSTileAsDrawn(t *testing.T) {
 	t.Parallel()
@@ -67,6 +68,7 @@ func TestAppCSSTileAsDrawn(t *testing.T) {
 		{".goen-tile__amount--sale", `color:\s*var\(--sys-tertiary\);`},
 		{".goen-tile__was", `text-decoration:\s*line-through;`},
 		{".goen-tile__slash", `stroke:\s*var\(--sys-on-surface\);`},
+		{":lang(en) .goen-tile__name", `min-height:\s*3em;`},
 	} {
 		found := false
 		for _, block := range declared(want.selector) {
