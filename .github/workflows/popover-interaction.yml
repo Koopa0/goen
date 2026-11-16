@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - assets/js/goen.js
+      - assets/js/vendor/htmx.min.js
       - assets/css/app/app.css
       - scripts/popover-focus-check.mjs
       - internal/catalog/listing.templ
