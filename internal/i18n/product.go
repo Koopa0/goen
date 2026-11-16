@@ -57,12 +57,12 @@ var (
 
 	KeyRestockDoneTo = key("pdp.restock.doneto", Message{
 		ZhHant: "已經記下了，有貨時會寄信到 %s。",
-		En:     "Noted. We will email %s when it is back in stock.",
+		En:     "We'll email %s when it's back in stock.",
 	})
 
 	KeyRestockDone = key("pdp.restock.done", Message{
 		ZhHant: "已經記下了，有貨時會寄信給你。",
-		En:     "Noted. We will email you when it is back in stock.",
+		En:     "We'll email you when it's back in stock.",
 	})
 
 	KeyRestockBadEmail = key("pdp.restock.bademail", Message{

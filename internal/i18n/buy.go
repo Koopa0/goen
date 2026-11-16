@@ -26,7 +26,7 @@ var (
 
 	KeyChooseOptions = key("buy.choose", Message{
 		ZhHant: "請選擇選項",
-		En:     "Choose options",
+		En:     "Choose an option",
 	})
 
 	KeyCheckout = key("buy.checkout", Message{ZhHant: "前往結帳", En: "Checkout"})
