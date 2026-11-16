@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - assets/js/goen.js
+      - assets/js/vendor/htmx.min.js
       - internal/catalog/product_page.templ
       - internal/catalog/product_purchase_browser_integration_test.go
       - scripts/product-purchase-check.mjs

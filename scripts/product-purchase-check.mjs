@@ -188,7 +188,10 @@ try {
             assert.equal(state.busy, false, 'the live purchase form is no longer pending');
             assert.equal(state.disabled, null, 'the live purchase button is available');
             assert.equal(state.requests, cancelRead ? 3 : 2, 'one POST and the requested reads');
-            assert.equal(state.errors.length, cancelRead ? 1 : 0, 'only the cancelled read may fail');
+            // htmx 4.0.0-beta6 reported an explicit cancellation as an htmx:error; 4.0.1 settles it
+            // silently (htmx:finally:request still fires, which the wait above relies on). So the
+            // cancelled read may report one failure at most, and nothing else may report one.
+            assert.ok(state.errors.length <= (cancelRead ? 1 : 0), 'only the cancelled read may fail');
             assert.ok(state.errors.every(error => error.includes('AbortError')), 'only an explicit read cancellation is reported');
             assert.equal(purchases.length, 1, 'choice does not repeat or cancel the purchase');
             console.log(`PASS ${at}`);
