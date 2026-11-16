@@ -113,9 +113,19 @@ func TestProductPageReflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view := func(name string) *ProductView {
+	// The names come twice: picked, with the add button and the chosen options in the bar, and with
+	// nothing picked, where the bar says "from" before the price and offers the way to the choice.
+	view := func(name string, unpicked bool) *ProductView {
 		v := buyBarFixture()
 		v.Name = name
+		if unpicked {
+			v.Exact, v.PriceVaries = false, true
+			for i := range v.Options {
+				for j := range v.Options[i].Values {
+					v.Options[i].Values[j].Selected = false
+				}
+			}
+		}
 		v.Options[0].Values[1].Label = "Midnight Graphite Aluminium with Sport Loop"
 		v.Options[1].Values[1].Label = "45mm GPS plus Cellular Titanium"
 		for i, related := range longNames[:4] {
@@ -130,7 +140,7 @@ func TestProductPageReflow(t *testing.T) {
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
 	mux.HandleFunc("GET /p/{index}", func(w http.ResponseWriter, r *http.Request) {
 		index, convErr := strconv.Atoi(r.PathValue("index"))
-		if convErr != nil || index < 0 || index >= len(longNames) {
+		if convErr != nil || index < 0 || index >= 2*len(longNames) {
 			http.NotFound(w, r)
 			return
 		}
@@ -139,16 +149,16 @@ func TestProductPageReflow(t *testing.T) {
 			ctx = i18n.WithLocale(r.Context(), i18n.En)
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		v := view(longNames[index])
+		v := view(longNames[index%len(longNames)], index >= len(longNames))
 		if renderErr := Product(ProductMeta(v), v).Render(ctx, w); renderErr != nil {
 			t.Errorf("render reflow fixture %d: %v", index, renderErr)
 		}
 	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	args := make([]string, 0, 3+len(longNames))
+	args := make([]string, 0, 3+2*len(longNames))
 	args = append(args, filepath.Join(root, "scripts", "product-reflow-check.mjs"), server.URL, port)
-	for i := range longNames {
+	for i := range 2 * len(longNames) {
 		args = append(args, strconv.Itoa(i))
 	}
 	//nolint:gosec // G204: fixed regression script, test-owned server, caller's Chrome debugging port.

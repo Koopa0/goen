@@ -657,16 +657,49 @@ func TestProductBuyBarRestock(t *testing.T) {
 	}
 }
 
-// TestProductBuyBarNoVariant holds that the bottom bar is empty until an option
-// is chosen.
+// TestProductBuyBarNoVariant holds that, until an option is chosen, the bottom
+// bar offers no add: its one action is the way to the first group still open,
+// a plain link, so it works with no script.
 func TestProductBuyBarNoVariant(t *testing.T) {
 	t.Parallel()
-	view := ProductView{
-		Slug: "book", Name: "Book", SelectionOK: true, AnySellable: true, VariantID: "v1",
-		Options: []ProductOption{{Name: "顏色", Label: "顏色", Values: []ProductOptionValue{{Value: "黑", Label: "黑", Available: true}}}},
+	option := func(name string, chosen bool) ProductOption {
+		return ProductOption{Name: name, Label: name, Values: []ProductOptionValue{
+			{Value: "a", Label: "A", Available: true, Selected: chosen}, {Value: "b", Label: "B", Available: true},
+		}}
 	}
-	if bar := buyBarMarkup(t, &view); strings.Contains(bar, "<button") || strings.Contains(bar, "<a ") {
-		t.Errorf("the bar offers an action before there is a variant: %s", bar)
+	view := ProductView{
+		Slug: "book", Name: "Book", SelectionOK: true, AnySellable: true, VariantID: "v1", PriceCents: 120000,
+		Options: []ProductOption{option("color", true), option("size", false)},
+	}
+	bar := buyBarMarkup(t, &view)
+	if strings.Contains(bar, `type="submit"`) || strings.Contains(bar, `form="pdp-add"`) {
+		t.Errorf("the bar offers to add before there is a variant: %s", bar)
+	}
+	choose := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyChooseOptions)
+	if !strings.Contains(bar, `<a class="goen-btn goen-btn--primary goen-buybar__btn" href="#option-first">`+choose+`</a>`) {
+		t.Errorf("the bar's action is not the ink link to the first open group: %s", bar)
+	}
+	page := renderProduct(t, &view, i18n.ZhHant)
+	if strings.Count(page, `id="option-first"`) != 1 {
+		t.Fatal("the link points at nothing, or at several groups")
+	}
+	// The group that carries the id is the second, the one still open: its own opening tag is the
+	// second <fieldset before the id.
+	at := strings.Index(page, `id="option-first"`)
+	if strings.Count(page[:at], `<fieldset`) != 2 {
+		t.Error("the link leads to a group that is already chosen")
+	}
+	for name, done := range map[string]ProductView{
+		"chosen": {Slug: "b", Name: "B", SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, VariantID: "v1", PriceCents: 1,
+			Options: []ProductOption{option("color", true)}},
+		"sold out": {Slug: "b", Name: "B", SelectionOK: true, Exact: true, VariantID: "v1", PriceCents: 1,
+			Options: []ProductOption{option("color", true)}},
+		"everything sold out": {Slug: "b", Name: "B", SelectionOK: true, VariantID: "v1", PriceCents: 1,
+			Options: []ProductOption{option("color", false)}},
+	} {
+		if bar := buyBarMarkup(t, &done); strings.Contains(bar, `href="#option-first"`) {
+			t.Errorf("%s: the bar leads to a group to choose: %s", name, bar)
+		}
 	}
 }
 
@@ -786,7 +819,17 @@ func TestProductChooseOnce(t *testing.T) {
 		Options: []ProductOption{{Name: "color", Label: "Color", Values: []ProductOptionValue{{Value: "b", Label: "Black"}, {Value: "w", Label: "White"}}}},
 	}
 	got := renderProduct(t, &view, i18n.En)
-	if n := strings.Count(strings.ToLower(got), "choose"); n != 1 {
+	// The bar stands in for the buy box while its button is out of sight, as it repeats an add's
+	// notice, so it says it once too; the page beside it says it once.
+	start := strings.Index(got, `id="buybar"`)
+	if start < 0 {
+		t.Fatal("the page has no #buybar")
+	}
+	bar := got[start : start+strings.Index(got[start:], "</div>")]
+	if n := strings.Count(strings.ToLower(bar), "choose"); n != 1 {
+		t.Errorf("the bar asks the visitor to choose %d times, want once", n)
+	}
+	if n := strings.Count(strings.ToLower(strings.Replace(got, bar, "", 1)), "choose"); n != 1 {
 		t.Errorf("the page asks the visitor to choose %d times, want once", n)
 	}
 }

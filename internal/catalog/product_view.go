@@ -648,6 +648,17 @@ func (v *ProductView) SoldOutJoin(ctx context.Context) string {
 	return ""
 }
 
+// FirstOpenOption is the index of the first group the visitor has not picked a value in, or -1: the
+// bar's way to the choice leads there while the add button still waits.
+func (v *ProductView) FirstOpenOption() int {
+	for i, o := range v.Options {
+		if !o.Fixed() && o.SelectedLabel() == "" {
+			return i
+		}
+	}
+	return -1
+}
+
 // FirstInvalidOption is the index of the first group a refused request left unpicked, or -1: that group
 // carries the error and takes focus when the page comes back.
 func (v *ProductView) FirstInvalidOption() int {

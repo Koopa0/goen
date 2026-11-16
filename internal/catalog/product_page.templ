@@ -277,6 +277,7 @@ templ productBuy(v *ProductView) {
 			<p class="goen-pdp__lede">{ v.Summary }</p>
 		}
 		{{ firstInvalid := v.FirstInvalidOption() }}
+		{{ firstOpen := v.FirstOpenOption() }}
 		for oi, o := range v.Options {
 			if o.Fixed() {
 				<p class="goen-pdp__fact">
@@ -285,6 +286,9 @@ templ productBuy(v *ProductView) {
 			} else {
 				<fieldset
 					class="goen-pdp__option"
+					if oi == firstOpen {
+						id="option-first"
+					}
 					if v.OptionInvalid(o) {
 						aria-invalid="true"
 						aria-describedby="notify-option-error"
@@ -540,13 +544,19 @@ templ productBuyBar(v *ProductView) {
 				// turns inverse like it, and the way to the cart is a link, not a button.
 				<a class="goen-buybar__link" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 			}
-		} else if v.CanBuy() {
+		} else if v.CanBuy() || v.AwaitsChoice() {
 			// The price and the struck original show only once the buy box's own price has left the
 			// screen (goen.js sets data-price="hidden" while it is on it), so the two never stand
 			// together. The struck price is a sibling of .goen-buybar__price, whose text has to equal
 			// the buy box's price.
 			<p class="goen-buybar__sum">
-				<span class={ "goen-buybar__price", templ.KV("goen-buybar__price--sale", v.OnSale) }>{ v.Price() }</span>
+				<span class={ "goen-buybar__price", templ.KV("goen-buybar__price--sale", v.OnSale) }>
+					if v.PriceFrom() {
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), v.Price()) }
+					} else {
+						{ v.Price() }
+					}
+				</span>
 				if v.OnSale {
 					<span class="goen-buybar__was"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span><s>{ v.Compare() }</s></span>
 				}
@@ -554,13 +564,21 @@ templ productBuyBar(v *ProductView) {
 					<span class="goen-buybar__chosen">{ chosen }</span>
 				}
 			</p>
-			@widget.Button(widget.ButtonProps{
-				ButtonStyle: widget.ButtonStylePrimary,
-				Class:       "goen-buybar__btn",
-				Attrs:       templ.Attributes{"form": "pdp-add"},
-			}, "submit") {
-				@icons.Cart()
-				<span>{ i18n.T(ctx, i18n.KeyAddToCart) }</span>
+			if v.CanBuy() {
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
+					Class:       "goen-buybar__btn",
+					Attrs:       templ.Attributes{"form": "pdp-add"},
+				}, "submit") {
+					@icons.Cart()
+					<span>{ i18n.T(ctx, i18n.KeyAddToCart) }</span>
+				}
+			} else {
+				// Nothing is chosen yet, so there is nothing to add: the bar's one action is the way to
+				// the first group still open, a link that works with no script.
+				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Class: "goen-buybar__btn"}, templ.SafeURL("#option-first")) {
+					{ i18n.T(ctx, i18n.KeyChooseOptions) }
+				}
 			}
 		} else if v.NotifyOffered() {
 			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("#restock")) {
