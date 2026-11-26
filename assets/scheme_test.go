@@ -215,7 +215,7 @@ var schemeExceptions = []schemeException{
 	{`.goen-pagehead[data-tone="ink"] .ui-period`, `var(--period-track-on-ink)`, "the period's track on the ink tone, dark in both schemes"},
 	{`.goen-hero__tabs`, `mask-image: linear-gradient(to right, #000`, "a mask's alpha, not a colour drawn"},
 	{`:root`, `--chevron-scheme: var(--chevron)`, "the day's select arrow; the night's is set under prefers-color-scheme: dark"},
-	{`:root`, `%23b0b0b8`, "the night's select arrow, --night-on-surface-variant written out: no custom property reaches into a data: URI"},
+	{`:root`, `%23b5b4ab`, "the night's select arrow, --night-on-surface-variant written out: no custom property reaches into a data: URI"},
 	{`.goen-filters__prices`, `rgb(0 0 0 / 0.2)`, "a shadow: black in both schemes, where by night the surface's own step does the lifting"},
 	{`.goen-dept__panel`, `var(--sh-lg)`, "a shadow: black in both schemes; by night the panel is also a step lighter than the page"},
 	{`.goen-langmenu__panel`, `var(--sh-lg)`, "a shadow: black in both schemes"},

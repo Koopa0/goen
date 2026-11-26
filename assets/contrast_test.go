@@ -1628,3 +1628,67 @@ func TestAppCSSShelfPriceContrast(t *testing.T) {
 		t.Errorf("%s: a sold-out price on a band does not take the tone's muted colour", AppCSS)
 	}
 }
+
+// TestAppCSSShelfAndStageContrast checks that the storefront's shelf and stage
+// pairs read where they are drawn, by day and by night. Each pair is a day
+// token and a night token of base.css put together in app.css, so a value
+// edited on one side alone, or a pair pointed at the wrong token, fails a
+// reader on a page the axe gate may not visit: the night is never measured
+// there.
+func TestAppCSSShelfAndStageContrast(t *testing.T) {
+	t.Parallel()
+
+	store := storefrontTokens(t)
+	grounds := []string{"--sys-surface", "--ground-tint", "--shelf", "--shelf-hover"}
+	type pair struct {
+		ink, ground string
+		want        float64
+	}
+	checks := make([]pair, 0, len(grounds)*7+2*len(grounds)+6+11)
+	for _, ink := range []string{
+		"--text-strong", "--text-soft", "--text-faint", "--sys-primary", "--cobalt-hover",
+		"--sys-tertiary", "--success-text",
+	} {
+		for _, ground := range grounds {
+			checks = append(checks, pair{ink, ground, 4.5})
+		}
+	}
+	for _, ground := range grounds {
+		// WCAG 1.4.11: a field's edge, and the ring that marks focus.
+		checks = append(checks, pair{"--field-edge", ground, 3}, pair{"--ring", ground, 3})
+	}
+	for _, ground := range []string{"--stage", "--stage-card"} {
+		for _, ink := range []string{"--stage-ink", "--stage-muted", "--stage-accent"} {
+			checks = append(checks, pair{ink, ground, 4.5})
+		}
+	}
+	checks = append(checks,
+		// A label on its fill, at rest and hovered.
+		pair{"--on-cta", "--cta", 4.5},
+		pair{"--on-cta", "--cta-hover", 4.5},
+		pair{"--on-fill-ink", "--fill-ink", 4.5},
+		pair{"--on-savings", "--savings", 4.5},
+		// Text on a tint.
+		pair{"--sys-tertiary", "--savings-soft", 4.5},
+		pair{"--text-strong", "--savings-soft", 4.5},
+		pair{"--on-success-soft", "--success-soft", 4.5},
+		pair{"--sys-primary", "--cobalt-soft", 4.5},
+		pair{"--text-strong", "--cobalt-soft", 4.5},
+		// The mark's rings are graphical objects on the page.
+		pair{"--mark-ink", "--sys-surface", 3},
+		pair{"--mark-accent", "--sys-surface", 3},
+	)
+	for _, c := range checks {
+		ink, ground := store[c.ink], store[c.ground]
+		for _, s := range []struct{ name, ink, ground string }{{"day", ink.day, ground.day}, {"night", ink.night, ground.night}} {
+			if s.ink == "" || s.ground == "" {
+				t.Errorf("%s: %s (#%s) or %s (#%s) does not resolve to a hex colour", s.name, c.ink, s.ink, c.ground, s.ground)
+				continue
+			}
+			if got := contrast(s.ink, s.ground); got < c.want {
+				t.Errorf("%s: %s (#%s) on %s (#%s) = %.2f:1, want at least %g:1",
+					s.name, c.ink, s.ink, c.ground, s.ground, got, c.want)
+			}
+		}
+	}
+}

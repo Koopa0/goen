@@ -35,7 +35,7 @@ func TestAppCSSComparePageAsDrawn(t *testing.T) {
 	for _, want := range []struct{ selector, decl string }{
 		{".goen-compare__scroll", `border-top:\s*1px solid var\(--rule-line\);`},
 		{".goen-compare__table td", `border-bottom:\s*1px solid var\(--rule-line\);`},
-		{".goen-compare .goen-pagehead__title", `font:\s*var\(--fw-medium\) var\(--t-40\)/1\.2 var\(--font-editorial\);`},
+		{".goen-compare .goen-pagehead__title", `font:\s*var\(--fw-medium\) var\(--t-40\)/1\.2 var\(--font-display\);`},
 		{".goen-deptcompare__title", `font:\s*var\(--type-headline-m\);`},
 		{".goen-compare__suggesthead", `font:\s*var\(--type-headline-m\);`},
 		{".goen-deptcompare__more", `color:\s*var\(--sys-primary\);`},

@@ -39,7 +39,7 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 		return blocks
 	}
 	for _, want := range []struct{ selector, decl string }{
-		{".goen-pdp__title", `font:\s*var\(--fw-medium\) var\(--t-40\)/1\.2 var\(--font-editorial\);`},
+		{".goen-pdp__title", `font:\s*var\(--fw-medium\) var\(--t-40\)/1\.2 var\(--font-display\);`},
 		{".goen-pdp__price--sale", `color:\s*var\(--sys-tertiary\);`},
 		{".goen-buybar__price--sale", `color:\s*var\(--sys-tertiary\);`},
 		{".goen-swatch", `border-radius:\s*var\(--shape-xs\);`},

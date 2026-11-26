@@ -66,7 +66,7 @@ func TestProductDescriptionPlain(t *testing.T) {
 
 // TestProductDetailSectionsOpen holds that the specifications, the warranty and
 // delivery and returns are sections, each open under its own heading in the
-// editorial face's class, and not disclosures a shopper must press: what is
+// display face's class, and not disclosures a shopper must press: what is
 // compared is on the page.
 func TestProductDetailSectionsOpen(t *testing.T) {
 	t.Parallel()

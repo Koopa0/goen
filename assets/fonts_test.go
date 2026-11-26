@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -18,11 +19,13 @@ var fontFace = regexp.MustCompile(`@font-face\s*\{[^}]*?font-family:\s*'([^']+)'
 
 // declaredWeights is the weight range each family's rules must carry. A
 // browser draws a weight outside the declared range as the nearest end of it,
-// so a rule left at 400 700 paints the storefront's 350 as 400.
-var declaredWeights = map[string]string{
-	"Noto Sans TC":    "350 600",
-	"Instrument Sans": "400 600",
-	"Noto Serif TC":   "500",
+// so a rule left at 400 700 paints the storefront's 350 as 400. A variable
+// family's every rule carries its one range; a static family has a file, and
+// so a rule, per weight, and each weight listed must have one.
+var declaredWeights = map[string][]string{
+	"Noto Sans TC":    {"350 600"},
+	"Instrument Sans": {"400 600"},
+	"IBM Plex Mono":   {"400", "500", "600"},
 }
 
 // TestFontsCSSMatchesEmbeddedFonts checks that the font stylesheet matches the
@@ -49,12 +52,21 @@ func TestFontsCSSMatchesEmbeddedFonts(t *testing.T) {
 		t.Fatalf("%s has %d @font-face rules and %d src urls; the regexps and the sheet disagree",
 			FontsCSS, len(faces), len(matches))
 	}
+	declared := make(map[string]bool)
 	for _, f := range faces {
 		family, weight := f[1], f[2]
+		declared[family+" "+weight] = true
 		if want, ok := declaredWeights[family]; !ok {
 			t.Errorf("%s declares %q, which is not a family goen paints", FontsCSS, family)
-		} else if weight != want {
-			t.Errorf("%s declares %q at font-weight %s; want %s", FontsCSS, family, weight, want)
+		} else if !slices.Contains(want, weight) {
+			t.Errorf("%s declares %q at font-weight %s; want one of %q", FontsCSS, family, weight, want)
+		}
+	}
+	for family, weights := range declaredWeights {
+		for _, w := range weights {
+			if !declared[family+" "+w] {
+				t.Errorf("%s declares no %q at font-weight %s", FontsCSS, family, w)
+			}
 		}
 	}
 

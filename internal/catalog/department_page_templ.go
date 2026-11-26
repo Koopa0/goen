@@ -233,7 +233,7 @@ func comparePreview(p *ComparePreview) templ.Component {
 	})
 }
 
-// The title is serif in zh: it is read as a line of colour names, not as a heading to scan.
+// The title is read as a line of colour names, not as a heading to scan.
 func colourStory(s *ColourStory) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

@@ -97,11 +97,70 @@
   --chevron-scheme: var(--chevron);
 }
 
+:root {
+  /* The grounds of the shelf: the page's tint under a rail or a sidebar, the
+     shelf a card's photograph stands on, and that shelf hovered. The plate is
+     what a photograph is multiplied onto; by night it stays light paper. */
+  --ground-tint: light-dark(var(--day-tint), var(--night-surface-container-low));
+  --shelf: light-dark(var(--day-shelf), var(--night-surface-container));
+  --shelf-hover: light-dark(var(--day-shelf-hover), var(--night-surface-container-high));
+  --photo-plate: light-dark(var(--day-shelf), var(--night-photo-plate));
+
+  /* Text, three steps: the name and the figure, what describes them, and the
+     faintest a label may be. */
+  --text-strong: light-dark(var(--day-ink), var(--night-on-surface));
+  --text-soft: light-dark(var(--day-ink-2), var(--night-on-surface-variant));
+  --text-faint: light-dark(var(--day-ink-3), var(--night-ink-3));
+
+  /* The edge of a card or a table's rule. A field's edge is --field-edge,
+     which holds 3:1; these are lines between things, not boundaries. */
+  --hairline: light-dark(var(--day-hairline), var(--night-hairline));
+  --hairline-strong: light-dark(var(--day-hairline-strong), var(--night-hairline-strong));
+
+  /* The blue: a link hovered, its tint under a chosen row, and the one
+     filled commerce action with its label. */
+  --cobalt-hover: light-dark(var(--day-cobalt-hover), var(--night-cobalt-hover));
+  --cobalt-soft: light-dark(var(--day-cobalt-soft), var(--night-primary-container));
+  --cta: light-dark(var(--accent), var(--night-cta));
+  --cta-hover: light-dark(var(--day-cobalt-hover), var(--night-cta-hover));
+  --on-cta: light-dark(var(--on-accent), var(--night-on-cta));
+
+  /* The ink-filled control (the bag, a card's add), by night the warm stone
+     of --sys-action so it is not taken for a photograph's plate. */
+  --fill-ink: light-dark(var(--day-ink), var(--night-action));
+  --on-fill-ink: light-dark(var(--n-0), var(--night-on-action));
+
+  /* The savings seal and a sold-out notice's tint; success, a threshold met. */
+  --savings: light-dark(var(--day-sale), var(--night-sale));
+  --on-savings: light-dark(var(--n-0), var(--night-on-cta));
+  --savings-soft: light-dark(var(--day-sale-soft), var(--night-tertiary-container));
+  --success-text: light-dark(var(--day-success), var(--night-success));
+  --success-soft: light-dark(var(--day-success-soft), var(--night-success-soft));
+  --on-success-soft: light-dark(var(--day-success), var(--night-on-success-soft));
+
+  /* The stage: the dark band of flagship hardware, dark in both schemes. */
+  --stage: light-dark(var(--day-stage), var(--night-stage));
+  --stage-card: light-dark(var(--day-stage-card), var(--night-stage-card));
+  --stage-plate: light-dark(var(--day-stage-plate), var(--night-stage-plate));
+  --stage-ink: light-dark(var(--day-stage-ink), var(--night-stage-ink));
+  --stage-muted: light-dark(var(--day-stage-muted), var(--night-stage-muted));
+  --stage-accent: light-dark(var(--day-stage-accent), var(--night-stage-accent));
+  --stage-frame: light-dark(var(--day-stage-frame), var(--night-stage-frame));
+
+  /* The mark's two rings, as the brand files draw them. */
+  --mark-ink: light-dark(var(--day-mark-ink), var(--night-mark-ink));
+  --mark-accent: light-dark(var(--accent), var(--night-mark-accent));
+
+  /* Figures that line up in a column: a price, a SKU, a specification, a
+     count. Latin only; Han in the same run falls to the sans. */
+  --font-data: 'IBM Plex Mono', 'Noto Sans TC', var(--font-mono);
+}
+
 /* The night's arrow, in --night-on-surface-variant written out. */
 @media (prefers-color-scheme: dark) {
   @supports (color: light-dark(#000, #fff)) {
     :root {
-      --chevron-scheme: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23b0b0b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      --chevron-scheme: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23b5b4ab' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     }
   }
 }
@@ -129,6 +188,37 @@
 @supports not (color: light-dark(#000, #fff)) {
   :root {
     --on-surface-strong: var(--n-900);
+    --ground-tint: var(--day-tint);
+    --shelf: var(--day-shelf);
+    --shelf-hover: var(--day-shelf-hover);
+    --photo-plate: var(--day-shelf);
+    --text-strong: var(--day-ink);
+    --text-soft: var(--day-ink-2);
+    --text-faint: var(--day-ink-3);
+    --hairline: var(--day-hairline);
+    --hairline-strong: var(--day-hairline-strong);
+    --cobalt-hover: var(--day-cobalt-hover);
+    --cobalt-soft: var(--day-cobalt-soft);
+    --cta: var(--accent);
+    --cta-hover: var(--day-cobalt-hover);
+    --on-cta: var(--on-accent);
+    --fill-ink: var(--day-ink);
+    --on-fill-ink: var(--n-0);
+    --savings: var(--day-sale);
+    --on-savings: var(--n-0);
+    --savings-soft: var(--day-sale-soft);
+    --success-text: var(--day-success);
+    --success-soft: var(--day-success-soft);
+    --on-success-soft: var(--day-success);
+    --stage: var(--day-stage);
+    --stage-card: var(--day-stage-card);
+    --stage-plate: var(--day-stage-plate);
+    --stage-ink: var(--day-stage-ink);
+    --stage-muted: var(--day-stage-muted);
+    --stage-accent: var(--day-stage-accent);
+    --stage-frame: var(--day-stage-frame);
+    --mark-ink: var(--day-mark-ink);
+    --mark-accent: var(--accent);
     --on-surface-firm: var(--ink-2);
     --on-surface-soft: var(--n-700);
     --on-surface-quiet: var(--n-500);
@@ -204,13 +294,13 @@ a:hover {
   /* Each step is a `font` shorthand, so a rule takes size, leading, weight
      and family together. The shorthand resets font-variant, so a rule that
      wants tabular figures sets them after it. Han fills its square, so the
-     leading is looser than Latin needs, and nothing is set under 12px. The
-     editorial face is vendored at 500 only. Each fluid size grows at most
+     leading is looser than Latin needs, and nothing is set under 12px. A
+     heading is the sans, as body text is. Each fluid size grows at most
      2.5 times, so 200% zoom still enlarges it. */
-  --type-display-l: var(--fw-medium) clamp(2.25rem, 1.5rem + 2.4vw, 3.5rem)/1.2 var(--font-editorial);
-  --type-display-m: var(--fw-medium) clamp(2rem, 1.4rem + 1.8vw, 3rem)/1.2 var(--font-editorial);
-  --type-headline-l: var(--fw-medium) clamp(1.75rem, 1.3rem + 1.2vw, 2.25rem)/1.3 var(--font-editorial);
-  --type-headline-m: var(--fw-medium) clamp(1.5rem, 1.2rem + 0.8vw, 1.75rem)/1.35 var(--font-editorial);
+  --type-display-l: var(--fw-medium) clamp(2.25rem, 1.5rem + 2.4vw, 3.5rem)/1.2 var(--font-display);
+  --type-display-m: var(--fw-medium) clamp(2rem, 1.4rem + 1.8vw, 3rem)/1.2 var(--font-display);
+  --type-headline-l: var(--fw-medium) clamp(1.75rem, 1.3rem + 1.2vw, 2.25rem)/1.3 var(--font-display);
+  --type-headline-m: var(--fw-medium) clamp(1.5rem, 1.2rem + 0.8vw, 1.75rem)/1.35 var(--font-display);
   --type-headline-s: var(--fw-display) 1.375rem/1.4 var(--font-sans);
   --type-title-l: var(--fw-medium) 1.25rem/1.45 var(--font-sans);
   --type-title-m: var(--fw-medium) 1rem/1.5 var(--font-sans);
@@ -1168,12 +1258,15 @@ body:has(.goen-hero) .goen-header {
 }
 
 /* The mark's rings are drawn with presentation attributes naming the day's
-   ink and blue; the ink ring reads --fg, which follows the scheme here, and
-   the blue ring takes the role so it is the night's blue by night. No
-   specificity, so base.css's forced-colours rule still draws both rings in
-   CanvasText. */
+   ink and blue; here each ring takes its pair, so by night the mark is the
+   favicon's (assets/brand/favicon.svg). No specificity, so base.css's
+   forced-colours rule still draws both rings in CanvasText. */
+:where(.goen-header__mark, .goen-footer__mark) :where(circle) {
+  stroke: var(--mark-ink);
+}
+
 :where(.goen-header__mark, .goen-footer__mark) :where(circle + circle) {
-  stroke: var(--sys-primary);
+  stroke: var(--mark-accent);
 }
 
 .goen-header__mark {
@@ -2177,7 +2270,7 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-home__heading {
-  font: var(--fw-medium) var(--t-32)/1.3 var(--font-editorial);
+  font: var(--fw-medium) var(--t-32)/1.3 var(--font-display);
   margin: 0;
 }
 
@@ -2275,7 +2368,7 @@ body:has(.goen-hero) .goen-header {
 /* ----- Carousel: native scroll-snap does the moving (swipe, trackpad, keyboard,
    the named tabs); nothing moves on its own, and goen.js only wires the arrows
    and the count. A slide is a printed page: its photograph across the window,
-   square, then in the page column its name in the editorial face, the day it
+   square, then in the page column its name in the display face, the day it
    ends and the days left in the campaign's vermilion, a row of its days, and
    its products beside them from 64rem of column. The tabs stand over the name,
    at the photograph's foot, so they are laid over the track and every slide
@@ -2804,7 +2897,7 @@ body:has(.goen-hero) .goen-header {
   }
 
   .goen-band__name:lang(zh) {
-    font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
+    font: var(--fw-medium) var(--t-40)/1.2 var(--font-display);
     letter-spacing: 0.12em;
   }
 }
@@ -2953,7 +3046,7 @@ body:has(.goen-hero) .goen-header {
 
 /* The shop's rules are said once on the home page, each as its term, its
    figure large in the sans-serif's figures of one width, and the note under
-   it: the large numbers carry the rules, so they are not the editorial face's
+   it: the large numbers carry the rules, so they are not the display face's
    voice. The figure's unit is set at its size. */
 .goen-rules .ui-statline :is(dt, dd) {
   display: block;
@@ -3008,7 +3101,7 @@ body:has(.goen-hero) .goen-header {
 /* The page's name, one step under the display size; Han reads it with a little
    air between characters. */
 .goen-listing__head .goen-pagehead__title {
-  font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
+  font: var(--fw-medium) var(--t-40)/1.2 var(--font-display);
   letter-spacing: 0.02em;
   text-wrap: balance;
 }
@@ -3512,10 +3605,10 @@ input.goen-check {
 /* With nothing to show, the search's heading is the answer and its lead the
    way on; both echo the term, which can be a full-length word with no spaces. */
 .goen-listing--search .goen-pagehead__title {
-  font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
+  font: var(--fw-medium) var(--t-40)/1.2 var(--font-display);
 }
 
-/* The term sits in 「」 or “”, which the editorial face sets full-width.
+/* The term sits in 「」 or “”, which the display face sets full-width.
    Chrome trims a closing one at the end of a line and then counts the line as
    fitting while its box still runs past the column, so a long term at 200%
    text widened the page. Untrimmed, the line breaks before the term. */
@@ -3542,7 +3635,7 @@ input.goen-check {
 }
 
 .goen-search__heading {
-  font: var(--fw-medium) var(--t-32)/1.3 var(--font-editorial);
+  font: var(--fw-medium) var(--t-32)/1.3 var(--font-display);
   margin: 0 0 var(--s-6);
 }
 
@@ -3603,7 +3696,7 @@ input.goen-check {
 }
 
 .goen-deptindex__name {
-  font: var(--fw-medium) 1.375rem/1.4 var(--font-editorial);
+  font: var(--fw-medium) 1.375rem/1.4 var(--font-display);
   hyphens: auto;
   margin: var(--s-1) 0 0;
   overflow-wrap: anywhere;
@@ -4448,7 +4541,7 @@ input.goen-check {
 }
 
 :lang(zh) .goen-story__title {
-  font-family: var(--font-editorial);
+  font-family: var(--font-display);
 }
 
 .goen-story__deck {
@@ -4817,7 +4910,7 @@ input.goen-check {
   gap: 2rem;
 }
 
-/* A section of the product page is named in the editorial face, as the
+/* A section of the product page is named in the display face, as the
    drawing's sub-headings are: the same step as a listing's section title. */
 .goen-pdp__sectiontitle {
   color: var(--on-surface-strong);
@@ -4940,13 +5033,13 @@ input.goen-check {
   margin: 0;
 }
 
-/* The name is 40px in the editorial face, a step and more above the 28px
+/* The name is 40px in the display face, a step and more above the 28px
    price. The step is in rem, so at 200% text it is 64px and more, and a model
    number such as "10000mAh" is wider than a phone's line: the name breaks
    inside a word rather than widen the page. */
 .goen-pdp__title {
   color: var(--on-surface-strong);
-  font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
+  font: var(--fw-medium) var(--t-40)/1.2 var(--font-display);
   margin: 0;
   overflow-wrap: anywhere;
   text-wrap: balance;
@@ -7703,7 +7796,7 @@ input.goen-check {
 .goen-checkout .goen-pagehead__title,
 .goen-wishlist .goen-pagehead__title,
 .goen-compare .goen-pagehead__title {
-  font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
+  font: var(--fw-medium) var(--t-40)/1.2 var(--font-display);
   letter-spacing: 0.02em;
 }
 
@@ -9274,7 +9367,7 @@ input.goen-check {
 }
 
 /* A missing page is a page of the shop, not a centred message: its name in the
-   editorial face, the sentence, 回到商店 as the one blue next-step link and the
+   display face, the sentence, 回到商店 as the one blue next-step link and the
    departments as the home page indexes them, all on the page's left edge. A
    missing page that has its own way back (an order that is not the visitor's)
    keeps the centred message and its buttons. */
@@ -9290,7 +9383,7 @@ input.goen-check {
 
 .notice--missing .notice__title {
   color: var(--sys-on-surface);
-  font: var(--fw-medium) var(--t-40)/1.2 var(--font-editorial);
+  font: var(--fw-medium) var(--t-40)/1.2 var(--font-display);
   letter-spacing: 0.02em;
   overflow-wrap: anywhere;
 }
@@ -9338,7 +9431,7 @@ input.goen-check {
 
 .notice__departmentshead {
   color: var(--sys-on-surface);
-  font: var(--fw-medium) var(--t-32)/1.3 var(--font-editorial);
+  font: var(--fw-medium) var(--t-32)/1.3 var(--font-display);
   hyphens: auto;
   margin: 0 0 var(--s-6);
   overflow-wrap: anywhere;

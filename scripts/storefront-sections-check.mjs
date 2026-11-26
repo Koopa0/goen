@@ -109,8 +109,8 @@ try {
 
   // The home page's departments are the index the missing page and the empty
   // search draw: a square photograph keeping the 4:3 it is shot in beside the
-  // name in the editorial face, one above another on a phone, two across from
-  // 768 and three across a desktop. The heading over it is the editorial face
+  // name in the display face, one above another on a phone, two across from
+  // 768 and three across a desktop. The heading over it is the display face
   // too, and the photograph's link is out of the tab order beside the name's.
   for (const [width, columns] of [[375, 1], [768, 2], [1024, 2], [1440, 3]]) {
     await open('/home', width);
@@ -131,14 +131,14 @@ try {
     assert.equal(index.photos.length, 3, `departments ${width}px: entries drawn`);
     assert.equal(index.columns, columns, `departments ${width}px: ${index.columns} columns, want ${columns}`);
     assert.equal(index.old, 0, `departments ${width}px: the page still draws the grid the index replaced`);
-    assert.match(index.heading, /Noto Serif TC/, `departments ${width}px: the heading is set in ${index.heading}`);
+    assert.match(index.heading, /^"?Instrument Sans"?, "?Noto Sans TC"?/, `departments ${width}px: the heading is set in ${index.heading}`);
     for (const photo of index.photos) {
       assert.ok(photo.width > 0 && Math.abs(photo.height - photo.width * 3 / 4) <= 1, `departments ${width}px: a photograph is ${photo.width}x${photo.height}, not 4:3`);
       assert.equal(photo.radius, '0px', `departments ${width}px: a photograph has a ${photo.radius} corner, not square`);
       assert.deepEqual([photo.hidden, photo.tabindex], ['true', '-1'], `departments ${width}px: the photograph's link is aria-hidden=${photo.hidden} tabindex=${photo.tabindex}`);
-      assert.match(photo.name, /Noto Serif TC/, `departments ${width}px: a name is set in ${photo.name}`);
+      assert.match(photo.name, /^"?Instrument Sans"?, "?Noto Sans TC"?/, `departments ${width}px: a name is set in ${photo.name}`);
     }
-    console.log(`departments ${width}px: ${index.photos.length} square photographs at 4:3 in ${columns} column${columns === 1 ? '' : 's'}, editorial names`);
+    console.log(`departments ${width}px: ${index.photos.length} square photographs at 4:3 in ${columns} column${columns === 1 ? '' : 's'}, names in the display face`);
   }
 
   // A department without a photograph shows its first letter on its tone, a
@@ -609,7 +609,7 @@ try {
 
       const first = hero.slides[0];
       if (width >= 1440) assert.equal(first.title.size, '56px', `${label}: the campaign's name is ${first.title.size}, not the display size`);
-      assert.match(first.title.family, /Noto Serif TC/, `${label}: the campaign's name is set in ${first.title.family}`);
+      assert.match(first.title.family, /^"?Instrument Sans"?, "?Noto Sans TC"?/, `${label}: the campaign's name is set in ${first.title.family}`);
       assert.equal(first.ends, hero.vermilion, `${label}: the end is ${first.ends}, not vermilion`);
       assert.equal(first.days?.hidden, 'true', `${label}: the days are read aloud`);
       assert.deepEqual(first.days.cells, [['past', hero.quiet], ['past', hero.quiet], ['', hero.vermilion], ['', hero.vermilion], ['', hero.vermilion]],
@@ -866,7 +866,7 @@ try {
   }
 
   // A department's head is words on the page, inside the page column: the
-  // crumbs, the name in the editorial face at 40px at most, the count, a running
+  // crumbs, the name in the display face at 40px at most, the count, a running
   // campaign's notice under the name, and the sub-categories in one row under
   // them. It draws no photograph and no tone ground, whatever the department
   // has. The current sub-category is underlined 2px and the others are not; no
@@ -936,9 +936,9 @@ try {
         assert.equal(head.images, 0, `${label}: the head draws ${head.images} image(s)`);
         for (const ground of head.grounds) assert.equal(ground, 'rgba(0, 0, 0, 0)', `${label}: the head has a ground of ${ground}`);
 
-        // The name is the editorial face, 40px at most.
+        // The name is the display face, 40px at most.
         assert.ok(head.title.size <= 40 + 0.5 && head.title.size >= 32 - 0.5, `${label}: the name is ${head.title.size}px, not 32 to 40`);
-        assert.ok(/Serif/.test(head.title.family), `${label}: the name is set in ${head.title.family}`);
+        assert.match(head.title.family, /^"?Instrument Sans"?, "?Noto Sans TC"?/, `${label}: the name is set in ${head.title.family}`);
 
         // The notice is a line under the name, above the sub-categories.
         if (c.notice) {
