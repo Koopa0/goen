@@ -22,7 +22,6 @@ func TestProductWarrantyDetail(t *testing.T) {
 	const (
 		warrantyHeading = `id="warranty-heading"`
 		warrantyBlock   = `class="goen-pdp__warranty"`
-		detailBlock     = `class="goen-pdp__detail"`
 		descHeading     = `id="desc-heading"`
 		specsHeading    = `id="specs-heading"`
 	)
@@ -37,7 +36,6 @@ func TestProductWarrantyDetail(t *testing.T) {
 		name         string
 		mutate       func(*ProductView)
 		locale       i18n.Locale
-		wantDetail   bool
 		wantWarranty bool
 		wantText     func(context.Context, *ProductView) []string
 	}{
@@ -47,7 +45,6 @@ func TestProductWarrantyDetail(t *testing.T) {
 				v.WarrantyMonths = 24
 			},
 			locale:       i18n.ZhHant,
-			wantDetail:   true,
 			wantWarranty: true,
 			wantText: func(ctx context.Context, v *ProductView) []string {
 				return []string{v.WarrantyText(ctx)}
@@ -59,7 +56,6 @@ func TestProductWarrantyDetail(t *testing.T) {
 				v.WarrantyMonths = 24
 			},
 			locale:       i18n.En,
-			wantDetail:   true,
 			wantWarranty: true,
 			wantText: func(ctx context.Context, v *ProductView) []string {
 				return []string{v.WarrantyText(ctx)}
@@ -71,7 +67,6 @@ func TestProductWarrantyDetail(t *testing.T) {
 				v.WarrantyNote = "原廠保固需上網登錄"
 			},
 			locale:       i18n.ZhHant,
-			wantDetail:   true,
 			wantWarranty: true,
 			wantText: func(_ context.Context, v *ProductView) []string {
 				return []string{v.WarrantyNote}
@@ -83,7 +78,6 @@ func TestProductWarrantyDetail(t *testing.T) {
 				v.WarrantyNote = "Register with the manufacturer"
 			},
 			locale:       i18n.En,
-			wantDetail:   true,
 			wantWarranty: true,
 			wantText: func(_ context.Context, v *ProductView) []string {
 				return []string{v.WarrantyNote}
@@ -96,7 +90,6 @@ func TestProductWarrantyDetail(t *testing.T) {
 				v.WarrantyNote = "含電池一年"
 			},
 			locale:       i18n.ZhHant,
-			wantDetail:   true,
 			wantWarranty: true,
 			wantText: func(ctx context.Context, v *ProductView) []string {
 				return []string{v.WarrantyText(ctx), v.WarrantyNote}
@@ -109,7 +102,6 @@ func TestProductWarrantyDetail(t *testing.T) {
 				v.Specs = []ProductSpec{{Label: "重量", Value: "199 g"}}
 			},
 			locale:       i18n.ZhHant,
-			wantDetail:   true,
 			wantWarranty: false,
 			wantText: func(_ context.Context, _ *ProductView) []string {
 				return []string{"旗艦手機", "199 g"}
@@ -118,7 +110,6 @@ func TestProductWarrantyDetail(t *testing.T) {
 		{
 			name:         "nothing stated",
 			locale:       i18n.ZhHant,
-			wantDetail:   false,
 			wantWarranty: false,
 		},
 	}
@@ -132,9 +123,6 @@ func TestProductWarrantyDetail(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
 			out := renderProductInLocale(t, ctx, &v)
 
-			if got := strings.Contains(out, detailBlock); got != tt.wantDetail {
-				t.Errorf("detail block present = %v, want %v", got, tt.wantDetail)
-			}
 			if got := strings.Contains(out, warrantyHeading); got != tt.wantWarranty {
 				t.Errorf("warranty heading present = %v, want %v", got, tt.wantWarranty)
 			}

@@ -4,9 +4,13 @@
  * product page's, and back. A department has no photo on its page to land on,
  * so a department's link only dissolves. The names are set from here by
  * CSSOM, because the page's CSP refuses inline styles, and only for the one
- * navigation: a name left on an element, or two elements sharing one, would
- * make the browser skip the transition. Without support, or with reduced
- * motion, nothing is named and the pages simply dissolve.
+ * navigation, cleared once its transition has finished: a name left on an
+ * element, or two elements sharing one, would make the browser skip the next
+ * transition and keep the page out of the back-forward cache. Without support,
+ * or with reduced motion, nothing is named and the pages simply dissolve.
+ *
+ * Inside the product page, a colour that swaps the gallery waits for its
+ * photograph to decode before the swap's own view transition captures it.
  *
  * This is its own script, loaded without defer: pagereveal fires at the first
  * render, which a deferred script can miss. It runs before the body exists, so
@@ -14,6 +18,26 @@
  */
 (() => {
   "use strict";
+
+  // A colour chosen in the buy box swaps the gallery inside htmx's view
+  // transition, and the new state is captured as soon as the swap returns: a
+  // photograph not yet decoded would be captured as its empty plate and fade
+  // in from nothing. So the capture waits for the photograph the new gallery
+  // shows to decode, a moment at most; past that it arrives on its own. A swap
+  // that leaves the gallery as it was waits for nothing.
+  document.addEventListener("htmx:before:viewTransition", (e) => {
+    const detail = e.detail;
+    if (typeof detail?.task !== "function") return;
+    const swap = detail.task;
+    detail.task = async () => {
+      const before = document.getElementById("gallery");
+      await swap();
+      const shown = document.getElementById("gallery");
+      const photo = shown && shown !== before ? shown.querySelector(".goen-pdp__shotimg") : null;
+      if (!photo) return;
+      await Promise.race([photo.decode().catch(() => {}), new Promise((done) => setTimeout(done, 400))]);
+    };
+  });
 
   if (!("onpageswap" in window) || !("onpagereveal" in window)) return;
 
@@ -57,8 +81,7 @@
     const to = new URL(e.activation.entry.url).pathname;
     if (e.activation.navigationType === "traverse") name(own(), kind(location.pathname));
     else if (pressed && pressed.pathname === to) name(pressed.querySelector("img"), kind(to));
-    const done = () => clear();
-    e.viewTransition.finished.then(done, done);
+    e.viewTransition.finished.then(clear, clear);
   });
 
   window.addEventListener("pagereveal", (e) => {
@@ -73,7 +96,6 @@
     } else {
       name(own(), kind(location.pathname));
     }
-    const done = () => clear();
-    e.viewTransition.ready.then(done, done);
+    e.viewTransition.finished.then(clear, clear);
   });
 })();

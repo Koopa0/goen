@@ -4841,15 +4841,17 @@ input.goen-check {
 
 /* ---------- Product page ----------
 
-   A breadcrumb over two columns: the gallery 7/12 and the buy column 5/12 from
-   1024, stacked below. Under them the description, an accordion, the reviews,
-   the questions and a row of similar products, in source order.
+   A breadcrumb over two columns from 1024: the gallery, which stays in view
+   while the buy column scrolls past it, and the buy column. Under them the
+   facts (the description, the specifications, the labelling, the warranty,
+   delivery) beside the reviews, then the questions and the rows of other
+   products, in source order. Stacked below 1024.
 
    Two choices are not the obvious ones, each for a reason the page's own
    behaviour sets:
 
-   - A variant is chosen by a LINK, because the choice is a URL. A scripted
-     select would make it unreachable with scripting off.
+   - A variant is chosen by a LINK, because the choice is a URL: a reload, a
+     shared address and the back button all land on it.
    - The gallery is a radio group drawn with CSS: nothing to initialise, so the
      swap of #gallery by a colour swatch has no state to carry across.
    ------------------------------------------------------------------------ */
@@ -4868,7 +4870,7 @@ input.goen-check {
   margin: 0 auto;
   max-width: var(--page-width);
   overflow-anchor: none;
-  padding: 1.5rem var(--page-gutter) 4rem;
+  padding: 1rem var(--page-gutter) 4rem;
 }
 
 .goen-pdp--after {
@@ -4881,16 +4883,23 @@ input.goen-check {
   gap: 1.5rem;
 }
 
+/* The path sits on a hairline that runs the page's width, as drawn. */
+.goen-pdp__intro > .ui-crumbs {
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 1rem;
+}
+
 .goen-pdp__top {
   display: grid;
   gap: 2rem;
 }
 
-/* A section of the product page is named in the display face, as the
-   drawing's sub-headings are: the same step as a listing's section title. */
+/* A section of the product page is named in the display face, heavier and
+   tighter than the body, as the drawing's section heads are. */
 .goen-pdp__sectiontitle {
-  color: var(--on-surface-strong);
-  font: var(--type-headline-m);
+  color: var(--text-strong);
+  font: var(--fw-semibold) clamp(1.35rem, 1rem + 1.2vw, 1.85rem)/1.25 var(--font-display);
+  letter-spacing: -0.02em;
   margin: 0;
   min-width: 0;
   /* At 200% text a long word such as "Specifications" is wider than a phone's
@@ -4900,15 +4909,31 @@ input.goen-check {
 
 /* Gallery. The stage and the thumbnails share one grid: every shot sits in the
    first row across all columns, so only the chosen one is visible and the row
-   keeps its height as the choice changes. Five columns so a thumbnail stays a
-   comfortable target at 375 and a sixth wraps rather than shrinks. */
+   keeps its height as the choice changes. The thumbnails take as many columns
+   of 5rem as fit, and never fewer than five: where five of 5rem do not fit, a
+   column is a fifth of what the gaps leave, so a sixth photograph wraps on a
+   phone rather than shrinks. */
 .goen-pdp__gallery {
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
   grid-auto-rows: min-content;
+  grid-template-columns: repeat(auto-fill, minmax(min(5rem, (100% - 3rem) / 5), 1fr));
   min-width: 0;
   position: relative;
+}
+
+/* The plate the photographs stand on: the studio's own pale ground, light by
+   night too, so a photograph shot on near-white multiplies into it with no
+   white box. It is drawn behind the shot rather than on it, so the shot's box,
+   where a photograph clicked on a card lands, keeps square corners for the
+   view transition to land on. */
+.goen-pdp__gallery::before {
+  background: var(--photo-plate);
+  border: 1px solid var(--hairline);
+  border-radius: var(--shape-md);
+  content: "";
+  grid-column: 1 / -1;
+  grid-row: 1;
 }
 
 /* The item is only a grouping for the markup: its children are laid out by the
@@ -4918,13 +4943,11 @@ input.goen-check {
 }
 
 .goen-pdp__shot {
-  background: var(--photo);
-  border-radius: 0;
   grid-column: 1 / -1;
   grid-row: 1;
   margin: 0;
   overflow: hidden;
-  padding: 0;
+  padding: 4%;
 }
 
 .goen-pdp__pick:not(:checked) ~ .goen-pdp__shot {
@@ -4933,65 +4956,73 @@ input.goen-check {
 
 .goen-pdp__shotimg {
   aspect-ratio: 4 / 3;
-  background: var(--photo);
   display: block;
   height: auto;
+  mix-blend-mode: multiply;
   object-fit: contain;
   width: 100%;
 }
 
+/* The plate is light in both schemes, so the words on it are the day's. */
 .goen-pdp__shot--empty {
   align-items: center;
   aspect-ratio: 4 / 3;
-  color: var(--on-surface-quiet);
+  color: var(--text-soft);
+  color-scheme: light;
   display: flex;
   font-size: var(--fs-14);
   justify-content: center;
 }
 
 /* A thumbnail is the label of a radio in the gallery's group, so a keyboard
-   reaches it by Tab and moves through the photographs with the arrow keys, and
-   it works with scripting off. The chosen one wears an ink frame; focus adds
-   the ring and a band of the page's ground outside it. */
+   reaches it by Tab and moves through the photographs with the arrow keys. The
+   chosen one wears a 2px cobalt edge, the border and an inset line of the same
+   blue, so the box keeps its size; focus adds the ring and a band of the
+   page's ground outside it. */
 .goen-pdp__thumb {
+  background: var(--photo-plate);
+  border: 1px solid var(--hairline);
+  border-radius: var(--shape-sm);
+  box-sizing: border-box;
   cursor: pointer;
   min-width: 0;
+  padding: 0.25rem;
 }
 
 .goen-pdp__thumbimg {
   aspect-ratio: 4 / 3;
-  background: var(--photo);
-  border-radius: 0;
   display: block;
   height: auto;
+  mix-blend-mode: multiply;
   object-fit: contain;
   width: 100%;
 }
 
 .goen-pdp__pick:checked ~ .goen-pdp__thumb {
-  outline: 2px solid var(--sys-on-surface);
-  outline-offset: 2px;
+  border-color: var(--cta);
+  box-shadow: inset 0 0 0 1px var(--cta);
 }
 
 .goen-pdp__pick:focus-visible ~ .goen-pdp__thumb {
-  box-shadow: 0 0 0 2px var(--sys-on-surface), 0 0 0 9px var(--sys-surface);
+  box-shadow: inset 0 0 0 1px var(--cta), 0 0 0 9px var(--sys-surface);
   outline: 2px solid var(--ring);
   outline-offset: 5px;
 }
 
 @media (forced-colors: active) {
   .goen-pdp__pick:checked ~ .goen-pdp__thumb {
-    outline-color: CanvasText;
+    border-color: CanvasText;
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
   }
 }
 
-/* Buy column. scroll-margin-top is for the visitor with no script: adding to
-   the cart is a POST, a 303 and a landing on #buybox, and without it the
-   browser puts the column's first pixel flush against the top of the window. */
+/* Buy column. scroll-margin-top keeps the column's first line off the sticky
+   bar when a link or a landing brings it into view. */
 .goen-pdp__buy {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
   min-width: 0;
   scroll-margin-top: 24px;
 }
@@ -5002,72 +5033,72 @@ input.goen-check {
   gap: 0.5rem;
 }
 
+/* The brand and the chosen variant's code, in the face of figures. */
 .goen-pdp__brand {
-  color: var(--on-surface-quiet);
-  font-size: var(--fs-14);
+  color: var(--text-soft);
+  font-family: var(--font-data);
+  font-size: 0.78rem;
   line-height: 1.5;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
-/* The name is 40px in the display face, a step and more above the 28px
-   price. The step is in rem, so at 200% text it is 64px and more, and a model
-   number such as "10000mAh" is wider than a phone's line: the name breaks
-   inside a word rather than widen the page. */
+.goen-pdp__sku {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The name is the page's one large line, heavier than a section's head. At
+   200% text a model number such as "10000mAh" is wider than a phone's line:
+   the name breaks inside a word rather than widen the page. */
 .goen-pdp__title {
-  color: var(--on-surface-strong);
-  font: var(--fw-medium) var(--t-40)/1.2 var(--font-display);
+  color: var(--text-strong);
+  font: var(--fw-semibold) clamp(1.65rem, 1.2rem + 1.5vw, 2.3rem)/1.15 var(--font-display);
+  letter-spacing: -0.02em;
   margin: 0;
   overflow-wrap: anywhere;
   text-wrap: balance;
 }
 
-/* Values only; a line breaks between them, never inside one. The dot between
-   two is .goen-sep, hidden from a screen reader in the markup. */
-.goen-pdp__keyspecs {
-  color: var(--on-surface-quiet);
-  font-size: var(--fs-13);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.6;
-  margin: 0;
-}
-
-.goen-pdp__keyspec {
-  display: inline-block;
-  max-width: 100%;
-}
-
-/* A choice the product does not offer: stated, not asked. */
+/* A choice the product does not offer: stated, not asked, on the line a
+   group's name and its chosen value share. */
 .goen-pdp__fact {
-  color: var(--on-surface-strong);
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
   font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
+  gap: 0 0.75rem;
+  justify-content: space-between;
   margin: 0;
 }
 
 .goen-pdp__lede {
-  color: var(--on-surface-soft);
-  line-height: 1.7;
+  color: var(--text-soft);
+  line-height: 1.6;
   margin: 0;
 }
 
-/* One amber star, then the average and the count as an ink link with the
+/* One amber star, then the average and the count, as an ink link with the
    faint underline every link but a section's next step wears. */
 .goen-pdp__rating {
+  margin: 0 0 0 auto;
+}
+
+.goen-pdp__ratinglink {
   align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  font-size: var(--fs-14);
+  display: inline-flex;
+  font-family: var(--font-data);
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   gap: 0.375rem;
-  margin: 0;
+  min-height: 24px;
 }
 
 .goen-pdp__ratingstar svg {
   color: var(--star);
   display: block;
   fill: var(--star);
-  height: 1rem;
-  width: 1rem;
+  height: 0.875rem;
+  width: 0.875rem;
 }
 
 .goen-pdp__ratinglink,
@@ -5094,8 +5125,8 @@ input.goen-check {
 }
 
 /* The star is a graphic, so its fill may be the one amber the page uses; the
-   words beside it are --on-surface-quiet and carry the number. An unfilled star is the
-   control border grey. */
+   words beside it carry the number. An unfilled star is the control border
+   grey. */
 .goen-pdp__rate {
   display: inline-flex;
   gap: 2px;
@@ -5125,6 +5156,8 @@ input.goen-check {
   position: absolute;
 }
 
+/* The price in the face of figures, the struck original and the seal of what
+   it saves after it on the same baseline. */
 .goen-pdp__pricebox {
   align-items: baseline;
   container-type: inline-size;
@@ -5135,37 +5168,48 @@ input.goen-check {
 
 .goen-pdp__price {
   color: var(--price);
-  font-size: 1.75rem;
-  font-variant-numeric: tabular-nums lining-nums;
-  font-weight: var(--fw-medium);
+  font-family: var(--font-data);
+  font-size: 1.55rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
   line-height: 1.2;
-}
-
-/* A price with a struck original comes from a campaign, which ends: vermilion,
-   the colour of what ends, as on the product card. */
-.goen-pdp__price--sale {
-  color: var(--sys-tertiary);
 }
 
 /* A phone at 200% text leaves the box under 20rem, where "NT$19,900" at its own
    size is wider than the line. */
 @container (width < 20rem) {
   .goen-pdp__price {
-    font-size: min(1.75rem, 14cqi);
+    font-size: min(1.55rem, 12cqi);
     overflow-wrap: anywhere;
   }
 }
 
 .goen-pdp__was {
-  color: var(--sys-on-surface-variant);
-  font-size: var(--fs-16);
+  color: var(--text-faint);
+  font-family: var(--font-data);
+  font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
 }
 
+/* The seal: what the struck price saves, in money, filled in the one red the
+   page spends, and only while a campaign has the product on sale. */
+.goen-pdp__seal {
+  align-self: center;
+  background: var(--savings);
+  border-radius: var(--shape-xs);
+  color: var(--on-savings);
+  font-family: var(--font-data);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  line-height: 1.3;
+  padding: 0.2rem 0.5rem;
+}
+
 .goen-pdp__source {
-  color: var(--on-surface-soft);
+  color: var(--text-soft);
   font-size: var(--fs-14);
-  margin: 0.125rem 0 0;
+  margin: -0.5rem 0 0;
 }
 
 /* What ends is vermilion, here as on the shelf and the home: the time left in
@@ -5183,18 +5227,28 @@ input.goen-check {
   padding: 0;
 }
 
+/* The group's name at the start of the line and the chosen value at its end. */
 .goen-pdp__optname {
-  color: var(--on-surface-strong);
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
   font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
+  gap: 0 0.75rem;
+  justify-content: space-between;
   line-height: 1.5;
-  padding: 0 0 0.75rem;
+  padding: 0 0 0.5rem;
+  width: 100%;
 }
 
-/* A colour has no words on it, so the chosen one says its name here. */
+.goen-pdp__optlabel {
+  color: var(--text-soft);
+}
+
 .goen-pdp__optchosen {
-  color: var(--on-surface-quiet);
-  font-weight: var(--fw-regular);
+  color: var(--text-strong);
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 /* A request refused for want of a pick comes back with the group framed in the
@@ -5205,15 +5259,6 @@ input.goen-check {
 
 .goen-pdp__opterror {
   margin: 0.5rem 0 0;
-}
-
-/* Which choice is sold out: the values, then the existing words. */
-.goen-pdp__status {
-  color: var(--sys-on-surface-variant);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 
 .goen-pdp__soldword:lang(en) {
@@ -5234,9 +5279,11 @@ input.goen-check {
 }
 
 /* An option value. A LINK, not a button: choosing navigates to the URL for
-   that combination, so the choice survives a reload, a shared address and
-   scripting being off. A square box with a 4px corner, as every control on the
-   page is drawn; a colour is the same box with its dot before the name. */
+   that combination, so the choice survives a reload and a shared address. A
+   word is a box with the control corner, its value in the face of figures, and
+   the chosen one is filled with ink; a colour is a round-ended chip with its
+   dot before its name, and the chosen one wears a 2px ink ring, since a fill
+   would hide the dot's colour. */
 .goen-swatch {
   align-items: center;
   background: var(--sys-surface);
@@ -5246,7 +5293,9 @@ input.goen-check {
   color: var(--on-surface-strong);
   display: inline-flex;
   flex-direction: column;
-  font-size: var(--fs-14);
+  font-family: var(--font-data);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
   font-weight: var(--fw-regular);
   justify-content: center;
   line-height: 1.3;
@@ -5259,17 +5308,15 @@ input.goen-check {
 }
 
 .goen-swatch:hover {
-  background: var(--sys-surface-container-low);
+  background: var(--shelf-hover);
   color: var(--on-surface-strong);
 }
 
-/* The choice is a 2px ink frame, the border and an inset line of the same ink,
-   so the box keeps its size and the text does not move. Not blue, which is for
-   the next step and the focus ring, and no check: the frame is the state. */
 .goen-swatch--on,
 .goen-swatch--on:hover {
-  border-color: var(--sys-on-surface);
-  box-shadow: inset 0 0 0 1px var(--sys-on-surface);
+  background: var(--fill-ink);
+  border-color: var(--fill-ink);
+  color: var(--on-fill-ink);
   font-weight: var(--fw-medium);
 }
 
@@ -5287,11 +5334,36 @@ input.goen-check {
   color: var(--on-surface-quiet);
 }
 
-/* A colour: its dot, then its name, which is on the box and not left to a
+/* Chosen and sold out is not filled: a fill says "this is what you will get".
+   It keeps the light ground and wears the ink frame, dashed. */
+.goen-swatch--on.goen-swatch--out,
+.goen-swatch--on.goen-swatch--out:hover {
+  background: var(--sys-surface);
+  border-color: var(--sys-on-surface);
+  box-shadow: inset 0 0 0 1px var(--sys-on-surface);
+  color: var(--on-surface-strong);
+}
+
+.goen-swatch--on.goen-swatch--out .goen-swatch__note {
+  color: var(--on-surface-strong);
+}
+
+/* A colour: its dot, then its name, which is on the chip and not left to a
    tooltip. */
 .goen-swatch--dot {
+  border-radius: var(--shape-full);
   flex-direction: row;
+  font-family: var(--font-sans);
   gap: 0.5rem;
+  padding: 0.25rem 0.875rem 0.25rem 0.625rem;
+}
+
+.goen-swatch--dot.goen-swatch--on,
+.goen-swatch--dot.goen-swatch--on:hover {
+  background: var(--sys-surface);
+  border-color: var(--sys-on-surface);
+  box-shadow: inset 0 0 0 1px var(--sys-on-surface);
+  color: var(--on-surface-strong);
 }
 
 .goen-swatch__dot {
@@ -5304,7 +5376,7 @@ input.goen-check {
 
 /* A colour that is sold out is struck on its name as on the dot, so the name
    says it as the dot does, and its edge stays whole: two strikes and a dashed
-   edge are one signal too many on a box this size. */
+   edge are one signal too many on a chip this size. */
 .goen-swatch--dot.goen-swatch--out {
   border-style: solid;
 }
@@ -5325,15 +5397,6 @@ input.goen-check {
   stroke-width: 1;
 }
 
-/* Few left is a fact about the stock, not a thing that ends: ink, and medium
-   weight to be seen, never the vermilion of a deadline. */
-.goen-pdp__lowstock {
-  color: var(--on-surface-strong);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  margin: 0;
-}
-
 /* Unavailable in this combination: struck rather than dimmed, because a fainter
    disc reads as a paler colour instead of one they cannot have. The strike is
    two lines on one diagonal, the wider in the page's ground and the narrower in
@@ -5351,6 +5414,33 @@ input.goen-check {
 .goen-swatch__bar {
   stroke: var(--sys-on-surface);
   stroke-width: 1.5;
+}
+
+/* The stock line: the chosen variant's stock at the start, the rating at the
+   end, on the shelf's ground. */
+.goen-pdp__stock {
+  align-items: center;
+  background: var(--shelf);
+  border-radius: var(--shape-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  padding: 0.5rem 0.875rem;
+}
+
+/* Which choice is sold out, or that the chosen one is in stock. */
+.goen-pdp__status {
+  color: var(--text-strong);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Few left is a fact about the stock, not a thing that ends: ink, never the
+   vermilion of a deadline. */
+.goen-pdp__lowstock {
+  color: var(--on-surface-strong);
 }
 
 .goen-pdp__note {
@@ -5391,17 +5481,52 @@ input.goen-check {
   gap: 0.75rem;
 }
 
+/* Where the restock form is the one action the add form holds nothing to see,
+   and an empty box would still take the column's gap. */
+.goen-pdp__actions:not(:has(.goen-pdp__buyrow > *, .goen-notice)) {
+  display: none;
+}
+
 .goen-pdp__qty {
   flex: none;
 }
 
-/* The one button in goen whose label is a sentence: 目前全部規格都已售完 must
-   wrap rather than make the row as wide as the sentence, so min-width lets flex
-   shrink it below its text. Full width of the column below 1024, beside the
-   stepper from there. */
+/* The commerce action is cobalt. The filled button's class is inside :where(),
+   so these weigh one class: the disabled look, which weighs two, still wins,
+   and a button waiting on its request keeps the blue it was pressed in. */
+.goen-pdp__add:where(.goen-btn--primary),
+.goen-buybar__btn:where(.goen-btn--primary) {
+  background: var(--cta);
+  border-color: var(--cta);
+  color: var(--on-cta);
+}
+
+.goen-pdp__add:where(.goen-btn--primary):is(:hover, :active):not(:disabled, [aria-disabled='true']:not([data-request-pending] *)),
+.goen-buybar__btn:where(.goen-btn--primary):is(:hover, :active) {
+  background: var(--cta-hover);
+  border-color: var(--cta-hover);
+}
+
+/* A sentence such as "目前全部規格都已售完" must wrap rather than make the row as wide
+   as the sentence, so min-width lets flex shrink it below its text. */
 .goen-pdp__add {
-  flex: 1 1 100%;
+  flex: 1 1 12rem;
   min-width: 0;
+}
+
+/* The sum is in the face of figures, after a dot that is only for the eye; the
+   two stay on one line, so a narrow button breaks before the dot. */
+.goen-pdp__addsum {
+  white-space: nowrap;
+}
+
+.goen-pdp__addsum > [aria-hidden='true'] {
+  padding-inline: 0.25em;
+}
+
+.goen-pdp__addprice {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
 }
 
 /* visibility, not just transform, keeps it out of the tab order and away from
@@ -5454,6 +5579,7 @@ input.goen-check {
 
   .goen-buybar__price {
     color: var(--price);
+    font-family: var(--font-data);
     font-size: var(--fs-18);
     font-variant-numeric: tabular-nums lining-nums;
     font-weight: var(--fw-medium);
@@ -5467,6 +5593,7 @@ input.goen-check {
 
   .goen-buybar__was {
     color: var(--sys-on-surface-variant);
+    font-family: var(--font-data);
     font-size: var(--fs-14);
     font-variant-numeric: tabular-nums;
     min-width: 0;
@@ -5618,29 +5745,46 @@ input.goen-check {
   outline-offset: 2px;
 }
 
+/* The restock notice: what is out of stock, what the form does, and the form,
+   on the soft tint of the savings red with an edge of the red itself. */
 .goen-pdp__notify {
-  border-top: 1px solid var(--rule);
+  background: var(--savings-soft);
+  border: 1px solid var(--savings);
+  border-radius: var(--shape-md);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding-top: 1.5rem;
+  gap: 0.625rem;
+  padding: 1rem;
 }
 
 .goen-pdp__notifyhead {
-  color: var(--on-surface-strong);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
+  color: var(--text-strong);
+  font-weight: var(--fw-semibold);
   margin: 0;
 }
 
-/* The field takes the row, the button the row under it: stacked, as drawn, so
-   the sign-up reads as one thing to fill and one thing to press. */
+.goen-pdp__notifybody {
+  color: var(--text-soft);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+/* The field takes the row and the button its end; where the row is too
+   narrow for both, the button wraps under the field, and where its words are
+   wider than the panel (200% text on a phone) they wrap inside it. */
 .goen-pdp__notifyrow {
-  display: grid;
-  gap: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .goen-pdp__notifyrow .goen-input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.goen-pdp__notifyrow .goen-btn {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -5650,7 +5794,7 @@ input.goen-check {
   display: flex;
   flex-wrap: wrap;
   gap: 0 0.5rem;
-  margin: -0.75rem 0 0 0px;
+  margin: -0.5rem 0 0 0px;
 }
 
 /* The buttons keep side padding so a forced-colours border clears the text;
@@ -5714,20 +5858,19 @@ input.goen-check {
   margin: 0;
 }
 
-/* Description, then the specifications, the warranty and what delivery and
-   returns promise: every one open under its own heading, never behind a press
-   or a tab, so what a shopper compares is on the page. */
+/* The facts and the reviews: one column each from 1024, the facts first.
+   Every fact is open under its own heading, never behind a press or a tab, so
+   what a shopper compares is on the page. */
+.goen-pdp__split {
+  display: grid;
+  gap: 4rem;
+}
+
 .goen-pdp__more {
   display: flex;
   flex-direction: column;
   gap: 3rem;
   min-width: 0;
-}
-
-.goen-pdp__detail {
-  display: flex;
-  flex-direction: column;
-  gap: 3rem;
 }
 
 .goen-pdp__desc {
@@ -5738,25 +5881,24 @@ input.goen-check {
 }
 
 .goen-pdp__prose {
-  color: var(--on-surface-soft);
+  color: var(--text-soft);
   line-height: 1.7;
   margin: 0;
   max-width: 68ch;
 }
 
+/* A block is a container, so its table sets its two columns by its own width,
+   the same in the half column of a desk and the whole one of a tablet. */
 .goen-pdp__block {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   min-width: 0;
 }
 
-.goen-pdp__ship {
-  max-width: 48rem;
-}
-
 .goen-pdp__warranty {
-  color: var(--on-surface-soft);
+  color: var(--text-soft);
   line-height: 1.7;
   margin: 0;
   max-width: 48rem;
@@ -5774,29 +5916,39 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-/* The table's hairlines run the section's full width. */
+/* A table between hairlines: the term in the body's soft ink, the value in the
+   face of figures. */
 .goen-pdp__speclist {
+  border-top: 1px solid var(--hairline);
   margin: 0;
 }
 
 .goen-pdp__specrow {
+  border-bottom: 1px solid var(--hairline);
   display: grid;
-  gap: 0.25rem 1.5rem;
+  gap: 0.25rem 1rem;
   padding: 0.75rem 0;
 }
 
-.goen-pdp__specrow + .goen-pdp__specrow {
-  border-top: 1px solid var(--rule);
+@container (width >= 26rem) {
+  .goen-pdp__specrow {
+    grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.58fr);
+  }
 }
 
 .goen-pdp__specterm {
-  color: var(--on-surface-quiet);
+  color: var(--text-soft);
   font-size: var(--fs-14);
 }
 
 .goen-pdp__specvalue {
-  color: var(--on-surface-strong);
+  color: var(--text-strong);
+  font-family: var(--font-data);
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Reviews, questions and the two tile rows: the same section rhythm. */
@@ -5810,21 +5962,6 @@ input.goen-check {
   min-width: 0;
 }
 
-/* Nothing has been said yet, so the two sections share one row, on the
-   columns of the gallery and the buy box above them. */
-.goen-pdp__opinions {
-  display: flex;
-  flex-direction: column;
-  gap: 3rem;
-}
-
-@media (min-width: 1024px) {
-  .goen-pdp__opinions {
-    display: grid;
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  }
-}
-
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
    in the listing's three columns would leave one on a line of its own. */
 .goen-pdp .goen-tiles__grid {
@@ -5832,37 +5969,48 @@ input.goen-check {
 }
 
 .goen-pdp__reviewlayout {
-  display: grid;
-  gap: 2rem;
-}
-
-.goen-pdp__summary {
-  align-self: start;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 1.25rem;
+}
+
+/* The average large in the face of figures, its stars and the count beside it,
+   the distribution under them. */
+.goen-pdp__summary {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
 }
 
 .goen-pdp__score {
-  color: var(--on-surface-strong);
-  font-size: var(--fs-ed-38);
+  color: var(--text-strong);
+  font-family: var(--font-data);
+  font-size: 2.25rem;
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-display);
+  font-weight: var(--fw-semibold);
   line-height: 1.1;
   margin: 0;
 }
 
+.goen-pdp__scoreside {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 .goen-pdp__scorecount {
-  color: var(--on-surface-quiet);
+  color: var(--text-soft);
   font-size: var(--fs-14);
   margin: 0;
 }
 
 .goen-pdp__bars {
   display: flex;
+  flex: 1 1 100%;
   flex-direction: column;
   gap: 0.5rem;
-  margin-top: 0.75rem;
+  max-width: 24rem;
 }
 
 .goen-pdp__bar {
@@ -5946,31 +6094,29 @@ input.goen-check {
   width: 100%;
 }
 
-/* A review is a row between hairlines, not a card. */
+/* A review is a card on a hairline: who wrote it and whether they bought it,
+   the stars at the line's end, then the title, the words and the day. */
 .goen-pdp__reviewlist {
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
   min-width: 0;
 }
 
 .goen-pdp__review {
-  border-top: 1px solid var(--rule);
+  border: 1px solid var(--hairline);
+  border-radius: var(--shape-sm);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 1.5rem 0;
-}
-
-.goen-pdp__review:first-child {
-  border-top: 0;
-  padding-top: 0;
+  gap: 0.375rem;
+  padding: 1rem;
 }
 
 .goen-pdp__reviewhead {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  font-size: var(--fs-14);
+  font-size: var(--fs-13);
   gap: 0.5rem;
 }
 
@@ -5978,10 +6124,12 @@ input.goen-check {
   align-items: center;
   display: inline-flex;
   gap: 0.375rem;
+  margin-left: auto;
 }
 
 .goen-pdp__reviewscore {
-  color: var(--on-surface-quiet);
+  color: var(--text-soft);
+  font-family: var(--font-data);
   font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
 }
@@ -5992,25 +6140,24 @@ input.goen-check {
 }
 
 .goen-pdp__reviewname {
-  color: var(--on-surface-strong);
-  font-weight: var(--fw-medium);
+  color: var(--text-soft);
 }
 
 .goen-pdp__reviewdate {
-  color: var(--on-surface-quiet);
-  font-size: var(--fs-13);
+  color: var(--text-faint);
+  font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
-  margin-left: auto;
 }
 
 .goen-pdp__reviewtitle {
-  color: var(--on-surface-strong);
-  font-weight: var(--fw-medium);
+  color: var(--text-strong);
+  font-weight: var(--fw-semibold);
   margin: 0;
 }
 
 .goen-pdp__reviewbody {
-  color: var(--on-surface-soft);
+  color: var(--text-soft);
+  font-size: var(--fs-14);
   line-height: 1.7;
   margin: 0;
 }
@@ -6113,10 +6260,12 @@ input.goen-check {
   min-height: 0;
 }
 
-/* Questions and answers, as hairline rows. An answer is indented under its
-   question by a rule on the left, so the relationship survives at any width
-   without a nested grid. */
+/* Questions and answers. A question is a disclosure between hairlines: its
+   words and how many answers it holds are the summary, and the chevron at the
+   end turns as it opens. An answer is indented under its question by a rule on
+   the left, so the relationship survives at any width without a nested grid. */
 .goen-qa {
+  border-top: 1px solid var(--hairline);
   display: flex;
   flex-direction: column;
   list-style: none;
@@ -6125,19 +6274,59 @@ input.goen-check {
 }
 
 .goen-qa__item {
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.goen-qa__question {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  list-style: none;
+  min-height: 2.75rem;
+  padding: 0.75rem 0;
+}
+
+.goen-qa__question::-webkit-details-marker {
+  display: none;
+}
+
+.goen-qa__question::after {
+  border-bottom: 2px solid var(--text-soft);
+  border-right: 2px solid var(--text-soft);
+  content: "";
+  flex: none;
+  height: 0.5rem;
+  margin: 0 0.25rem 0.25rem 0;
+  rotate: 45deg;
+  width: 0.5rem;
+}
+
+.goen-qa__thread[open] > .goen-qa__question::after {
+  margin: 0.25rem 0.25rem 0 0;
+  rotate: 225deg;
+}
+
+.goen-qa__questionbody {
+  color: var(--text-strong);
+  flex: 1 1 16rem;
+  font-weight: var(--fw-medium);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.goen-qa__count {
+  color: var(--text-soft);
+  font-size: var(--fs-13);
+  margin-left: auto;
+}
+
+.goen-qa__open {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
-  padding: 1rem 0;
-}
-
-.goen-qa__item:first-child {
-  padding-top: 0;
-}
-
-.goen-qa__item:last-child {
-  border-bottom: 0;
+  gap: 0.5rem;
+  padding: 0 0 1rem;
 }
 
 .goen-qa__answers {
@@ -6146,7 +6335,7 @@ input.goen-check {
   flex-direction: column;
   gap: 0.5rem;
   list-style: none;
-  margin: 0.5rem 0 0;
+  margin: 0.25rem 0 0;
   padding: 0 0 0 1rem;
 }
 
@@ -6162,6 +6351,12 @@ input.goen-check {
   margin: 0;
 }
 
+@media (forced-colors: active) {
+  .goen-qa__question::after {
+    border-color: CanvasText;
+  }
+}
+
 @media (min-width: 640px) {
   .goen-pdp {
     gap: 6rem;
@@ -6169,30 +6364,30 @@ input.goen-check {
   }
 }
 
-@media (min-width: 768px) {
-  .goen-pdp__specrow {
-    grid-template-columns: 12rem 1fr;
-  }
-}
-
 @media (min-width: 1024px) {
   .goen-pdp__top {
     align-items: start;
-    gap: 3rem;
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 2.5rem;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   }
 
-  .goen-pdp__add {
-    flex: 1 1 0;
-  }
-
-  .goen-pdp__reviewlayout {
-    gap: 4rem;
-    grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  .goen-pdp__split {
+    align-items: start;
+    gap: 2.5rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .goen-pdp .goen-tiles__grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* The gallery stays in view while the buy column scrolls past it, under the
+   sticky bar; only where the window is tall enough to hold it whole. */
+@media (min-width: 1024px) and (min-height: 40rem) {
+  .goen-pdp__gallery {
+    position: sticky;
+    top: 5.5rem;
   }
 }
 

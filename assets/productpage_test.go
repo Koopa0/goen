@@ -8,17 +8,21 @@ import (
 )
 
 // TestAppCSSProductPageAsDrawn checks what the drawing fixes on the product
-// page: the name is set by the 40px step, never a size of its own, and a price
-// with a struck original, a campaign's, is in the colour of what ends, in the
-// buy box and in the mobile buy bar alike; an option is a square box of the
-// control corner that is chosen by a 2px ink frame, and a colour says its name
-// on its box; a section is named in the editorial face; the restock field and
-// its button are stacked; the time left in a campaign's line is vermilion, as
+// page: the name and a section's head are set in the display face, each by one
+// rule; the photographs stand on the plate, multiplied into it, and the chosen
+// thumbnail wears the cobalt edge; the price is the shop's price colour in the
+// face of figures, and what a campaign saves is a seal filled in the savings
+// red, while the buy bar's sale price is the colour of what ends; a word
+// option is a square box chosen by an ink fill and a colour a round chip
+// chosen by a 2px ink ring, neither in blue, neither with a mark drawn as
+// content, both with their names shown; the add button is the cobalt
+// commerce action; the stock line stands on the shelf; the restock notice is
+// on the savings tint; the time left in a campaign's line is vermilion, as
 // what ends is everywhere, and the few left of a stock is ink; a link to
 // another page is ink with its faint underline (the guest's wishlist, the
-// policies) and the one next step of a section is blue. Each reads a
-// role or a step, not a value, so the night and the narrow screen take their
-// own from the same rule.
+// policies) and the one next step of a section is blue. Each reads a role or a
+// step, not a value, so the night and the narrow screen take their own from
+// the same rule.
 func TestAppCSSProductPageAsDrawn(t *testing.T) {
 	t.Parallel()
 
@@ -39,15 +43,28 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 		return blocks
 	}
 	for _, want := range []struct{ selector, decl string }{
-		{".goen-pdp__title", `font:\s*var\(--fw-medium\) var\(--t-40\)/1\.2 var\(--font-display\);`},
-		{".goen-pdp__price--sale", `color:\s*var\(--sys-tertiary\);`},
+		{".goen-pdp__title", `font:\s*var\(--fw-semibold\) clamp\([^;]+\)/1\.15 var\(--font-display\);`},
+		{".goen-pdp__sectiontitle", `font:\s*var\(--fw-semibold\) clamp\([^;]+\)/1\.25 var\(--font-display\);`},
+		{".goen-pdp__gallery::before", `background:\s*var\(--photo-plate\);`},
+		{".goen-pdp__shotimg", `mix-blend-mode:\s*multiply;`},
+		{".goen-pdp__thumbimg", `mix-blend-mode:\s*multiply;`},
+		{".goen-pdp__pick:checked ~ .goen-pdp__thumb", `border-color:\s*var\(--cta\);`},
+		{".goen-pdp__price", `font-family:\s*var\(--font-data\);`},
+		{".goen-pdp__seal", `background:\s*var\(--savings\);`},
+		{".goen-pdp__seal", `color:\s*var\(--on-savings\);`},
 		{".goen-buybar__price--sale", `color:\s*var\(--sys-tertiary\);`},
 		{".goen-swatch", `border-radius:\s*var\(--shape-xs\);`},
-		{".goen-swatch--on", `border-color:\s*var\(--sys-on-surface\);`},
-		{".goen-swatch--on", `box-shadow:\s*inset 0 0 0 1px var\(--sys-on-surface\);`},
+		{".goen-swatch--on", `background:\s*var\(--fill-ink\);`},
+		{".goen-swatch--on", `color:\s*var\(--on-fill-ink\);`},
 		{".goen-swatch--dot", `flex-direction:\s*row;`},
-		{".goen-pdp__sectiontitle", `font:\s*var\(--type-headline-m\);`},
-		{".goen-pdp__notifyrow", `display:\s*grid;`},
+		{".goen-swatch--dot", `border-radius:\s*var\(--shape-full\);`},
+		{".goen-swatch--dot.goen-swatch--on", `border-color:\s*var\(--sys-on-surface\);`},
+		{".goen-swatch--dot.goen-swatch--on", `box-shadow:\s*inset 0 0 0 1px var\(--sys-on-surface\);`},
+		{".goen-swatch--on.goen-swatch--out", `border-color:\s*var\(--sys-on-surface\);`},
+		{".goen-pdp__add:where(.goen-btn--primary)", `background:\s*var\(--cta\);`},
+		{".goen-pdp__add:where(.goen-btn--primary)", `color:\s*var\(--on-cta\);`},
+		{".goen-pdp__stock", `background:\s*var\(--shelf\);`},
+		{".goen-pdp__notify", `background:\s*var\(--savings-soft\);`},
 		{".goen-pdp__source .goen-ends__left", `color:\s*var\(--sys-tertiary\);`},
 		{".goen-pdp__lowstock", `color:\s*var\(--on-surface-strong\);`},
 		{".goen-pdp__wishlink", `color:\s*var\(--sys-on-surface\);`},
@@ -66,36 +83,42 @@ func TestAppCSSProductPageAsDrawn(t *testing.T) {
 			t.Errorf("%s: no rule for %s declares %s", AppCSS, want.selector, want.decl)
 		}
 	}
-	// No later rule gives the name a size or a family of its own, and none puts
-	// a section's title back in the body face or at a size of its own.
-	for selector, step := range map[string]string{".goen-pdp__title": "40px step", ".goen-pdp__sectiontitle": "headline step"} {
+	// One rule sets the name's and a section's type: none after it gives either
+	// a size, a family or a weight of its own, or puts it in the body face.
+	for _, selector := range []string{".goen-pdp__title", ".goen-pdp__sectiontitle"} {
 		for _, block := range declared(selector) {
 			if regexp.MustCompile(`font-(size|family|weight):`).MatchString(block) {
-				t.Errorf("%s: a rule for %s overrides the %s: %s", AppCSS, selector, step, strings.TrimSpace(block))
+				t.Errorf("%s: a rule for %s overrides its one font: %s", AppCSS, selector, strings.TrimSpace(block))
 			}
 		}
 	}
 	for _, rule := range cssRule.FindAllStringSubmatch(sheet, -1) {
-		if strings.Contains(rule[1], ".goen-pdp__sectiontitle") && regexp.MustCompile(`font-family:\s*var\(--font-sans\)`).MatchString(rule[2]) {
-			t.Errorf("%s: %s sets a section's title in the body face", AppCSS, strings.TrimSpace(rule[1]))
+		if regexp.MustCompile(`\.goen-pdp__(title|sectiontitle)\b`).MatchString(rule[1]) && regexp.MustCompile(`--font-sans`).MatchString(rule[2]) {
+			t.Errorf("%s: %s sets the name or a section's head in the body face", AppCSS, strings.TrimSpace(rule[1]))
 		}
 	}
-	// An option is no pill, is not chosen in blue, carries no check mark drawn
-	// as content and never hides its name: the frame is the state and the name
-	// is on the box.
+	// An option is not chosen in blue, which is the next step's and the focus
+	// ring's, carries no mark drawn as content and never hides its name.
 	for _, rule := range cssRule.FindAllStringSubmatch(sheet, -1) {
 		if !strings.Contains(rule[1], ".goen-swatch") {
 			continue
 		}
-		if bad := regexp.MustCompile(`--sys-primary|--primary-faint|--primary-deep|--r-press|--r-full|(?:^|[\s;{])content:|clip-path:`).FindString(rule[2]); bad != "" {
-			t.Errorf("%s: %s declares %q: an option is a square box chosen by its ink frame, its name shown", AppCSS, strings.TrimSpace(rule[1]), bad)
+		if bad := regexp.MustCompile(`--sys-primary|--primary-faint|--primary-deep|--cta|--cobalt|(?:^|[\s;{])content:|clip-path:`).FindString(rule[2]); bad != "" {
+			t.Errorf("%s: %s declares %q: an option is chosen by ink, its name shown", AppCSS, strings.TrimSpace(rule[1]), bad)
 		}
 	}
 	// Few left is not a thing that ends: no rule gives it the vermilion of a
 	// deadline or a warning's amber.
 	for _, block := range declared(".goen-pdp__lowstock") {
-		if regexp.MustCompile(`--sys-tertiary|--warn-ink|--accent`).MatchString(block) {
+		if regexp.MustCompile(`--sys-tertiary|--warn-ink|--accent|--savings`).MatchString(block) {
 			t.Errorf("%s: .goen-pdp__lowstock is drawn as a deadline or a warning: %s", AppCSS, strings.TrimSpace(block))
+		}
+	}
+	// The price in the buy box is not painted as a sale: the seal beside it is
+	// the one red, and a red price next to it would say it twice.
+	for _, block := range declared(".goen-pdp__price") {
+		if regexp.MustCompile(`--sys-tertiary|--savings`).MatchString(block) {
+			t.Errorf("%s: the buy box's price is painted as a sale: %s", AppCSS, strings.TrimSpace(block))
 		}
 	}
 }

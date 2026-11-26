@@ -38,7 +38,8 @@ func TestProductBuyArrival(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			disabled := false
+			// The sold-out variant offers no add button at all, or a disabled one.
+			offered := false
 			var visit func(*html.Node)
 			visit = func(n *html.Node) {
 				attrs := map[string]string{}
@@ -46,14 +47,15 @@ func TestProductBuyArrival(t *testing.T) {
 					attrs[a.Key] = a.Val
 				}
 				if n.Data == "button" && attrs["id"] == "add-to-cart" {
-					_, disabled = attrs["disabled"]
+					_, disabled := attrs["disabled"]
+					offered = !disabled
 				}
 				for c := n.FirstChild; c != nil; c = c.NextSibling {
 					visit(c)
 				}
 			}
 			visit(doc)
-			if !disabled || v.CanBuy() {
+			if offered || v.CanBuy() {
 				t.Error("arrival date enabled a stockless purchase")
 			}
 			for _, tc := range []struct {

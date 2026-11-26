@@ -698,10 +698,13 @@ try {
     console.log(`${label}: tabs above the slides, photograph fields only where there is a photograph, ${bare.arrows.every(count => count === 0) ? 'no arrows' : 'arrows beside the tabs'}`);
   }
 
-  // A product's main photograph sits on one square well in the photograph's
-  // own ground. The product page carries no department tone, so nothing tones
-  // the well: no tone frame around it, no white edge on the picture, and a
-  // placeholder whose words can be read.
+  // A product's main photograph stands on the plate: the studio's pale ground
+  // with a hairline edge and the photograph's 12px corner, the picture inset
+  // from its edge and multiplied into it, so the near-white it was shot on
+  // leaves no white box. The well the picture sits in, where a photograph
+  // clicked on a card lands, stays square and draws nothing of its own. The
+  // product page carries no department tone, so nothing tones the plate, and a
+  // placeholder's words on it can be read.
   {
     const channels = text => {
       const got = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(text);
@@ -728,7 +731,7 @@ try {
       const shot = gallery?.querySelector('.goen-pdp__shot');
       if (!shot) return null;
       // A probe turns the custom properties, which may be written as any colour
-      // syntax, into the rgb() text the shot's own background computes to.
+      // syntax, into the rgb() text the plate's own background computes to.
       const probe = document.createElement('div');
       document.body.append(probe);
       const resolve = name => {
@@ -736,24 +739,28 @@ try {
         probe.style.backgroundColor = getComputedStyle(gallery).getPropertyValue(name);
         return getComputedStyle(probe).backgroundColor;
       };
+      const plate = getComputedStyle(gallery, '::before');
       const style = getComputedStyle(shot);
-      const corners = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map(corner => style['border' + corner + 'Radius']);
       const sides = ['Top', 'Right', 'Bottom', 'Left'];
+      const corners = s => ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map(corner => s['border' + corner + 'Radius']);
       const image = shot.querySelector('.goen-pdp__shotimg');
       const placeholder = shot.querySelector('.goen-ph');
+      const outer = shot.getBoundingClientRect(), frame = gallery.getBoundingClientRect();
       const result = {
         toned: !!(gallery.closest('[data-tone]') || gallery.querySelector('[data-tone]')),
-        photo: resolve('--photo'),
-        background: style.backgroundColor, corners,
-        padding: sides.map(side => style['padding' + side]),
+        paper: resolve('--photo-plate'),
+        plate: plate.backgroundColor, plateCorners: corners(plate),
+        plateEdge: sides.map(side => plate['border' + side + 'Width']),
+        wellBackground: style.backgroundColor, wellCorners: corners(style), wellClip: style.overflowX,
         shotBorder: sides.map(side => style['border' + side + 'Width']),
+        spans: [outer.left - frame.left, frame.right - outer.right],
       };
       if (image) {
         const picture = getComputedStyle(image);
-        const outer = shot.getBoundingClientRect(), inner = image.getBoundingClientRect();
+        const inner = image.getBoundingClientRect();
         Object.assign(result, {
           imageBorder: sides.map(side => picture['border' + side + 'Width']),
-          imageClip: picture.backgroundClip,
+          blend: picture.mixBlendMode,
           inset: [inner.left - outer.left, inner.top - outer.top, outer.right - inner.right, outer.bottom - inner.bottom],
         });
       }
@@ -768,19 +775,23 @@ try {
         const drawn = await measure();
         assert.ok(drawn, `${label}: no photograph well on the page`);
         assert.equal(drawn.toned, false, `${label}: a department tone reaches the photograph well`);
-        assert.equal(drawn.background, drawn.photo, `${label}: the well is ${drawn.background}, not the photograph ground ${drawn.photo}`);
-        assert.deepEqual(drawn.padding, Array(4).fill('0px'), `${label}: the well has padding ${drawn.padding}`);
+        assert.equal(drawn.plate, drawn.paper, `${label}: the plate is ${drawn.plate}, not the photograph plate ${drawn.paper}`);
+        assert.deepEqual(drawn.plateCorners, Array(4).fill('12px'), `${label}: the plate's corners are ${drawn.plateCorners}`);
+        assert.deepEqual(drawn.plateEdge, Array(4).fill('1px'), `${label}: the plate's edge is ${drawn.plateEdge}`);
+        assert.equal(drawn.wellBackground, 'rgba(0, 0, 0, 0)', `${label}: the well paints ${drawn.wellBackground} over the plate`);
+        assert.deepEqual(drawn.wellCorners, Array(4).fill('0px'), `${label}: the well's corners are ${drawn.wellCorners}, not square`);
+        assert.equal(drawn.wellClip, 'hidden', `${label}: the well does not clip, so a photograph landing in it has no corner to land on`);
         assert.deepEqual(drawn.shotBorder, Array(4).fill('0px'), `${label}: the well has a border ${drawn.shotBorder}`);
-        assert.deepEqual(drawn.corners, Array(4).fill('0px'), `${label}: corners ${drawn.corners}, not square`);
+        for (const gap of drawn.spans) assert.ok(Math.abs(gap) < 0.5, `${label}: the well does not span the plate: ${drawn.spans}`);
         if (photo) {
           assert.deepEqual(drawn.imageBorder, Array(4).fill('0px'), `${label}: the picture has an edge ${drawn.imageBorder}`);
-          assert.equal(drawn.imageClip, 'border-box', `${label}: the picture's background is clipped to ${drawn.imageClip}`);
-          for (const gap of drawn.inset) assert.ok(Math.abs(gap) < 0.5, `${label}: the picture sits ${drawn.inset} inside the well`);
-          console.log(`${label}: ${drawn.background} well, square corners, picture edge to edge`);
+          assert.equal(drawn.blend, 'multiply', `${label}: the picture is not multiplied into the plate`);
+          for (const gap of drawn.inset) assert.ok(gap >= 8, `${label}: the picture sits ${drawn.inset} inside the plate, want at least 8px from each edge`);
+          console.log(`${label}: ${drawn.plate} plate, 12px corners, square well, picture inset and multiplied`);
         } else {
-          const contrast = ratio(channels(drawn.textColor), channels(drawn.background));
-          assert.ok(contrast >= 4.5, `${label}: placeholder ${drawn.textColor} on ${drawn.background} is ${contrast.toFixed(2)}:1`);
-          console.log(`${label}: ${drawn.background} well, square corners, placeholder text ${contrast.toFixed(2)}:1`);
+          const contrast = ratio(channels(drawn.textColor), channels(drawn.plate));
+          assert.ok(contrast >= 4.5, `${label}: placeholder ${drawn.textColor} on ${drawn.plate} is ${contrast.toFixed(2)}:1`);
+          console.log(`${label}: ${drawn.plate} plate, square well, placeholder text ${contrast.toFixed(2)}:1`);
         }
       }
     }
@@ -1135,7 +1146,7 @@ try {
     const corners = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'];
     const rootSize = size => evaluate(`document.documentElement.style.fontSize = ${JSON.stringify(size)}`);
     const names = ['--n-0', '--n-50', '--n-500', '--accent', '--accent-faint', '--accent-deep', '--control-boundary', '--error', '--fg',
-      '--sys-surface', '--sys-on-surface', '--sys-outline'];
+      '--sys-surface', '--sys-on-surface', '--sys-outline', '--fill-ink', '--on-fill-ink'];
 
     // Fields share one corner, in px: a corner in rem would grow with the text
     // and turn a tall textarea into a pill.
@@ -1224,9 +1235,8 @@ try {
     }
 
     // The text option: a square box of the field corner on the page's ground,
-    // chosen by a 2px ink frame (its 1px edge and an inset line of the same
-    // ink), with no tint, no blue and no check. Choosing one does not change
-    // the height.
+    // chosen by an ink fill with its words in the fill's own light, as drawn,
+    // with no blue and no check. Choosing one does not change the height.
     const swatches = ids => evaluate(`${JSON.stringify(ids)}.map(id => {
       const element = document.getElementById(id);
       if (!element) return null;
@@ -1280,31 +1290,30 @@ try {
         assert.equal(plain.radius, corner, `${where}: an unchosen option has corner ${plain.radius}, not ${corner}`);
         assert.equal(plain.tick, null, `${where}: an unchosen option is ticked`);
         assert.equal(plain.shadow, 'none', `${where}: an unchosen option draws a shadow: ${plain.shadow}`);
-        assert.equal(chosen.background, plain.background, `${where}: the chosen option is ${chosen.background}, not the unchosen ground ${plain.background}: no tint`);
-        assert.deepEqual(chosen.colours, Array(4).fill(t['--sys-on-surface']), `${where}: the chosen edge is ${chosen.colours}, not the ink ${t['--sys-on-surface']}`);
-        assert.equal(chosen.shadow, `${t['--sys-on-surface']} 0px 0px 0px 1px inset`, `${where}: the chosen option's second pixel is ${chosen.shadow}, not an inset line of the ink`);
-        assert.equal(chosen.color, plain.color, `${where}: the chosen text is ${chosen.color}, not the unchosen text ${plain.color}`);
+        assert.equal(chosen.background, t['--fill-ink'], `${where}: the chosen option is ${chosen.background}, not the ink fill ${t['--fill-ink']}`);
+        assert.deepEqual(chosen.colours, Array(4).fill(t['--fill-ink']), `${where}: the chosen edge is ${chosen.colours}, not the fill ${t['--fill-ink']}`);
+        assert.equal(chosen.color, t['--on-fill-ink'], `${where}: the chosen text is ${chosen.color}, not the fill's own ${t['--on-fill-ink']}`);
         assert.equal(chosen.radius, corner, `${where}: the chosen option has corner ${chosen.radius}, not ${corner}`);
         assert.ok(Math.abs(chosen.height - plain.height) < 0.5, `${where}: choosing resizes the option from ${plain.height}px to ${chosen.height}px`);
         assert.equal(chosen.tick, null, `${where}: the chosen option is ticked: ${JSON.stringify(chosen.tick)}`);
         assert.ok(chosen.inside && plain.inside, `${where}: an option is cut by the edge of the screen`);
-        // Contrast, by the formula above: the frame against the page it sits
-        // on (1.4.11, at least 3:1) and the text against the ground (1.4.3, at
-        // least 4.5:1).
-        const edge = ratio(chosen.colours[0], chosen.ground), text = ratio(chosen.color, chosen.background);
-        assert.ok(edge >= 3, `${where}: the chosen frame on the page is ${edge.toFixed(2)}:1, under 3:1`);
-        assert.ok(text >= 4.5, `${where}: the chosen text on its ground is ${text.toFixed(2)}:1, under 4.5:1`);
-        console.log(`${where}: chosen frame ${edge.toFixed(2)}:1, text ${text.toFixed(2)}:1, no tint, no check`);
+        // Contrast, by the formula above: the fill against the page it sits on
+        // (1.4.11, at least 3:1, so the chosen box is told from the others by
+        // more than its hue) and the text against the fill (1.4.3, at least 4.5:1).
+        const fill = ratio(chosen.background, chosen.ground), text = ratio(chosen.color, chosen.background);
+        assert.ok(fill >= 3, `${where}: the chosen fill on the page is ${fill.toFixed(2)}:1, under 3:1`);
+        assert.ok(text >= 4.5, `${where}: the chosen text on its fill is ${text.toFixed(2)}:1, under 4.5:1`);
+        console.log(`${where}: chosen fill ${fill.toFixed(2)}:1 on the page, text ${text.toFixed(2)}:1, no check`);
       }
     }
     {
       await open('/product?options=in', 1440);
       const t = await tokens(names);
-      const edge = id => evaluate(`getComputedStyle(document.getElementById(${JSON.stringify(id)})).borderTopColor`);
+      const fill = id => evaluate(`getComputedStyle(document.getElementById(${JSON.stringify(id)})).backgroundColor`);
       await force('#swatch-0-1', ['hover']);
-      assert.equal(await edge('swatch-0-1'), t['--sys-on-surface'], `${label}: the chosen option loses its ink frame under the pointer`);
+      assert.equal(await fill('swatch-0-1'), t['--fill-ink'], `${label}: the chosen option loses its ink fill under the pointer`);
       await force('#swatch-0-1', []);
-      console.log(`${label}: the chosen option keeps its ink frame under the pointer`);
+      console.log(`${label}: the chosen option keeps its ink fill under the pointer`);
     }
 
     // A chosen option that is sold out is chosen the same way, still dashed,

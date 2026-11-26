@@ -25,6 +25,9 @@ var (
 		En:     "No answer yet.",
 	})
 
+	// KeyAnswerCount is how many answers a question's closed thread holds.
+	KeyAnswerCount = countKey("pdp.qa.answers", "%s 則回答", "%s answer", "%s answers")
+
 	KeyNoQuestionsYet = key("pdp.qa.none", Message{
 		ZhHant: "還沒有人問過這個商品。",
 		En:     "Nobody has asked about this yet.",
