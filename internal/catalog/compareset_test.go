@@ -182,29 +182,37 @@ func TestCompareSetWithCount(t *testing.T) {
 	}
 }
 
-// TestCompareToggle holds the control a tile or the product page carries: one
-// form, posting to the set with and without script, that reads from the
-// request whether the product is in the set, says which way it goes by
-// aria-pressed under one name, comes back to the page it is on, and says a full
-// set is full only where pressing would add.
+// TestCompareToggle holds the control a card, a row of the spec list and the
+// product page carry: one form, posting to the set with and without script,
+// that reads from the request whether the product is in the set, says which way
+// it goes by aria-pressed under one name, draws a tick only while pressed,
+// comes back to the page it is on, and says a full set is full only in the
+// answer to an add the set refused, never on a page merely drawn with a full
+// set, where a shelf would repeat it under every card.
 func TestCompareToggle(t *testing.T) {
 	t.Parallel()
 	page := frame.WithReturnPath(i18n.WithLocale(t.Context(), i18n.ZhHant), "/c/phones?sort=price")
 	note := "比較已滿 5 個"
+	tick := `<svg`
 	for _, tt := range []struct {
 		name     string
 		set      []string
+		refused  bool
 		pressed  string
 		action   string
 		wantNote bool
 	}{
-		{"no set", nil, `aria-pressed="false"`, `name="action" value="add"`, false},
-		{"out", []string{"a"}, `aria-pressed="false"`, `name="action" value="add"`, false},
-		{"in", []string{"a", "pixelight-9"}, `aria-pressed="true"`, `name="action" value="remove"`, false},
-		{"out of a full set", []string{"a", "b", "c", "d", "e"}, `aria-pressed="false"`, `name="action" value="add"`, true},
-		{"in a full set", []string{"a", "b", "c", "d", "pixelight-9"}, `aria-pressed="true"`, `name="action" value="remove"`, false},
+		{"no set", nil, false, `aria-pressed="false"`, `name="action" value="add"`, false},
+		{"out", []string{"a"}, false, `aria-pressed="false"`, `name="action" value="add"`, false},
+		{"in", []string{"a", "pixelight-9"}, false, `aria-pressed="true"`, `name="action" value="remove"`, false},
+		{"out of a full set", []string{"a", "b", "c", "d", "e"}, false, `aria-pressed="false"`, `name="action" value="add"`, false},
+		{"refused by a full set", []string{"a", "b", "c", "d", "e"}, true, `aria-pressed="false"`, `name="action" value="add"`, true},
+		{"in a full set", []string{"a", "b", "c", "d", "pixelight-9"}, false, `aria-pressed="true"`, `name="action" value="remove"`, false},
 	} {
 		ctx := frame.WithCompareCount(withCompareSet(page, tt.set), len(tt.set))
+		if tt.refused {
+			ctx = withCompareRefused(ctx)
+		}
 		got := renderComponent(t, ctx, CompareToggle("pixelight-9", "Pixelight 9"))
 		for _, want := range []string{
 			`method="post" action="/compare/items" hx-post="/compare/items"`,
@@ -217,6 +225,9 @@ func TestCompareToggle(t *testing.T) {
 			if !strings.Contains(got, want) {
 				t.Errorf("%s: the toggle lacks %s: %s", tt.name, want, got)
 			}
+		}
+		if pressed := tt.pressed == `aria-pressed="true"`; strings.Contains(got, tick) != pressed {
+			t.Errorf("%s: draws a tick = %v, want %v", tt.name, !pressed, pressed)
 		}
 		if strings.Contains(got, note) != tt.wantNote {
 			t.Errorf("%s: says the set is full = %v, want %v", tt.name, !tt.wantNote, tt.wantNote)

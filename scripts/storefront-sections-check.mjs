@@ -349,22 +349,35 @@ try {
     console.log('campaigns: name underlined on hover');
   }
 
-  // The compare button acts on the ticked boxes: with none ticked it is not offered.
+  // A card's compare toggle stands after the price and before the quick add,
+  // the two together at the foot's end on the price's line, as the board draws
+  // them, a 44px target unpressed; a card the page hands no toggle draws none.
+  // The press itself is check-layout's (compare-toggle-check.mjs), against a
+  // server that keeps the set.
   {
-    const label = 'compare button';
+    const label = 'compare toggle';
     await open('/search', 1440);
-    const button = () => evaluate(`(() => {
-      const go = document.querySelector('.goen-compare-pick__go');
-      return go && { display: getComputedStyle(go).display, height: go.getBoundingClientRect().height };
+    const got = await evaluate(`(() => {
+      const feet = [...document.querySelectorAll('.goen-tile__foot')];
+      const foot = feet.find(f => f.querySelector('.goen-tile__addbutton'));
+      const price = foot?.querySelector('.goen-tile__pricing');
+      const toggle = foot?.querySelector('.goen-comparetoggle__button');
+      const add = foot?.querySelector('.goen-tile__addbutton');
+      if (!price || !toggle || !add) return null;
+      const [p, t, a, f] = [price, toggle, add, foot].map(e => e.getBoundingClientRect());
+      const middle = r => r.top + r.height / 2;
+      return { toggles: document.querySelectorAll('.goen-comparetoggle').length, cards: feet.length,
+        pressed: toggle.getAttribute('aria-pressed'), order: p.right <= t.left && t.right <= a.left,
+        level: Math.abs(middle(t) - middle(a)), gap: a.left - t.right, end: f.right - a.right, height: t.height };
     })()`);
-    const tick = () => evaluate(`document.querySelector('.goen-compare-pick input[type="checkbox"]').click()`);
-    assert.deepEqual(await button(), { display: 'none', height: 0 }, `${label}: offered with nothing ticked`);
-    await tick();
-    const ticked = await button();
-    assert.ok(ticked.display !== 'none' && ticked.height > 0, `${label}: not offered with a product ticked: ${JSON.stringify(ticked)}`);
-    await tick();
-    assert.equal((await button()).display, 'none', `${label}: still offered once the box is unticked`);
-    console.log(`${label}: hidden until a product is ticked`);
+    assert.ok(got, `${label}: the search fixture's card lacks its price, toggle or quick add`);
+    assert.equal(got.toggles, got.cards, `${label}: ${got.toggles} toggles on ${got.cards} cards the page handed one each`);
+    assert.equal(got.pressed, 'false', `${label}: reads aria-pressed=${got.pressed} with nothing kept`);
+    assert.ok(got.order && got.level < 1, `${label}: not price, toggle, quick add on one line: ${JSON.stringify(got)}`);
+    assert.ok(got.gap > 0 && got.gap <= 12, `${label}: the toggle stands ${got.gap}px from the quick add, not beside it`);
+    assert.ok(Math.abs(got.end) < 1, `${label}: the quick add ends ${got.end}px before the foot's end`);
+    assert.ok(got.height >= 44, `${label}: the toggle is ${got.height}px tall`);
+    console.log(`${label}: after the price, beside the quick add at the foot's end, ${got.height}px tall`);
   }
 
   // The filter chips are still a pill with one corner, in rem so it grows with

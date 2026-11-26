@@ -45,7 +45,7 @@ templ Compare(p frame.Page, v CompareView) {
 					<ul class="goen-compare__chosen" role="list">
 						for _, item := range v.Products {
 							<li>
-								<a href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
+								<a href={ templ.SafeURL("/p/" + item.Slug) }>{ item.Name }</a>
 								@compareChange(v, item.Slug, compareRemoveAction, widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}) {
 									{ i18n.T(ctx, i18n.KeyRemove) }
 								}
@@ -157,7 +157,7 @@ templ compareSuggestions(v CompareView) {
 								/>
 							</span>
 						}
-						<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(t.Slug)) }>{ t.Name }</a>
+						<a class="goen-compare__name" href={ templ.SafeURL("/p/" + t.Slug) }>{ t.Name }</a>
 						if t.Brand != "" {
 							<span class="goen-compare__brand">{ t.Brand }</span>
 						}
@@ -238,7 +238,7 @@ templ compareTable(v CompareView, preview bool) {
 								if item.Brand != "" {
 									<span class="goen-compare__brand">{ item.Brand }</span>
 								}
-								<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
+								<a class="goen-compare__name" href={ templ.SafeURL("/p/" + item.Slug) }>{ item.Name }</a>
 								<span class="goen-compare__price">
 									@tile.Price(item.PriceTile())
 								</span>
@@ -325,7 +325,7 @@ templ compareBuy(v CompareView, item CompareProduct) {
 			}
 		</form>
 	} else if item.InStock {
-		@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary, Size: widget.SizeSmall}, templ.SafeURL(v.ProductHref(item.Slug))) {
+		@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary, Size: widget.SizeSmall}, templ.SafeURL("/p/"+item.Slug)) {
 			{ i18n.T(ctx, i18n.KeyChooseOptions) }
 			<span class="goen-sr-only">{ " " + item.Name }</span>
 		}

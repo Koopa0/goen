@@ -74,6 +74,26 @@ func TestCompareSetAgainstCatalogue(t *testing.T) {
 	if swapped.Code != http.StatusOK {
 		t.Errorf("htmx's answer is %d, want 200", swapped.Code)
 	}
+	if strings.Contains(body, "比較已滿") {
+		t.Error("htmx's answer to an add the set took says the set is full")
+	}
+
+	// A full set refuses the add, writes nothing, and its answer says why
+	// beside a button still unpressed; the count stays.
+	const full = "pixelight-9.pixelight-9-pro.aurora-edge-7.koto-over-ear.nimbus-buds-pro"
+	refused := post(full, true, url.Values{"slug": {"meridian-book-14"}, "action": {"add"}, "return": {"/c/laptops"}})
+	if _, ok := written(refused); ok {
+		t.Error("a full set wrote the set")
+	}
+	for _, want := range []string{
+		`<button class="goen-comparetoggle__button" type="submit" aria-pressed="false">`,
+		`<span class="goen-comparetoggle__note" role="status">比較已滿 5 個，請先移除一個再加入。</span>`,
+		`<span class="goen-header__comparecount">5</span>`,
+	} {
+		if !strings.Contains(refused.Body.String(), want) {
+			t.Errorf("htmx's answer to an add a full set refused lacks %s", want)
+		}
+	}
 
 	h := catalog.NewHandler(store, log, "https://goen.example")
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/compare", http.NoBody)

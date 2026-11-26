@@ -10,9 +10,9 @@ import (
 
 // Card is the card Cell wraps in its grid cell, for a grid whose cell holds
 // more than the card (the wishlist's, with its buttons). The link is the
-// photograph and the words that name the product; the swatches, the price and
-// the quick add follow it, because a control nested in an anchor is neither
-// clickable nor valid.
+// photograph and the words that name the product; the swatches, the price, the
+// compare control and the quick add follow it, because a control nested in an
+// anchor is neither clickable nor valid.
 templ Card(t Tile) {
 	<a class={ "goen-tile", templ.KV("goen-tile--out", t.SoldOut()) } href={ templ.URL("/p/" + t.Slug) }>
 		<div class="goen-tile__media">
@@ -91,17 +91,15 @@ templ Card(t Tile) {
 				@saleUntil(t)
 			}
 		</div>
+		// After the price, as the eye reads them: the compare control the page
+		// handed the card, then the quick add.
+		if t.CompareControl != nil {
+			@t.CompareControl
+		}
 		if t.CanQuickAdd() {
 			@QuickAdd(t)
 		}
 	</div>
-	if t.Comparable {
-		<label class="goen-tile__compare">
-			<input type="checkbox" name="p" value={ t.Slug } class="goen-check" form="compare-pick"/>
-			<span>{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
-			<span class="goen-sr-only">{ " " + t.Name }</span>
-		</label>
-	}
 }
 
 // The stars are drawn; the sentence that says them is read.

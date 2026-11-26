@@ -3,8 +3,9 @@
 // cell and price line with the struck compare-at price and the savings seal,
 // its colour swatches and its quick add, and which tiles load at once; it does
 // not hold whether a price is struck (campaign.OnSale, which the caller
-// applies), the pages that list tiles (catalog, campaign, home, wishlist) or
-// page elements without a product (ui/widget).
+// applies), the compare control a card draws (the caller hands it over, as
+// catalog.CompareToggle), the pages that list tiles (catalog, campaign, home,
+// wishlist) or page elements without a product (ui/widget).
 package tile
 
 import (
@@ -14,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
@@ -63,9 +66,12 @@ type Tile struct {
 	// where the colour has none of its own. Where a colour has one, the card's
 	// swatches are buttons that put it on the card.
 	ColourPhotos []ColourPhoto
-	// Set only where somebody is choosing between candidates (listing, search); not a
-	// shop window, a promotional list or a wishlist.
-	Comparable bool
+	// CompareControl is the control that keeps the product in the shopper's
+	// comparison, drawn in the card's foot before the quick add, or nil where
+	// the page offers none: a product whose department does not compare, a
+	// promotional list, a wishlist. The page that reads the product builds it,
+	// so the card draws it without knowing what it posts.
+	CompareControl templ.Component
 	// Highlights are the first specification values the product lists, at
 	// most three, drawn as capsules under its name.
 	Highlights []string
@@ -137,10 +143,6 @@ func wordSpace(ctx context.Context) string {
 		return ""
 	}
 	return " "
-}
-
-func AnyComparable(tiles []Tile) bool {
-	return slices.ContainsFunc(tiles, func(t Tile) bool { return t.Comparable })
 }
 
 func (t *Tile) SoldOut() bool { return !t.InStock }

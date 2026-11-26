@@ -293,40 +293,35 @@ func TestListingFocusesResults(t *testing.T) {
 	}
 }
 
-// TestListingCompareForm holds that a comparison can be built from a listing.
-//
-// It holds the one path into /compare. The comparison lives in the URL and
-// nowhere else, so every link into it has to carry the set. The listing is
-// where somebody chooses between candidates, so the listing is where the set is
-// built — a GET form, because a comparison writes nothing.
-func TestListingCompareForm(t *testing.T) {
+// TestListingCompareToggle holds that a listing puts a product in the compare
+// set from its card or its row, in either view: the toggle that posts to the
+// set, for each product whose department compares and no other, and no GET
+// form of ticked boxes beside it.
+func TestListingCompareToggle(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ListingView{Slug: "phones", Name: "手機", Shelf: Shelf{Path: "/c/phones", Total: 2, Products: []tile.Tile{
-		{Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Comparable: true},
-		{Slug: "aurora-fold-2", Name: "Aurora Fold 2", Comparable: true},
+	view := ListingView{Slug: "phones", Name: "手機", Shelf: Shelf{Path: "/c/phones", Total: 3, Products: []tile.Tile{
+		{Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", CompareControl: compareControl(true, "pixelight-9-pro", "Pixelight 9 Pro")},
+		{Slug: "aurora-fold-2", Name: "Aurora Fold 2", CompareControl: compareControl(true, "aurora-fold-2", "Aurora Fold 2")},
+		{Slug: "orili-tote", Name: "Orili Tote", CompareControl: compareControl(false, "orili-tote", "Orili Tote")},
 	}}}
 	for _, v := range []View{ViewGrid, ViewList} {
 		view.View = v
 		html := renderComponent(t, ctx, Listing(ListingMeta(ctx, &view), &view))
-
-		// The form's action and method, not merely a checkbox: a checkbox that
-		// submits to the listing filters the listing.
-		if !strings.Contains(html, `method="get" action="/compare"`) {
-			t.Errorf("%q view: the listing carries no GET form to /compare", v)
+		if got := strings.Count(html, `<form class="goen-comparetoggle" method="post" action="/compare/items"`); got != 2 {
+			t.Errorf("%q view: %d compare toggles, want one for each of the two products that compare", v, got)
 		}
 		for _, slug := range []string{"pixelight-9-pro", "aurora-fold-2"} {
-			if !strings.Contains(html, `<input type="checkbox" name="p" value="`+slug+`" class="goen-check" form="compare-pick">`) {
-				t.Errorf("%q view: no compare checkbox for %q; one product can never become two", v, slug)
+			if !strings.Contains(html, `<input type="hidden" name="slug" value="`+slug+`">`) {
+				t.Errorf("%q view: no compare toggle for %q", v, slug)
 			}
 		}
-	}
-
-	// The set survives a click back out of the table, or building a third
-	// column means starting from one again.
-	cmp := CompareView{Products: []CompareProduct{{Slug: "a"}, {Slug: "b"}}}
-	if got, want := cmp.ProductHref("a"), "/p/a?p=a&p=b"; got != want {
-		t.Errorf("ProductHref(a) = %q, want %q", got, want)
+		if strings.Contains(html, `value="orili-tote">`) {
+			t.Errorf("%q view: a product whose department does not compare carries a toggle", v)
+		}
+		if strings.Contains(html, `action="/compare"`) || strings.Contains(html, `type="checkbox" name="p"`) {
+			t.Errorf("%q view: the listing still carries a form of ticked boxes to /compare", v)
+		}
 	}
 }
 
@@ -408,7 +403,7 @@ func shelf(n int) []tile.Tile {
 	tiles := make([]tile.Tile, 0, n)
 	for i := range n {
 		slug := fmt.Sprintf("p%d", i)
-		tiles = append(tiles, tile.Tile{Slug: slug, Name: slug, PriceCents: 1000, Comparable: true, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
+		tiles = append(tiles, tile.Tile{Slug: slug, Name: slug, PriceCents: 1000, CompareControl: CompareToggle(slug, slug), ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
 	}
 	return tiles
 }

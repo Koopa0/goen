@@ -18884,6 +18884,25 @@ func (q *Queries) SettledRefundsForOrder(ctx context.Context, orderNumber string
 	return refunded_cents, err
 }
 
+const shelfCompares = `-- name: ShelfCompares :one
+SELECT coalesce(s.comparable, d.comparable, false)::boolean AS compares
+FROM categories s
+LEFT JOIN categories d ON d.id = s.parent_id
+WHERE s.id = $1::uuid
+`
+
+// Whether the featured shelf puts its products side by side, for the compare
+// toggle on its cards: the shown category's own answer, else its department's,
+// as catalog's ComparableCategoryIDs inherits it. The shelf is a department or
+// one of its children, and only a department stores an answer
+// (admin/taxonomy), so this is the answer for every card on the shelf.
+func (q *Queries) ShelfCompares(ctx context.Context, categoryID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, shelfCompares, categoryID)
+	var compares bool
+	err := row.Scan(&compares)
+	return compares, err
+}
+
 const shipmentRecipient = `-- name: ShipmentRecipient :one
 SELECT coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,

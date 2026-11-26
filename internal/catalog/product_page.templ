@@ -547,6 +547,11 @@ templ productAddForm(v *ProductView) {
 				}
 			}
 		</form>
+		// Beside the add, not in its form: a form cannot hold another, and the
+		// toggle is a post of its own that swaps only itself.
+		if v.Comparable {
+			@CompareToggle(v.Slug, v.Name)
+		}
 	</div>
 }
 
@@ -606,27 +611,17 @@ templ productBuyBar(v *ProductView) {
 	</div>
 }
 
-// A plain link: the set is the address.
+// The specifications lead to a ready-made comparison, the product beside the
+// ones on its shelf priced closest to it: a link, as the compare page's own
+// ready-made comparisons are, so the shopper's compare set is left as it was;
+// the toggle in the buy column is what keeps the product in the set. The same
+// blue link and arrow the department page uses for its comparison.
 templ productCompare(v *ProductView) {
-	if v.Comparable {
+	if len(v.Similar) > 0 {
 		<div class="goen-pdp__similar">
-			if !v.AlreadyComparing() && !v.ComparingFull() {
-				@productCompareLink(v.CompareHref(), i18n.T(ctx, i18n.KeyCompareSimilar))
-			} else if v.AlreadyComparing() {
-				@productCompareLink(v.CompareHref(), i18n.T(ctx, i18n.KeyViewCompare))
-			} else {
-				<p class="goen-pdp__hint">
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }
-					<a href={ templ.SafeURL(v.CurrentCompareHref()) }>{ i18n.T(ctx, i18n.KeyViewCompare) }</a>
-				</p>
-			}
+			<a class="goen-pdp__compare" href={ templ.SafeURL(v.CompareHref()) }>{ i18n.T(ctx, i18n.KeyCompareSimilar) } <span aria-hidden="true">&rarr;</span></a>
 		</div>
 	}
-}
-
-// The same blue link and arrow the department page uses for its comparison.
-templ productCompareLink(href, label string) {
-	<a class="goen-pdp__compare" href={ templ.SafeURL(href) }>{ label } <span aria-hidden="true">&rarr;</span></a>
 }
 
 // The sold-out notice: what is missing, what the form does, and the form, on the savings tint that a

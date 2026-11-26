@@ -74,7 +74,7 @@ var (
 
 	KeyCompareTooFewHint = key("compare.toofew.hint", Message{
 		ZhHant: "在",
-		En:     "Tick Compare on products in the ",
+		En:     "Press Compare on products in the ",
 	})
 
 	KeyCompareTooFewLink = key("compare.toofew.link", Message{
@@ -85,23 +85,19 @@ var (
 	// KeyCompareTooFewTail ends the sentence KeyCompareTooFewHint and the link
 	// begin; %d is the most products a comparison holds.
 	KeyCompareTooFewTail = key("compare.toofew.tail", Message{
-		ZhHant: "勾選商品上的「比較」，最多 %d 件。",
+		ZhHant: "按下商品上的「比較」，最多 %d 件。",
 		En:     ", up to %d.",
 	})
 
+	// KeyCompareAdd names the compare toggle a card, a row of the spec list and
+	// the product page carry. A toggle keeps its name pressed or not, so there
+	// is no second wording for a product already in the set.
 	KeyCompareAdd = key("compare.add", Message{ZhHant: "比較", En: "Compare"})
 
 	// KeyCompareAddNamed names the compare page's candidate button.
 	KeyCompareAddNamed = key("compare.add.named", Message{
 		ZhHant: "把 %s 加入比較",
 		En:     "Add %s to the comparison",
-	})
-
-	// KeyCompareLimit is on the form rather than only in the empty state: ticking
-	// six and being shown four is a cap that never said so.
-	KeyCompareLimit = key("compare.limit", Message{
-		ZhHant: "最多比較 %d 件",
-		En:     "Up to %d at a time",
 	})
 
 	KeyCompareFull = key("compare.full", Message{
@@ -127,11 +123,6 @@ var (
 	KeyCompareOneChosen = key("compare.one", Message{
 		ZhHant: "%s 已在比較中，再加入至少一個商品就能並排比較。",
 		En:     "%s is in the comparison. Add at least one more product to compare side by side.",
-	})
-
-	KeyCompareSelected = key("compare.selected", Message{
-		ZhHant: "比較所選商品",
-		En:     "Compare selected",
 	})
 
 	KeyCompareCaption = key("compare.caption", Message{

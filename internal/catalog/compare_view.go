@@ -152,25 +152,6 @@ func (v CompareView) AddHref(slug string) string {
 
 func (v CompareView) Count() int { return len(v.Products) }
 
-// ProductHref carries a link's comparison to the product page, whose compare link
-// adds to it; a kept set needs no carrying.
-func (v CompareView) ProductHref(slug string) string {
-	if v.Kept {
-		return "/p/" + slug
-	}
-	var b strings.Builder
-	b.WriteString("/p/")
-	b.WriteString(slug)
-	sep := "?"
-	for i := range v.Products {
-		b.WriteString(sep)
-		b.WriteString("p=")
-		b.WriteString(v.Products[i].Slug)
-		sep = "&"
-	}
-	return b.String()
-}
-
 func (v CompareView) RemoveHref(slug string) string {
 	var b strings.Builder
 	b.WriteString("/compare")

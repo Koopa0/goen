@@ -84,6 +84,9 @@ type Shelf struct {
 	// Chosen is the sub-category shown, by slug; "" is all of the department.
 	Chosen string
 	Tiles  []tile.Tile
+	// Compares is the shown category's answer to whether its products are put
+	// side by side: where it is, each card carries the compare toggle.
+	Compares bool
 }
 
 // Rail is the products under the ceiling, cheapest first.

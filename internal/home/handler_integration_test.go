@@ -21,6 +21,7 @@ import (
 
 	"errors"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
@@ -67,7 +68,7 @@ func load(t *testing.T, ctx context.Context, store *home.Store, choice home.Choi
 // shelf with its sub-categories, its stage, the rail and the other
 // departments, then the rules.
 func TestHandler_IndexSections(t *testing.T) {
-	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler))
+	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), catalog.CompareToggle)
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	res := httptest.NewRecorder()
 	h.Index(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
@@ -98,6 +99,41 @@ func TestHandler_IndexSections(t *testing.T) {
 	}
 	if !strings.Contains(body, `src="/static/media/hero/hero-tech-flagship.webp?v=`) {
 		t.Error("the dark tile does not stand on the bundled photograph")
+	}
+	// The featured shelf is technology's, which compares: each of its eight
+	// cards carries the catalogue's toggle, and no other card on the page does.
+	shelf, stage := strings.Index(body, `id="shelf"`), strings.Index(body, `class="goen-stage"`)
+	if shelf >= 0 && stage > shelf {
+		const toggle = `<form class="goen-comparetoggle" method="post" action="/compare/items"`
+		if got := strings.Count(body[shelf:stage], toggle); got != 8 {
+			t.Errorf("the featured shelf carries %d compare toggles, want one on each of its 8 cards", got)
+		}
+		if got := strings.Count(body, toggle); got != 8 {
+			t.Errorf("the page carries %d compare toggles, want the featured shelf's 8 alone", got)
+		}
+	}
+}
+
+// TestStore_LoadShelfCompares holds that the featured shelf compares where its
+// department does: a sub-category chosen takes the department's answer, and a
+// department that stops comparing takes the toggle off its shelf.
+func TestStore_LoadShelfCompares(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, choice := range []home.Choice{{}, {Shelf: "phones"}} {
+		if view := load(t, ctx, home.NewStore(pool), choice); view.Shelf == nil || !view.Shelf.Compares {
+			t.Errorf("shelf %q of technology does not compare", choice.Shelf)
+		}
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err = tx.Exec(ctx, `UPDATE categories SET comparable = false WHERE slug = 'tech'`); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	if view := load(t, ctx, home.NewStore(tx), home.Choice{Shelf: "phones"}); view.Shelf == nil || view.Shelf.Compares {
+		t.Error("the phones shelf still compares once technology does not")
 	}
 }
 
@@ -760,7 +796,7 @@ func TestHandler_IndexLowestFeeNote(t *testing.T) {
 		t.Fatalf("publish a new fee: %v", err)
 	}
 
-	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler))
+	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), catalog.CompareToggle)
 	req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, i18n.ZhHant), http.MethodGet, "/", http.NoBody)
 	res := httptest.NewRecorder()
 	h.Index(res, req)
@@ -841,7 +877,7 @@ func TestHandler_IndexNoteWithoutPickup(t *testing.T) {
 	}
 
 	render := func(s *home.Store) string {
-		h := home.NewHandler(s, slog.New(slog.DiscardHandler))
+		h := home.NewHandler(s, slog.New(slog.DiscardHandler), catalog.CompareToggle)
 		res := httptest.NewRecorder()
 		h.Index(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
 		if res.Code != http.StatusOK {

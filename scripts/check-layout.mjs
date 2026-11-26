@@ -27,6 +27,7 @@ import { checkSearchSuggest } from './search-suggest-check.mjs';
 import { checkWarrantyReflow } from './warranty-reflow.mjs';
 import { checkWishlistFocus } from './wishlist-focus-check.mjs';
 import { checkCrumbFocus } from './crumb-focus-check.mjs';
+import { checkCompareToggle } from './compare-toggle-check.mjs';
 
 const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
@@ -4973,6 +4974,17 @@ await checkCrumbFocus({
   },
   navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'crumb focus', url); },
   fail, origin: ORIGIN,
+});
+
+await checkCompareToggle({
+  send: (method, params) => send(ws, method, params),
+  evaluate: async (expression, awaitPromise = false) => {
+    const { result, exceptionDetails } = await send(ws, 'Runtime.evaluate', { expression, awaitPromise, returnByValue: true }, 120000);
+    if (exceptionDetails) throw new Error(JSON.stringify(exceptionDetails));
+    return result.value;
+  },
+  navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'compare toggle', url); },
+  fail, origin: ORIGIN, axeSource, axeRun: AXE_RUN, gates: gatesAccessibility,
 });
 
 await checkQuestionSwitchReflow({

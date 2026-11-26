@@ -151,34 +151,6 @@ func TestCompareOneProductInvites(t *testing.T) {
 	}
 }
 
-// TestCompareFormComparable holds that a tile carries the compare box only
-// where it is comparable.
-//
-// The box and the "compare selected" bar come and go together.
-func TestCompareFormComparable(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	candidate := func(comparable bool) tile.Tile {
-		return tile.Tile{Slug: "a", Name: "A", Comparable: comparable}
-	}
-	if !tile.AnyComparable([]tile.Tile{candidate(false), candidate(true)}) || tile.AnyComparable([]tile.Tile{candidate(false)}) || tile.AnyComparable(nil) {
-		t.Error("AnyComparable does not report whether a tile carries the box")
-	}
-	for _, tt := range []struct {
-		comparable bool
-		wantBox    bool
-	}{{true, true}, {false, false}} {
-		html := renderComponent(t, ctx, compareForm(tile.AnyComparable([]tile.Tile{candidate(tt.comparable)})))
-		if got := strings.Contains(html, `id="compare-pick"`); got != tt.wantBox {
-			t.Errorf("comparable=%v: the compare bar is present = %v, want %v", tt.comparable, got, tt.wantBox)
-		}
-		box := renderComponent(t, ctx, tile.Cell(candidate(tt.comparable)))
-		if got := strings.Contains(box, `form="compare-pick"`); got != tt.wantBox {
-			t.Errorf("comparable=%v: the tile's box is present = %v, want %v", tt.comparable, got, tt.wantBox)
-		}
-	}
-}
-
 // TestCompareRow_Differs holds that a compare row differs when its columns
 // disagree.
 //

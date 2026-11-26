@@ -859,8 +859,8 @@ func TestStore_ListingSearchCompareBox(t *testing.T) {
 			t.Fatalf("%s lists nothing, so this proves nothing", slug)
 		}
 		for _, p := range view.Products {
-			if p.Comparable != want {
-				t.Errorf("%s: %s has Comparable = %v, want %v", slug, p.Slug, p.Comparable, want)
+			if got := p.CompareControl != nil; got != want {
+				t.Errorf("%s: %s carries the compare toggle = %v, want %v", slug, p.Slug, got, want)
 			}
 		}
 	}
@@ -881,8 +881,8 @@ func TestStore_ListingSearchCompareBox(t *testing.T) {
 		for _, p := range view.Products {
 			if p.Slug == c.slug {
 				found = true
-				if p.Comparable != c.want {
-					t.Errorf("search %q: %s has Comparable = %v, want %v", c.query, p.Slug, p.Comparable, c.want)
+				if got := p.CompareControl != nil; got != c.want {
+					t.Errorf("search %q: %s carries the compare toggle = %v, want %v", c.query, p.Slug, got, c.want)
 				}
 			}
 		}
@@ -919,8 +919,8 @@ func TestStore_ListingCompareTrail(t *testing.T) {
 			t.Fatalf("%s lists nothing", slug)
 		}
 		for _, p := range view.Products {
-			if p.Comparable != want {
-				t.Errorf("%s: %s has Comparable = %v, want %v", slug, p.Slug, p.Comparable, want)
+			if got := p.CompareControl != nil; got != want {
+				t.Errorf("%s: %s carries the compare toggle = %v, want %v", slug, p.Slug, got, want)
 			}
 		}
 	}

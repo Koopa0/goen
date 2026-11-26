@@ -262,3 +262,14 @@ SELECT c.id, c.slug, localized_name(c.name, c.name_en, @locale::text) AS name,
 FROM categories c
 WHERE c.parent_id = @department_id::uuid
 ORDER BY c.position, c.name, c.id;
+
+-- Whether the featured shelf puts its products side by side, for the compare
+-- toggle on its cards: the shown category's own answer, else its department's,
+-- as catalog's ComparableCategoryIDs inherits it. The shelf is a department or
+-- one of its children, and only a department stores an answer
+-- (admin/taxonomy), so this is the answer for every card on the shelf.
+-- name: ShelfCompares :one
+SELECT coalesce(s.comparable, d.comparable, false)::boolean AS compares
+FROM categories s
+LEFT JOIN categories d ON d.id = s.parent_id
+WHERE s.id = @category_id::uuid;
