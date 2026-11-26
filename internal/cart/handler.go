@@ -584,14 +584,41 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		n, err := h.store.ItemCount(r.Context(), id)
+		units, subtotal, err := h.store.Badge(r.Context(), id)
 		if err != nil {
 			if !errors.Is(r.Context().Err(), context.Canceled) {
-				h.log.ErrorContext(r.Context(), "count cart items", "error", err)
+				h.log.ErrorContext(r.Context(), "read the cart's badge", "error", err)
 			}
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(frame.WithCartCount(r.Context(), n)))
+		summary := frame.CartSummary{Units: units, SubtotalCents: subtotal}
+		if units > 0 && r.Method == http.MethodGet {
+			summary.Delivery = h.headerDelivery(r.Context(), id, subtotal)
+		}
+		next.ServeHTTP(w, r.WithContext(frame.WithCart(r.Context(), summary)))
 	})
+}
+
+// headerDelivery is the cart page's own sentence about free delivery, for the
+// header: read only for a page, where a header is drawn. A failed read says
+// nothing, as the cart page does.
+func (h *Handler) headerDelivery(ctx context.Context, cartID uuid.UUID, subtotalCents int64) frame.CartDelivery {
+	choices, err := h.OfferedShipping(ctx, cartID, subtotalCents)
+	if err != nil {
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			h.log.ErrorContext(ctx, "read shipping for the header", "error", err)
+		}
+		return frame.CartDelivery{}
+	}
+	switch fd := freeDeliveryFor(choices, subtotalCents); fd.Kind {
+	case FreeDeliveryShort:
+		return frame.CartDelivery{ShortCents: fd.ShortfallCents}
+	case FreeDeliveryReached:
+		return frame.CartDelivery{Free: true, Zones: fd.SurchargeZones}
+	case FreeDeliveryUnstated:
+		return frame.CartDelivery{}
+	default:
+		panic("cart: unknown FreeDeliveryKind: " + string(fd.Kind))
+	}
 }

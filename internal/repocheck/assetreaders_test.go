@@ -60,7 +60,6 @@ var assetReaders = map[string]string{
 	"assets/scheme_test.go#TestAppCSSColoursFollowTheScheme":              "contract: a colour with no night is a lit patch on any night page, including the routes no sweep visits, so the sheet's text is what is held",
 	"assets/scheme_test.go#TestAppCSSPairFallback":                        "contract: the fallback runs only in a browser without light-dark(), which no browser test has, so the rule's text is what is held",
 	"assets/contrast_test.go#TestAppCSSFilledControlFocusHalo":            "contract: the gate visits its routes in the light scheme, so the band that keeps the focus ring seen on the night's button is held on the rule itself",
-	"assets/contrast_test.go#TestAppCSSDepartmentPanelGround":             "contract: the gate visits its routes in the light scheme, so the panel's night ground is held on the rule and the token values",
 	"assets/contrast_test.go#TestAppCSSInverseNoticeParts":                "contract: the gate visits its routes in the light scheme, so what the rules lay on the inverse ground is held on the rules and the token values",
 	"assets/contrast_test.go#TestAppCSSToneFallback":                      "contract: the fallback runs only in a browser without light-dark(), which no browser test has, so the rule's text is what is held",
 	"assets/contrast_test.go#TestAppCSSBandMutedText":                     "#380",

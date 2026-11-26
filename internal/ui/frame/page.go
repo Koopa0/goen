@@ -7,10 +7,12 @@ package frame
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -97,17 +99,6 @@ type NavItem struct {
 	// character on.
 	Tone     tone.Tone
 	Children []NavItem
-	Picks    []NavPick
-}
-
-// NavPick carries a Price that is already rendered, "from" included where variants differ: the
-// chrome prints it as given.
-type NavPick struct {
-	Slug        string
-	Name        string
-	Price       string
-	ImageURL    string
-	ImageSrcset string
 }
 
 type topNavKey struct{}
@@ -194,18 +185,63 @@ func ReturnPath(ctx context.Context) string {
 	return p
 }
 
-type cartCountKey struct{}
-
-// WithCartCount carries the visitor's cart size down to the page chrome, from
-// middleware rather than from each handler's view model.
-func WithCartCount(ctx context.Context, n int) context.Context {
-	return context.WithValue(ctx, cartCountKey{}, n)
+// CartSummary is what the header says of the visitor's cart: how many units it
+// holds, sold out or not, and the subtotal and delivery its own page states.
+type CartSummary struct {
+	Units         int
+	SubtotalCents int64
+	Delivery      CartDelivery
 }
 
-// CartCount is how many items the visitor's cart holds, or zero when nothing
-// put a count there.
+// CartDelivery is where a cart stands against free delivery, as its page says
+// it. It says nothing where the methods on offer disagree: ShortCents is zero
+// and Free is false.
+type CartDelivery struct {
+	// ShortCents is how much more the cart needs before every method offered
+	// is free.
+	ShortCents int64
+	// Free says every method offered costs nothing; Zones are the surcharge
+	// zones some method still charges extra to.
+	Free  bool
+	Zones []string
+}
+
+type cartKey struct{}
+
+// WithCart carries the visitor's cart down to the page chrome, from middleware
+// rather than from each handler's view model.
+func WithCart(ctx context.Context, c CartSummary) context.Context {
+	return context.WithValue(ctx, cartKey{}, c)
+}
+
+// CartFrom is the visitor's cart as middleware put it there, or the zero
+// summary of an empty cart.
+func CartFrom(ctx context.Context) CartSummary {
+	c, ok := ctx.Value(cartKey{}).(CartSummary)
+	if !ok {
+		return CartSummary{}
+	}
+	return c
+}
+
+// CartCount is how many units the visitor's cart holds, or zero when nothing
+// put a cart there.
 func CartCount(ctx context.Context) int {
-	n, ok := ctx.Value(cartCountKey{}).(int)
+	return CartFrom(ctx).Units
+}
+
+type freeOverKey struct{}
+
+// WithFreeDeliveryOver carries the amount at which every delivery method turns
+// free, the shop's stated threshold, for a visitor whose cart says nothing
+// itself. Zero is no threshold.
+func WithFreeDeliveryOver(ctx context.Context, cents int64) context.Context {
+	return context.WithValue(ctx, freeOverKey{}, cents)
+}
+
+// FreeDeliveryOver is the threshold WithFreeDeliveryOver carried, or zero.
+func FreeDeliveryOver(ctx context.Context) int64 {
+	n, ok := ctx.Value(freeOverKey{}).(int64)
 	if !ok {
 		return 0
 	}
@@ -272,12 +308,37 @@ func currentPage(ctx context.Context, path string) bool {
 	return requestPath == path
 }
 
-func cartLabel(ctx context.Context, count int) string {
-	if count == 0 {
+func cartLabel(ctx context.Context, c CartSummary) string {
+	if c.Units == 0 {
 		return i18n.T(ctx, i18n.KeyCartEmpty)
 	}
 	// Substituted, not appended: the two languages put the count in different places.
-	return i18n.Count(ctx, i18n.KeyCartCount, int64(count), strconv.Itoa(count))
+	if c.SubtotalCents > 0 {
+		return i18n.Count(ctx, i18n.KeyCartCountSubtotal, int64(c.Units), strconv.Itoa(c.Units), money.TWD(c.SubtotalCents))
+	}
+	return i18n.Count(ctx, i18n.KeyCartCount, int64(c.Units), strconv.Itoa(c.Units))
+}
+
+// deliveryWord is what the rail says about delivery and where it leads. A cart
+// with something in it says what its own page says, or nothing where the
+// methods on offer disagree; any other visitor reads the shop's stated
+// threshold, or nothing where some method never turns free.
+func deliveryWord(ctx context.Context) (word, href string) {
+	c := CartFrom(ctx)
+	switch {
+	case c.Units > 0 && c.Delivery.ShortCents > 0:
+		return i18n.T(ctx, i18n.KeyCartFactToFree) + " " + money.TWD(c.Delivery.ShortCents), "/cart"
+	case c.Units > 0 && c.Delivery.Free && len(c.Delivery.Zones) > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyFreeDeliveryReachedExcept),
+			strings.Join(c.Delivery.Zones, i18n.T(ctx, i18n.KeyListSeparator))), "/cart"
+	case c.Units > 0 && c.Delivery.Free:
+		return i18n.T(ctx, i18n.KeyFreeDeliveryReached), "/cart"
+	case c.Units > 0:
+		return "", ""
+	case FreeDeliveryOver(ctx) > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), money.TWD(FreeDeliveryOver(ctx))), "/shipping"
+	}
+	return "", ""
 }
 
 // languageShown is the language the storefront's switch names: the one a click changes

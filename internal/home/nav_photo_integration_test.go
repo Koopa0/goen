@@ -141,27 +141,4 @@ func assertDepartmentPhotograph(t *testing.T, ctx context.Context, chrome *site.
 	if photo := category.Theme.Image(); photo.URL != url || photo.Srcset != srcset {
 		t.Errorf("landing %s photograph = %+v; want %q, %q", slug, photo, url, srcset)
 	}
-	var header strings.Builder
-	if err = frame.Header(frame.Page{}).Render(frame.WithTopNav(ctx, nav), &header); err != nil {
-		t.Fatalf("render header: %v", err)
-	}
-	browse := regexp.MustCompile(`(?s)<a class="goen-dept__browse" href="/c/` + regexp.QuoteMeta(slug) + `">(.*?)</a>`).FindString(header.String())
-	if browse == "" {
-		t.Fatalf("header omits %s panel", slug)
-	}
-	photos := regexp.MustCompile(`<img class="goen-dept__photo"[^>]*>`).FindAllString(browse, -1)
-	if url == "" {
-		if len(photos) != 0 {
-			t.Errorf("cleared %s photograph still rendered: %v", slug, photos)
-		}
-		return
-	}
-	if len(photos) != 1 {
-		t.Fatalf("%s panel renders %d photographs, want 1", slug, len(photos))
-	}
-	for _, want := range []string{`src="` + url + `"`, `srcset="` + srcset + `"`, `alt=""`} {
-		if !strings.Contains(photos[0], want) {
-			t.Errorf("%s panel photograph omits %s", slug, want)
-		}
-	}
 }

@@ -252,8 +252,8 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			t.Errorf("render checkout fixture: %v", renderErr)
 		}
 	})
-	// The page frame on its own: the seed's departments and deals, 3C 數位 with
-	// a panel, a cart of two, in either language (?lang=en), with 3C 數位
+	// The page frame on its own: the seed's departments and deals, a cart of two
+	// short of free delivery, in either language (?lang=en), with 3C 數位
 	// current unless ?nav= names another department.
 	mux.HandleFunc("GET /frame", func(w http.ResponseWriter, r *http.Request) {
 		locale, names := i18n.ZhHant, []string{"書籍文具", "居家生活", "美妝保養", "服飾配件", "美食飲品", "3C 數位"}
@@ -262,15 +262,15 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 		photo := picture.Image{BundledKey: "nimbus-band-2-01.webp"}
 		nav := make([]frame.NavItem, 0, len(names))
+		// The seed's product counts, which the rail prints beside each name.
+		counts := []int{4, 4, 4, 4, 4, 20}
 		for i, slug := range []string{"books-stationery", "home-living", "beauty", "fashion", "food-drink", "tech"} {
-			nav = append(nav, frame.NavItem{Slug: slug, Name: names[i], Href: "/c/" + slug})
+			nav = append(nav, frame.NavItem{Slug: slug, Name: names[i], Href: "/c/" + slug, ProductCount: counts[i]})
 		}
 		nav[5].Children = []frame.NavItem{{Slug: "phones", Name: "Phones", Href: "/c/phones"}, {Slug: "audio", Name: "Audio", Href: "/c/audio"}}
 		nav[5].PhotoURL, nav[5].PhotoSrcset = photo.URL(), photo.Srcset()
-		for _, name := range []string{"Nimbus Band 2", "Nimbus Speaker S1", "Meridian Watch C1"} {
-			nav[5].Picks = append(nav[5].Picks, frame.NavPick{Slug: "band", Name: name, Price: "NT$1,900", ImageURL: photo.URL(), ImageSrcset: photo.Srcset()})
-		}
-		ctx := frame.WithCartCount(frame.WithDeals(frame.WithTopNav(i18n.WithLocale(r.Context(), locale), nav), true), 2)
+		basket := frame.CartSummary{Units: 2, SubtotalCents: 190700, Delivery: frame.CartDelivery{ShortCents: 109300}}
+		ctx := frame.WithCart(frame.WithDeals(frame.WithTopNav(i18n.WithLocale(r.Context(), locale), nav), true), basket)
 		current := "tech"
 		if slug := r.URL.Query().Get("nav"); slug != "" {
 			current = slug

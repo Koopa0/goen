@@ -58,7 +58,7 @@ func TestStore_PlaceOrderMixedTax(t *testing.T) {
 	if attempts != 0 {
 		t.Fatalf("refused checkout left %d attempts", attempts)
 	}
-	count, countErr := s.Carts().ItemCount(ctx, id)
+	count, _, countErr := s.Carts().Badge(ctx, id)
 	if countErr != nil || count != 2 {
 		t.Fatalf("refused checkout left %d cart items: %v", count, countErr)
 	}

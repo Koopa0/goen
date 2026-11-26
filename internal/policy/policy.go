@@ -10,6 +10,8 @@
 package policy
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -29,6 +31,24 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 		panic("policy: NewHandler requires a store and a logger")
 	}
 	return &Handler{store: store, log: log}
+}
+
+// WithFreeDelivery puts the stated free-delivery threshold on the request, for
+// the header. A failed read leaves it off: the header then says nothing about
+// delivery, which is never wrong.
+func (h *Handler) WithFreeDelivery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cents, err := h.store.FreeDeliveryOver(r.Context())
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return // the caller left; there is nobody to serve
+			}
+			h.log.ErrorContext(r.Context(), "read the free delivery threshold for the header", "error", err)
+			next.ServeHTTP(w, r)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(frame.WithFreeDeliveryOver(r.Context(), cents)))
+	})
 }
 
 // Routes registers the shipping page and the policy documents, each document

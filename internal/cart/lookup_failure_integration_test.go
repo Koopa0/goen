@@ -247,9 +247,9 @@ func TestHandler_LookupCartFailures(t *testing.T) {
 				defer cancel()
 				trace.set("")
 				if tt.cancelRequest {
-					trace.disconnect("CartItemCount", cancel)
+					trace.disconnect("CartBadge", cancel)
 				} else if tt.failCount {
-					trace.set("CartItemCount")
+					trace.set("CartBadge")
 				}
 				continued, count := 0, -1
 				var nextErr error
@@ -332,7 +332,7 @@ func (tr *failCartLookup) disconnect(query string, cancel context.CancelFunc) {
 
 func (tr *failCartLookup) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	name := ""
-	for _, candidate := range []string{"CartByToken", "CartItemCount"} {
+	for _, candidate := range []string{"CartByToken", "CartBadge"} {
 		if strings.HasPrefix(data.SQL, "-- name: "+candidate+" :one") {
 			name = candidate
 			break
@@ -343,7 +343,7 @@ func (tr *failCartLookup) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data
 	}
 	tr.mu.Lock()
 	query, cancelRequest := tr.query, tr.cancel
-	if name == "CartItemCount" {
+	if name == "CartBadge" {
 		tr.count.countStarted = true
 		tr.count.countAfterLookup = tr.count.lookupSucceeded
 	}
@@ -383,7 +383,7 @@ func (tr *failCartLookup) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data p
 	switch name {
 	case "CartByToken":
 		tr.count.lookupSucceeded = data.Err == nil
-	case "CartItemCount":
+	case "CartBadge":
 		tr.count.countFinished, tr.count.countErr = true, data.Err
 	}
 }

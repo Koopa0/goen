@@ -44,9 +44,6 @@ var chromeNav = []frame.NavItem{
 	{Slug: "phones", Name: "手機", Href: "/c/phones"},
 	{Slug: "accessories", Name: "周邊配件", Href: "/c/accessories", Children: []frame.NavItem{
 		{Slug: "chargers", Name: "充電與線材", Href: "/c/chargers"},
-	}, Picks: []frame.NavPick{
-		{Slug: "aurora-charger-65", Name: "Aurora GaN 65W 充電器", Price: "NT$990", ImageURL: "/static/aurora-charger-65-01.webp"},
-		{Slug: "koto-cable-braided", Name: "Koto 編織 USB-C 線 2m", Price: "NT$490 起"},
 	}},
 }
 
@@ -162,34 +159,43 @@ func TestHeaderDrawerContents(t *testing.T) {
 	}
 }
 
-// TestHeaderBarWords: the bar names its links in words.
+// TestHeaderBarWords: the bar names its controls in words.
 //
-// The account, the wishlist, the cart and the menu are words a shopper reads,
-// not glyphs that need an accessible name to be told apart, and the menu's
-// word is its name.
+// The menu, comparing, the account and the cart are words a shopper reads.
+// Comparing's glyph stands beside its word, and the phone's search button,
+// the one control drawn as a glyph alone, carries its word for a screen
+// reader, so no control is named by a picture alone.
 func TestHeaderBarWords(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		header, _ := renderChrome(t, locale, chromeNav)
 		ctx := i18n.WithLocale(t.Context(), locale)
-		_, actions, found := strings.Cut(header, `class="goen-header__actions"`)
+		bar, _, found := strings.Cut(header, "</header>")
 		if !found {
-			t.Fatalf("%s: the header has no actions", locale)
+			t.Fatalf("%s: the header is never closed", locale)
 		}
-		actions, _, _ = strings.Cut(actions, `class="goen-header__drawer"`)
 		for _, want := range []string{
+			`data-menu-open aria-haspopup="dialog" aria-controls="site-menu">` + i18n.T(ctx, i18n.KeyMenu) + `</button>`,
 			`href="/account">` + i18n.T(ctx, i18n.KeyAccount) + `</a>`,
-			`href="/account/wishlist">` + i18n.T(ctx, i18n.KeyWishlist) + `</a>`,
-			`<summary class="goen-header__tool">` + i18n.T(ctx, i18n.KeyMenu) + `</summary>`,
-			`href="/cart" aria-label="` + i18n.T(ctx, i18n.KeyCartEmpty) + `">` + i18n.T(ctx, i18n.KeyCart),
+			`aria-hidden="true">` + i18n.T(ctx, i18n.KeyCart),
 		} {
-			if !strings.Contains(actions, want) {
+			if !strings.Contains(bar, want) {
 				t.Errorf("%s: the bar does not contain %q", locale, want)
 			}
 		}
-		if strings.Contains(actions, "<svg") {
-			t.Errorf("%s: the bar draws a glyph: %s", locale, actions)
+		compare := regexp.MustCompile(`(?s)<a class="goen-header__tool goen-header__compare" href="/compare">(.*?)</a>`).FindStringSubmatch(bar)
+		if compare == nil {
+			t.Fatalf("%s: the bar has no link to compare", locale)
+		}
+		if !strings.Contains(compare[1], i18n.T(ctx, i18n.KeyCompareTitle)) || !strings.Contains(compare[1], `aria-hidden="true"`) {
+			t.Errorf("%s: comparing is not its word beside a hidden glyph: %s", locale, compare[1])
+		}
+		if !regexp.MustCompile(`(?s)data-search-open[^>]*>\s*<svg[^>]*aria-hidden="true".*?</svg>\s*<span class="goen-sr-only">` + regexp.QuoteMeta(i18n.T(ctx, i18n.KeySearch)) + `</span>`).MatchString(bar) {
+			t.Errorf("%s: the search button is not a hidden glyph with its word for a screen reader", locale)
+		}
+		if got := strings.Count(bar, "<svg"); got != 4 {
+			t.Errorf("%s: the bar draws %d glyphs, want the mark, the search button's and the field's magnifiers and comparing's", locale, got)
 		}
 	}
 }
@@ -206,71 +212,6 @@ func TestHeaderLanguageMenuLang(t *testing.T) {
 		button := regexp.MustCompile(`<button[^>]*goen-langmenu__item[^>]*value="` + l.Tag() + `"[^>]*>`).FindString(header)
 		if !strings.Contains(button, `lang="`+l.Tag()+`"`) {
 			t.Errorf("the %s choice is %q, want lang=%q", l.Tag(), button, l.Tag())
-		}
-	}
-}
-
-// TestHeaderDepartmentPanelNeedsChildren: only a department with children opens a panel.
-//
-// A department with sub-categories opens a panel listing them; one without is
-// a plain link and has no panel to open.
-func TestHeaderDepartmentPanelNeedsChildren(t *testing.T) {
-	t.Parallel()
-
-	header, footer := renderChrome(t, i18n.ZhHant, chromeNav)
-	if got := strings.Count(header, `class="goen-dept"`); got != 1 {
-		t.Errorf("header has %d department panels, want 1", got)
-	}
-	for _, want := range []string{`class="goen-dept__link" href="/c/chargers"`, "逛逛周邊配件"} {
-		if !strings.Contains(header, want) {
-			t.Errorf("header does not contain %q", want)
-		}
-	}
-	if !strings.Contains(footer, `href="/c/phones"`) {
-		t.Error("the footer's department column does not link the departments")
-	}
-}
-
-// TestDepartmentPanelPhotograph: department panel uses only its configured photograph.
-func TestDepartmentPanelPhotograph(t *testing.T) {
-	t.Parallel()
-	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		for _, tt := range []struct {
-			name string
-			slug string
-			url  string
-		}{
-			{"new department upload", "new-department", "/media/" + strings.Repeat("a", 64)},
-			{"replaced seeded photograph", "books-stationery", "/media/" + strings.Repeat("b", 64)},
-			{"cleared seeded photograph", "books-stationery", ""},
-		} {
-			t.Run(string(locale)+"/"+tt.name, func(t *testing.T) {
-				t.Parallel()
-				item := frame.NavItem{
-					Slug: tt.slug, Name: "Department", Href: "/c/" + tt.slug,
-					PhotoURL: tt.url,
-					Children: []frame.NavItem{{Slug: "child", Name: "Child", Href: "/c/child"}},
-				}
-				if tt.url != "" {
-					item.PhotoSrcset = tt.url + "/400 400w, " + tt.url + " 600w"
-				}
-				header, _ := renderChrome(t, locale, []frame.NavItem{item, {Slug: "other", Name: "Other", Href: "/c/other"}})
-				photos := regexp.MustCompile(`<img class="goen-dept__photo"[^>]*>`).FindAllString(header, -1)
-				if tt.url == "" {
-					if len(photos) != 0 {
-						t.Fatalf("cleared department renders photographs: %v", photos)
-					}
-					return
-				}
-				if len(photos) != 1 {
-					t.Fatalf("department renders %d photographs, want 1", len(photos))
-				}
-				for _, want := range []string{`src="` + item.PhotoURL + `"`, `srcset="` + item.PhotoSrcset + `"`, `alt=""`} {
-					if !strings.Contains(photos[0], want) {
-						t.Errorf("department photograph %s omits %s", photos[0], want)
-					}
-				}
-			})
 		}
 	}
 }
@@ -459,8 +400,8 @@ func TestHeaderMenuProductCount(t *testing.T) {
 	if !strings.Contains(header, `<span class="goen-header__navname">甲</span> <small>12</small>`) {
 		t.Error("the menu's department name is not in its own element, so the current-page underline would run under the count")
 	}
-	if strings.Count(header, "<small>") != 1 {
-		t.Error("a department with no products prints a count of 0")
+	if strings.Count(header, "<small>") != 2 {
+		t.Error("a department with no products prints a count of 0, or the rail and the menu do not both print the one that has some")
 	}
 }
 
@@ -525,51 +466,6 @@ func TestBaseSkipLinkFirstTabStop(t *testing.T) {
 	}
 	if !strings.Contains(body, `<main id="main">`) {
 		t.Error("nothing carries the id the skip link names")
-	}
-}
-
-// TestDepartmentPanelProducts: a department panel offers its products.
-//
-// A department panel offers a few of its products as links of their own, each
-// with its price, so a department with two sub-categories is not an empty
-// sheet. Their pictures are lazy: the panel is display:none until it opens,
-// and an eager image there is a fetch on every page for a panel nobody opened.
-func TestDepartmentPanelProducts(t *testing.T) {
-	t.Parallel()
-
-	header, _ := renderChrome(t, i18n.ZhHant, chromeNav)
-	for _, want := range []string{
-		`<a class="goen-dept__pick" href="/p/aurora-charger-65">`,
-		`<span class="goen-dept__name">Aurora GaN 65W 充電器</span>`,
-		`<span class="goen-dept__price">NT$990</span>`,
-		`<span class="goen-dept__price">NT$490 起</span>`,
-	} {
-		if !strings.Contains(header, want) {
-			t.Errorf("the panel does not contain %q", want)
-		}
-	}
-	picksAt := strings.Index(header, `class="goen-dept__picks"`)
-	if picksAt < 0 {
-		t.Fatal("the panel has no products list")
-	}
-	picks := header[picksAt:]
-	listEnd := strings.Index(picks, "</ul>")
-	if listEnd < 0 {
-		t.Fatal("the products list is never closed")
-	}
-	picks = picks[:listEnd]
-	imgs := regexp.MustCompile(`<img[^>]*>`).FindAllString(picks, -1)
-	if len(imgs) != 1 {
-		t.Fatalf("the panel draws %d product pictures, want 1 — a product with no picture "+
-			"keeps its well empty rather than a broken image", len(imgs))
-	}
-	if !strings.Contains(imgs[0], `loading="lazy"`) {
-		t.Errorf("a panel picture is fetched before the panel opens: %s", imgs[0])
-	}
-	// The middle track is about 240px wide at 1440 and shrinks with the page
-	// below that, so a 144px or a fixed size would fetch the wrong file.
-	if !strings.Contains(imgs[0], `sizes="(min-width:90rem) 240px, 18vw"`) {
-		t.Errorf("a panel picture does not size itself to the middle track: %s", imgs[0])
 	}
 }
 
@@ -642,44 +538,115 @@ func TestHeaderFooterDepartmentsLabel(t *testing.T) {
 	}
 }
 
-// TestHeaderCartCount: the cart says 購物車 and its count, and its name says the count in a sentence.
+// TestHeaderCartCount: the cart says 購物車, its count and its subtotal, and its name says them in a sentence.
 //
 // The count is the lasting answer to an add to cart, so it is shown as the
 // word and a number after it, never alone and never once the cart is empty;
-// the link's name is the sentence, which the number by itself does not make.
+// the subtotal follows where there is one, in the cart page's own amount. The
+// link's name is the sentence, which the numbers by themselves do not make,
+// held in the link: an aria-label would have to contain the visible text word
+// for word (WCAG 2.5.3), and the sentence does not.
 func TestHeaderCartCount(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		count int
-		name  string
-		want  string
+		cart frame.CartSummary
+		name string
+		want string
 	}{
-		{0, "購物車，目前是空的", ""},
-		{1, "購物車，1 件商品", `購物車 <span class="goen-header__count">1</span>`},
-		{12, "購物車，12 件商品", `購物車 <span class="goen-header__count">12</span>`},
+		{frame.CartSummary{}, "購物車，目前是空的", ""},
+		{frame.CartSummary{Units: 1}, "購物車，1 件商品", `購物車 <span class="goen-header__count">1</span>`},
+		{frame.CartSummary{Units: 12, SubtotalCents: 190700}, "購物車，12 件商品，小計 NT$1,907",
+			`購物車 <span class="goen-header__count">12</span> <span class="goen-header__subtotal">NT$1,907</span>`},
 	} {
-		ctx := frame.WithCartCount(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.count)
+		ctx := frame.WithCart(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.cart)
 		var b strings.Builder
 		if err := frame.Header(frame.Page{}).Render(ctx, &b); err != nil {
 			t.Fatalf("render header: %v", err)
 		}
 		_, cart, _ := strings.Cut(b.String(), `id="cart-link"`)
 		cart, _, _ = strings.Cut(cart, "</a>")
-		if !strings.Contains(cart, `aria-label="`+tc.name+`">購物車`) {
-			t.Errorf("count %d: the cart link is %s, want the name %q and the word 購物車", tc.count, cart, tc.name)
+		if strings.Contains(cart, "aria-label") {
+			t.Errorf("%+v: the cart link is named by an aria-label: %s", tc.cart, cart)
+		}
+		if !strings.Contains(cart, `<span class="goen-header__cartshown" aria-hidden="true">購物車`) {
+			t.Errorf("%+v: the cart link is %s, want the word 購物車 shown and hidden from a screen reader", tc.cart, cart)
+		}
+		if !strings.Contains(cart, `<span class="goen-sr-only">`+tc.name+`</span>`) {
+			t.Errorf("%+v: the cart link is %s, want the sentence %q as its name", tc.cart, cart, tc.name)
 		}
 		if strings.Contains(cart, "<svg") || strings.Contains(cart, "badge") {
-			t.Errorf("count %d: the cart link draws a glyph or a badge: %s", tc.count, cart)
+			t.Errorf("%+v: the cart link draws a glyph or a badge: %s", tc.cart, cart)
 		}
 		if tc.want == "" {
-			if strings.Contains(cart, "goen-header__count") {
-				t.Errorf("count %d: an empty cart prints a count", tc.count)
+			if strings.Contains(cart, "goen-header__count") || strings.Contains(cart, "goen-header__subtotal") {
+				t.Errorf("%+v: an empty cart prints a count or a subtotal", tc.cart)
 			}
 			continue
 		}
 		if !strings.Contains(cart, tc.want) {
-			t.Errorf("count %d: the cart link is %s, want %s", tc.count, cart, tc.want)
+			t.Errorf("%+v: the cart link is %s, want %s", tc.cart, cart, tc.want)
 		}
+		if tc.cart.SubtotalCents == 0 && strings.Contains(cart, "goen-header__subtotal") {
+			t.Errorf("%+v: a cart with nothing sellable prints a subtotal", tc.cart)
+		}
+	}
+}
+
+// TestHeaderDeliveryWord: the rail says what delivery costs this visitor, and nothing it cannot stand behind.
+//
+// A cart with something in it says what its own page says: how much more makes
+// every method free, that delivery is free, and where it is still charged; a
+// cart whose methods disagree says nothing. Any other visitor reads the shop's
+// stated threshold, and none where a method never turns free.
+func TestHeaderDeliveryWord(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		cart     frame.CartSummary
+		freeOver int64
+		want     string
+	}{
+		{"no cart", frame.CartSummary{}, 300000, `<a class="goen-rail__delivery" href="/shipping">滿 NT$3,000 免運</a>`},
+		{"no threshold", frame.CartSummary{}, 0, ""},
+		{"short", frame.CartSummary{Units: 2, SubtotalCents: 190700, Delivery: frame.CartDelivery{ShortCents: 109300}}, 300000,
+			`<a class="goen-rail__delivery" href="/cart">免運還差 NT$1,093</a>`},
+		{"free", frame.CartSummary{Units: 2, SubtotalCents: 310000, Delivery: frame.CartDelivery{Free: true}}, 300000,
+			`<a class="goen-rail__delivery" href="/cart">已享免運</a>`},
+		{"free except", frame.CartSummary{Units: 2, SubtotalCents: 310000, Delivery: frame.CartDelivery{Free: true, Zones: []string{"澎湖", "金門"}}}, 300000,
+			`<a class="goen-rail__delivery" href="/cart">已享免運（澎湖、金門另計）</a>`},
+		{"methods disagree", frame.CartSummary{Units: 2, SubtotalCents: 190700}, 300000, ""},
+	} {
+		ctx := frame.WithFreeDeliveryOver(frame.WithCart(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.cart), tc.freeOver)
+		var b strings.Builder
+		if err := frame.Header(frame.Page{}).Render(ctx, &b); err != nil {
+			t.Fatalf("render header: %v", err)
+		}
+		got := regexp.MustCompile(`<a class="goen-rail__delivery"[^>]*>[^<]*</a>`).FindString(b.String())
+		if got != tc.want {
+			t.Errorf("%s: the rail says %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestHeaderMenuDialog: the menu's button opens a modal dialog it names.
+//
+// The drawer is a <dialog> so the browser traps focus in it, closes it on
+// Escape and returns focus to the button; the button says it opens a dialog
+// and which one, and the dialog has a name of its own.
+func TestHeaderMenuDialog(t *testing.T) {
+	t.Parallel()
+
+	header, _ := renderChrome(t, i18n.ZhHant, chromeNav)
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	if !strings.Contains(header, `<dialog class="goen-menu" id="site-menu" aria-label="`+i18n.T(ctx, i18n.KeyMenu)+`">`) {
+		t.Error("the menu is not a named dialog with the id its button controls")
+	}
+	if strings.Count(header, `aria-controls="site-menu"`) != 1 {
+		t.Error("no single button controls the menu dialog")
+	}
+	if strings.Contains(header, "<details class=\"goen-header__menu\"") || strings.Contains(header, "data-menu>") {
+		t.Error("the menu is still a details disclosure")
 	}
 }

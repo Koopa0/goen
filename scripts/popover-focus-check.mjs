@@ -198,14 +198,14 @@ try {
   // The language menu lives in the drawer; from 1024 the bar's language is one
   // button and there is no menu to hold open.
   if (width === 375) {
-   // The drawer's content fades in and is skipped by focus until it has.
-   await evaluate("document.querySelector('[data-menu]').open = true; new Promise(done => setTimeout(done, 1000))");
+   // The drawer slides in; the probe waits that out.
+   await evaluate("document.getElementById('site-menu').showModal(); new Promise(done => setTimeout(done, 1000))");
    await evaluate("window.checkedLanguage = [...document.querySelectorAll('.goen-langmenu')].find(e => e.getBoundingClientRect().width > 0); checkedLanguage.querySelector('summary').focus()");
    await key('Enter'); await key('Tab');
    assert.equal(await evaluate('checkedLanguage.open && checkedLanguage.contains(document.activeElement)'), true, label + ': language menu stays open within');
    await evaluate("[...checkedLanguage.querySelectorAll('button')].at(-1).focus()"); await key('Tab');
    assert.equal(await evaluate('checkedLanguage.open'), false, label + ': language menu closes when focus leaves');
-   await evaluate("document.querySelector('[data-menu]').open = false");
+   await evaluate("document.getElementById('site-menu').close()");
   }
   console.log('PASS popover keyboard ' + label + ': ' + JSON.stringify(chip));
  }

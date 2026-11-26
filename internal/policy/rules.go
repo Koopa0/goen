@@ -24,6 +24,17 @@ type Rules struct {
 	PayStartMinutes int64
 }
 
+// FreeDeliveryOver reads the amount at which every delivery method checkout
+// offers turns free, zero where some method never does: the one claim the
+// header makes for a visitor whose cart says nothing of its own.
+func (s *Store) FreeDeliveryOver(ctx context.Context) (int64, error) {
+	cents, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
+	if err != nil {
+		return 0, fmt.Errorf("read free delivery threshold: %w", err)
+	}
+	return cents, nil
+}
+
 // Rules reads the rules the shop states about itself. Where checkout offers
 // no pickup (WithoutPickup), a threshold or floor does not count it.
 func (s *Store) Rules(ctx context.Context) (Rules, error) {

@@ -1,19 +1,21 @@
 package frame
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// One row of text: the brand, the departments, the search field and the words
-// for the language, the account, the wishlist and the cart, in the order they
-// are drawn at 1440. English and a narrow screen take the departments to a row
-// of their own (app.css); the order of the markup stays the one a reader of the
-// one-row header meets.
+// The bar is the one row that stays on screen: the brand, the search field and
+// the words for comparing, the language, the account and the cart. It sticks to
+// the top of the window; the row under it, the departments and what delivery
+// costs this cart, scrolls away with the page, so two bars never stack over
+// the products. Below 1024 the menu opens a modal drawer that carries what the
+// bar has no room for; below 640 the search field opens under the bar from a
+// button of its own, so the bar that follows the scroll stays one row.
 //
 // ui-navitem is not a leftover: two assertions in backoffice_test.go locate the
 // drawer's back-office entrance by the whole tag, and app.css replaces every
@@ -21,27 +23,16 @@ import (
 templ Header(p Page) {
 	<header class="goen-header">
 		<div class="goen-header__bar">
+			<button class="goen-header__tool goen-header__menu" type="button" data-menu-open aria-haspopup="dialog" aria-controls="site-menu">{ i18n.T(ctx, i18n.KeyMenu) }</button>
 			<a class="goen-header__brand" href="/">
 				@icons.Mark("goen-header__mark")
 				<span class="goen-header__wordmark">goen</span>
 			</a>
-			if departmentRow(ctx) {
-				<nav class="goen-header__nav" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
-					for _, n := range TopNavFrom(ctx) {
-						@department(p, n)
-					}
-					if HasDeals(ctx) {
-						<a
-							class="ui-navitem goen-header__navitem--deal"
-							if currentPage(ctx, "/deals") {
-								aria-current="page"
-							}
-							href="/deals"
-						>{ i18n.T(ctx, i18n.KeyDeals) }</a>
-					}
-				</nav>
-			}
-			<form class="goen-header__search" role="search" aria-label={ i18n.T(ctx, i18n.KeySearch) } action="/search" method="get">
+			<button class="goen-header__tool goen-header__searchbutton" type="button" data-search-open aria-controls="site-search-form" aria-expanded="false">
+				@icons.Search()
+				<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeySearch) }</span>
+			</button>
+			<form id="site-search-form" class="goen-header__search" role="search" aria-label={ i18n.T(ctx, i18n.KeySearch) } action="/search" method="get">
 				<span class="goen-header__searchicon">
 					@icons.Search()
 				</span>
@@ -52,130 +43,118 @@ templ Header(p Page) {
 					Type:  "search",
 					Value: p.SearchQuery,
 					Class: "goen-header__field",
-					Attrs: templ.Attributes{"placeholder": i18n.T(ctx, i18n.KeySearchHint)},
+					Attrs: templ.Attributes{"placeholder": i18n.T(ctx, i18n.KeySearchHint), "autocomplete": "off"},
 				})
+				// goen.js names the shortcut for the visitor's keyboard: ⌘K or Ctrl K.
+				<kbd class="goen-header__kbd" data-shortcut hidden></kbd>
 			</form>
 			<div class="goen-header__actions">
-				// Shown from 1024, as the language, the account and the wishlist are; below
-				// that the menu carries all four and the bar keeps the cart and the menu.
 				if IsStaff(ctx) {
 					<a class="goen-header__tool goen-header__backoffice" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
 				}
+				<a class="goen-header__tool goen-header__compare" href="/compare">
+					@icons.Sliders()
+					{ i18n.T(ctx, i18n.KeyCompareTitle) }
+				</a>
 				@languageLink()
 				<a class="goen-header__tool goen-header__wide" href="/account">{ i18n.T(ctx, i18n.KeyAccount) }</a>
-				<a class="goen-header__tool goen-header__wide" href="/account/wishlist">{ i18n.T(ctx, i18n.KeyWishlist) }</a>
 				@cartLink()
-				<details class="goen-header__menu" data-menu>
-					<summary class="goen-header__tool">{ i18n.T(ctx, i18n.KeyMenu) }</summary>
-					<nav class="goen-header__drawer" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
-						// A visible way out at the drawer's own edge. goen.js closes the menu and
-						// returns focus to the menu's button, as Escape does.
-						<button class="goen-header__close goen-btn goen-btn--ghost goen-btn--icon" type="button" data-menu-close aria-label={ i18n.T(ctx, i18n.KeyCloseMenu) }>
-							@icons.Close()
-						</button>
-						if len(TopNavFrom(ctx)) > 1 {
-							<span class="goen-header__drawerheading">{ i18n.T(ctx, i18n.KeyCategoryNav) }</span>
-						}
-						for _, n := range TopNavFrom(ctx) {
-							<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>
-								<span class="goen-header__navname">{ n.Name }</span>
-								if n.ProductCount > 0 {
-									<small>{ strconv.Itoa(n.ProductCount) }</small>
-								}
-							</a>
-						}
-						if HasDeals(ctx) {
-							<a
-								class="ui-navitem goen-header__navitem--deal"
-								if currentPage(ctx, "/deals") {
-									aria-current="page"
-								}
-								href="/deals"
-							>{ i18n.T(ctx, i18n.KeyDeals) }</a>
-						}
-						if IsStaff(ctx) {
-							<a class="ui-navitem" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
-						}
-						<div class="goen-header__drawertools">
-							<a class="ui-navitem" href="/account/wishlist">{ i18n.T(ctx, i18n.KeyWishlist) }</a>
-							<a class="ui-navitem" href="/account">{ i18n.T(ctx, i18n.KeyAccount) }</a>
-							@languageMenu("goen-header__drawerlang", true)
-						</div>
-					</nav>
-				</details>
 			</div>
 		</div>
 	</header>
-}
-
-// The panel is plain markup shown by CSS: on hover, and under :focus-within until
-// goen.js runs, when ArrowDown on the department's link opens it instead. Three of
-// the newest products sit between the sub-categories and the photograph, so a
-// department with two sub-categories still fills its panel. Every image is lazy: a
-// closed panel is display:none and fetches nothing.
-templ department(p Page, n NavItem) {
-	if len(n.Children) == 0 {
-		<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
-	} else {
-		@departmentPanel(p, n)
-	}
-}
-
-templ departmentPanel(p Page, n NavItem) {
-	<div class="goen-dept">
-		<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
-		<div class="goen-dept__panel">
-			<div class="goen-dept__inner">
-				<ul class="goen-dept__links" role="list">
-					for _, c := range n.Children {
-						<li>
-							<a class="goen-dept__link" href={ templ.URL(c.Href) }>{ c.Name }</a>
-						</li>
-					}
-				</ul>
-				if len(n.Picks) > 0 {
-					<ul class="goen-dept__picks" role="list">
-						for _, pick := range n.Picks {
-							<li>
-								<a class="goen-dept__pick" href={ templ.URL("/p/" + pick.Slug) }>
-									<span class="goen-dept__well">
-										if pick.ImageURL != "" {
-											<img src={ pick.ImageURL } srcset={ pick.ImageSrcset } sizes="(min-width:90rem) 240px, 18vw" alt="" loading="lazy" decoding="async"/>
-										}
-									</span>
-									<span class="goen-dept__name">{ pick.Name }</span>
-									<span class="goen-dept__price">{ pick.Price }</span>
-								</a>
-							</li>
+	{{ word, wordHref := deliveryWord(ctx) }}
+	if departmentRow(ctx) || word != "" {
+		<div class="goen-rail">
+			<div class="goen-rail__inner">
+				if departmentRow(ctx) {
+					<nav class="goen-header__nav" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+						for _, n := range TopNavFrom(ctx) {
+							@departmentLink(p, n)
 						}
-					</ul>
+						if HasDeals(ctx) {
+							@dealsLink()
+						}
+					</nav>
 				}
-				<a class="goen-dept__browse" href={ templ.URL(n.Href) }>
-					if n.PhotoURL != "" {
-						<img class="goen-dept__photo" src={ n.PhotoURL } srcset={ n.PhotoSrcset } sizes="280px" alt="" loading="lazy" decoding="async"/>
-					}
-					<span class="goen-dept__caption">
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseDepartment), n.Name) }
-						<span aria-hidden="true">&nbsp;→</span>
-					</span>
-				</a>
+				if word != "" {
+					<a class="goen-rail__delivery" href={ templ.URL(wordHref) }>{ word }</a>
+				}
 			</div>
 		</div>
-	</div>
+	}
+	// A modal dialog: the browser keeps focus inside it, closes it on Escape and
+	// gives focus back to the menu's button. goen.js opens it and closes it on the
+	// close button and a press on the backdrop.
+	<dialog class="goen-menu" id="site-menu" aria-label={ i18n.T(ctx, i18n.KeyMenu) }>
+		<nav class="goen-header__drawer" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+			<button class="goen-header__close goen-btn goen-btn--ghost goen-btn--icon" type="button" data-menu-close aria-label={ i18n.T(ctx, i18n.KeyCloseMenu) }>
+				@icons.Close()
+			</button>
+			if len(TopNavFrom(ctx)) > 1 {
+				<span class="goen-header__drawerheading">{ i18n.T(ctx, i18n.KeyCategoryNav) }</span>
+			}
+			for _, n := range TopNavFrom(ctx) {
+				@departmentLink(p, n)
+			}
+			if HasDeals(ctx) {
+				@dealsLink()
+			}
+			if IsStaff(ctx) {
+				<a class="ui-navitem" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
+			}
+			// The language menu comes first: in a modal dialog nothing follows the
+			// last control, so a menu there would never see focus leave it for a
+			// place on the page.
+			<div class="goen-header__drawertools">
+				@languageMenu("goen-header__drawerlang", true)
+				<a class="ui-navitem" href="/compare">{ i18n.T(ctx, i18n.KeyCompareTitle) }</a>
+				<a class="ui-navitem" href="/account/wishlist">{ i18n.T(ctx, i18n.KeyWishlist) }</a>
+				<a class="ui-navitem" href="/account">{ i18n.T(ctx, i18n.KeyAccount) }</a>
+			</div>
+		</nav>
+	</dialog>
 }
 
-// cartLink carries an id because adding to the cart from a product page replaces
-// this element out of band, from the same response the buy column comes from. The
-// whole link is the unit: the accessible name says how many are in there, so swapping
-// the number alone would leave the sentence behind. What it shows is the word and
-// the number, 「購物車 2」, and the name is the sentence 「購物車，2 件商品」.
-templ cartLink() {
-	{{ count := CartCount(ctx) }}
-	<a class="goen-header__tool goen-header__cart" id="cart-link" href="/cart" aria-label={ cartLabel(ctx, count) }>
-		{ i18n.T(ctx, i18n.KeyCart) }
-		if count > 0 {
-			<span class="goen-header__count">{ strconv.Itoa(count) }</span>
+// A department in the rail and in the drawer: its name, then how many products
+// it holds, which a department with none does not print.
+templ departmentLink(p Page, n NavItem) {
+	<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>
+		<span class="goen-header__navname">{ n.Name }</span>
+		if n.ProductCount > 0 {
+			<small>{ strconv.Itoa(n.ProductCount) }</small>
 		}
+	</a>
+}
+
+templ dealsLink() {
+	<a
+		class="ui-navitem goen-header__navitem--deal"
+		if currentPage(ctx, "/deals") {
+			aria-current="page"
+		}
+		href="/deals"
+	>{ i18n.T(ctx, i18n.KeyDeals) }</a>
+}
+
+// cartLink carries an id because adding to the cart replaces this element out
+// of band, from the same response the buy column comes from. The whole link is
+// the unit. What it shows is the word, the number and the subtotal,
+// 「購物車 2 NT$1,907」; what it is called is the sentence, 「購物車，2 件商品，小計
+// NT$1,907」, held in the link rather than in an aria-label, which would have to
+// repeat the visible text word for word (WCAG 2.5.3).
+templ cartLink() {
+	{{ c := CartFrom(ctx) }}
+	<a class="goen-header__tool goen-header__cart" id="cart-link" href="/cart">
+		<span class="goen-header__cartshown" aria-hidden="true">
+			{ i18n.T(ctx, i18n.KeyCart) }
+			if c.Units > 0 {
+				<span class="goen-header__count">{ strconv.Itoa(c.Units) }</span>
+			}
+			if c.Units > 0 && c.SubtotalCents > 0 {
+				<span class="goen-header__subtotal">{ money.TWD(c.SubtotalCents) }</span>
+			}
+		</span>
+		<span class="goen-sr-only">{ cartLabel(ctx, c) }</span>
 	</a>
 }
 

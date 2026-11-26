@@ -103,7 +103,8 @@ try {
       `${lang} 375 scrolled: the bar shows the price, the struck original outside it, and the options`);
 
     // A field being typed in brings up the on-screen keyboard: the bar steps aside.
-    await evaluate(`document.querySelector('#site-search, input[type="search"]').focus()`);
+    // Below 640 the search field is behind its button in the bar.
+    await evaluate(`(() => { const open = document.querySelector('[data-search-open]'); if (open && getComputedStyle(open).display !== 'none') open.click(); document.querySelector('#site-search').focus(); })()`);
     await settle();
     got = await state();
     assert.equal(got.visible, false, `${lang} 375 scrolled: the bar stays over a focused field`);

@@ -22,7 +22,7 @@ import { checkAdminActionReflow } from './admin-action-reflow.mjs';
 import { checkAdminNavReflow } from './admin-nav-reflow.mjs';
 import { checkSearchReflow } from './search-reflow.mjs';
 import { checkFooterReflow } from './footer-reflow.mjs';
-import { checkMenuFallback } from './menu-fallback.mjs';
+import { checkMenu } from './menu-check.mjs';
 import { checkWarrantyReflow } from './warranty-reflow.mjs';
 import { checkWishlistFocus } from './wishlist-focus-check.mjs';
 import { checkCrumbFocus } from './crumb-focus-check.mjs';
@@ -1896,21 +1896,18 @@ for (const locale of ['zh-Hant', 'en']) {
   await proveListingDesktopResize(`listing audio desktop ${locale}`, locale);
 }
 
-// The category drawer hangs below the header and is the only category
-// navigation on a phone. Paint order is invisible to axe, so each link is hit
-// tested: whatever sits at its centre has to be the link, or a tap lands on the
-// photo underneath and counts as an outside click.
+// The menu is a modal dialog and the only category navigation on a phone.
+// Paint order is invisible to axe, so each link is hit tested: whatever sits at
+// its centre has to be the link, or a tap lands on something painted over it.
 //
-// The drawer's content fades in and leaves content-visibility:hidden only when
-// that transition ends, and a hidden box is not hit by anything, so the probe
-// waits it out before it measures.
+// The drawer slides in, so the probe waits that out before it measures.
 const DRAWER_PROBE = `(async () => {
-  const menu = document.querySelector('.goen-header__menu');
-  if (!menu) return { ok: false, why: 'the header menu is missing' };
-  menu.open = true;
+  const menu = document.getElementById('site-menu');
+  if (!menu) return { ok: false, why: 'the menu dialog is missing' };
+  menu.showModal();
   await new Promise((done) => setTimeout(done, 1000));
   const links = [...menu.querySelectorAll('.goen-header__drawer a')];
-  const drawerBottom = menu.querySelector('.goen-header__drawer').getBoundingClientRect().bottom;
+  const drawerBottom = menu.getBoundingClientRect().bottom;
   // The drawer scrolls on its own (the account links sit below the departments),
   // and a point outside the viewport hits nothing: bring each link in before it
   // is tested, so what is measured is what is painted over it and not how far
@@ -1927,6 +1924,7 @@ const DRAWER_PROBE = `(async () => {
       covered.push(a.textContent.trim() + ' under ' + (hit ? hit.tagName + '.' + String(hit.className).split(' ')[0] : 'nothing'));
     }
   }
+  menu.close();
   return { ok: true, links: links.length, covered, drawerBottom, viewport: window.innerHeight };
 })()`;
 
@@ -1969,7 +1967,7 @@ const rowCutProbe = (row) => `(async () => {
   nav.scrollLeft = 0;
   await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
   const edge = document.documentElement.clientWidth;
-  const links = [...nav.querySelectorAll(':scope > a, :scope > .goen-dept > a')];
+  const links = [...nav.querySelectorAll(':scope > a')];
   const cut = links.map((a) => a.getBoundingClientRect()).find((r) => r.left < edge && r.right > edge);
   return { ok: true, links: links.length, scrolls: nav.scrollWidth > nav.clientWidth, into: cut ? edge - cut.left : null };
 })()`;
@@ -2402,62 +2400,21 @@ const CART_OVERTYPE_PROBE = `(async () => {
   }
 }
 
-// A department's panel is not part of the tab order until it is opened: with
-// focus on the department's link its sub-links are not rendered, ArrowDown opens
-// the panel and moves into it, and Escape closes it and returns to the link.
-{
-  const label = 'department panel 1440';
-  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
-  const target = ORIGIN + '/';
-  await send(ws, 'Page.navigate', { url: target });
-  await settled(ws, label, target);
-  const key = async (name, code) => {
-    for (const type of ['keyDown', 'keyUp']) {
-      await send(ws, 'Input.dispatchKeyEvent', { type, key: name, code: name, windowsVirtualKeyCode: code });
-    }
-  };
-  const state = () => evalPage(`(() => {
-    const dept = document.querySelector('.goen-dept');
-    const link = dept && dept.querySelector(':scope > a');
-    const panel = dept && dept.querySelector('.goen-dept__panel');
-    if (!link || !panel) return { skipped: true };
-    return {
-      skipped: false,
-      shown: [...panel.querySelectorAll('a')].filter(a => a.getClientRects().length > 0).length,
-      expanded: link.getAttribute('aria-expanded'),
-      inPanel: panel.contains(document.activeElement),
-      onLink: document.activeElement === link,
-    };
-  })()`);
-  await evalPage(`(() => { const a = document.querySelector('.goen-dept > a'); if (a) a.focus(); })()`);
-  const resting = await state();
-  if (resting.skipped) console.log(`${label.padEnd(24)} no department panel on this catalogue, skipped`);
-  else {
-    if (!resting.onLink) fail(label, 'the department link did not take focus');
-    if (resting.shown !== 0) fail(label, `${resting.shown} sub-links are rendered, so tab stops, with focus only on the department link`);
-    await key('ArrowDown', 40);
-    const opened = await state();
-    if (!opened.inPanel || opened.expanded !== 'true' || opened.shown === 0) fail(label, 'ArrowDown did not open the panel and move into it: ' + JSON.stringify(opened));
-    await key('Escape', 27);
-    const closed = await state();
-    if (!closed.onLink || closed.shown !== 0 || closed.expanded !== 'false') fail(label, 'Escape did not close the panel and return to the link: ' + JSON.stringify(closed));
-    console.log(`${label.padEnd(24)} panel closed on focus, opens with ArrowDown, Escape returns ok`);
-  }
-}
-
-// The served transition rules must honor reduced motion, including pseudo-
-// elements and native details content that the global element override misses.
+// The served transition rules must honor reduced motion: the page's dissolve
+// stays and moves nothing, and the menu does not slide.
 for (const motion of ['no-preference', 'reduce']) {
   await send(ws, 'Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: motion }] });
   await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
   await send(ws, 'Page.navigate', { url: ORIGIN + '/' });
   await settled(ws, 'motion ' + motion, ORIGIN + '/');
   const checked = await evalPage(`(async () => {
-    const menu = document.querySelector('[data-menu]');
-    if (!menu) return { ok: false, why: 'missing native menu' };
-    menu.querySelector('summary').click();
-    const duration = getComputedStyle(menu, '::details-content').transitionDuration;
-    if (!document.startViewTransition) return { ok: true, supported: false, duration };
+    const menu = document.getElementById('site-menu');
+    const opener = document.querySelector('[data-menu-open]');
+    if (!menu || !opener) return { ok: false, why: 'missing menu dialog' };
+    opener.focus();
+    opener.click();
+    const slides = getComputedStyle(menu).transitionProperty.split(',').map((p) => p.trim()).includes('translate');
+    if (!document.startViewTransition) return { ok: true, supported: false, slides };
     const transition = document.startViewTransition(() => { document.body.dataset.motionProbe = 'changed'; });
     await transition.ready;
     const root = document.documentElement;
@@ -2466,7 +2423,7 @@ for (const motion of ['no-preference', 'reduce']) {
     const seconds = parseFloat(getComputedStyle(root, '::view-transition-new(root)').animationDuration);
     transition.skipTransition();
     await transition.finished;
-    return { ok: true, supported: true, animation, group, seconds, duration };
+    return { ok: true, supported: true, animation, group, seconds, slides };
   })()`);
   if (!checked.ok) fail('motion ' + motion, JSON.stringify(checked));
   // Reduced motion keeps a plain dissolve of the base step: a hard cut between
@@ -2477,10 +2434,11 @@ for (const motion of ['no-preference', 'reduce']) {
     if (checked.group !== 'none') fail('motion reduce', 'the root group still animates: ' + checked.group);
     if (!(checked.seconds <= 0.1201)) fail('motion reduce', 'the dissolve takes ' + checked.seconds + 's, want at most 0.12s');
   }
-  if (motion === 'reduce' && checked.duration !== '0s') fail('motion reduce', 'menu still transitions: ' + checked.duration);
+  if (motion === 'reduce' && checked.slides) fail('motion reduce', 'the menu still slides');
+  if (motion === 'no-preference' && !checked.slides) fail('motion no-preference', 'the menu does not slide in, so this probe measured nothing');
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-  const closed = await evalPage(`(() => { const menu = document.querySelector('[data-menu]'); return !menu.open && document.activeElement === menu.querySelector('summary'); })()`);
+  const closed = await evalPage(`(() => !document.getElementById('site-menu').open && document.activeElement === document.querySelector('[data-menu-open]'))()`);
   if (closed !== true) fail('motion ' + motion, 'Escape did not close the menu and return focus');
 }
 await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
@@ -4925,15 +4883,15 @@ try {
 }
 
 try {
-  await checkMenuFallback({
+  await checkMenu({
     origin: ORIGIN,
     send: (method, params) => send(ws, method, params),
     evaluate: evalPage,
     navigate: async (path) => {
-      if (!await settledFor('menu fallback', path, ORIGIN + path)) throw new Error('menu page did not load');
+      if (!await settledFor('menu', path, ORIGIN + path)) throw new Error('menu page did not load');
     },
   });
-  console.log('menu fallback: both locales, 320px, 100%/200% text, scripting on/off passed');
+  console.log('menu: both locales, 320px, 100%/200% text, closed by its button, Escape and the backdrop');
 } catch (err) {
   fail('menu fallback', err.message);
 }

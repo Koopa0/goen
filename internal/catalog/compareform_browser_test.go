@@ -67,7 +67,7 @@ func TestCompareFormRowInBrowser(t *testing.T) {
 			slug := "department-" + strconv.Itoa(i)
 			nav = append(nav, frame.NavItem{Slug: slug, Name: name, Href: "/c/" + slug})
 		}
-		ctx = frame.WithBanner(frame.WithDeals(frame.WithCartCount(frame.WithTopNav(ctx, nav), 2), true), banner)
+		ctx = frame.WithBanner(frame.WithDeals(frame.WithCart(frame.WithTopNav(ctx, nav), frame.CartSummary{Units: 2}), true), banner)
 		if respond.IsHTMX(r) {
 			ctx = AsPartial(ctx)
 		}

@@ -334,7 +334,8 @@ try {
     const submit = '.goen-footer__field > .goen-btn';
     const filled = '.goen-summary__actions .goen-btn--primary';
     const stepper = '.goen-stepper';
-    const words = '.goen-header__backoffice';
+    // The language button: a word of the bar that every width and text size draws.
+    const words = '.goen-header__lang > .goen-header__tool';
     const chip = '.goen-filters__chip';
     const arrow = '.goen-hero__arrow';
     const corner = {};
@@ -347,7 +348,7 @@ try {
       assert.equal(length(cart[stepper], stepper), 4, `${label}: the quantity field has a ${cart[stepper].radius} corner at ${scale}, not a field's 4px`);
       assert.equal(length(cart[field], field), 4, `${label}: the newsletter field has a ${cart[field].radius} corner at ${scale}, not a field's 4px`);
       assert.equal(length(cart[submit], submit), 0, `${label}: the footer button's corner at ${scale} is ${cart[submit].radius}, not its field's 4px less 4px`);
-      assert.equal(length(cart[words], words), 0, `${label}: the header's back office has a ${cart[words].radius} corner at ${scale}, not none`);
+      assert.equal(length(cart[words], words), 8, `${label}: the header's language button has a ${cart[words].radius} corner at ${scale}, not a control's 8px`);
       assert.equal(cart[filled].shadow, 'none', `${label}: the filled button at ${scale} casts a shadow: ${cart[filled].shadow}`);
 
       await open('/c/audio', 1440);
@@ -365,17 +366,17 @@ try {
       assert.equal(hero[arrow].background, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow at ${scale} has a ${hero[arrow].background} fill`);
     }
     assert.equal(corner['200%'], corner['100%'] * 2, `${label}: ${corner['100%']}px at 100% text is ${corner['200%']}px at 200%, not double`);
-    console.log(`${label}: chips ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; fields 4px, footer button square inside its field, header words cornerless, hero arrows square outlines`);
+    console.log(`${label}: chips ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; fields 4px, footer button square inside its field, header words 8px, hero arrows square outlines`);
   }
 
-  // The page frame. The header is one row of words in Chinese at 1440 and two
-  // in English, the departments on the second; the current department is
-  // underlined 2px in its own colour; the cart reads 購物車 2 in figures of one
-  // width. Below 1024 the departments scroll sideways and the right edge of a
-  // 320, 375 or 414 screen cuts a department at least 12px in, so the row shows
-  // it goes on. A department's panel is white by day under its shadow, in
-  // 200px, the middle and 280px. The footer's links are ink and underlined,
-  // and its subscribe is an ink word with no arrow.
+  // The page frame. The bar is one row at 1024 and up in either language, it
+  // sticks to the top of the window and takes at most 12% of it, and the rail
+  // of departments under it scrolls away with the page. The cart reads 購物車 2
+  // and its subtotal in figures of one width; the current department is the
+  // ink pill. Below 1024 the departments scroll sideways and the right edge of
+  // a 320, 375 or 414 screen cuts a department at least 12px in, so the row
+  // shows it goes on. The footer's links are ink and underlined, and its
+  // subscribe is an ink word with no arrow.
   {
     const label = 'page frame';
     const header = () => evaluate(`(() => {
@@ -386,43 +387,50 @@ try {
       const count = document.querySelector('#cart-link .goen-header__count');
       // The word and the figure are two flex items, so the space between them
       // in the markup collapses; what a reader sees is the gap the box leaves.
-      const word = [...document.querySelector('#cart-link').childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+      const shown = document.querySelector('#cart-link .goen-header__cartshown');
+      const word = [...shown.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
       const range = document.createRange();
       if (word) range.selectNodeContents(word);
+      const head = document.querySelector('.goen-header');
+      const headStyle = getComputedStyle(head);
       return { bar: box(document.querySelector('.goen-header__bar')), nav: box(nav), search: box(document.querySelector('.goen-header__search')),
-        actions: box(document.querySelector('.goen-header__actions')), cart: document.querySelector('#cart-link').textContent.replace(/\s+/g, ' ').trim(),
+        actions: box(document.querySelector('.goen-header__actions')), cart: shown.textContent.replace(/\s+/g, ' ').trim(),
         figures: count && getComputedStyle(count).fontVariantNumeric,
         gap: word && count ? count.getBoundingClientRect().left - range.getBoundingClientRect().right : null,
-        current: { text: current.textContent.trim(), line: style.textDecorationLine, thickness: style.textDecorationThickness,
-          lineColour: style.textDecorationColor, colour: style.color } };
+        sticky: { position: headStyle.position, top: headStyle.top, rail: getComputedStyle(document.querySelector('.goen-rail')).position },
+        height: head.getBoundingClientRect().height, window: window.innerHeight,
+        current: { text: current.textContent.trim(), background: style.backgroundColor, colour: style.color } };
     })()`);
-    for (const [path, rows, cart] of [['/frame', 1, '購物車 2'], ['/frame?lang=en', 2, 'Cart 2']]) {
-      await open(path, 1440);
-      const got = await header();
-      const where = `${label} ${path} 1440px`;
-      const oneRow = got.nav.top < got.search.bottom && got.search.top < got.nav.bottom && got.nav.right <= got.search.left;
-      assert.equal(oneRow ? 1 : 2, rows, `${where}: the departments are on ${oneRow ? 'the bar\'s row' : 'a row of their own'}: ${JSON.stringify(got)}`);
-      if (rows === 2) assert.ok(got.nav.top >= got.search.bottom && got.nav.top >= got.actions.bottom - 0.5, `${where}: the departments' row is not under the others: ${JSON.stringify(got)}`);
-      assert.equal(got.cart, cart, `${where}: the cart reads ${JSON.stringify(got.cart)}`);
-      assert.match(got.figures, /tabular-nums/, `${where}: the cart's count is set in ${got.figures}, not tabular figures`);
-      assert.ok(got.gap >= 3.5, `${where}: the cart's word and its count are ${got.gap}px apart, run together`);
-      assert.deepEqual([got.current.line, got.current.thickness, got.current.lineColour], ['underline', '2px', got.current.colour],
-        `${where}: the current department ${got.current.text} is marked ${JSON.stringify(got.current)}, not a 2px underline in its own colour`);
-      console.log(`${where}: ${rows} row${rows === 1 ? '' : 's'}, ${got.cart}, current department underlined 2px`);
+    for (const [path, cart] of [['/frame', '購物車 2 NT$1,907'], ['/frame?lang=en', 'Cart 2 NT$1,907']]) {
+      for (const width of [1024, 1440]) {
+        await open(path, width);
+        const got = await header();
+        const where = `${label} ${path} ${width}px`;
+        const oneRow = got.search.top < got.actions.bottom && got.actions.top < got.search.bottom;
+        assert.ok(oneRow, `${where}: the search field and the actions are not on one row: ${JSON.stringify(got)}`);
+        assert.ok(got.nav.top >= got.bar.bottom - 0.5, `${where}: the departments are not on the rail under the bar: ${JSON.stringify(got)}`);
+        assert.deepEqual(got.sticky, { position: 'sticky', top: '0px', rail: 'static' }, `${where}: the bar and the rail stick as ${JSON.stringify(got.sticky)}`);
+        assert.ok(got.height <= got.window * 0.12, `${where}: the sticky bar is ${got.height}px of a ${got.window}px window, over 12%`);
+        assert.equal(got.cart, cart, `${where}: the cart reads ${JSON.stringify(got.cart)}`);
+        assert.match(got.figures, /tabular-nums/, `${where}: the cart's count is set in ${got.figures}, not tabular figures`);
+        assert.ok(got.gap >= 3.5, `${where}: the cart's word and its count are ${got.gap}px apart, run together`);
+        assert.deepEqual([got.current.background, got.current.colour], ['rgb(20, 20, 18)', 'rgb(255, 255, 255)'],
+          `${where}: the current department ${got.current.text} is drawn ${JSON.stringify(got.current)}, not the ink pill`);
+        console.log(`${where}: one sticky row of ${got.height}px, ${got.cart}, current department the ink pill`);
+      }
     }
-    await open('/frame', 1024);
-    const narrow = await header();
-    assert.ok(narrow.nav.top >= narrow.search.bottom, `${label} /frame 1024px: the Chinese departments do not step down where one row cannot hold them: ${JSON.stringify(narrow)}`);
 
     for (const width of [320, 375, 414]) {
       await open('/frame', width, true);
+      const bar = await header();
+      assert.ok(bar.height <= bar.window * 0.12, `${label} /frame ${width}px: the sticky bar is ${bar.height}px of a ${bar.window}px window, over 12%`);
       // goen.js centres the current department; the cut is measured at the
       // row's start, as a page with no current department opens.
       await evaluate(`document.querySelector('.goen-header__nav').scrollLeft = 0; new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))`);
       const row = await evaluate(`(() => {
         const nav = document.querySelector('.goen-header__nav');
         const edge = document.documentElement.clientWidth;
-        const links = [...nav.querySelectorAll(':scope > a, :scope > .goen-dept > a')];
+        const links = [...nav.querySelectorAll(':scope > a')];
         const cut = links.map(a => a.getBoundingClientRect()).find(r => r.left < edge && r.right > edge);
         return { edge, scroll: nav.scrollWidth > nav.clientWidth, snap: getComputedStyle(nav).scrollSnapType,
           margin: getComputedStyle(links[0]).scrollMarginInlineStart, into: cut ? edge - cut.left : null,
@@ -437,7 +445,25 @@ try {
       // and left a sliver of the word before it at the edge.
       assert.equal(row.margin, '0px', `${where}: a link's scroll margin at the start is ${row.margin}, not 0px`);
       assert.ok(row.into !== null && row.into >= 12, `${where}: the right edge cuts no department at least 12px in: ${JSON.stringify(row)}`);
-      console.log(`${where}: the edge cuts a department ${row.into}px in`);
+      console.log(`${where}: a sticky bar of ${bar.height}px; the edge cuts a department ${row.into}px in`);
+    }
+
+    // At 200% text a phone's bar wraps past 12% of the window, and a bar that
+    // tall must not stick over what has focus: it scrolls away with the page.
+    {
+      await open('/frame', 375, true);
+      const big = await evaluate(`(async () => {
+        document.documentElement.style.fontSize = '200%';
+        await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+        const head = document.querySelector('.goen-header');
+        const got = { height: head.getBoundingClientRect().height, window: innerHeight, position: getComputedStyle(head).position };
+        document.documentElement.style.fontSize = '';
+        return got;
+      })()`);
+      const where = `${label} /frame 375px at 200%`;
+      assert.ok(big.height > big.window * 0.12, `${where}: the bar is ${big.height}px, no taller than 12%, so this measured nothing`);
+      assert.equal(big.position, 'relative', `${where}: a ${big.height}px bar still sticks: ${JSON.stringify(big)}`);
+      console.log(`${where}: a ${big.height}px bar scrolls away with the page`);
     }
 
     // goen.js scrolls the row to the current department, whichever it is, in either language: the
@@ -449,7 +475,7 @@ try {
         const nav = document.querySelector('.goen-header__nav');
         const box = nav.getBoundingClientRect();
         const at = link => { const r = link.getBoundingClientRect(); return { name: link.textContent.trim(), left: Math.round(r.left - box.left), right: Math.round(r.right - box.left) }; };
-        const links = [...nav.querySelectorAll(':scope > a, :scope > .goen-dept > a')].map(at);
+        const links = [...nav.querySelectorAll(':scope > a')].map(at);
         return { width: box.width, scrolled: nav.scrollLeft, current: at(nav.querySelector('[aria-current="page"]')),
           cut: links.filter(l => l.left < -0.5 && l.right > 0.5) };
       })()`);
@@ -460,21 +486,6 @@ try {
     console.log(`${label}: the current department is whole and no other is cut at the row's start, 320, 375 and 414px, both languages`);
 
     await open('/frame', 1440);
-    const panel = await evaluate(`(() => {
-      const dept = document.querySelector('.goen-dept');
-      dept.setAttribute('data-open', '');
-      const panel = dept.querySelector('.goen-dept__panel');
-      const style = getComputedStyle(panel);
-      return { shown: panel.getClientRects().length > 0, background: style.backgroundColor, shadow: style.boxShadow,
-        columns: getComputedStyle(panel.querySelector('.goen-dept__inner')).gridTemplateColumns.split(' '),
-        sizes: panel.querySelector('.goen-dept__picks img').getAttribute('sizes') };
-    })()`);
-    assert.ok(panel.shown, `${label}: the department panel does not open`);
-    assert.equal(panel.background, 'rgb(255, 255, 255)', `${label}: the department panel's ground is ${panel.background}, not white`);
-    assert.notEqual(panel.shadow, 'none', `${label}: the department panel casts no shadow`);
-    assert.deepEqual([panel.columns.length, panel.columns[0], panel.columns[2]], [3, '200px', '280px'], `${label}: the panel's columns are ${panel.columns}`);
-    console.log(`${label}: the panel is white under its shadow in ${panel.columns.join(' ')}`);
-
     const footer = await evaluate(`(() => {
       const ink = getComputedStyle(document.body).color;
       const submit = document.querySelector('#newsletter-submit');
@@ -774,13 +785,16 @@ try {
       }
     }
   }
-  // The header's search is a white field with a 1px edge on all four sides and
-  // the field's 4px corner at any text size. A page that opens with the hero
-  // meets it without the header's rule; every other page keeps the rule.
+  // The header's search is a field on the shelf with a 1px edge on all four
+  // sides and the bar's 8px corner at any text size, under a header that keeps
+  // its rule on every page, since it sticks over whatever scrolls under it.
+  // Below 640 the field opens from its button first.
   {
     const label = 'header search';
     const measure = rootSize => evaluate(`(() => {
       document.documentElement.style.fontSize = ${JSON.stringify(rootSize)};
+      const opener = document.querySelector('[data-search-open]');
+      if (opener && getComputedStyle(opener).display !== 'none' && !document.querySelector('.goen-header[data-search-open]')) opener.click();
       const resolve = (property, value) => {
         const probe = document.createElement('div');
         probe.style.position = 'absolute';
@@ -802,7 +816,8 @@ try {
         hero: document.querySelector('.goen-hero') !== null,
         rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
         edge: resolve('color', 'var(--edge)'),
-        corner: resolve('border-top-left-radius', 'var(--r-field)'),
+        corner: resolve('border-top-left-radius', 'var(--shape-sm)'),
+        shelf: resolve('background-color', 'var(--shelf)'),
         background: style.backgroundColor,
         widths: sides.map(side => style[\`border\${side}Width\`]),
         styles: sides.map(side => style[\`border\${side}Style\`]),
@@ -825,19 +840,18 @@ try {
           assert.ok(got, `${where}: no search field or icon`);
           assert.equal(got.hero, hero, `${where}: the fixture ${hero ? 'has no' : 'has a'} hero`);
           assert.ok(got.height > 0, `${where}: the field is not drawn`);
-          assert.equal(got.background, 'rgb(255, 255, 255)', `${where}: background is ${got.background}, not white`);
+          assert.equal(got.background, got.shelf, `${where}: background is ${got.background}, not the shelf ${got.shelf}`);
           assert.deepEqual(got.widths, ['1px', '1px', '1px', '1px'], `${where}: border widths ${got.widths}`);
           assert.deepEqual(got.styles, ['solid', 'solid', 'solid', 'solid'], `${where}: border styles ${got.styles}`);
           assert.deepEqual(got.colors, Array(4).fill(got.edge), `${where}: border colours ${got.colors}, not the control edge ${got.edge}`);
-          assert.equal(got.corner, '4px', `${where}: --r-field resolves to ${got.corner}, not 4px`);
-          assert.deepEqual(got.radii, Array(4).fill('4px'), `${where}: corners ${got.radii}, not the field's 4px`);
+          assert.equal(got.corner, '8px', `${where}: --shape-sm resolves to ${got.corner}, not 8px`);
+          assert.deepEqual(got.radii, Array(4).fill('8px'), `${where}: corners ${got.radii}, not the bar's 8px`);
           assert.equal(got.paddingLeft, `${2.5 * got.rem}px`, `${where}: left padding ${got.paddingLeft}, not 2.5rem`);
           assert.ok(Math.abs(got.iconLeft - got.rem) < 0.5, `${where}: the magnifier starts ${got.iconLeft}px in, not 1rem (${got.rem}px)`);
           assert.ok(got.iconRight <= 2.5 * got.rem, `${where}: the magnifier ends ${got.iconRight}px in, over the text that starts at 2.5rem`);
-          if (hero) assert.equal(got.rule.width, '0px', `${where}: the header keeps its rule over the hero`);
-          else assert.deepEqual(got.rule, { width: '1px', style: 'solid' }, `${where}: the header's rule is ${JSON.stringify(got.rule)}`);
+          assert.deepEqual(got.rule, { width: '1px', style: 'solid' }, `${where}: the header's rule is ${JSON.stringify(got.rule)}`);
         }
-        console.log(`${label} ${path} ${width}px: white field, 4px corner, 1px edge, 2.5rem inset, header rule ${hero ? 'gone' : 'kept'}`);
+        console.log(`${label} ${path} ${width}px: shelf field, 8px corner, 1px edge, 2.5rem inset, header rule kept`);
       }
     }
     // The focus ring is the shared 2px outline, drawn outside a field that

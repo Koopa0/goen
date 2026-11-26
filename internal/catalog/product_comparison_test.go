@@ -74,7 +74,9 @@ func TestProductComparisonOffered(t *testing.T) {
 		t.Error("the control is before the specs, in the buy box")
 	}
 
-	off := renderToString(t, Product(ProductMeta(view(false)), view(false)))
+	// The page's own content: the header's link to compare is on every page.
+	_, off, _ := strings.Cut(renderToString(t, Product(ProductMeta(view(false)), view(false))), `<main id="main">`)
+	off, _, _ = strings.Cut(off, "</main>")
 	for _, bad := range []string{"/compare", "goen-pdp__compare", "與同類商品比較"} {
 		if strings.Contains(off, bad) {
 			t.Errorf("a department that does not compare shows %q", bad)

@@ -475,9 +475,14 @@ func TestCompareButtonLevels(t *testing.T) {
 	v.Query = "phone"
 	v.Candidates = []CompareCandidate{{Slug: "c", Name: "Cee", Brand: "B"}}
 	v.Suggestions = []tile.Tile{{Slug: "b", Name: "Bee", Brand: "B", PriceCents: 1000}}
-	doc, err := nethtml.Parse(strings.NewReader(renderToString(t, Compare(frame.Page{Title: "比較"}, v))))
+	page, err := nethtml.Parse(strings.NewReader(renderToString(t, Compare(frame.Page{Title: "比較"}, v))))
 	if err != nil {
 		t.Fatal(err)
+	}
+	// The page's own content: the header's link to compare is on every page.
+	doc := findDescendant(page, func(n *nethtml.Node) bool { return n.Type == nethtml.ElementNode && n.Data == "main" })
+	if doc == nil {
+		t.Fatal("the compare page has no <main>")
 	}
 	for _, tt := range []struct{ name, href, want string }{
 		{"remove", v.RemoveHref("a"), "goen-btn--ghost"},

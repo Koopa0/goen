@@ -1,10 +1,10 @@
 /*
- * goen — the one enhancement file.
+ * goen — the one script the storefront and the back office share.
  *
- * Everything here is optional by construction: every write path is a plain
- * <form method="post"> that the server answers on its own, and every
- * disclosure is a native <details>. Remove this file and the site still works,
- * one full page load at a time.
+ * Every write is a plain <form method="post"> that the server answers on its
+ * own, so nothing here decides whether a write happens. The storefront assumes
+ * this file runs: the menu is a dialog it opens, and the search field's
+ * shortcut is its own.
  */
 (() => {
   "use strict";
@@ -135,49 +135,83 @@
   }
 
   /*
-   * The header's category menu is a native <details>. Closing it on Escape and
-   * on outside click is the ceremony the element does not ship with.
+   * The menu is a modal <dialog>. The browser keeps focus inside it, closes it
+   * on Escape and gives focus back to the button that opened it; what it does
+   * not do is open from that button, close from the drawer's own close button,
+   * or close on a press on the backdrop, which lands on the dialog itself.
+   *
+   * Closing waits for the slide out where the browser can keep a closing
+   * dialog in the top layer until then (transition-behavior: allow-discrete on
+   * display and overlay); elsewhere it closes at once rather than vanish
+   * mid-slide.
    */
-  function headerMenu() {
-    const menu = document.querySelector("[data-menu]");
-    if (!menu) return;
+  function menu() {
+    const dialog = document.getElementById("site-menu");
+    const opener = document.querySelector("[data-menu-open]");
+    if (!(dialog instanceof HTMLDialogElement) || !opener) return;
 
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && menu.open) {
-        menu.open = false;
-        menu.querySelector("summary")?.focus();
-      }
+    opener.setAttribute("aria-expanded", "false");
+    opener.addEventListener("click", () => {
+      dialog.showModal();
+      opener.setAttribute("aria-expanded", "true");
     });
-
-    document.addEventListener("click", (event) => {
-      if (menu.open && (event.target === menu || !menu.contains(event.target))) menu.open = false;
+    dialog.addEventListener("close", () => opener.setAttribute("aria-expanded", "false"));
+    dialog.querySelector("[data-menu-close]")?.addEventListener("click", () => dialog.close());
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
     });
+  }
 
-    menu.querySelector("[data-menu-close]")?.addEventListener("click", () => {
-      menu.open = false;
-      menu.querySelector("summary")?.focus();
-    });
-
-    // What sits above the drawer varies (a notice row, the header's height), so
-    // its room is measured from the bar it hangs from. The drawer itself
-    // cannot be measured on open: its box is skipped while it fades in.
-    const drawer = menu.querySelector(".goen-header__drawer");
-    const fit = () => {
-      if (!drawer || !menu.open) return;
-      const bottom = menu.closest(".goen-header__bar")?.getBoundingClientRect().bottom ?? 0;
-      menu.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - bottom)}px`);
-    };
-    menu.addEventListener("toggle", fit);
+  /*
+   * The bar follows the scroll only while it is short: at large text or in a
+   * short window it grows past 12% of the window, and a bar that tall stuck
+   * over the page would hide what has focus under it. Measured rather than
+   * queried, because no media query sees the reader's text size.
+   */
+  function stickyBar() {
+    const header = document.querySelector(".goen-header");
+    if (!header) return;
+    const fit = () => header.toggleAttribute("data-static", header.offsetHeight > window.innerHeight * 0.12);
+    fit();
+    new ResizeObserver(fit).observe(header);
     window.addEventListener("resize", fit);
+  }
 
-    // The language panel opens in the drawer's flow, below the fold of a
-    // drawer that scrolls: bring it into view when it opens.
-    menu.addEventListener("toggle", (event) => {
-      const lang = event.target;
-      if (lang instanceof HTMLDetailsElement && lang !== menu && lang.open) {
-        lang.scrollIntoView({ block: "nearest" });
-      }
-    }, true);
+  /*
+   * The search field's shortcut: ⌘K on a Mac, Ctrl K elsewhere, named in the
+   * field so it can be learnt. A shortcut that is already the page's, inside a
+   * field being typed in, is left alone.
+   */
+  function searchShortcut() {
+    const field = document.getElementById("site-search");
+    if (!(field instanceof HTMLInputElement)) return;
+    const header = field.closest(".goen-header");
+    const opener = document.querySelector("[data-search-open]");
+    // Below 640 the field is under the bar only once its button is pressed;
+    // the shortcut opens it the same way.
+    const reveal = (open) => {
+      header?.toggleAttribute("data-search-open", open);
+      opener?.setAttribute("aria-expanded", String(open));
+    };
+    opener?.addEventListener("click", () => {
+      const open = !header?.hasAttribute("data-search-open");
+      reveal(open);
+      if (open) field.focus();
+    });
+    const mac = /Mac|iPhone|iPad/.test(navigator.userAgentData?.platform ?? navigator.platform);
+    const hint = field.form?.querySelector("[data-shortcut]");
+    if (hint) {
+      hint.textContent = mac ? "\u2318K" : "Ctrl K";
+      hint.hidden = false;
+    }
+    document.addEventListener("keydown", (event) => {
+      if (event.key.toLowerCase() !== "k" || event.altKey || event.shiftKey) return;
+      if (!(mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) return;
+      event.preventDefault();
+      reveal(true);
+      field.focus();
+      field.select();
+    });
   }
 
   /*
@@ -190,7 +224,7 @@
     const row = document.querySelector(".goen-header__nav");
     const current = row?.querySelector('[aria-current="page"]');
     if (!row || !current) return;
-    const links = row.querySelectorAll(":scope > a, :scope > .goen-dept > a");
+    const links = row.querySelectorAll(":scope > a");
     const start = (link) => link.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
     // The current department starts where the row's own gutter does, with the
     // one before it out of sight behind the edge: centring it left half a
@@ -252,82 +286,6 @@
         for (const other of pops) if (other !== pop) other.open = false;
       });
     }
-  }
-
-  /*
-   * A department's panel opens by hover, in CSS. With this script running it
-   * does not open by focus: every sub-link of every department would be a tab
-   * stop before the search field. Keyboard users open it from the department's
-   * own link with ArrowDown, which moves into the panel; ArrowUp and Down move
-   * between its links and Escape closes it and returns to the link. Without
-   * the script the stylesheet keeps the panel open while focus is inside the
-   * department, so it stays reachable.
-   *
-   * Content that appears on hover has to be dismissible without moving the
-   * pointer or the focus, so Escape also marks a hover-opened panel dismissed
-   * until the pointer leaves or the focus moves out.
-   */
-  function departmentPanels() {
-    const depts = document.querySelectorAll(".goen-dept");
-    if (!depts.length) return;
-
-    const parts = (dept) => ({
-      link: dept.querySelector(":scope > a"),
-      items: [...dept.querySelectorAll(".goen-dept__panel a")],
-    });
-    const setOpen = (dept, open) => {
-      const { link } = parts(dept);
-      if (open) {
-        dept.setAttribute("data-open", "");
-        dept.removeAttribute("data-dismissed");
-      } else {
-        dept.removeAttribute("data-open");
-      }
-      link?.setAttribute("aria-expanded", String(open));
-    };
-
-    for (const dept of depts) {
-      const { link } = parts(dept);
-      link?.setAttribute("aria-haspopup", "true");
-      link?.setAttribute("aria-expanded", "false");
-
-      dept.addEventListener("keydown", (event) => {
-        const { link, items } = parts(dept);
-        const at = items.indexOf(document.activeElement);
-        if (event.key === "ArrowDown" && (document.activeElement === link || at >= 0)) {
-          event.preventDefault();
-          setOpen(dept, true);
-          items[Math.min(at + 1, items.length - 1)]?.focus();
-        } else if (event.key === "ArrowUp" && at >= 0) {
-          event.preventDefault();
-          if (at === 0) {
-            setOpen(dept, false);
-            link?.focus();
-          } else {
-            items[at - 1].focus();
-          }
-        }
-      });
-      dept.addEventListener("mouseleave", () => dept.removeAttribute("data-dismissed"));
-      dept.addEventListener("focusout", (event) => {
-        if (event.relatedTarget instanceof Node && dept.contains(event.relatedTarget)) return;
-        dept.removeAttribute("data-dismissed");
-        setOpen(dept, false);
-      });
-    }
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
-      for (const dept of depts) {
-        const { link, items } = parts(dept);
-        const inside = items.includes(document.activeElement);
-        if (dept.hasAttribute("data-open")) {
-          setOpen(dept, false);
-          if (inside) link?.focus();
-        }
-        if (dept.matches(":hover")) dept.setAttribute("data-dismissed", "");
-      }
-    });
   }
 
   /*
@@ -1253,9 +1211,10 @@
   handoff();
   buyBar();
   focusAfterSwap();
-  headerMenu();
+  menu();
+  stickyBar();
+  searchShortcut();
   departmentRow();
-  departmentPanels();
   popovers();
   stepper();
   carousel();
