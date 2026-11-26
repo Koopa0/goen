@@ -106,7 +106,38 @@ func (s *Store) Product(ctx context.Context, slug string, sel Selection) (Produc
 	if err := s.loadDetail(ctx, &p, &view); err != nil {
 		return ProductView{}, err
 	}
+	if view.Comparable {
+		// Anchored on the price the page shows before any choice, so the
+		// comparison does not change with the options chosen.
+		lead, _ := Resolve(variants, nil)
+		similar, similarErr := s.similarProducts(ctx, p.Slug, lead.PriceCents)
+		if similarErr != nil {
+			return ProductView{}, similarErr
+		}
+		view.Similar = similar
+	}
 	return view, nil
+}
+
+// similarProducts are the products a ready-made comparison puts beside slug:
+// the others on its shelf priced closest to anchorCents, the compare page's own
+// suggestions, as many as fill a ready-made comparison.
+func (s *Store) similarProducts(ctx context.Context, slug string, anchorCents int64) ([]string, error) {
+	rows, err := s.q.CompareSuggestions(ctx, db.CompareSuggestionsParams{
+		Locale:       string(i18n.FromContext(ctx)),
+		ProductSlug:  slug,
+		ExcludeSlugs: []string{slug},
+		AnchorCents:  anchorCents,
+		RowLimit:     presetProducts - 1,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read the products to compare %q with: %w", slug, err)
+	}
+	out := make([]string, 0, len(rows))
+	for i := range rows {
+		out = append(out, rows[i].Slug)
+	}
+	return out, nil
 }
 
 // variantsOf is the product's variants as the page chooses between them.

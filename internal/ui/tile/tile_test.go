@@ -206,14 +206,15 @@ func textOf(n *html.Node) string {
 }
 
 // TestCellSpecHighlights: a tile draws each of its specification values as a
-// capsule of its own, comparable or not, and none where it has none.
+// capsule of its own, with a compare control or without, and none where it has
+// none.
 func TestCellSpecHighlights(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	for _, comparable := range []bool{true, false} {
-		got := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", Comparable: comparable, Highlights: []string{"14″", "2.8K OLED"}}))
+	for _, control := range []templ.Component{templ.Raw(`<form class="stub-toggle"></form>`), nil} {
+		got := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", CompareControl: control, Highlights: []string{"14″", "2.8K OLED"}}))
 		if want := `<span class="goen-tile__specs"><span class="goen-tile__spec">14″</span><span class="goen-tile__spec">2.8K OLED</span></span>`; !strings.Contains(got, want) {
-			t.Errorf("comparable %t: tile omits %s", comparable, want)
+			t.Errorf("compare control %t: tile omits %s", control != nil, want)
 		}
 	}
 	if got := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A"})); strings.Contains(got, "goen-tile__specs") {
@@ -260,7 +261,7 @@ func TestCellGridCell(t *testing.T) {
 
 	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.ZhHant), Cell(Tile{
 		Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Brand: "Pixelight",
-		PriceCents: 3690000, InStock: true, Comparable: true,
+		PriceCents: 3690000, InStock: true,
 	}))
 	if strings.Count(out, "<li") != 1 {
 		t.Fatalf("Cell rendered %d list items, want 1", strings.Count(out, "<li"))
@@ -268,8 +269,37 @@ func TestCellGridCell(t *testing.T) {
 	if !strings.Contains(out, `class="goen-tile__cell"`) {
 		t.Error("Cell lost its grid cell wrapper")
 	}
-	if !strings.Contains(out, `class="goen-tile__compare"`) {
-		t.Error("Cell lost its compare checkbox")
+}
+
+// TestCardCompareControl: a card draws the compare control its page hands it
+// in the foot, outside the link, after the pricing and before the quick add,
+// and a card handed none draws none.
+func TestCardCompareControl(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	control := templ.Raw(`<form class="stub-toggle"></form>`)
+	for _, tt := range []struct {
+		name string
+		tile Tile
+		want string
+	}{
+		{"with the quick add", Tile{Slug: "a", Name: "A", InStock: true, QuickAdd: "v", CompareControl: control},
+			`</span> </span></div><form class="stub-toggle"></form><form class="goen-tile__add"`},
+		{"alone", Tile{Slug: "a", Name: "A", InStock: true, CompareControl: control},
+			`</span> </span></div><form class="stub-toggle"></form></div>`},
+		{"none", Tile{Slug: "a", Name: "A", InStock: true, QuickAdd: "v"},
+			`</span> </span></div><form class="goen-tile__add"`},
+	} {
+		out := renderComponent(t, ctx, Card(tt.tile))
+		if !strings.Contains(out, tt.want) {
+			t.Errorf("Card(%s) = %s, want it to hold %s", tt.name, out, tt.want)
+		}
+		if strings.Contains(out, "stub-toggle") != (tt.tile.CompareControl != nil) {
+			t.Errorf("Card(%s) draws the control = %v, want %v", tt.name, tt.tile.CompareControl == nil, tt.tile.CompareControl != nil)
+		}
+		if link := strings.Index(out, "</a>"); strings.Contains(out, "stub-toggle") && strings.Index(out, "stub-toggle") < link {
+			t.Errorf("Card(%s) draws the compare control inside its link: %s", tt.name, out)
+		}
 	}
 }
 

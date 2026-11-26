@@ -206,10 +206,16 @@ type ProductView struct {
 	NotifyOutcome  NotifyOutcome
 	NotifyEmail    string
 	AccountEmail   string
-	Comparing      []string
-	Comparable     bool
-	Questions      []Question
-	AskOutcome     string
+	// Comparable is the department's answer to whether its products are put
+	// side by side: the buy column carries the compare toggle where it is.
+	Comparable bool
+	// Similar are the products on the same shelf priced closest to this one,
+	// at most presetProducts-1 of them, for the ready-made comparison under the
+	// specifications; none where the department does not compare or the shelf
+	// holds nothing else.
+	Similar    []string
+	Questions  []Question
+	AskOutcome string
 	// AskDraft replays a refused question so a 422 does not empty the textarea.
 	AskDraft     string
 	AddedOutcome cartitem.AddOutcome
@@ -551,34 +557,12 @@ func (v *ProductView) AskSignInHref() string {
 	return "/signin?next=/p/" + v.Slug + "%23questions"
 }
 
+// CompareHref is the ready-made comparison the specifications lead to: the
+// product first, then Similar. A link, as the compare page's own ready-made
+// comparisons are, so following it leaves the shopper's compare set as it was.
 func (v *ProductView) CompareHref() string {
-	var b strings.Builder
-	b.WriteString("/compare")
-	sep := "?"
-	for _, slug := range v.Comparing {
-		if slug == v.Slug {
-			continue
-		}
-		b.WriteString(sep)
-		b.WriteString("p=")
-		b.WriteString(slug)
-		sep = "&"
-	}
-	b.WriteString(sep)
-	b.WriteString("p=")
-	b.WriteString(v.Slug)
-	return b.String()
+	return "/compare?" + url.Values{"p": append([]string{v.Slug}, v.Similar...)}.Encode()
 }
-
-func (v *ProductView) AlreadyComparing() bool {
-	return slices.Contains(v.Comparing, v.Slug)
-}
-
-func (v *ProductView) CurrentCompareHref() string {
-	return "/compare?" + url.Values{"p": v.Comparing}.Encode()
-}
-
-func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }
 
 // BuyFacts are the terms the buyer is told under the button: the warranty the product carries, what delivery
 // costs and where it turns free, and the stock hold only while there is stock to hold. Each is read from where

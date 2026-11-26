@@ -192,8 +192,8 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			Path: "/search", Keep: url.Values{"q": {"tote"}}, Searching: true, Total: 2, Page: 1, PageSize: 20,
 			Departments: []catalog.TreeLink{{Slug: "fashion", Name: "Fashion", Count: 2}},
 			Products: []tile.Tile{
-				{Slug: "canvas-tote", Name: "Canvas tote", PriceCents: 89000, InStock: true, Comparable: true},
-				{Slug: "city-tote", Name: "City tote", PriceCents: 129000, InStock: true, Comparable: true},
+				{Slug: "canvas-tote", Name: "Canvas tote", PriceCents: 89000, InStock: true, QuickAdd: "tote-natural", CompareControl: catalog.CompareToggle("canvas-tote", "Canvas tote")},
+				{Slug: "city-tote", Name: "City tote", PriceCents: 129000, InStock: true, CompareControl: catalog.CompareToggle("city-tote", "City tote")},
 			},
 		}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -485,7 +485,7 @@ func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []tile.Tile 
 			ImageAlt:       r.ImageAlt,
 			ImageWidth:     r.ImageWidth,
 			ImageHeight:    r.ImageHeight,
-			Comparable:     offers[r.CategoryID],
+			CompareControl: compareControl(offers[r.CategoryID], r.Slug, r.Name),
 		})
 	}
 	return out
@@ -516,7 +516,7 @@ func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []tile.
 			ImageAlt:       r.ImageAlt,
 			ImageWidth:     r.ImageWidth,
 			ImageHeight:    r.ImageHeight,
-			Comparable:     offers[r.CategoryID],
+			CompareControl: compareControl(offers[r.CategoryID], r.Slug, r.Name),
 		})
 	}
 	return out

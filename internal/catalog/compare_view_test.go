@@ -136,7 +136,7 @@ func TestCompareBuyColumn(t *testing.T) {
 		`<form class="goen-compare__cart" method="post" action="/cart/items" hx-post="/cart/items" hx-target="#compare-added-tea" hx-select="#added" hx-swap="innerHTML" hx-select-oob="#cart-link" hx-push-url="false">`,
 		`<input type="hidden" name="variant" value="7c1f2b9e-5d34-4a6e-9b0c-3e8a1d2f4c60"> <input type="hidden" name="quantity" value="1"> <input type="hidden" name="back" value="tea">`,
 		`<div class="goen-compare__added" id="compare-added-tea" role="status"></div>`,
-		`href="/p/phone?p=tea&amp;p=phone&amp;p=gone">請選擇選項 <span class="goen-sr-only"> Phone</span>`,
+		`href="/p/phone">請選擇選項 <span class="goen-sr-only"> Phone</span>`,
 		`<span class="goen-compare__soldout">已售完</span>`,
 		`aria-label="移除 Gone"`,
 	} {

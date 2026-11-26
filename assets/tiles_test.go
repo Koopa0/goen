@@ -85,13 +85,13 @@ func TestAppCSSTileAsDrawn(t *testing.T) {
 	}
 }
 
-// TestAppCSSCompareBarAsDrawn checks the compare box and bar as the design
-// draws them: the box is a square of the control boundary on the page ground,
-// ink when ticked, with the ring on focus and a 44px label; the bar is a tool
-// strip on the high container, under the grid and never pinned to the window,
-// and its one action is the ink button, which no rule of the bar turns blue.
-// Each reads a role, so the night takes its value from the same rule.
-func TestAppCSSCompareBarAsDrawn(t *testing.T) {
+// TestAppCSSCompareToggleAsDrawn checks the compare toggle as the design draws
+// it: an outlined button with the field's edge on the page ground, a 44px
+// target, the ring on focus, and while pressed the cobalt tint with cobalt
+// words and edge, which the night redefines from the same roles. On a card and
+// a row of the spec list its form gives the row its button and its note, so a
+// refusal takes a line of its own; and no rule pins it to the window.
+func TestAppCSSCompareToggleAsDrawn(t *testing.T) {
 	t.Parallel()
 
 	body, err := fs.ReadFile(files, AppCSS)
@@ -111,26 +111,21 @@ func TestAppCSSCompareBarAsDrawn(t *testing.T) {
 		}
 		return blocks
 	}
-	box := ".goen-tile__compare input.goen-check"
+	button := ".goen-comparetoggle__button"
 	for _, want := range []struct{ selector, decl string }{
-		{".goen-tile__compare", `min-height:\s*44px;`},
-		{".goen-tile__compare", `font:\s*var\(--type-body-s\);`},
-		{".goen-tile__compare:has(:checked)", `font-weight:\s*var\(--fw-medium\);`},
-		{box, `appearance:\s*none;`},
-		{box, `background:\s*var\(--sys-surface\);`},
-		{box, `border:\s*1px solid var\(--sys-outline\);`},
-		{box, `border-radius:\s*2px;`},
-		{box, `height:\s*1\.125rem;`},
-		{box, `width:\s*1\.125rem;`},
-		{box + ":checked", `background:\s*var\(--sys-on-surface\);`},
-		{box + ":checked::after", `border:\s*solid var\(--sys-surface\);`},
-		{box + ":focus-visible", `outline:\s*2px solid var\(--ring\);`},
-		{box + ":focus-visible", `outline-offset:\s*2px;`},
-		{".goen-compare-pick__go", `background:\s*var\(--sys-surface-container-high\);`},
-		{".goen-compare-pick__go", `padding:\s*var\(--s-3\) var\(--s-5\);`},
-		{".goen-compare-pick__go", `margin-top:\s*var\(--s-6\);`},
-		{".goen-compare-pick__go", `flex-wrap:\s*wrap;`},
-		{".goen-compare-pick__note", `color:\s*var\(--sys-on-surface-variant\);`},
+		{button, `background:\s*var\(--sys-surface\);`},
+		{button, `border:\s*1px solid var\(--field-edge\);`},
+		{button, `color:\s*var\(--text-strong\);`},
+		{button, `min-height:\s*2\.75rem;`},
+		{button + ":focus-visible", `outline:\s*2px solid var\(--ring\);`},
+		{button + `[aria-pressed="true"]`, `background:\s*var\(--cobalt-soft\);`},
+		{button + `[aria-pressed="true"]`, `border-color:\s*var\(--sys-primary\);`},
+		{button + `[aria-pressed="true"]`, `color:\s*var\(--sys-primary\);`},
+		{".goen-comparetoggle__note:empty", `display:\s*none;`},
+		{".goen-tile__foot > .goen-comparetoggle", `display:\s*contents;`},
+		{".goen-specrow__buy > .goen-comparetoggle", `display:\s*contents;`},
+		{".goen-tile__foot .goen-comparetoggle__note", `flex-basis:\s*100%;`},
+		{".goen-specrow__buy .goen-comparetoggle__note", `flex-basis:\s*100%;`},
 	} {
 		found := false
 		for _, block := range declared(want.selector) {
@@ -143,15 +138,9 @@ func TestAppCSSCompareBarAsDrawn(t *testing.T) {
 		}
 	}
 	pinned := regexp.MustCompile(`position:\s*(sticky|fixed)`)
-	blue := regexp.MustCompile(`--sys-primary|--primary-faint|--primary-deep|--secondary`)
 	for _, rule := range rules {
-		if strings.Contains(rule[1], "goen-compare-pick") && pinned.MatchString(rule[2]) {
-			t.Errorf("%s: %s pins the compare bar to the window: %s", AppCSS, strings.TrimSpace(rule[1]), pinned.FindString(rule[2]))
-		}
-		// The bar's one action is the ink button the drawing sets there, so no
-		// rule of the bar lays blue on it.
-		if strings.Contains(rule[1], "goen-compare-pick") && blue.MatchString(rule[2]) {
-			t.Errorf("%s: %s draws the bar in blue: %s", AppCSS, strings.TrimSpace(rule[1]), blue.FindString(rule[2]))
+		if strings.Contains(rule[1], "goen-comparetoggle") && pinned.MatchString(rule[2]) {
+			t.Errorf("%s: %s pins the compare toggle to the window: %s", AppCSS, strings.TrimSpace(rule[1]), pinned.FindString(rule[2]))
 		}
 	}
 }

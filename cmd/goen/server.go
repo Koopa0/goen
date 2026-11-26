@@ -255,7 +255,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	}
 	browse := catalog.NewHandler(catalogue, log, baseURL)
 	offers := campaign.NewHandler(deals, log)
-	homePage := home.NewHandler(homeStore, log)
+	homePage := home.NewHandler(homeStore, log, catalog.CompareToggle)
 	images := media.NewHandler(media.NewStore(pool), log)
 	contactLimit := ratelimit.New(ratelimit.Config{
 		Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,

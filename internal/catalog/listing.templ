@@ -335,20 +335,18 @@ templ shelfResults(s *Shelf) {
 				</div>
 			} else {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-				@compareForm(tile.AnyComparable(s.Products)) {
-					if s.IsList() {
-						<ul class="goen-speclist" role="list">
-							for _, t := range s.Grid() {
-								@specRow(t, s.Specs[t.Slug])
-							}
-						</ul>
-					} else {
-						<ul class="goen-tiles__grid" role="list">
-							for _, t := range s.Grid() {
-								@tile.Cell(t)
-							}
-						</ul>
-					}
+				if s.IsList() {
+					<ul class="goen-speclist" role="list">
+						for _, t := range s.Grid() {
+							@specRow(t, s.Specs[t.Slug])
+						}
+					</ul>
+				} else {
+					<ul class="goen-tiles__grid" role="list">
+						for _, t := range s.Grid() {
+							@tile.Cell(t)
+						}
+					</ul>
 				}
 				@showMore(s.HasPrev(), s.HasNext(), s.PrevHref(), s.NextHref(), s.PageText(), s.PagesText())
 			}
@@ -370,7 +368,8 @@ templ shelfResults(s *Shelf) {
 
 // One product as a row of the list: its photograph, brand and name as the one
 // link, then the specifications it lists first, whether it can be bought, and
-// its price. The compare box follows the link, never inside it, as on a card.
+// its price. The compare control follows the price, outside the link, as on a
+// card.
 templ specRow(t tile.Tile, specs []Spec) {
 	<li class="goen-specrow">
 		<a class="goen-specrow__link" href={ templ.URL("/p/" + t.Slug) }>
@@ -422,12 +421,8 @@ templ specRow(t tile.Tile, specs []Spec) {
 		</p>
 		<div class="goen-specrow__buy">
 			@tile.Price(t)
-			if t.Comparable {
-				<label class="goen-specrow__compare">
-					<input type="checkbox" name="p" value={ t.Slug } class="goen-check" form="compare-pick"/>
-					<span>{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
-					<span class="goen-sr-only">{ " " + t.Name }</span>
-				</label>
+			if t.CompareControl != nil {
+				@t.CompareControl
 			}
 		</div>
 	</li>
@@ -488,13 +483,11 @@ templ searchNewest(v *SearchView) {
 	if len(v.Newest) > 0 {
 		<section class="goen-search__section" aria-labelledby="search-newest">
 			<h2 class="goen-listing__subhead" id="search-newest">{ i18n.T(ctx, i18n.KeySearchNewest) }</h2>
-			@compareForm(tile.AnyComparable(v.Newest)) {
-				<ul class="goen-tiles__grid" role="list">
-					for _, t := range tile.FirstRowEager(v.Newest) {
-						@tile.Cell(t)
-					}
-				</ul>
-			}
+			<ul class="goen-tiles__grid" role="list">
+				for _, t := range tile.FirstRowEager(v.Newest) {
+					@tile.Cell(t)
+				}
+			</ul>
 		</section>
 	}
 }

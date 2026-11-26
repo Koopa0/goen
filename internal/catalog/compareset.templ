@@ -9,14 +9,18 @@ import (
 )
 
 // CompareToggle puts a product in the shopper's compare set or takes it out,
-// from any page that shows the product: name is the product's, for the button's
-// name. Whether the product is in the set is read from the request, where
+// from any page that shows the product: a card, a row of the spec list, the
+// product page's buy column. name is the product's, for the button's name.
+// Whether the product is in the set is read from the request, where
 // CompareSet.WithCount put the set. The button keeps one name and says which way
-// it is by aria-pressed, as a toggle does. A plain post comes back to the page it
-// was pressed on; with htmx the response's own control is morphed over this one,
-// so focus stays on the button, and the header's compare links are replaced out
-// of band. A full set refuses the add and says so in the status beside the
-// button, which is in the page before it speaks.
+// it is by aria-pressed, as a toggle does; the tick drawn while it is pressed
+// says so to an eye that cannot tell the tint. A plain post comes back to the
+// page it was pressed on; with htmx the response's own control is morphed over
+// this one, so focus stays on the button, and the header's compare links are
+// replaced out of band. A full set refuses the add, and the answer to that press
+// says so in the status beside the button, which is in the page before it
+// speaks; a page drawn with a full set says nothing until a press is refused,
+// or a shelf would repeat the sentence under every card.
 templ CompareToggle(slug, name string) {
 	{{ inSet := inCompareSet(ctx, slug) }}
 	<form
@@ -40,14 +44,12 @@ templ CompareToggle(slug, name string) {
 		<button class="goen-comparetoggle__button" type="submit" aria-pressed={ ariaPressed(inSet) }>
 			if inSet {
 				@icons.Check()
-			} else {
-				@icons.Sliders()
 			}
 			{ i18n.T(ctx, i18n.KeyCompareAdd) }
 			<span class="goen-sr-only">{ " " + name }</span>
 		</button>
 		<span class="goen-comparetoggle__note" role="status">
-			if !inSet && frame.CompareCount(ctx) >= MaxCompare {
+			if !inSet && compareRefused(ctx) {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }
 			}
 		</span>
@@ -60,6 +62,16 @@ templ CompareToggle(slug, name string) {
 templ compareToggleSwap(slug, name string) {
 	@frame.Header(frame.Page{})
 	@CompareToggle(slug, name)
+}
+
+// compareControl is what a card of a product carries to keep it in the compare
+// set: the toggle where its department compares, and nil, which a card draws as
+// nothing, where it does not.
+func compareControl(offered bool, slug, name string) templ.Component {
+	if !offered {
+		return nil
+	}
+	return CompareToggle(slug, name)
 }
 
 func ariaPressed(on bool) string {

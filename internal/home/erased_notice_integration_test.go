@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -18,7 +19,7 @@ import (
 // TestHandler_IndexErasureFlag holds that Index confirms the account erasure
 // only for ?erased=1, not for an absent, zero or unknown value.
 func TestHandler_IndexErasureFlag(t *testing.T) {
-	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler))
+	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), catalog.CompareToggle)
 	for _, locale := range i18n.Locales() {
 		for _, query := range []string{"", "?erased=0", "?erased=unknown", "?erased=1"} {
 			t.Run(locale.Tag()+query, func(t *testing.T) {

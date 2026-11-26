@@ -221,6 +221,9 @@ func (s *Store) shelf(ctx context.Context, featured *db.RootCategoriesRow, dept 
 		return nil, err
 	}
 	shelf.Tiles = s.saleUntil(tiles)
+	if shelf.Compares, err = s.q.ShelfCompares(ctx, from); err != nil {
+		return nil, fmt.Errorf("read whether the featured shelf compares: %w", err)
+	}
 	return shelf, nil
 }
 

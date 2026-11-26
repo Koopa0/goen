@@ -1371,7 +1371,7 @@ th {
 
 /* The count changes width as it grows, so its figures are of one width and
    a count that changes does not move the word. The link is a flex box, which
-   drops the space between them, so the space between 購物車 and 2 is a margin.
+   drops the space between them, so the space between 購物袋 and 2 is a margin.
    `check-layout.mjs` reads its text after an add to cart. */
 .goen-header__count {
   align-items: center;
@@ -3732,17 +3732,46 @@ a.goen-bento__life:focus-visible {
   padding: 0.65rem 0 1rem;
 }
 
-.goen-tile__cell > .goen-tile__compare {
-  margin: -0.5rem 1rem 0.25rem;
-}
-
 /* What a page puts under the card, the wishlist's buttons, keeps its inset. */
-.goen-tile__cell > .goen-tile__foot ~ :not(.goen-tile__compare) {
+.goen-tile__cell > .goen-tile__foot ~ * {
   margin-inline: 1rem;
 }
 
-.goen-tile__cell > .goen-tile__foot ~ :last-child:not(.goen-tile__compare) {
+.goen-tile__cell > .goen-tile__foot ~ :last-child {
   margin-bottom: 1rem;
+}
+
+/* On a card's foot and on a row of the spec list the toggle's form gives its
+   button and its note to the row it is in: the button stands after the price
+   and before the quick add, and a refusal takes a line of its own under them
+   rather than squeezing into the button's width or pushing the button off the
+   price's line. */
+.goen-tile__foot > .goen-comparetoggle,
+.goen-specrow__buy > .goen-comparetoggle {
+  display: contents;
+}
+
+.goen-tile__foot .goen-comparetoggle__button,
+.goen-specrow__buy .goen-comparetoggle__button {
+  font: var(--fw-medium) 0.8125rem/1.2 var(--font-sans);
+  padding: 0.35rem 0.7rem;
+}
+
+/* The button and the quick add are one group at the foot's end: the button's
+   margin takes the room after the price, so the quick add's own gives it up. */
+.goen-tile__foot .goen-comparetoggle__button {
+  margin-inline-start: auto;
+}
+
+.goen-tile__foot > .goen-comparetoggle + .goen-tile__add {
+  margin-inline-start: 0;
+}
+
+.goen-tile__foot .goen-comparetoggle__note,
+.goen-specrow__buy .goen-comparetoggle__note {
+  flex-basis: 100%;
+  order: 1;
+  text-align: end;
 }
 
 .goen-tile__price {
@@ -3875,15 +3904,20 @@ a.goen-bento__life:focus-visible {
   }
 }
 
-/* The card's one action: a quick add for a product with one variant. The
-   status line under it is where the outcome is said, empty until then. */
+/* The card's quick add, for a product with one variant. The status line under
+   it is where the outcome is said, empty until then; it takes no room while
+   empty, so the form is as wide and as tall as its button and stands level
+   with the compare toggle beside it. */
 .goen-tile__add {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.5rem;
   justify-content: flex-end;
   margin-inline-start: auto;
+}
+
+.goen-tile__foot .goen-tile__added:not(:empty) {
+  margin-top: 0.25rem;
 }
 
 .goen-tile__addbutton {
@@ -3923,59 +3957,6 @@ a.goen-bento__life:focus-visible {
   margin: 0;
 }
 
-/* Under the card, outside its link: a control nested in an anchor is neither
-   clickable nor valid. The word is the label, so the box is never unexplained. */
-.goen-tile__compare {
-  align-items: center;
-  align-self: flex-start;
-  cursor: pointer;
-  display: inline-flex;
-  font: var(--type-body-s);
-  gap: var(--s-2);
-  min-height: 44px;
-}
-
-.goen-tile__compare:has(:checked) {
-  font-weight: var(--fw-medium);
-}
-
-/* .goen-check is also the 44px row of a labelled checkbox; here it is only the
-   box, drawn rather than the platform's: square on the page ground, ink when
-   ticked. In rem so it grows with the reader's text (18px at 100%). */
-.goen-tile__compare input.goen-check {
-  appearance: none;
-  background: var(--sys-surface);
-  border: 1px solid var(--sys-outline);
-  border-radius: 2px;
-  display: grid;
-  height: 1.125rem;
-  margin: 0;
-  min-height: 0;
-  place-items: center;
-  width: 1.125rem;
-}
-
-.goen-tile__compare input.goen-check:checked {
-  background: var(--sys-on-surface);
-  border-color: var(--sys-on-surface);
-}
-
-/* The check is a border, so forced colours redraw it in the text colour. */
-.goen-tile__compare input.goen-check:checked::after {
-  border: solid var(--sys-surface);
-  border-width: 0 0 2px 2px;
-  content: '';
-  height: 0.3125rem;
-  rotate: -45deg;
-  translate: 0 -1px;
-  width: 0.5625rem;
-}
-
-.goen-tile__compare input.goen-check:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
 /* The bare checkbox; a label that carries the same name (the back office's)
    must not inherit the 16px box, or its text overflows the row. */
 input.goen-check {
@@ -3983,119 +3964,6 @@ input.goen-check {
   flex: none;
   height: 16px;
   width: 16px;
-}
-
-.goen-compare-pick {
-  display: flex;
-  flex-direction: column;
-}
-
-/* The compare bar: a tool strip under the grid, not a notification, so it is
-   not inverse, and it stays where the grid ends rather than following the
-   reader. */
-.goen-compare-pick__go {
-  align-items: center;
-  background: var(--sys-surface-container-high);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3) var(--s-5);
-  margin-top: var(--s-6);
-  padding: var(--s-3) var(--s-5);
-}
-
-/* The button offers an action only once there is something to act on. Where
-   :has() is unsupported the rule is dropped and the button stays. */
-.goen-compare-pick:not(:has(:checked)) > .goen-compare-pick__go {
-  display: none;
-}
-
-.goen-compare-pick__note {
-  color: var(--sys-on-surface-variant);
-  font: var(--type-body-s);
-  margin-inline-start: auto;
-}
-
-/* goen.js's row of the ticked products, absent without it. It scrolls inside
-   the bar rather than widening the page. */
-.goen-compare-pick__row {
-  display: flex;
-  flex: 1 1 0;
-  gap: var(--s-4);
-  list-style: none;
-  margin: 0;
-  min-width: 0;
-  overflow-x: auto;
-  padding: 0;
-  scroll-snap-type: x proximity;
-}
-
-/* The end's room is an item, not padding-right, which Safari drops from a
-   scrolling flex row; a scrolled row then still shows where it ends. */
-.goen-compare-pick__row::after {
-  content: '';
-  flex: 0 0 var(--s-4);
-}
-
-/* On a phone the row takes a line of its own, scrolling inside the bar, and
-   the limit and the submit wrap to the line under it. */
-@media (max-width: 47.99rem) {
-  .goen-compare-pick__row {
-    flex-basis: 100%;
-  }
-}
-
-.goen-compare-pick__item {
-  align-items: center;
-  display: flex;
-  flex: none;
-  font: var(--type-body-s);
-  gap: var(--s-2);
-  scroll-margin-inline: var(--s-4);
-  scroll-snap-align: start;
-}
-
-.goen-compare-pick__photo {
-  background: var(--photo);
-  flex: none;
-  height: 56px;
-  width: 56px;
-}
-
-.goen-compare-pick__photo img {
-  display: block;
-  height: 100%;
-  object-fit: contain;
-  width: 100%;
-}
-
-/* A bounded width, so one long name cannot take the row; the whole name is
-   still the text, and the remove button's name carries it too. */
-.goen-compare-pick__name {
-  max-width: 12em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* A 12px glyph on a 44px target: the margin gives back the 6px the target
-   takes on each side of the drawn 32px. */
-.goen-compare-pick__remove {
-  background: none;
-  border: 0;
-  color: inherit;
-  cursor: pointer;
-  display: grid;
-  flex: none;
-  height: 44px;
-  margin: -6px;
-  padding: 0;
-  place-items: center;
-  width: 44px;
-}
-
-.goen-compare-pick__remove:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
 }
 
 @media (min-width: 768px) {
@@ -4872,10 +4740,15 @@ input.goen-check {
   border-bottom: 0;
 }
 
+/* The brand and the name stand beside the photograph while the row leaves
+   them 8rem, and under it where it does not: at 320px and 200% text the
+   photograph alone takes the row, and a brand, one word in the data face,
+   cannot wrap into what is left. */
 .goen-specrow__link {
   align-items: center;
   color: var(--text-strong);
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s-4);
   grid-area: link;
   min-width: 0;
@@ -4907,6 +4780,7 @@ input.goen-check {
 
 .goen-specrow__id {
   display: flex;
+  flex: 1 1 8rem;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
@@ -4961,16 +4835,6 @@ input.goen-check {
   gap: var(--s-2) var(--s-4);
   grid-area: buy;
   justify-content: flex-end;
-}
-
-.goen-specrow__compare {
-  align-items: center;
-  color: var(--text-soft);
-  cursor: pointer;
-  display: inline-flex;
-  font: var(--type-label-m);
-  gap: var(--s-2);
-  min-height: 2.75rem;
 }
 
 @container shelfmain (min-width: 44rem) {
@@ -5546,8 +5410,9 @@ input.goen-check {
   display: none;
 }
 
-/* The control a tile or the product page can carry to keep a product in the
-   compare set: a hairline pill, ink with a tick when the product is in it. */
+/* The control a card, a row of the spec list and the product page carry to
+   keep a product in the compare set: an outlined button with the field's edge,
+   on the cobalt tint with a tick while the product is in it. */
 .goen-comparetoggle {
   align-items: flex-start;
   display: inline-flex;
@@ -5559,26 +5424,32 @@ input.goen-check {
 .goen-comparetoggle__button {
   align-items: center;
   background: var(--sys-surface);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-full);
+  border: 1px solid var(--field-edge);
+  border-radius: var(--r-lg);
   box-sizing: border-box;
   color: var(--text-strong);
   cursor: pointer;
   display: inline-flex;
   font: var(--type-label-m);
   gap: 0.35rem;
+  justify-content: center;
   min-height: 2.75rem;
-  padding: 0 0.9rem;
+  padding: 0 1rem;
 }
 
 .goen-comparetoggle__button:hover {
   border-color: var(--text-strong);
 }
 
+.goen-comparetoggle__button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 .goen-comparetoggle__button[aria-pressed="true"] {
-  background: var(--fill-ink);
-  border-color: var(--fill-ink);
-  color: var(--on-fill-ink);
+  background: var(--cobalt-soft);
+  border-color: var(--sys-primary);
+  color: var(--sys-primary);
 }
 
 .goen-comparetoggle__button svg {
@@ -6061,7 +5932,6 @@ input.goen-check {
 .goen-pdp__source a,
 .goen-pdp__policies a,
 .goen-pdp__wishlink,
-.goen-pdp__hint a,
 .goen-pdp__reviewnote a {
   color: var(--sys-on-surface);
   text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
@@ -6074,7 +5944,6 @@ input.goen-check {
 .goen-pdp__source a:hover,
 .goen-pdp__policies a:hover,
 .goen-pdp__wishlink:hover,
-.goen-pdp__hint a:hover,
 .goen-pdp__reviewnote a:hover {
   color: var(--sys-on-surface);
   text-decoration-color: currentcolor;
@@ -6403,23 +6272,6 @@ input.goen-check {
   margin: 0;
 }
 
-/* An instruction rather than a state: no panel, no border, the same muted
-   voice the assurances use. */
-.goen-pdp__hint {
-  align-items: center;
-  color: var(--on-surface-quiet);
-  display: flex;
-  font-size: var(--fs-14);
-  gap: 0.5rem;
-  margin: 0;
-}
-
-.goen-pdp__hint svg {
-  flex: none;
-  height: 1rem;
-  width: 1rem;
-}
-
 /* The one primary action, and the outcome of the last press directly under it
    with nothing in between. A phone has to show both at once, or the
    confirmation is a sentence about a button that has scrolled away. */
@@ -6437,9 +6289,33 @@ input.goen-check {
   gap: 0.75rem;
 }
 
+/* The add and, where the department compares, the compare toggle beside it,
+   level with the buy row; the toggle wraps under the add where the column is
+   too narrow for both. */
+.goen-pdp__actions {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.goen-pdp__actions > .goen-pdp__form {
+  flex: 1 1 18rem;
+}
+
+/* As tall as the add it stands beside, which the row stretches to the
+   stepper's 3rem and its two borders. */
+.goen-pdp__actions .goen-comparetoggle__button {
+  font-size: var(--fs-15);
+  min-height: calc(3rem + 2px);
+  padding: 0.5rem 1.25rem;
+}
+
 /* Where the restock form is the one action the add form holds nothing to see,
-   and an empty box would still take the column's gap. */
-.goen-pdp__actions:not(:has(.goen-pdp__buyrow > *, .goen-notice)) {
+   and an empty box would still take the column's gap or push the toggle
+   aside. */
+.goen-pdp__actions:not(:has(.goen-pdp__buyrow > *, .goen-notice, .goen-comparetoggle)),
+.goen-pdp__actions > .goen-pdp__form:not(:has(.goen-pdp__buyrow > *, .goen-notice)) {
   display: none;
 }
 

@@ -54,7 +54,6 @@ func (h *Handler) Product(w http.ResponseWriter, r *http.Request) {
 	view.AskOutcome = r.URL.Query().Get("ask")
 	view.ReviewPosted = r.URL.Query().Get("reviewed") == "1"
 	view.AddedOutcome = cartitem.AddOutcome(r.URL.Query().Get("added"))
-	view.Comparing = boundedSlugs(r.URL.Query()["p"])
 	meta := ProductMeta(&view)
 	meta.StructuredData = JSONLDSet(
 		ProductJSONLD(&view, h.baseURL),

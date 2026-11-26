@@ -203,7 +203,23 @@ func (c *CompareSet) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := frame.WithCompareCount(withCompareSet(r.Context(), set), len(set))
 	ctx = frame.WithReturnPath(ctx, back)
+	if offered && !remove && !slices.Contains(set, slug) {
+		ctx = withCompareRefused(ctx)
+	}
 	respond.Component(w, r.WithContext(ctx), c.log, http.StatusOK, compareToggleSwap(slug, name))
+}
+
+type compareRefusedKey struct{}
+
+// withCompareRefused marks the answer to an add the full set refused, which the
+// toggle that answers it says in its status.
+func withCompareRefused(ctx context.Context) context.Context {
+	return context.WithValue(ctx, compareRefusedKey{}, true)
+}
+
+func compareRefused(ctx context.Context) bool {
+	refused, ok := ctx.Value(compareRefusedKey{}).(bool)
+	return ok && refused
 }
 
 // changeCompareSet is the set after one press: remove takes slug out wherever it

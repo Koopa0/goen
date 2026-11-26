@@ -94,11 +94,10 @@ var (
 	KeyPDPSaves     = key("pdp.saves", Message{ZhHant: "省 %s", En: "Save %s"})
 	KeyAddToCompare = key("pdp.compare.add", Message{ZhHant: "加入比較", En: "Add to compare"})
 
-	// KeyCompareSimilar is the product page's one way into a comparison, offered
-	// only where the department compares: it says what it compares WITH.
+	// KeyCompareSimilar leads from the specifications to a ready-made
+	// comparison of the product and the ones on its shelf priced closest to it:
+	// it says what it compares WITH.
 	KeyCompareSimilar = key("pdp.compare.similar", Message{ZhHant: "與同類商品比較", En: "Compare with similar"})
-
-	KeyViewCompare = key("pdp.compare.view", Message{ZhHant: "查看比較", En: "View comparison"})
 
 	KeyWishlistRemove = key("pdp.wishlist.remove", Message{
 		ZhHant: "已在願望清單 · 移除",
