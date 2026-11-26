@@ -516,6 +516,19 @@ func TestListingTree(t *testing.T) {
 		t.Error("the head draws the department photograph, or holds the first paint for it")
 	}
 
+	// The header's rail is the page's navigation landmark named for the
+	// departments; the tree beside the shelf is a list under a heading, or a
+	// screen reader's landmarks would name 館別 twice (axe landmark-unique).
+	panel := findDescendant(parse(t, html), func(n *nethtml.Node) bool { return hasClass(n, "goen-facets") })
+	if panel == nil {
+		t.Fatal("the shelf has no filters' column")
+	}
+	if nav := findDescendant(panel, func(n *nethtml.Node) bool {
+		return n.Type == nethtml.ElementNode && (n.Data == "nav" || attrValue(n, "role") == "navigation")
+	}); nav != nil {
+		t.Errorf("the tree beside the shelf is a navigation landmark of its own: <%s %v>", nav.Data, nav.Attr)
+	}
+
 	only := ListingView{Slug: "tea", Name: "Tea", Shelf: Shelf{Subs: []TreeLink{{Slug: "tea", Name: "Tea", Href: "/c/tea", Current: true}}}}
 	if h := renderComponent(t, ctx, Listing(ListingMeta(ctx, &only), &only)); strings.Contains(h, "goen-subindex") {
 		t.Error("a head with a single sub-category draws it as a choice")

@@ -934,7 +934,7 @@ try {
           page: link(tree.querySelector('.goen-facets__link[aria-current="page"]')),
           department: link(tree.querySelector('.goen-facets__link[aria-current="true"]')),
           plain: link(tree.querySelector('.goen-facets__link:not([aria-current])')),
-          subs: [...tree.querySelectorAll('nav[aria-labelledby="facets-subs"] .goen-facets__link')].map(a => box(a).top),
+          subs: [...(document.getElementById('facets-subs')?.parentElement.querySelectorAll('.goen-facets__link') || [])].map(a => box(a).top),
           fill: resolve('background-color', 'var(--fill-ink)'),
           onFill: resolve('color', 'var(--on-fill-ink)'),
         },

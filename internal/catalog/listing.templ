@@ -228,17 +228,19 @@ templ facets(s *Shelf) {
 }
 
 // The catalogue as links: every product, then each department, and under the
-// department the page is in, its sub-categories.
+// department the page is in, its sub-categories. Lists under headings, not
+// navigation landmarks: the header's rail is the landmark named 館別, and a
+// second of the same name would leave a screen reader two to tell apart.
 templ departmentLinks(s *Shelf) {
-	<nav class="goen-facets__group" aria-labelledby="facets-departments">
+	<div class="goen-facets__group">
 		<h3 class="goen-facets__legend" id="facets-departments">{ i18n.T(ctx, i18n.KeySectionCategories) }</h3>
 		@treeLinks(s.Departments)
-	</nav>
+	</div>
 	if len(s.Subs) > 0 {
-		<nav class="goen-facets__group" aria-labelledby="facets-subs">
+		<div class="goen-facets__group">
 			<h3 class="goen-facets__legend" id="facets-subs">{ s.SubsTitle }</h3>
 			@treeLinks(s.Subs)
-		</nav>
+		</div>
 	}
 }
 
