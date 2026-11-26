@@ -270,19 +270,6 @@ a:hover {
   display: none !important;
 }
 
-/* Motion a reader has asked not to see. The shared primitives carry
-   transitions of their own, and this is where they are calmed. */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
 /* ---------- Scale ----------
 
    The storefront's steps of type, corner, space and motion. They live here,
@@ -6632,13 +6619,6 @@ input.goen-check {
     text-wrap: balance;
   }
 
-  /* The menu drawer belongs to the header, which this later fixed block would
-     paint over; hidden, the bar also leaves the tab order. */
-  :root[data-buybar='out'] body:has(.goen-header__menu[open]) .goen-buybar {
-    transform: translateY(100%);
-    visibility: hidden;
-  }
-
   /* A field being typed in brings up the on-screen keyboard, and the bar
      would ride on top of it over the field; it steps aside until focus leaves.
      Its own controls are not fields, so focus in the bar never hides it; a
@@ -11278,8 +11258,14 @@ input.goen-check {
   content: '';
   height: 6px;
   transform: rotate(45deg) translate(-1px, -1px);
-  transition: transform var(--dur-base) var(--ease-standard);
   width: 6px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-admin__navlabel::after,
+  .goen-disclosure__summary::after {
+    transition: transform var(--dur-base) var(--ease-standard);
+  }
 }
 
 .goen-admin__navgroup[open] > .goen-admin__navlabel::after,
@@ -11424,11 +11410,10 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
   border-radius: 0;
 }
 
-/* The global reduce block at the top of this file matches elements, and these
-   snapshots are not elements, so reduced motion is spelled again. Motion that
-   moves, scales or resizes is dropped and the two pages dissolve at the base
-   step: a hard cut between two very different layouts reads as more of a jump
-   than the dissolve does. The same rules cover a region swapped in place. */
+/* Where motion is unwelcome, what moves, scales or resizes is dropped and the
+   two pages dissolve at the base step: a hard cut between two very different
+   layouts reads as more of a jump than the dissolve does. The same rules cover
+   a region swapped in place. */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*) {
     animation-name: none;
@@ -11488,10 +11473,11 @@ form[data-request-pending] [aria-disabled="true"] {
   to { translate: 100vw 0; }
 }
 
-/* The reduce block above stops the run after one frame; a still bar across the
-   whole width says the same without the movement. */
+/* Where motion is unwelcome the bar does not run: it fades in still, across
+   the whole width, which says the same without the movement. */
 @media (prefers-reduced-motion: reduce) {
   [data-navigating] body::before {
+    animation: goen-navigating-in var(--dur-base) var(--ease-standard) 200ms both;
     inline-size: 100%;
   }
 }
@@ -11525,29 +11511,13 @@ form[data-request-pending] [aria-disabled="true"] {
   .goen-notice { opacity: 0; }
 }
 
-@supports selector(details::details-content) {
-  .goen-header__menu::details-content {
-    opacity: 0;
-    transition: opacity var(--dur-base) var(--ease-standard), content-visibility var(--dur-base);
-    transition-behavior: allow-discrete;
-  }
-
-  .goen-header__menu[open]::details-content { opacity: 1; }
-
-  @starting-style {
-    .goen-header__menu[open]::details-content { opacity: 0; }
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .goen-notice,
-  .goen-header__menu::details-content {
+  .goen-notice {
     transition: none;
   }
 
   @starting-style {
-    .goen-notice,
-    .goen-header__menu[open]::details-content { opacity: 1; }
+    .goen-notice { opacity: 1; }
   }
 }
 
