@@ -169,7 +169,7 @@ func TestTileQueriesColours(t *testing.T) {
 			return mapTiles(rows, func(r db.CampaignProductsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 		{"HomeTiles", func() ([]tile, error) {
-			rows, err := q.HomeTiles(ctx, db.HomeTilesParams{Locale: locale, CampaignID: uuid.NullUUID{UUID: campaign, Valid: true}, MaxTiles: 50})
+			rows, err := q.HomeTiles(ctx, db.HomeTilesParams{Locale: locale, DepartmentID: uuid.NullUUID{UUID: category, Valid: true}, MaxTiles: 50})
 			return mapTiles(rows, func(r db.HomeTilesRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
 		{"RelatedProducts", func() ([]tile, error) {
@@ -184,6 +184,15 @@ func TestTileQueriesColours(t *testing.T) {
 			rows, err := q.WishlistItems(ctx, db.WishlistItemsParams{UserID: user, Locale: locale})
 			return mapTiles(rows, func(r db.WishlistItemsRow) tile { return tile{r.Slug, r.Colours, r.ColoursSoldOut, r.SaleEndsAt} }), err
 		}},
+	}
+	// The listing reads each colour's name and photograph apart from its row,
+	// in the order the row lists the colours.
+	facts, factsErr := q.ListingTileFacts(ctx, db.ListingTileFactsParams{Slugs: []string{token + "-choice"}, Locale: locale})
+	if factsErr != nil || len(facts) != 1 {
+		t.Fatalf("ListingTileFacts: %d rows, %v", len(facts), factsErr)
+	}
+	if want := []string{"black", "white"}; !slices.Equal(facts[0].ColourNames, want) {
+		t.Errorf("ListingTileFacts colour names = %v, want %v, beside the colours #111111 and #222222", facts[0].ColourNames, want)
 	}
 	for _, tc := range tests {
 		t.Run(tc.query, func(t *testing.T) {

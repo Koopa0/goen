@@ -15,123 +15,41 @@
    */
 
   /*
-   * The home carousel: scroll-snap does the moving (swipe, trackpad, keyboard)
-   * and the named tabs are links that work without this script. This draws the
-   * arrows and the count and marks the tab of the slide in view with
-   * aria-current, so without it no tab is current. Nothing here moves a slide
-   * except the visitor's own input. The tabs and arrows fade the chosen slide in
-   * where the browser can; a swipe stays a scroll.
+   * A card's colours. Where a colour has a photograph of its own, its swatch
+   * is a button that puts that photograph on the card, in place, and marks
+   * itself pressed; the card's link still leads to the product. On the
+   * document, so a shelf htmx swaps in later is served too.
    */
-  function carousel() {
-    const root = document.querySelector(".goen-hero");
-    const track = root?.querySelector(".goen-hero__track");
-    if (!track || track.children.length < 2) return;
-
-    const slides = [...track.children];
-    const tabRow = root.querySelector(".goen-hero__tabs");
-    const tabs = [...root.querySelectorAll(".goen-hero__tabs a")];
-    const count = root.querySelector("[data-count]");
-    let current = 0;
-    // A chosen slide cross-fades with the one in view, by a view transition of
-    // type "slide". A browser without transition types, or a photograph not yet
-    // loaded, scrolls to it as before.
-    const fades = "startViewTransition" in document && "types" in (window.ViewTransition?.prototype ?? {});
-    let turn = 0;
-    const go = async (index) => {
-      const next = (index + slides.length) % slides.length;
-      const left = next * track.clientWidth;
-      const photo = slides[next].querySelector(".goen-hero__media img");
-      const mine = ++turn;
-      if (!fades || next === current || (photo && !photo.complete)) {
-        track.scrollTo({ left });
-        return;
+  function cardSwatches() {
+    document.addEventListener("click", (event) => {
+      const swatch = event.target.closest?.("[data-swatch]");
+      if (!(swatch instanceof HTMLButtonElement)) return;
+      const img = swatch.closest(".goen-tile__cell")?.querySelector(".goen-tile__img");
+      if (!(img instanceof HTMLImageElement) || !swatch.dataset.swatch) return;
+      // srcset first: with it set, src is only the fallback.
+      if (swatch.dataset.swatchSrcset) img.srcset = swatch.dataset.swatchSrcset;
+      else img.removeAttribute("srcset");
+      img.src = swatch.dataset.swatch;
+      for (const other of swatch.parentElement.querySelectorAll("[data-swatch]")) {
+        other.setAttribute("aria-pressed", String(other === swatch));
       }
-      // Captured before it is decoded, the photograph would fade in as its tone.
-      await photo?.decode().catch(() => {});
-      // A later choice made while this one waited wins.
-      if (mine !== turn) return;
-      const leaving = slides[current];
-      leaving.dataset.leaving = "";
-      document.startViewTransition({
-        update: () => {
-          delete leaving.dataset.leaving;
-          track.scrollTo({ left, behavior: "instant" });
-          select(next);
-        },
-        types: ["slide"],
-      });
-    };
-    // Only a chosen slide moves the pill. Any other placement (first, or after
-    // the tabs changed size) is applied with data-still, flushed, and lifted,
-    // so the pill is never seen to travel. The pill is drawn only once the
-    // properties it reads are written.
-    const placePill = (animate) => {
-      if (!tabRow) return;
-      if (!animate) tabRow.dataset.still = "";
-      const row = tabRow.getBoundingClientRect();
-      const box = tabs[current].getBoundingClientRect();
-      tabRow.style.setProperty("--pill-x", `${box.left - row.left + tabRow.scrollLeft}px`);
-      tabRow.style.setProperty("--pill-w", `${box.width}px`);
-      tabRow.dataset.pill = "";
-      if (!animate) {
-        tabRow.getBoundingClientRect();
-        delete tabRow.dataset.still;
-      }
-    };
-    const select = (next) => {
-      current = next;
-      slides.forEach((slide, index) => {
-        if (index === current) slide.dataset.shown = "";
-        else delete slide.dataset.shown;
-      });
-      tabs.forEach((tab, index) => {
-        if (index === current) tab.setAttribute("aria-current", "true");
-        else tab.removeAttribute("aria-current");
-      });
-      if (tabRow && tabRow.scrollWidth > tabRow.clientWidth) {
-        const tab = tabs[current];
-        const at = tab.getBoundingClientRect().left - tabRow.getBoundingClientRect().left + tabRow.scrollLeft;
-        // The row's end padding reserves the room under its fade mask.
-        const visible = tabRow.clientWidth - parseFloat(getComputedStyle(tabRow).paddingInlineEnd);
-        // The row's start padding is room for the ring, so the first tab rests at 0.
-        const lead = at - parseFloat(getComputedStyle(tabRow).paddingInlineStart);
-        if (tab.offsetWidth > visible || lead < tabRow.scrollLeft) tabRow.scrollLeft = lead;
-        else if (at + tab.offsetWidth > tabRow.scrollLeft + visible)
-          tabRow.scrollLeft = at + tab.offsetWidth - visible;
-      }
-      placePill(true);
-      if (count) count.textContent = `${current + 1} / ${slides.length}`;
-    };
-    const seen = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting || entry.intersectionRatio < 0.6) continue;
-        // The first report is the slide already shown; the live region speaks
-        // only once the visitor has moved the carousel.
-        const index = slides.indexOf(entry.target);
-        if (index !== current) select(index);
-      }
-    }, { root: track, threshold: 0.6 });
-    slides.forEach((slide) => seen.observe(slide));
-
-    tabs[current].setAttribute("aria-current", "true");
-    slides[current].dataset.shown = "";
-
-    // A font swap, a larger text size or a zoom changes the tabs' widths.
-    if (tabRow) {
-      placePill(false);
-      const resized = new ResizeObserver(() => placePill(false));
-      resized.observe(tabRow);
-      tabs.forEach((tab) => resized.observe(tab));
-    }
-
-    tabs.forEach((tab, index) => tab.addEventListener("click", (event) => {
-      event.preventDefault();
-      go(index);
-    }));
-    root.querySelectorAll("[data-step]").forEach((button) => {
-      button.addEventListener("click", () => go(current + Number(button.dataset.step)));
     });
-    root.querySelectorAll("[data-js]").forEach((el) => el.removeAttribute("hidden"));
+  }
+
+  /*
+   * A card's quick add answers with the product page, from which htmx takes the
+   * outcome and the header's cart link. The home page's free-delivery meter is
+   * not on that page, so a quick add that went through tells the page, and the
+   * meter reads itself again (hx-trigger="goen:cart from:body").
+   */
+  function cartChanged() {
+    document.addEventListener("htmx:after:request", (event) => {
+      const source = event.detail?.ctx?.sourceElement;
+      const form = source?.closest?.("form[data-quick-add]");
+      const status = event.detail?.ctx?.response?.status;
+      if (!form || !(status >= 200 && status < 300)) return;
+      document.body.dispatchEvent(new CustomEvent("goen:cart"));
+    });
   }
 
   /*
@@ -958,14 +876,18 @@
    * A control that swaps itself away takes keyboard focus with it, and focus
    * falls to <body>. Such a control names, in data-focus-after-swap, the id the
    * swapped-in content should hand focus to. On document, because the source
-   * element is detached by the swap and an event on it never reaches us.
+   * element is detached by the swap and an event on it never reaches us. A
+   * swap htmx runs inside a view transition lands after the request is
+   * finished, so the hand-over is tried again once the swap is done.
    */
   function focusAfterSwap() {
-    document.addEventListener("htmx:finally:request", (event) => {
+    const handOver = (event) => {
       const source = event.detail?.ctx?.sourceElement;
       const id = source?.getAttribute?.("data-focus-after-swap");
       if (id && !source.isConnected) document.getElementById(id)?.focus();
-    });
+    };
+    document.addEventListener("htmx:finally:request", handOver);
+    document.addEventListener("htmx:after:swap", handOver);
   }
 
   /*
@@ -1380,7 +1302,8 @@
   departmentRow();
   popovers();
   stepper();
-  carousel();
+  cardSwatches();
+  cartChanged();
   chartReadout();
   compareRow();
   navigationPending();

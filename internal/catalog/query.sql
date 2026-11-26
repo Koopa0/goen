@@ -1109,18 +1109,105 @@ JOIN LATERAL (
 ) img ON true
 ORDER BY v.position, v.id;
 
--- The first two specifications each product lists, for the line under its name on a
--- department whose products are compared.
--- name: ListingHighlights :many
-SELECT slug, value FROM (
-    SELECT p.slug, localized_name(s.value, s.value_en, @locale::text) AS value,
-           row_number() OVER (PARTITION BY s.product_id ORDER BY s.position, s.id) AS nth
-    FROM product_specs s
-    JOIN products p ON p.id = s.product_id
-    WHERE p.slug = ANY(@slugs::text[])
-) ranked
-WHERE nth <= 2
-ORDER BY slug, nth;
+-- What a card says beyond its row: the warranty the shop states, the one
+-- variant it can add without a choice, the first three specification values,
+-- and each colour's name and first photograph, in the order the listing's
+-- colours array lists them.
+-- name: ListingTileFacts :many
+SELECT
+    p.slug,
+    coalesce(p.warranty_months, 0)::integer AS warranty_months,
+    coalesce((
+        SELECT min(qv.id::text) FROM product_variants qv
+        WHERE qv.product_id = p.id AND qv.is_active
+        HAVING count(*) = 1 AND bool_and(qv.stock_quantity > qv.safety_stock)
+    ), '')::text AS quick_add,
+    ARRAY(
+        SELECT localized_name(s.value, s.value_en, @locale::text)
+        FROM product_specs s WHERE s.product_id = p.id
+        ORDER BY s.position, s.id
+        LIMIT 3
+    )::text[] AS highlights,
+    ARRAY(
+        SELECT localized_name(cv.value, cv.value_en, @locale::text)
+        FROM product_option_values cv
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::text[] AS colour_names,
+    ARRAY(
+        SELECT coalesce(ci.media_digest, '')
+        FROM product_option_values cv
+        LEFT JOIN LATERAL (
+            SELECT media_digest FROM product_images
+            WHERE product_id = p.id AND option_value_id = cv.id
+            ORDER BY position, id LIMIT 1
+        ) ci ON true
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::text[] AS colour_digests,
+    ARRAY(
+        SELECT coalesce(ci.bundled_key, '')
+        FROM product_option_values cv
+        LEFT JOIN LATERAL (
+            SELECT bundled_key FROM product_images
+            WHERE product_id = p.id AND option_value_id = cv.id
+            ORDER BY position, id LIMIT 1
+        ) ci ON true
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::text[] AS colour_bundled_keys,
+    ARRAY(
+        SELECT coalesce(ci.width, 0)
+        FROM product_option_values cv
+        LEFT JOIN LATERAL (
+            SELECT width FROM product_images
+            WHERE product_id = p.id AND option_value_id = cv.id
+            ORDER BY position, id LIMIT 1
+        ) ci ON true
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::integer[] AS colour_widths
+FROM products p
+LEFT JOIN LATERAL (
+    -- The colour option, as the listing's colours array chooses it.
+    SELECT co.id FROM product_options co
+    WHERE co.product_id = p.id
+      AND EXISTS (
+          SELECT 1 FROM product_option_values x
+          WHERE x.option_id = co.id AND EXISTS (
+              SELECT 1 FROM variant_option_values vov
+              JOIN product_variants pv ON pv.id = vov.variant_id
+              WHERE vov.option_value_id = x.id AND pv.is_active
+          )
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM product_option_values x
+          WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+              SELECT 1 FROM variant_option_values vov
+              JOIN product_variants pv ON pv.id = vov.variant_id
+              WHERE vov.option_value_id = x.id AND pv.is_active
+          )
+      )
+    ORDER BY co.position, co.id
+    LIMIT 1
+) col ON true
+WHERE p.slug = ANY(@slugs::text[]);
 
 -- name: ProductBySlug :one
 SELECT

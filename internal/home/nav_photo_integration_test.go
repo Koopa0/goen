@@ -22,8 +22,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestStore_LoadDepartmentPhotos holds that the navigation and the home
-// directory follow the photographs the shop configured for its departments.
+// TestStore_LoadDepartmentPhotos holds that the navigation and the department
+// index follow the photographs the shop configured for its departments.
 func TestStore_LoadDepartmentPhotos(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
@@ -115,7 +115,7 @@ func assertDepartmentPhotograph(t *testing.T, ctx context.Context, chrome *site.
 	}
 	var index strings.Builder
 	if err = frame.DepartmentIndex().Render(frame.WithTopNav(ctx, nav), &index); err != nil {
-		t.Fatalf("render the home page's index: %v", err)
+		t.Fatalf("render the department index: %v", err)
 	}
 	var entry string
 	for _, item := range regexp.MustCompile(`(?s)<li class="goen-deptindex__item".*?</li>`).FindAllString(index.String(), -1) {
@@ -125,14 +125,14 @@ func assertDepartmentPhotograph(t *testing.T, ctx context.Context, chrome *site.
 		}
 	}
 	if entry == "" {
-		t.Fatalf("the home page's index omits %s", slug)
+		t.Fatalf("the department index omits %s", slug)
 	}
 	if url == "" {
 		if !strings.Contains(entry, "goen-deptindex__photo--mark") || strings.Contains(entry, "<img") {
-			t.Errorf("home %s has no photograph and does not show its mark: %s", slug, entry)
+			t.Errorf("index %s has no photograph and does not show its mark: %s", slug, entry)
 		}
 	} else if !strings.Contains(entry, `src="`+url+`" srcset="`+srcset+`"`) {
-		t.Errorf("home %s photograph is not %q, %q: %s", slug, url, srcset, entry)
+		t.Errorf("index %s photograph is not %q, %q: %s", slug, url, srcset, entry)
 	}
 	category, err := listing.Listing(ctx, slug, catalog.Filters{})
 	if err != nil {

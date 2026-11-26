@@ -181,7 +181,7 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (ListingVie
 		PageSize: PageSize,
 	}
 
-	err = s.withHighlights(ctx, view.Products)
+	err = s.withTileFacts(ctx, view.Products)
 	if err != nil {
 		return ListingView{}, nil, err
 	}
@@ -223,8 +223,12 @@ func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int)
 		return SearchView{}, err
 	}
 
+	products := searchTiles(rows, offers)
+	if err := s.withTileFacts(ctx, products); err != nil {
+		return SearchView{}, err
+	}
 	return SearchView{
-		Products: searchTiles(rows, offers),
+		Products: products,
 		Total:    total,
 		Page:     max(page, 1),
 		PageSize: PageSize,

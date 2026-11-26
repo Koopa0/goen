@@ -19,7 +19,7 @@ func TestAppCSSRelatedProductsGap(t *testing.T) {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
 	for name, rule := range map[string]string{
-		"the grid's column gap is a variable":        `(?s)\.goen-tiles__grid \{\s*--tiles-gap-x: 1rem;[^}]*gap: 2\.5rem var\(--tiles-gap-x\);`,
+		"the grid's column gap is a variable":        `(?s)\.goen-tiles__grid \{\s*--tiles-gap-x: 1rem;[^}]*gap: var\(--tiles-gap-x\);`,
 		"the grid widens the variable from 768":      `(?s)@media \(min-width: 768px\) \{\s*\.goen-tiles__grid \{\s*--tiles-gap-x: 1\.5rem;`,
 		"the grid's two columns subtract half of it": `(?s)\.goen-tiles__grid \{[^}]*max\(6\.5rem, 50% - var\(--tiles-gap-x\) / 2\)`,
 		"the related products subtract half of it":   `(?s)\.goen-pdp \.goen-tiles__grid \{\s*grid-template-columns: repeat\(auto-fill, minmax\(min\(100%, max\(6\.5rem, 50% - var\(--tiles-gap-x\) / 2\)\), 1fr\)\);`,
@@ -34,11 +34,12 @@ func TestAppCSSRelatedProductsGap(t *testing.T) {
 }
 
 // TestAppCSSTileAsDrawn checks the rules that make a product tile the
-// catalogue's: the brand is read with the link and not shown, the photograph is
-// square and uncornered on its well, a campaign price is in the colour of what
-// runs out, and a sold-out colour's line is in the text's ink; in English the
-// name keeps room for two lines so a row's prices stand level. Each reads a
-// role, not a hex, so the night takes its own value from the same rule.
+// catalogue's: the card is a hairline frame, the photograph 4:3 and
+// uncornered on the plate it is multiplied onto, a campaign price is in the
+// colour of what runs out, the savings seal on its own fill, and a sold-out
+// colour's line is in the text's ink; in English the name keeps room for two
+// lines so a row's prices stand level. Each reads a role, not a hex, so the
+// night takes its own value from the same rule.
 func TestAppCSSTileAsDrawn(t *testing.T) {
 	t.Parallel()
 
@@ -59,16 +60,18 @@ func TestAppCSSTileAsDrawn(t *testing.T) {
 		return blocks
 	}
 	for _, want := range []struct{ selector, decl string }{
-		{".goen-tile__brand", `clip-path:\s*inset\(50%\)`},
-		{".goen-tile__brand", `position:\s*absolute`},
-		{".goen-tile__media", `aspect-ratio:\s*1;`},
+		{".goen-tile__cell", `border:\s*1px solid var\(--hairline\);`},
+		{".goen-tile__media", `aspect-ratio:\s*4 / 3;`},
 		{".goen-tile__media", `border-radius:\s*0;`},
-		{".goen-tile__media", `background:\s*var\(--photo\);`},
+		{".goen-tile__media", `background:\s*var\(--photo-plate\);`},
+		{".goen-tile__img", `mix-blend-mode:\s*multiply;`},
+		{".goen-tile__seal", `background:\s*var\(--savings\);`},
+		{".goen-tile__seal", `color:\s*var\(--on-savings\);`},
 		{".goen-tile__price", `color:\s*var\(--price\);`},
 		{".goen-tile__amount--sale", `color:\s*var\(--sys-tertiary\);`},
 		{".goen-tile__was", `text-decoration:\s*line-through;`},
 		{".goen-tile__slash", `stroke:\s*var\(--sys-on-surface\);`},
-		{":lang(en) .goen-tile__name", `min-height:\s*3em;`},
+		{":lang(en) .goen-tile__name", `min-height:\s*2\.7em;`},
 	} {
 		found := false
 		for _, block := range declared(want.selector) {

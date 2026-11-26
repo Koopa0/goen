@@ -26,8 +26,12 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", h.Index)
 }
 
+// Index draws the whole page for every request, the shelf and showcase pills'
+// htmx swaps included: each takes its own section out of the page a link
+// would load, so the two can never disagree.
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Load(r.Context())
+	q := r.URL.Query()
+	view, err := h.store.Load(r.Context(), Choice{Shelf: slugParam(q.Get("shelf")), More: slugParam(q.Get("more"))})
 	if err != nil {
 		h.log.Error("load home page", "error", err)
 		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
@@ -36,6 +40,20 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 			i18n.T(r.Context(), i18n.KeyCannotLoadHome)))
 		return
 	}
-	view.AccountErased = r.URL.Query().Get("erased") == "1"
+	view.AccountErased = q.Get("erased") == "1"
 	respond.Component(w, r, h.log, http.StatusOK, Page(Meta(r.Context()), view))
+}
+
+// slugParam is a category slug as a query names it, or "" for anything that
+// cannot be one; the store matches it against what the page offers.
+func slugParam(s string) string {
+	if s == "" || len(s) > 120 {
+		return ""
+	}
+	for _, r := range s {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
+			return ""
+		}
+	}
+	return s
 }

@@ -187,8 +187,7 @@ func TestCellPhotoDecorative(t *testing.T) {
 			if !strings.Contains(textOf(link), "Pixelight 9 5G") {
 				t.Errorf("the tile link does not carry the product name as text: %q", textOf(link))
 			}
-			// The brand is not shown on the card, but the link still reads it,
-			// before the name.
+			// The link reads the brand before the name, as the card shows them.
 			if text := textOf(link); !strings.HasPrefix(strings.TrimSpace(text), "Pixelight") || strings.Index(text, "Pixelight") == strings.Index(text, "Pixelight 9 5G") {
 				t.Errorf("the tile link does not read the brand before the name: %q", text)
 			}
@@ -206,13 +205,19 @@ func textOf(n *html.Node) string {
 	return b.String()
 }
 
-// TestCellSpecHighlights: a comparable tile draws its spec highlights.
+// TestCellSpecHighlights: a tile draws each of its specification values as a
+// capsule of its own, comparable or not, and none where it has none.
 func TestCellSpecHighlights(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	got := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", Comparable: true, Highlights: []string{"14″", "2.8K OLED"}}))
-	if want := `<span class="goen-tile__specs">14″ · 2.8K OLED</span>`; !strings.Contains(got, want) {
-		t.Errorf("tile omits %s", want)
+	for _, comparable := range []bool{true, false} {
+		got := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", Comparable: comparable, Highlights: []string{"14″", "2.8K OLED"}}))
+		if want := `<span class="goen-tile__specs"><span class="goen-tile__spec">14″</span><span class="goen-tile__spec">2.8K OLED</span></span>`; !strings.Contains(got, want) {
+			t.Errorf("comparable %t: tile omits %s", comparable, want)
+		}
+	}
+	if got := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A"})); strings.Contains(got, "goen-tile__specs") {
+		t.Error("a tile without specifications draws an empty row of them")
 	}
 }
 
@@ -268,20 +273,127 @@ func TestCellGridCell(t *testing.T) {
 	}
 }
 
-// TestCellSaleWithoutChip: a tile says sale by its price and not by a chip.
-//
-// The struck-through original price already says a product is reduced, so a
-// card carries no "on sale" chip.
-func TestCellSaleWithoutChip(t *testing.T) {
+// TestCellSavingsSeal: a reduced tile says what it saves, in money, on a seal,
+// and only while a campaign strikes its price: a compare-at price on its own
+// is no saving. No card says "on sale" in words; the seal and the struck price
+// say it.
+func TestCellSavingsSeal(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	sale := Tile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true, OnSale: true}
-	page := renderComponent(t, ctx, Cell(sale))
-	if strings.Contains(page, i18n.T(ctx, i18n.KeyOnSale)) {
-		t.Error("a reduced tile draws an on-sale chip")
+	for _, tc := range []struct {
+		name   string
+		onSale bool
+		seal   string
+	}{
+		{"struck", true, `<span class="goen-tile__seal">省 NT$200</span>`},
+		{"compare-at only", false, ""},
+	} {
+		page := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", PriceCents: 80000, CompareCents: 100000, InStock: true, OnSale: tc.onSale}))
+		if got := strings.Contains(page, "goen-tile__seal"); got != (tc.seal != "") {
+			t.Errorf("%s: seal drawn = %t, want %t", tc.name, got, tc.seal != "")
+		}
+		if tc.seal != "" && !strings.Contains(page, tc.seal) {
+			t.Errorf("%s: the seal is not %s", tc.name, tc.seal)
+		}
+		if strings.Contains(page, i18n.T(ctx, i18n.KeyOnSale)) {
+			t.Errorf("%s: a tile draws an on-sale chip", tc.name)
+		}
 	}
-	if !strings.Contains(page, `class="goen-tile__was"`) {
-		t.Error("a reduced tile lost its struck-through original price")
+}
+
+// TestCellWarrantyAndRating: a tile states the warranty the shop states and
+// the reviews' average with their count, drawn as a star and read as a
+// sentence; a product with neither shows neither, never a zero.
+func TestCellWarrantyAndRating(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	page := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", PriceCents: 100, InStock: true, WarrantyMonths: 24, Rating: 4.5, RatingCount: 2}))
+	for _, want := range []string{
+		`<span class="goen-tile__warranty">保固 24 個月</span>`,
+		`<span aria-hidden="true">★&nbsp;4.5<span class="goen-tile__reviews">&nbsp;(2)</span></span>`,
+		`<span class="goen-sr-only">評分 4.5 分，共 2 則評價</span>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the tile lacks %s", want)
+		}
+	}
+	bare := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", PriceCents: 100, InStock: true}))
+	for _, absent := range []string{"goen-tile__warranty", "goen-tile__rating", "goen-tile__badges"} {
+		if strings.Contains(bare, absent) {
+			t.Errorf("a tile with no warranty and no reviews draws %s", absent)
+		}
+	}
+}
+
+// TestCellQuickAdd: a tile adds to the cart itself only for a product's one
+// variant that can be bought, with the form the product page posts, which htmx
+// keeps on this page: the outcome's sentence into the form's status line and
+// the header's cart link out of band.
+func TestCellQuickAdd(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	one := Tile{Slug: "pen-set", Name: "Pens", PriceCents: 15000, InStock: true, QuickAdd: "0190-variant"}
+	page := renderComponent(t, ctx, Cell(one))
+	for _, want := range []string{
+		`<form class="goen-tile__add" method="post" action="/cart/items" hx-post="/cart/items" hx-target="find .goen-tile__added" hx-select="#added" hx-swap="textContent" hx-select-oob="#cart-link"`,
+		`<input type="hidden" name="variant" value="0190-variant">`,
+		`<input type="hidden" name="quantity" value="1">`,
+		`<input type="hidden" name="back" value="pen-set">`,
+		`<button class="goen-tile__addbutton" type="submit">加入購物車 <span class="goen-sr-only"> Pens</span></button>`,
+		`<p class="goen-tile__added" role="status"></p>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the quick add lacks %s", want)
+		}
+	}
+	if strings.Index(page, `<form`) < strings.Index(page, `</a>`) {
+		t.Error("the quick add sits inside the card's link")
+	}
+	for name, tile := range map[string]Tile{
+		"several variants": {Slug: "a", Name: "A", PriceCents: 100, InStock: true},
+		"sold out":         {Slug: "a", Name: "A", PriceCents: 100, QuickAdd: "0190-variant"},
+	} {
+		if strings.Contains(renderComponent(t, ctx, Cell(tile)), "<form") {
+			t.Errorf("%s: the tile offers a quick add", name)
+		}
+	}
+}
+
+// TestCellSwatchButtons: where a colour has a photograph of its own, the
+// card's colours are buttons that put that photograph on the card, the one
+// shown pressed, each named by its colour; a colour with none shows the card's
+// own photograph. Without such a photograph they stay dots, and no button
+// promises a change it cannot make.
+func TestCellSwatchButtons(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	buds := Tile{
+		Slug: "buds", Name: "Buds", PriceCents: 100, InStock: true,
+		ImageURL: "/img/lead.webp", ImageSrcset: "/img/lead.webp 1600w",
+		Colours: []string{"#f4f5f6", "#1c1c1e", "#b7e2cd"}, ColoursSoldOut: []string{"", "Black", ""},
+		ColourNames:  []string{"White", "Black", "Mint"},
+		ColourPhotos: []ColourPhoto{{}, {URL: "/img/black.webp", Srcset: "/img/black.webp 1600w"}, {}},
+	}
+	page := renderComponent(t, ctx, Cell(buds))
+	for _, want := range []string{
+		`<span class="goen-tile__colours goen-tile__swatches" role="group" aria-label="3 colours, Black sold out">`,
+		`<button class="goen-tile__swatch" type="button" aria-pressed="true" data-swatch="/img/lead.webp" data-swatch-srcset="/img/lead.webp 1600w">`,
+		`<button class="goen-tile__swatch" type="button" aria-pressed="false" data-swatch="/img/black.webp" data-swatch-srcset="/img/black.webp 1600w">`,
+		`<span class="goen-sr-only">Black Sold out</span>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the swatches lack %s", want)
+		}
+	}
+	if n := strings.Count(page, `aria-pressed="true"`); n != 1 {
+		t.Errorf("%d swatches pressed, want the one the card shows", n)
+	}
+	if strings.Index(page, `goen-tile__swatches`) < strings.Index(page, `</a>`) {
+		t.Error("the swatch buttons sit inside the card's link")
+	}
+	buds.ColourPhotos = nil
+	if strings.Contains(renderComponent(t, ctx, Cell(buds)), "<button") {
+		t.Error("a tile whose colours have no photographs of their own draws swatch buttons")
 	}
 }
 

@@ -66,6 +66,15 @@ const (
 	AppleTouchIcon   = "brand/apple-touch-icon.png"
 	HomeHeroImage    = "media/hero/home-hero-01.webp"
 	HomeHeroImage720 = "media/hero/home-hero-01-720.webp"
+	// HeroTechImage is the photograph under the home page's dark hero tile,
+	// and HeroLifestyleImage the one under its lifestyle tile wherever a slide
+	// brings none of its own; each 1600px wide with -800 and -720 renditions.
+	HeroTechImage         = "media/hero/hero-tech-flagship.webp"
+	HeroTechImage800      = "media/hero/hero-tech-flagship-800.webp"
+	HeroTechImage720      = "media/hero/hero-tech-flagship-720.webp"
+	HeroLifestyleImage    = "media/hero/hero-autumn-editorial.webp"
+	HeroLifestyleImage800 = "media/hero/hero-autumn-editorial-800.webp"
+	HeroLifestyleImage720 = "media/hero/hero-autumn-editorial-720.webp"
 	// EmailHeader heads every HTML letter. PNG, not WebP: a mail client
 	// renders what it can decode, and not every one decodes WebP.
 	EmailHeader = "brand/email-header.png"
@@ -124,6 +133,12 @@ var required = []string{
 	AppleTouchIcon,
 	HomeHeroImage,
 	HomeHeroImage720,
+	HeroTechImage,
+	HeroTechImage800,
+	HeroTechImage720,
+	HeroLifestyleImage,
+	HeroLifestyleImage800,
+	HeroLifestyleImage720,
 	EmailHeader,
 	OGDefaultImage,
 }

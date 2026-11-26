@@ -1250,28 +1250,6 @@ func TestEveryCustomPropertyUsedIsDeclared(t *testing.T) {
 	}
 }
 
-// TestAppCSSBandMutedText checks that the band reads its muted text from the tone.
-// The band paints its tone behind text that the page styles in --n-500, which no
-// tone ground holds to 4.5:1; each of these classes must take the tone's own muted
-// colour.
-func TestAppCSSBandMutedText(t *testing.T) {
-	t.Parallel()
-
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	rule := regexp.MustCompile(`(?s)((?:\.goen-band [.a-z_-]+,\s*)*\.goen-band [.a-z_-]+) \{\s*color: var\(--tone-muted\);`).FindStringSubmatch(string(sheet))
-	if rule == nil {
-		t.Fatalf("%s has no band rule setting color: var(--tone-muted)", AppCSS)
-	}
-	for _, class := range []string{"goen-band__fact", "goen-tile__was", "goen-tile__state", "goen-tile__colours"} {
-		if !strings.Contains(rule[1], ".goen-band ."+class) {
-			t.Errorf("the band's muted-text rule does not name .%s", class)
-		}
-	}
-}
-
 // TestAppCSSPromoDeclaredOnce checks that .goen-promo is declared only for the
 // promotion strip. The promotion strip owns .goen-promo; a second block declaring
 // it restyles the strip on every page that has one.
@@ -1448,10 +1426,9 @@ var cssComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
 // TestAppCSSShelfPriceContrast checks that shelf prices read on their grounds. A
 // shelf price is one token, --price: the ink blue by day and the text colour by
 // night, where the blue is the link's. It is held to 4.5:1 on every ground a
-// shelf price sits on in each scheme. The ink band is the one ground the
-// blue fails on, so it alone re-points the token to the tone's own text colour,
-// and no other rule may declare it: a bare [data-tone="ink"] would white-out the
-// price on the light grounds that carry the tone as data.
+// shelf price sits on in each scheme, and no rule re-points it: a bare
+// [data-tone="ink"] would white-out the price on the light grounds that carry
+// the tone as data. The dark stage draws its prices in its own ink instead.
 func TestAppCSSShelfPriceContrast(t *testing.T) {
 	t.Parallel()
 
@@ -1505,34 +1482,15 @@ func TestAppCSSShelfPriceContrast(t *testing.T) {
 		}
 	}
 
-	// Only the ink band re-points it, to a colour that reads on the ink ground.
+	// No rule re-points it.
 	var declared []string
 	for _, rule := range regexp.MustCompile(`([^{}]*)\{([^{}]*)\}`).FindAllStringSubmatch(sheet, -1) {
 		if regexp.MustCompile(`--price\s*:`).MatchString(rule[2]) {
 			declared = append(declared, strings.TrimSpace(rule[1]))
 		}
 	}
-	const inkBand = `.goen-band[data-tone="ink"]`
-	if len(declared) != 1 || declared[0] != inkBand {
-		t.Fatalf("%s declares --price in %q, want only in %s", AppCSS, declared, inkBand)
-	}
-	override := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(inkBand) + `\s*\{\s*--price:\s*var\((--tone-[a-z]+)\);\s*\}`).FindStringSubmatch(sheet)
-	if override == nil {
-		t.Fatalf("%s: the ink band does not point --price at a tone colour", AppCSS)
-	}
-	ink := tones["ink"]
-	for _, scheme := range []struct {
-		name   string
-		colour func(toneColour) string
-	}{
-		{"day", func(c toneColour) string { return c.day }},
-		{"night", func(c toneColour) string { return c.night }},
-	} {
-		text, ground := scheme.colour(ink[override[1]]), scheme.colour(ink["--tone-ground"])
-		if got := contrast(text, ground); math.IsNaN(got) || got < 4.5 {
-			t.Errorf("%s: --price on the ink band is %s (#%s) on the ink ground (#%s) = %.2f:1, want at least 4.5:1",
-				scheme.name, override[1], text, ground, got)
-		}
+	if len(declared) != 0 {
+		t.Errorf("%s declares --price in %q, want nowhere", AppCSS, declared)
 	}
 
 	for _, sheetName := range []string{BaseCSS, AdminCSS} {
@@ -1552,20 +1510,16 @@ func TestAppCSSShelfPriceContrast(t *testing.T) {
 	}
 
 	// The shelf, the product page, the buy bar and the department's picks read
-	// the token, and nothing in the band takes the price back to the tone's text.
+	// the token.
 	for _, class := range []string{"goen-tile__price", "goen-pdp__price", "goen-buybar__price"} {
 		if !regexp.MustCompile(`(?s)\.` + class + ` \{[^{}]*\bcolor: var\(--price\);`).MatchString(sheet) {
 			t.Errorf("%s: .%s does not take color: var(--price)", AppCSS, class)
 		}
 	}
-	if regexp.MustCompile(`\.goen-band [^{}]*\.goen-tile__price[^{}]*\{[^{}]*color: var\(--tone-text\)`).MatchString(sheet) {
-		t.Errorf("%s: a band rule sets a tile price to --tone-text, which on a light tone hides the blue", AppCSS)
-	}
 
-	// A sold-out price steps back to grey: --n-500 on white, and on a band the
-	// tone's muted colour, because --n-500 is under 4.5:1 on four of the five
-	// light tones.
-	out := regexp.MustCompile(`(?ms)^\.goen-tile--out \.goen-tile__price \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(sheet)
+	// A sold-out price steps back to grey: --n-500 on white. The price stands
+	// in the card's foot, after the link that marks the card sold out.
+	out := regexp.MustCompile(`(?ms)^\.goen-tile--out ~ \.goen-tile__foot \.goen-tile__price \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(sheet)
 	if out == nil {
 		t.Fatalf("%s has no sold-out price rule", AppCSS)
 	}
@@ -1578,14 +1532,11 @@ func TestAppCSSShelfPriceContrast(t *testing.T) {
 	}
 	for name, ground := range nightGrounds {
 		if strings.HasPrefix(name, "the ") {
-			continue // on a band the sold-out price takes the tone's muted colour, held below
+			continue // a card is drawn on the page's surface, never on a tone
 		}
 		if got := contrast(grey.night, ground); math.IsNaN(got) || got < 4.5 {
 			t.Errorf("night: a sold-out price %s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1", out[1], grey.night, name, ground, got)
 		}
-	}
-	if !regexp.MustCompile(`(?s)\.goen-band \.goen-tile--out \.goen-tile__price \{\s*color: var\(--tone-muted\);`).MatchString(sheet) {
-		t.Errorf("%s: a sold-out price on a band does not take the tone's muted colour", AppCSS)
 	}
 }
 

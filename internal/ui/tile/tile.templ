@@ -2,14 +2,17 @@ package tile
 
 import (
 	"fmt"
-	"strings"
+	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // Card is the card Cell wraps in its grid cell, for a grid whose cell holds
-// more than the card (the wishlist's, with its buttons).
+// more than the card (the wishlist's, with its buttons). The link is the
+// photograph and the words that name the product; the swatches, the price and
+// the quick add follow it, because a control nested in an anchor is neither
+// clickable nor valid.
 templ Card(t Tile) {
 	<a class={ "goen-tile", templ.KV("goen-tile--out", t.SoldOut()) } href={ templ.URL("/p/" + t.Slug) }>
 		<div class="goen-tile__media">
@@ -42,15 +45,43 @@ templ Card(t Tile) {
 			}
 		</div>
 		<div class="goen-tile__body">
-			// Read, not shown: the link says whose product it is, and the card shows
-			// only the name.
-			if t.Brand != "" {
-				<span class="goen-tile__brand">{ t.Brand }</span>
+			if t.Brand != "" || t.HasRating() {
+				<span class="goen-tile__meta">
+					if t.Brand != "" {
+						<span class="goen-tile__brand">{ t.Brand }</span>
+					}
+					if t.HasRating() {
+						@rating(t)
+					}
+				</span>
 			}
 			<h3 class="goen-tile__name">{ t.Name }</h3>
 			if len(t.Highlights) > 0 {
-				<span class="goen-tile__specs">{ strings.Join(t.Highlights, " · ") }</span>
+				<span class="goen-tile__specs">
+					for _, s := range t.Highlights {
+						<span class="goen-tile__spec">{ s }</span>
+					}
+				</span>
 			}
+		</div>
+		// After the words, so the link reads the name first; drawn over the
+		// photograph's top edge.
+		if t.Savings() != "" || t.WarrantyMonths > 0 {
+			<span class="goen-tile__badges">
+				if t.Savings() != "" {
+					<span class="goen-tile__seal">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCardSave), t.Savings()) }</span>
+				}
+				if t.WarrantyMonths > 0 {
+					<span class="goen-tile__warranty">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPDPWarranty), strconv.Itoa(int(t.WarrantyMonths))) }</span>
+				}
+			</span>
+		}
+	</a>
+	if t.HasChoiceOfColour() {
+		@tileColours(t)
+	}
+	<div class="goen-tile__foot">
+		<div class="goen-tile__pricing">
 			@Price(t) {
 				if t.SoldOut() {
 					<span class="goen-tile__state">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
@@ -59,20 +90,55 @@ templ Card(t Tile) {
 			if t.DrawsSaleUntil() {
 				@saleUntil(t)
 			}
-			if t.HasChoiceOfColour() {
-				@tileColours(t)
-			}
 		</div>
-	</a>
+		if t.CanQuickAdd() {
+			@QuickAdd(t)
+		}
+	</div>
 	if t.Comparable {
-		// Outside the link, never inside: a control nested in an anchor is neither
-		// clickable nor valid.
 		<label class="goen-tile__compare">
 			<input type="checkbox" name="p" value={ t.Slug } class="goen-check" form="compare-pick"/>
 			<span>{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
 			<span class="goen-sr-only">{ " " + t.Name }</span>
 		</label>
 	}
+}
+
+// The stars are drawn; the sentence that says them is read.
+templ rating(t Tile) {
+	<span class="goen-tile__rating">
+		<span aria-hidden="true">★&nbsp;{ t.RatingText() }<span class="goen-tile__reviews">&nbsp;({ strconv.FormatInt(t.RatingCount, 10) })</span></span>
+		<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyRatingSummary, t.RatingCount, t.RatingText(), strconv.FormatInt(t.RatingCount, 10)) }</span>
+	</span>
+}
+
+// QuickAdd is the plain form the product page posts, for the one variant a
+// card can add without a choice. The server answers 303 to the product page
+// with the outcome; htmx follows it, takes the outcome's sentence into the
+// form's status line and the header's cart link out of band, and stays on this
+// page.
+templ QuickAdd(t Tile) {
+	<form
+		class="goen-tile__add"
+		method="post"
+		action="/cart/items"
+		hx-post="/cart/items"
+		hx-target="find .goen-tile__added"
+		hx-select="#added"
+		hx-swap="textContent"
+		hx-select-oob="#cart-link"
+		hx-push-url="false"
+		data-quick-add
+	>
+		<input type="hidden" name="variant" value={ t.QuickAdd }/>
+		<input type="hidden" name="quantity" value="1"/>
+		<input type="hidden" name="back" value={ t.Slug }/>
+		<button class="goen-tile__addbutton" type="submit">
+			{ i18n.T(ctx, i18n.KeyAddToCart) }
+			<span class="goen-sr-only">{ " " + t.Name }</span>
+		</button>
+		<p class="goen-tile__added" role="status"></p>
+	</form>
 }
 
 templ Price(t Tile) {
@@ -100,30 +166,58 @@ templ saleUntil(t Tile) {
 	<span class="goen-tile__until">{ i18n.T(ctx, i18n.KeyOnSale) + wordSpace(ctx) + before }<time datetime={ t.SaleUntil.ISO() }>{ shoptime.DateText(ctx, t.SaleUntil) }</time><span class="goen-sr-only">{ after }</span></span>
 }
 
-// The colour is a presentation attribute, not a style, so the CSP has nothing to refuse.
+// The colours of a card whose colours have photographs of their own are
+// buttons that put that photograph on the card (goen.js) without leaving the
+// page; any other card draws them as dots. The colour is a presentation
+// attribute, not a style, so the CSP has nothing to refuse.
 templ tileColours(t Tile) {
-	<span class="goen-tile__colours">
-		// A colour nobody can buy is faded and struck through, so its shade
-		// still shows under the line.
-		for _, dot := range t.Dots() {
-			<svg class="goen-tile__dot" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
-				if dot.SoldOut {
-					<circle cx="6" cy="6" r="5.5" fill={ dot.Hex } opacity="0.55"></circle>
-					<line class="goen-tile__slash" x1="0.5" y1="11.5" x2="11.5" y2="0.5" stroke="currentColor" stroke-width="1.5"></line>
-				} else {
-					<circle cx="6" cy="6" r="5.5" fill={ dot.Hex }></circle>
-				}
-			</svg>
-		}
-		if t.MoreColours() > 0 {
-			<span class="goen-tile__more" aria-hidden="true">{ fmt.Sprintf("+%d", t.MoreColours()) }</span>
-		}
-		if out := t.SoldOutColours(); len(out) > 0 {
-			<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyColourCountSoldOut, int64(len(t.Colours)), len(t.Colours), i18n.JoinList(ctx, out)) }</span>
+	if t.SwapsPhoto() {
+		<span class="goen-tile__colours goen-tile__swatches" role="group" aria-label={ colourCount(ctx, &t) }>
+			for _, dot := range t.Dots() {
+				<button
+					class="goen-tile__swatch"
+					type="button"
+					aria-pressed={ strconv.FormatBool(dot.Shown) }
+					data-swatch={ dot.Photo.URL }
+					data-swatch-srcset={ dot.Photo.Srcset }
+				>
+					@colourDot(dot)
+					<span class="goen-sr-only">
+						{ dot.Name }
+						if dot.SoldOut {
+							{ i18n.T(ctx, i18n.KeySoldOut) }
+						}
+					</span>
+				</button>
+			}
+			if t.MoreColours() > 0 {
+				<span class="goen-tile__more" aria-hidden="true">{ fmt.Sprintf("+%d", t.MoreColours()) }</span>
+			}
+		</span>
+	} else {
+		<span class="goen-tile__colours">
+			// A colour nobody can buy is faded and struck through, so its shade
+			// still shows under the line.
+			for _, dot := range t.Dots() {
+				@colourDot(dot)
+			}
+			if t.MoreColours() > 0 {
+				<span class="goen-tile__more" aria-hidden="true">{ fmt.Sprintf("+%d", t.MoreColours()) }</span>
+			}
+			<span class="goen-sr-only">{ colourCount(ctx, &t) }</span>
+		</span>
+	}
+}
+
+templ colourDot(dot Dot) {
+	<svg class="goen-tile__dot" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+		if dot.SoldOut {
+			<circle cx="6" cy="6" r="5.5" fill={ dot.Hex } opacity="0.55"></circle>
+			<line class="goen-tile__slash" x1="0.5" y1="11.5" x2="11.5" y2="0.5" stroke="currentColor" stroke-width="1.5"></line>
 		} else {
-			<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyColourCount, int64(len(t.Colours)), len(t.Colours)) }</span>
+			<circle cx="6" cy="6" r="5.5" fill={ dot.Hex }></circle>
 		}
-	</span>
+	</svg>
 }
 
 templ Cell(t Tile) {
