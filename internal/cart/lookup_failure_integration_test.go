@@ -255,7 +255,7 @@ func TestHandler_LookupCartFailures(t *testing.T) {
 				var nextErr error
 				route := h.WithCount(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					continued++
-					count, nextErr = frame.CartCount(r.Context()), r.Context().Err()
+					count, nextErr = frame.CartFrom(r.Context()).Units, r.Context().Err()
 					w.WriteHeader(http.StatusNoContent)
 				}))
 				req := httptest.NewRequestWithContext(requestCtx, http.MethodGet, "/cart", http.NoBody)
@@ -285,7 +285,7 @@ func TestHandler_LookupCartFailures(t *testing.T) {
 						t.Errorf("cancelled item-count request logged an error: %s", diagnostics.String())
 					}
 				case tt.failCount:
-					if !strings.Contains(diagnostics.String(), `"level":"ERROR"`) || !strings.Contains(diagnostics.String(), `"msg":"count cart items"`) {
+					if !strings.Contains(diagnostics.String(), `"level":"ERROR"`) || !strings.Contains(diagnostics.String(), `"msg":"read the cart's badge"`) {
 						t.Errorf("live request lost the item-count error diagnostic: %s", diagnostics.String())
 					}
 				case diagnostics.Len() != 0:

@@ -323,6 +323,7 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "GET /robots.txt", sample: "/robots.txt", traits: "visitor"}, // still visitor: the sitemap needs the request budget, which stateless paths skip, and robots.txt follows it
 	{pattern: "GET /s/{slug}", sample: "/s/" + probeSlug, traits: "banner nav speculation visitor"},
 	{pattern: "GET /search", sample: "/search", traits: "banner nav speculation visitor"},
+	{pattern: "GET /search/suggest", sample: "/search/suggest?q=pixel", traits: "visitor"}, // a fragment under the header's field: no header of its own
 	{pattern: "GET /shipping", sample: "/shipping", traits: "banner nav speculation visitor"},
 	{pattern: "GET /signin", sample: "/signin", traits: "nav nostore visitor"},
 	{pattern: "GET /sitemap.xml", sample: "/sitemap.xml", traits: "visitor"}, // still visitor: it needs the request budget, which stateless paths skip

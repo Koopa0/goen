@@ -224,12 +224,6 @@ func CartFrom(ctx context.Context) CartSummary {
 	return c
 }
 
-// CartCount is how many units the visitor's cart holds, or zero when nothing
-// put a cart there.
-func CartCount(ctx context.Context) int {
-	return CartFrom(ctx).Units
-}
-
 type freeOverKey struct{}
 
 // WithFreeDeliveryOver carries the amount at which every delivery method turns

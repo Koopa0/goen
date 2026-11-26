@@ -148,7 +148,7 @@
   function menu() {
     const dialog = document.getElementById("site-menu");
     const opener = document.querySelector("[data-menu-open]");
-    if (!(dialog instanceof HTMLDialogElement) || !opener) return;
+    if (typeof dialog?.showModal !== "function" || !opener) return;
 
     opener.setAttribute("aria-expanded", "false");
     opener.addEventListener("click", () => {
