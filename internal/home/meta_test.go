@@ -20,8 +20,8 @@ func TestMetaNamesCategories(t *testing.T) {
 		i18n.En:     {{Slug: "books", Name: "Books"}, {Slug: "kitchen", Name: "Kitchen"}, {Slug: "food", Name: "Food"}},
 	}
 	wantDescription := map[i18n.Locale]string{
-		i18n.ZhHant: "goen 的館別：書籍、廚房用品、食品。",
-		i18n.En:     "Departments at goen: Books, Kitchen and Food.",
+		i18n.ZhHant: "把硬體規格的清楚，帶進書籍、廚房用品、食品的每一件選品與售後。",
+		i18n.En:     "Hardware-grade clarity, carried into every item and every after-sale across Books, Kitchen and Food.",
 	}
 	for locale, items := range nav {
 		ctx := frame.WithTopNav(i18n.WithLocale(t.Context(), locale), items)

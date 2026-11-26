@@ -4,8 +4,8 @@ var (
 	// %s is the root categories as one list: a list written here is one the
 	// shop's departments stop agreeing with.
 	KeyHomeDescription = key("home.description", Message{
-		ZhHant: "goen 販售%s。",
-		En:     "goen sells %s.",
+		ZhHant: "涵蓋%s的雙語線上商店，規格、保固與運費都寫在明處。",
+		En:     "A bilingual shop spanning %s, with specifications, warranty and delivery costs stated in the open.",
 	})
 
 	KeyCannotLoadHome = key("error.cannotload.home", Message{

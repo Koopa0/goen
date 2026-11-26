@@ -6,8 +6,8 @@ var (
 	KeySearch = key("nav.search", Message{ZhHant: "搜尋", En: "Search"})
 
 	KeySearchHint = key("nav.search.hint", Message{
-		ZhHant: "搜尋商品或品牌",
-		En:     "Search products",
+		ZhHant: "搜尋商品、品牌或規格",
+		En:     "Search products, brands or specs",
 	})
 
 	// KeySearchSuggestions names the list under the search field; KeySearchSuggestAll

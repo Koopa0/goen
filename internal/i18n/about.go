@@ -1,12 +1,12 @@
 package i18n
 
 var (
-	KeyAboutTitle = key("about.title", Message{ZhHant: "關於我們", En: "About us"})
+	KeyAboutTitle = key("about.title", Message{ZhHant: "關於 goen", En: "About goen"})
 
 	// %s is the root categories as one list, as in home.description.
 	KeyAboutDescription = key("about.description", Message{
-		ZhHant: "goen 的館別：%s。",
-		En:     "Departments at goen: %s.",
+		ZhHant: "把硬體規格的清楚，帶進%s的每一件選品與售後。",
+		En:     "Hardware-grade clarity, carried into every item and every after-sale across %s.",
 	})
 
 	KeyAboutName = key("about.name", Message{
