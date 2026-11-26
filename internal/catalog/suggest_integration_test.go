@@ -7,11 +7,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestHandler_Suggest holds what the search field lists as the shopper types:
@@ -42,25 +47,43 @@ func TestHandler_Suggest(t *testing.T) {
 		return out
 	}
 
-	for _, tc := range []struct {
-		name, q string
-		want    []string
-		all     string
-	}{
-		{"three", "pixel", []string{"pixelight-9-pro-case", "pixelight-9", "pixelight-9-pro"}, `<a class="goen-suggest__all" href="/search?q=pixel">查看全部 3 件商品</a>`},
-		{"capped", "%E8%8C%B6", nil, `<a class="goen-suggest__all" href="/search?q=%E8%8C%B6">查看全部 7 件商品</a>`},
-	} {
-		body := suggest(tc.q)
-		got := slugs(body)
-		if tc.want != nil && strings.Join(got, ",") != strings.Join(tc.want, ",") {
-			t.Errorf("%s: lists %v, want %v", tc.name, got, tc.want)
+	// Products of the test's own, named with a token nothing else in the
+	// package's database carries: other tests add products of their own, and a
+	// word the seed shares with them would count theirs too.
+	named := func(token string, n int) []string {
+		t.Helper()
+		for range n {
+			ordertest.VariantsOf(t, pool, token, 1)
 		}
-		if tc.want == nil && len(got) != 6 {
-			t.Errorf("%s: lists %d products, want the first 6", tc.name, len(got))
+		rows, err := pool.Query(t.Context(), `SELECT slug FROM products WHERE name LIKE $1 || '-%' ORDER BY slug`, token)
+		if err != nil {
+			t.Fatalf("read the %s products: %v", token, err)
 		}
-		if !strings.Contains(body, tc.all) {
-			t.Errorf("%s: no way to every result %q in %s", tc.name, tc.all, body)
+		got, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil || len(got) != n {
+			t.Fatalf("the %s products are %v (%v), want %d", token, got, err, n)
 		}
+		return got
+	}
+	few, many := "sgstfew"+strings.ToLower(uuid.NewString()[:6]), "sgstmany"+strings.ToLower(uuid.NewString()[:6])
+	want := named(few, 3)
+	named(many, 7)
+
+	body := suggest(few)
+	got := slugs(body)
+	slices.Sort(got)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("three products list %v, want %v", got, want)
+	}
+	if all := `<a class="goen-suggest__all" href="/search?q=` + few + `">查看全部 3 件商品</a>`; !strings.Contains(body, all) {
+		t.Errorf("three products: no way to every result %q in %s", all, body)
+	}
+	body = suggest(many)
+	if n := len(slugs(body)); n != 6 {
+		t.Errorf("seven products list %d, want the first 6", n)
+	}
+	if all := `<a class="goen-suggest__all" href="/search?q=` + many + `">查看全部 7 件商品</a>`; !strings.Contains(body, all) {
+		t.Errorf("seven products: no way to every result %q in %s", all, body)
 	}
 
 	blank := suggest("%20%E3%80%80")
