@@ -538,7 +538,7 @@ func TestHeaderFooterDepartmentsLabel(t *testing.T) {
 	}
 }
 
-// TestHeaderCartCount: the cart says 購物車, its count and its subtotal, and its name says them in a sentence.
+// TestHeaderCartCount: the cart says 購物袋, its count and its subtotal, and its name says them in a sentence.
 //
 // The count is the lasting answer to an add to cart, so it is shown as the
 // word and a number after it, never alone and never once the cart is empty;
@@ -554,10 +554,10 @@ func TestHeaderCartCount(t *testing.T) {
 		name string
 		want string
 	}{
-		{frame.CartSummary{}, "購物車，目前是空的", ""},
-		{frame.CartSummary{Units: 1}, "購物車，1 件商品", `購物車 <span class="goen-header__count">1</span>`},
-		{frame.CartSummary{Units: 12, SubtotalCents: 190700}, "購物車，12 件商品，小計 NT$1,907",
-			`購物車 <span class="goen-header__count">12</span> <span class="goen-header__subtotal">NT$1,907</span>`},
+		{frame.CartSummary{}, "購物袋，目前是空的", ""},
+		{frame.CartSummary{Units: 1}, "購物袋，1 件商品", `購物袋 <span class="goen-header__count">1</span>`},
+		{frame.CartSummary{Units: 12, SubtotalCents: 190700}, "購物袋，12 件商品，小計 NT$1,907",
+			`購物袋 <span class="goen-header__count">12</span> <span class="goen-header__subtotal">NT$1,907</span>`},
 	} {
 		ctx := frame.WithCart(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.cart)
 		var b strings.Builder
@@ -569,8 +569,8 @@ func TestHeaderCartCount(t *testing.T) {
 		if strings.Contains(cart, "aria-label") {
 			t.Errorf("%+v: the cart link is named by an aria-label: %s", tc.cart, cart)
 		}
-		if !strings.Contains(cart, `<span class="goen-header__cartshown" aria-hidden="true">購物車`) {
-			t.Errorf("%+v: the cart link is %s, want the word 購物車 shown and hidden from a screen reader", tc.cart, cart)
+		if !strings.Contains(cart, `<span class="goen-header__cartshown" aria-hidden="true">購物袋`) {
+			t.Errorf("%+v: the cart link is %s, want the word 購物袋 shown and hidden from a screen reader", tc.cart, cart)
 		}
 		if !strings.Contains(cart, `<span class="goen-sr-only">`+tc.name+`</span>`) {
 			t.Errorf("%+v: the cart link is %s, want the sentence %q as its name", tc.cart, cart, tc.name)

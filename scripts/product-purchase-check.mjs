@@ -215,7 +215,7 @@ try {
     assert.equal(accepted.variant, 'blue', 'unchallenged confirmation remains beside its purchased variant');
     assert.equal(accepted.count, '1', 'unchallenged purchase updates the cart once');
     assert.equal(accepted.role, 'status', 'a successful purchase retains its factual status announcement');
-    assert.ok(accepted.notice.includes(locale === 'en' ? 'Added to your cart.' : '已加入購物車。'), 'the displayed purchased variant keeps its confirmation');
+    assert.ok(accepted.notice.includes(locale === 'en' ? 'Added to your bag.' : '已加入購物袋。'), 'the displayed purchased variant keeps its confirmation');
     console.log('PASS displayed-variant confirmation ' + locale);
   }
   assert.deepEqual(problems, [], problems.join('\n'));

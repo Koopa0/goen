@@ -25,8 +25,8 @@ func TestPageDeliveryAvailability(t *testing.T) {
 		locale  i18n.Locale
 		message string
 	}{
-		{locale: i18n.ZhHant, message: "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"},
-		{locale: i18n.En, message: "No delivery method is available for this cart. Change the items or contact us."},
+		{locale: i18n.ZhHant, message: "購物袋中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"},
+		{locale: i18n.En, message: "No delivery method is available for this bag. Change the items or contact us."},
 	} {
 		t.Run(locale.locale.Tag(), func(t *testing.T) {
 			t.Parallel()

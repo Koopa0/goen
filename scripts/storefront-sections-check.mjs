@@ -433,7 +433,7 @@ try {
 
   // The page frame. The bar is one row at 1024 and up in either language, it
   // sticks to the top of the window and takes at most 12% of it, and the rail
-  // of departments under it scrolls away with the page. The cart reads 購物車 2
+  // of departments under it scrolls away with the page. The cart reads 購物袋 2
   // and its subtotal in figures of one width; the current department is the
   // ink pill. Below 1024 the departments scroll sideways and the right edge of
   // a 320, 375 or 414 screen cuts a department at least 12px in, so the row
@@ -463,7 +463,7 @@ try {
         height: head.getBoundingClientRect().height, window: window.innerHeight,
         current: { text: current.textContent.trim(), background: style.backgroundColor, colour: style.color } };
     })()`);
-    for (const [path, cart] of [['/frame', '購物車 2 NT$1,907'], ['/frame?lang=en', 'Cart 2 NT$1,907']]) {
+    for (const [path, cart] of [['/frame', '購物袋 2 NT$1,907'], ['/frame?lang=en', 'Bag 2 NT$1,907']]) {
       for (const width of [1024, 1440]) {
         await open(path, width);
         const got = await header();

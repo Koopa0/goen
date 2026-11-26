@@ -83,7 +83,7 @@ func TestDrawerReadOnly(t *testing.T) {
 	want := drawerFacts{
 		Root:     true,
 		Links:    []string{"/p/mug", "/p/tea", "/checkout", "/cart"},
-		Close:    "button Close the cart",
+		Close:    "button Close the bag",
 		Subtotal: "NT$1,449",
 		Meter:    true,
 	}

@@ -137,8 +137,8 @@ var (
 	KeyHomeRailTitle = key("home.rail.title", Message{ZhHant: "未滿 %s 的日常補給", En: "Everyday pieces under %s"})
 
 	KeyHomeRailLede = key("home.rail.lede", Message{
-		ZhHant: "不分館別，價格由低到高；只有一種款式的商品可以直接加入購物車。",
-		En:     "From every department, cheapest first; a product with one variant goes straight into your cart.",
+		ZhHant: "不分館別，價格由低到高；只有一種款式的商品可以直接加入購物袋。",
+		En:     "From every department, cheapest first; a product with one variant goes straight into your bag.",
 	})
 
 	// The other departments, one at a time.

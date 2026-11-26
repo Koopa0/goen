@@ -21,8 +21,8 @@ var (
 	KeyOrderReorder = key("order.reorder", Message{ZhHant: "再買一次", En: "Order again"})
 
 	KeyOrderReorderNote = key("order.reorder.note", Message{
-		ZhHant: "用今天的價格，把還買得到的商品放回購物車。",
-		En:     "Puts whatever is still available back in your cart, at today's prices.",
+		ZhHant: "用今天的價格，把還買得到的商品放回購物袋。",
+		En:     "Puts whatever is still available back in your bag, at today's prices.",
 	})
 
 	KeyOrderCancel = key("order.cancel", Message{ZhHant: "取消訂單", En: "Cancel order"})

@@ -45,13 +45,13 @@ var (
 	KeyProfileSaved = key("account.notice.saved", Message{ZhHant: "資料已更新。", En: "Saved."})
 
 	KeyCartMergeRecoveryTitle = key("account.cart.merge.title", Message{
-		ZhHant: "購物車沒有合在一起",
-		En:     "Your carts weren't combined",
+		ZhHant: "購物袋沒有合在一起",
+		En:     "Your bags weren't combined",
 	})
 
 	KeyCartMergeFailed = key("account.notice.cart.mergefailed", Message{
-		ZhHant: "你登入前放進購物車的商品，還沒有加到帳號的購物車裡。",
-		En:     "The items you added before signing in haven't been added to your account's cart yet.",
+		ZhHant: "你登入前放進購物袋的商品，還沒有加到帳號的購物袋裡。",
+		En:     "The items you added before signing in haven't been added to your account's bag yet.",
 	})
 
 	KeyCartMergeRetry = key("account.cart.merge.retry", Message{
@@ -61,7 +61,7 @@ var (
 
 	KeyCartRecoveryBeforeSignIn = key("account.cart.recovery.before", Message{ZhHant: "登入前的商品", En: "Items from before signing in"})
 
-	KeyCartRecoveryAccount = key("account.cart.recovery.account", Message{ZhHant: "帳號購物車裡的商品", En: "Items in your account's cart"})
+	KeyCartRecoveryAccount = key("account.cart.recovery.account", Message{ZhHant: "帳號購物袋裡的商品", En: "Items in your account's bag"})
 
-	KeyCartRecoveryBack = key("account.cart.recovery.back", Message{ZhHant: "先不用，回到購物車", En: "Not now, back to cart"})
+	KeyCartRecoveryBack = key("account.cart.recovery.back", Message{ZhHant: "先不用，回到購物袋", En: "Not now, back to bag"})
 )

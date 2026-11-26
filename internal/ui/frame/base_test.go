@@ -69,8 +69,8 @@ func TestBaseBagDrawerShell(t *testing.T) {
 		locale i18n.Locale
 		name   string
 	}{
-		{i18n.ZhHant, "購物車"},
-		{i18n.En, "Cart"},
+		{i18n.ZhHant, "購物袋"},
+		{i18n.En, "Bag"},
 	} {
 		var b strings.Builder
 		if err := Base(Page{Title: "t"}).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {

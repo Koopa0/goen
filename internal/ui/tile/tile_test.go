@@ -339,7 +339,7 @@ func TestCellQuickAdd(t *testing.T) {
 		`<input type="hidden" name="variant" value="0190-variant">`,
 		`<input type="hidden" name="quantity" value="1">`,
 		`<input type="hidden" name="back" value="pen-set">`,
-		`<button class="goen-tile__addbutton" type="submit">加入購物車 <span class="goen-sr-only"> Pens</span></button>`,
+		`<button class="goen-tile__addbutton" type="submit">加入購物袋 <span class="goen-sr-only"> Pens</span></button>`,
 		`<p class="goen-tile__added" role="status"></p>`,
 	} {
 		if !strings.Contains(page, want) {
