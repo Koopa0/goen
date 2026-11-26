@@ -1,6 +1,8 @@
 package home_test
 
 import (
+	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -31,18 +33,17 @@ import (
 	"github.com/koopa0/goen/internal/wishlist"
 )
 
-// The home page's hero (its square photograph across the window, its tabs,
-// its campaign's days and products, no filled button), hero arrows,
-// departments and rules row, the deals page's running campaigns, the search
-// page's compare button, the cart's stepper and filled button, a department's
-// filter chip, the corners every pressable control shares, a product's
-// photograph, the header's search pill with the rule under the header, a
-// department's head as words in the page column and the home page's band
-// across the window with its name upright in Chinese where it fits, the one way a chosen option, a chosen
-// delivery card and a refused field are marked, the page frame's header,
-// department panel and footer, and the ways on from an empty cart, an empty
-// wishlist and a missing page with the checkout's one solid button, measured as
-// drawn.
+// The home page's bento hero, its shelf with the pills that swap it, its dark
+// stage, its rail under the free-delivery meter, its other departments and its
+// rule cards, the product card's plate, colours and quick add; the department
+// index, the deals page's running campaigns, the search page's compare button,
+// the cart's stepper and filled button, a department's filter chip, the corners
+// every pressable control shares, a product's photograph, the header's search
+// pill with the rule under the header, a department's head as words in the page
+// column, the one way a chosen option, a chosen delivery card and a refused
+// field are marked, the page frame's header, department panel and footer, and
+// the ways on from an empty cart, an empty wishlist and a missing page with the
+// checkout's one solid button, measured as drawn.
 func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../..")
@@ -52,30 +53,95 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
 	tones := map[string]tone.Tone{"ink": tone.Ink, "sage": tone.Sage, "stone": tone.Stone}
-	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
-		view := home.View{Rules: policy.Rules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
-		photo := widget.Photo{URL: picture.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
-		// The first slide is a campaign's: its end, five days of which two are
-		// gone, and its four products.
+	// The page at /home, and at / where its pills lead.
+	homeFixture := func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
 		now := time.Date(2026, 11, 12, 4, 0, 0, 0, time.UTC)
-		period := widget.PeriodSpec{Cells: []widget.PeriodCell{{State: widget.CellPast}, {State: widget.CellPast}, {State: widget.CellToday}, {}, {}}}
-		products := make([]tile.Tile, 0, 4)
-		for _, name := range []string{"Oolong", "Black tea", "Drip coffee", "Coffee beans"} {
-			products = append(products, tile.Tile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 58500, CompareCents: 65000, OnSale: true, InStock: true})
+		// ?zh=1 draws the page in Chinese.
+		locale, names := i18n.En, []string{"Tech", "Phones", "Audio", "Home & living", "Books"}
+		if query.Get("zh") == "1" {
+			locale, names = i18n.ZhHant, []string{"3C 數位", "手機", "耳機與音響", "居家生活", "書籍文具"}
 		}
-		view.Slides = []hero.Slide{
-			{Title: "Technology", Source: hero.SourceCampaign, Layout: hero.LayoutPhoto, Tone: tone.Stone, Photo: photo,
-				Ends:   campaign.Ends(campaign.NewEnd(time.Date(2026, 11, 16, 16, 0, 0, 0, time.UTC), now)),
-				Period: &period, CTA: hero.CTA{Label: "See all items", Href: "/s/tea"}, Tiles: products},
-			{Title: "Everyday essentials", Layout: hero.LayoutSplit, Tone: tone.Ink, Photo: photo, CTA: hero.CTA{Label: "Shop now", Href: "/c/audio"}},
-			{Title: "Books & stationery", Layout: hero.LayoutPhoto, Tone: tone.Sage, Photo: photo},
-			{Title: "Slow mornings", Layout: hero.LayoutSplit, Tone: tone.Sage, Photo: photo, CTA: hero.CTA{Label: "See the range", Href: "/c/coffee"}},
-			{Title: "After dark", Layout: hero.LayoutSplit, Tone: tone.Ink, Photo: photo},
+		photo := func(key string) (string, string) {
+			image := picture.Image{BundledKey: key}
+			return image.URL(), image.Srcset()
 		}
-		// ?bare=1 leaves the last two slides without a photograph.
-		if r.URL.Query().Get("bare") == "1" {
-			view.Slides[3].Photo, view.Slides[4].Photo = widget.Photo{}, widget.Photo{}
+		product := func(slug, name, key string, cents int64) tile.Tile {
+			url, srcset := photo(key)
+			return tile.Tile{Slug: slug, Name: name, Brand: "Koto", PriceCents: cents, InStock: true,
+				ImageURL: url, ImageSrcset: srcset, ImageWidth: 1600, ImageHeight: 1200,
+				Highlights: []string{"40mm", "30 h"}, WarrantyMonths: 12, Rating: 4.5, RatingCount: 2}
 		}
+		// The first is on sale until 22 November; the second offers two colours,
+		// each with its own photograph; the third adds without a choice.
+		budsWhite, budsWhiteSet := photo("nimbus-buds-pro-01.webp")
+		budsBlack, budsBlackSet := photo("nimbus-buds-pro-02.webp")
+		shelf := []tile.Tile{
+			product("koto-over-ear", "Koto Over-Ear", "koto-over-ear-01.webp", 990000),
+			product("nimbus-buds-pro", "Nimbus Buds Pro", "nimbus-buds-pro-01.webp", 590000),
+			product("koto-cable", "Koto Cable", "koto-cable-braided-01.webp", 49000),
+			product("nimbus-band-2", "Nimbus Band 2", "nimbus-band-2-01.webp", 190000),
+		}
+		shelf[0].CompareCents, shelf[0].OnSale = 1090000, true
+		shelf[0].SaleUntil = shoptime.LastDay(time.Date(2026, 11, 22, 16, 0, 0, 0, time.UTC), now)
+		shelf[1].Colours, shelf[1].ColourNames = []string{"#f4f5f6", "#1c1c1e"}, []string{"White", "Black"}
+		shelf[1].ColourPhotos = []tile.ColourPhoto{{URL: budsWhite, Srcset: budsWhiteSet}, {URL: budsBlack, Srcset: budsBlackSet}}
+		shelf[2].QuickAdd = "cable-variant"
+		// ?shelf=audio is the shelf's second pill, chosen: its own products.
+		chosen := ""
+		if query.Get("shelf") == "audio" {
+			chosen = "audio"
+			shelf = []tile.Tile{product("koto-speaker", "Koto Speaker", "nimbus-speaker-s1-01.webp", 249000)}
+		}
+		tech := home.Category{Slug: "tech", Name: names[0], Products: 20}
+		view := home.View{
+			Products:  40,
+			Featured:  &tech,
+			Lifestyle: &hero.Slide{Source: hero.SourceDepartment, Eyebrow: "4", Title: names[3], Fact: "Kitchen · Fragrance", CTA: hero.CTA{Label: names[3], Href: "/c/home-living"}},
+			Shelf: &home.Shelf{Department: tech, Chosen: chosen, Tiles: shelf, Filters: []home.Category{
+				{Slug: "phones", Name: names[1], Products: 3}, {Slug: "audio", Name: names[2], Products: 3},
+			}},
+			Stage: []tile.Tile{
+				product("meridian-book-16-pro", "Meridian Book 16 Pro", "meridian-book-16-pro-01.webp", 6890000),
+				product("pixelight-9-pro", "Pixelight 9 Pro", "pixelight-9-pro-01.webp", 3390000),
+			},
+			Rail:   home.Rail{BelowCents: 100000},
+			Choice: home.Choice{Shelf: chosen},
+			Rules:  policy.Rules{FreeDeliveryCents: 300000, LowestFeeCents: 6000, PickupOffered: true, RescissionDays: 7, ReturnDays: 14, PayStartMinutes: 29},
+		}
+		view.Stage[0].QuickAdd = "book-variant"
+		for i, key := range []string{"paperwick-gel-pen-set-01.webp", "paperwick-dot-notebook-a5-01.webp", "kumoleaf-black-tea-bags-01.webp", "dawnroast-drip-coffee-01.webp", "saelo-hand-cream-01.webp", "fernway-mountain-tea-seasons-01.webp"} {
+			view.Rail.Tiles = append(view.Rail.Tiles, product(strings.TrimSuffix(key, "-01.webp"), "Everyday "+strings.Repeat("piece ", i%2+1), key, int64(15000+i*5000)))
+		}
+		moreURL, moreSrcset := photo("department-home-living.webp")
+		view.More = &home.More{
+			Tabs:   []home.Category{{Slug: "home-living", Name: names[3], Products: 4}, {Slug: "books", Name: names[4], Products: 4}},
+			Chosen: home.Category{Slug: "home-living", Name: names[3], Products: 4},
+			Photo:  widget.Photo{URL: moreURL, Srcset: moreSrcset},
+			Subs:   []string{"Kitchen", "Fragrance"},
+			Tiles:  view.Rail.Tiles[:4],
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		// A cart of two short of free delivery, so the meter and the header's
+		// rail have something to say.
+		basket := frame.CartSummary{Units: 2, SubtotalCents: 190700, Delivery: frame.CartDelivery{ShortCents: 109300}}
+		ctx := frame.WithCart(frame.WithFreeDeliveryOver(i18n.WithLocale(r.Context(), locale), 300000), basket)
+		// ?promo=1 puts the strip above the header, with its code and its word.
+		if query.Get("promo") == "1" {
+			ctx = frame.WithBanner(ctx, frame.Banner{
+				ID: "autumn", Message: "Free delivery on orders over NT$999 this week", MessageShort: "Free delivery",
+				Code: "AUTUMN", CTALabel: "Shop now", CTAHref: "/s/tea",
+			})
+		}
+		if renderErr := home.Page(frame.Page{}, view).Render(ctx, w); renderErr != nil {
+			t.Errorf("render home fixture: %v", renderErr)
+		}
+	}
+	mux.HandleFunc("GET /home", homeFixture)
+	mux.HandleFunc("GET /{$}", homeFixture)
+	// The department index the missing page and the empty search draw, under a
+	// heading in the page column.
+	mux.HandleFunc("GET /departments", func(w http.ResponseWriter, r *http.Request) {
 		departments := make([]frame.NavItem, 0, 3)
 		for _, c := range []struct{ slug, name, photo string }{
 			{"audio", "Audio", "nimbus-band-2-01.webp"},
@@ -93,34 +159,20 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			departments[1].PhotoURL = ""
 			departments[0].Children = []frame.NavItem{{Name: "Wearables", Href: "/c/wearables"}, {Name: "Speakers", Href: "/c/speakers"}, {Name: "Cables and chargers", Href: "/c/cables"}}
 		}
-		// ?zh=1 draws the page in Chinese, the band's name upright where it fits.
-		locale, bandName := i18n.En, "Technology"
-		if r.URL.Query().Get("zh") == "1" {
-			locale, bandName = i18n.ZhHant, "居家生活"
-		}
-		if bandTone, ok := tones[r.URL.Query().Get("band")]; ok {
-			view.Band = &home.DepartmentBand{Name: bandName, Items: 12, Subs: []string{"Audio", "Phones"}, Href: "/c/tech", Tone: bandTone}
-			// The first two are on sale until 22 November.
-			until := shoptime.LastDay(time.Date(2026, 11, 22, 16, 0, 0, 0, time.UTC), now)
-			for i, name := range []string{"Canvas tote", "City tote", "Weekend tote", "Market tote"} {
-				t := tile.Tile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 89000, InStock: true}
-				if i < 2 {
-					t.CompareCents, t.OnSale, t.SaleUntil = 99000, true, until
-				}
-				view.Band.Tiles = append(view.Band.Tiles, t)
+		ctx := frame.WithTopNav(i18n.WithLocale(r.Context(), i18n.En), departments)
+		index := templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+			if _, writeErr := io.WriteString(w, `<div class="goen-home"><section aria-labelledby="cats-heading"><h2 id="cats-heading" class="goen-home__heading">Departments</h2>`); writeErr != nil {
+				return writeErr
 			}
-		}
+			if indexErr := frame.DepartmentIndex().Render(ctx, w); indexErr != nil {
+				return indexErr
+			}
+			_, writeErr := io.WriteString(w, `</section></div>`)
+			return writeErr
+		})
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		ctx := frame.WithTopNav(i18n.WithLocale(r.Context(), locale), departments)
-		// ?promo=1 puts the strip above the header, with its code and its word.
-		if r.URL.Query().Get("promo") == "1" {
-			ctx = frame.WithBanner(ctx, frame.Banner{
-				ID: "autumn", Message: "Free delivery on orders over NT$999 this week", MessageShort: "Free delivery",
-				Code: "AUTUMN", CTALabel: "Shop now", CTAHref: "/s/tea",
-			})
-		}
-		if renderErr := home.Page(frame.Page{}, view).Render(ctx, w); renderErr != nil {
-			t.Errorf("render home fixture: %v", renderErr)
+		if renderErr := frame.Base(frame.Page{Title: "Departments"}).Render(templ.WithChildren(ctx, index), w); renderErr != nil {
+			t.Errorf("render department index fixture: %v", renderErr)
 		}
 	})
 	mux.HandleFunc("GET /deals", func(w http.ResponseWriter, r *http.Request) {

@@ -131,10 +131,8 @@ func TestStore_DepartmentHeadFiltered(t *testing.T) {
 	}
 }
 
-// TestStore_ListingHighlights holds that a comparable shelf gives each tile its
-// specification highlights.
-//
-// A department that compares lists its products with two specifications each.
+// TestStore_ListingHighlights holds that a shelf gives each tile its
+// specification highlights, at most three; this product lists two.
 func TestStore_ListingHighlights(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))

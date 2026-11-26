@@ -66,7 +66,7 @@ templ Slides(p frame.Page, v *HeroView) {
 								aria-describedby="h-headline-example"
 							}
 						/>
-						<p class="goen-admin__hint" id="h-headline-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyHeroHeadline)) }</p>
+						<p class="goen-admin__hint" id="h-headline-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyAdminHomeHeadlineExample)) }</p>
 						if v.HasErr("headline") {
 							<p class="ui-error-text" id="h-headline-error">{ v.Err("headline") }</p>
 						}

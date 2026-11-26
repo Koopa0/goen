@@ -39,17 +39,17 @@ var (
 	})
 
 	KeyAdminHomeLead = key("admin.home.lead", Message{
-		ZhHant: "首頁輪播最多三張：先是下方在檔期內的主視覺，再來是進行中的活動，最後是有照片的部門。",
-		En: "The home carousel shows up to three slides: the slides below that are inside " +
-			"their window first, then campaigns running, then departments with a photograph.",
+		ZhHant: "首頁的生活版位一次顯示一張：先是下方在檔期內的主視覺，沒有的話是最早結束的進行中活動，再沒有就是一個有商品的部門。",
+		En: "The home page's lifestyle tile shows one slide at a time: the first slide below " +
+			"inside its window, else the running campaign that ends first, else a department with products.",
 	})
 
 	KeyAdminHomeCarouselHead = key("admin.home.carouselhead", Message{ZhHant: "首頁目前顯示", En: "On the home page now"})
 
 	KeyAdminHomeNoSlides = key("admin.home.noslides", Message{
-		ZhHant: "首頁目前沒有任何輪播：沒有在檔期內的主視覺、進行中的活動，也沒有附照片的部門。",
-		En: "The home page shows no carousel right now: no slide inside its window, " +
-			"no campaign running and no department with a photograph.",
+		ZhHant: "首頁的生活版位目前是空的：沒有在檔期內的主視覺、進行中的活動，也沒有任何有商品的部門。",
+		En: "The home page's lifestyle tile is empty right now: no slide inside its window, " +
+			"no campaign running and no department with products.",
 	})
 
 	KeyAdminHomeSourceScheduled = key("admin.home.source.scheduled", Message{ZhHant: "輪播主視覺", En: "Carousel slide"})

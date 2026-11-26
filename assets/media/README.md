@@ -7,7 +7,12 @@ versioned `/static/` asset handler.
   `<slug>-NN.webp`: a 1600x1200 source on a `#f9f9f9` ground.
 - `campaign-banner-01.webp` (1600x600) is in `products/` because a campaign's
   `bundled_key` is resolved by the same function as a product image's.
-- `hero/` contains home-page hero artwork (1440x720, 2:1).
+- `hero/` contains home-page hero artwork: `home-hero-01` (1440x720, 2:1),
+  and the bento hero's two photographs, `hero-tech-flagship` under the dark
+  tile and `hero-autumn-editorial` under the lifestyle tile (1600x893, with
+  `-800` and `-720` renditions). Those two were made from 1376x768 JPEG
+  sources with Pillow's WebP encoder (Lanczos, quality 78), so the 1600 file
+  is a slight upscale of the source.
 - `products/campaign-*.webp` are
   campaign headers (1600x600). `products/department-<slug>.webp` (800px, with a
   `-400` rendition) are the department photographs, in `products/` because a

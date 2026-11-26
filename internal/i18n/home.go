@@ -59,26 +59,100 @@ var (
 		En:     "Below it, delivery is from %s",
 	})
 
+	// The bento hero's dark tile, the page's heading: the shop's own sentence,
+	// which says what it is and not what one department sells.
 	KeyHeroHeadline = key("home.hero.headline", Message{
-		ZhHant: "goen 販售的商品",
-		En:     "What goen sells",
+		ZhHant: "旗艦硬體與日常器物，同一個標準。",
+		En:     "Flagship hardware and quiet everyday goods, one roof.",
 	})
 
-	KeyHomeFeatured = key("home.featured", Message{ZhHant: "精選", En: "Featured"})
+	// KeyHeroLede counts the products the shop lists now: a number written
+	// here would stop agreeing with the catalogue the day a product is added.
+	KeyHeroLede = countKey("home.hero.lede",
+		"全館 %d 件商品，規格與運費都寫在明處。",
+		"%d product, its specifications and delivery cost in plain sight.",
+		"%d products, their specifications and delivery costs in plain sight.")
 
-	KeyHomeHeading = key("home.heading", Message{ZhHant: "goen 商店首頁", En: "goen shop home"})
+	// The line over the headline: the largest department and what it holds.
+	KeyHeroEyebrow = countKey("home.hero.eyebrow", "%[2]s · %[1]d 件商品", "%[2]s · %[1]d product", "%[2]s · %[1]d products")
 
-	KeyHomeNewIn = key("home.new_in", Message{ZhHant: "新到貨", En: "New in"})
+	// The way into the largest department, with how many products it holds.
+	KeyHeroShop = key("home.hero.shop", Message{ZhHant: "探索 %s（%d）", En: "Shop %s (%d)"})
 
-	// What a screen reader calls the home hero and each of its panels (ARIA
-	// aria-roledescription), so the page does not switch to English mid-sentence.
-	KeyHeroCarouselRole = key("home.hero.role.carousel", Message{ZhHant: "輪播", En: "carousel"})
+	KeyHeroCompare = key("home.hero.compare", Message{ZhHant: "並排比較規格", En: "Compare side by side"})
 
-	KeyHeroSlideRole = key("home.hero.role.slide", Message{ZhHant: "投影片", En: "slide"})
+	// What the lifestyle tile says over a running campaign and a department:
+	// how many products the link lists.
+	KeyHomeTileRunning = key("home.tile.running", Message{ZhHant: "進行中的活動", En: "Running now"})
 
-	KeyHeroPrevious = key("home.hero.previous", Message{ZhHant: "上一張", En: "Previous"})
+	KeyHomeTileItems = countKey("home.tile.items", "%d 件商品", "%d product", "%d products")
 
-	KeyHeroNext = key("home.hero.next", Message{ZhHant: "下一張", En: "Next"})
+	// The quick index: where to start, and the free-delivery threshold the
+	// shop states, read from the delivery methods.
+	KeyHomeIndex = key("home.index", Message{ZhHant: "快速索引", En: "Quick index"})
+
+	KeyHomeIndexFree = key("home.index.free", Message{ZhHant: "快速索引 · 滿 %s 免運", En: "Quick index · free delivery over %s"})
+
+	// %s is the rail's ceiling. 未滿 and "under": a product at the ceiling
+	// itself is not on the rail.
+	KeyHomeIndexUnder = key("home.index.under", Message{ZhHant: "未滿 %s", En: "Under %s"})
+
+	// The facts under the quick index, each read from where checkout and the
+	// returns desk enforce it.
+	KeyHomeFactFee = key("home.fact.fee", Message{ZhHant: "運費 %s 起", En: "Delivery from %s"})
+
+	KeyHomeFactRescission = key("home.fact.rescission", Message{ZhHant: "猶豫期 %d 天", En: "%d-day right to cancel"})
+
+	// The example under a slide's headline in the back office: a headline of
+	// the length the field takes, which the home page's own does not fit.
+	KeyAdminHomeHeadlineExample = key("admin.home.headline.example", Message{ZhHant: "茶與咖啡週", En: "Tea and coffee week"})
+
+	KeyHomeFactReturn = countKey("home.fact.return", "未使用 %d 天內可退", "Unused returns within %d day", "Unused returns within %d days")
+
+	// The featured department's shelf: its name, and its share of the shop.
+	KeyHomeShelfTitle = key("home.shelf.title", Message{ZhHant: "%s主力貨架", En: "The %s shelf"})
+
+	KeyHomeShelfLede = key("home.shelf.lede", Message{
+		ZhHant: "全館 %[2]d 件商品中有 %[1]d 件在這個分館，卡片直接列出規格。",
+		En:     "%[1]d of our %[2]d products, with their specifications on each card.",
+	})
+
+	KeyHomeShelfAll = key("home.shelf.all", Message{ZhHant: "全部", En: "All"})
+
+	KeyHomeShelfFilter = key("home.shelf.filter", Message{ZhHant: "依分類瀏覽", En: "Browse by category"})
+
+	// The dark stage: the two highest-priced products of the featured
+	// department that can be bought. Price is all it claims about them.
+	KeyHomeStageEyebrow = key("home.stage.eyebrow", Message{ZhHant: "旗艦現貨", En: "Flagship, in stock"})
+
+	KeyHomeStageTitle = key("home.stage.title", Message{
+		ZhHant: "%s館內價位最高的兩件現貨。",
+		En:     "The two highest-priced pieces in %s you can buy today.",
+	})
+
+	KeyHomeStageSpecs = key("home.stage.specs", Message{ZhHant: "看完整規格", En: "See every specification"})
+
+	// The rail of cheap products. %s is its ceiling, a merchandising constant
+	// of the home page.
+	KeyHomeRailTitle = key("home.rail.title", Message{ZhHant: "未滿 %s 的日常補給", En: "Everyday pieces under %s"})
+
+	KeyHomeRailLede = key("home.rail.lede", Message{
+		ZhHant: "不分館別，價格由低到高；只有一種款式的商品可以直接加入購物車。",
+		En:     "From every department, cheapest first; a product with one variant goes straight into your cart.",
+	})
+
+	// The other departments, one at a time.
+	KeyHomeMoreTitle = key("home.more.title", Message{ZhHant: "其他分館", En: "More departments"})
+
+	KeyHomeMoreTabs = key("home.more.tabs", Message{ZhHant: "選擇分館", En: "Choose a department"})
+
+	// The product card's savings seal: what the struck price saves, in money,
+	// shown only while a campaign strikes it.
+	KeyCardSave = key("card.save", Message{ZhHant: "省 %s", En: "Save %s"})
+
+	// A card's way to a product whose variants differ: the choice is made on
+	// the product's own page.
+	KeyCardChoose = key("card.choose", Message{ZhHant: "選擇選項", En: "Choose options"})
 
 	// A day said the short way. The arguments are the English month name, the
 	// month number, the day and the year, picked by index; the year forms are
@@ -93,26 +167,13 @@ var (
 	// %d is the count of what the link lists.
 	KeyHomeSeeAllCount = countKey("home.see_all.count", "看全部 %d 件", "See all %d item", "See all %d items")
 
-	// The link under New in, which lists products and is no campaign.
-	KeyHomeNewInCTA = key("home.row.newin.cta", Message{ZhHant: "看全部商品", En: "See all products"})
-
-	KeyHeroCampaignCTA = key("home.hero.cta.campaign", Message{
-		ZhHant: "看全部商品",
-		En:     "See all items",
-	})
-
 	KeySlideItems = key("home.slide.items", Message{ZhHant: "商品", En: "Items"})
-
-	KeySlideCategories = key("home.slide.categories", Message{ZhHant: "分類", En: "Categories"})
 
 	KeySlideEnds = key("home.slide.ends", Message{ZhHant: "結束", En: "Ends"})
 
 	// A fact's label already names what is counted, so English writes the bare figure and only zh-Hant adds a counter.
-	KeyFactUnitItems      = zhOnly("fact.unit.items", "件")
-	KeyFactUnitCategories = zhOnly("fact.unit.categories", "類")
-	KeyFactUnitDays       = zhOnly("fact.unit.days", "天")
-
-	KeySlides = key("home.hero.slides", Message{ZhHant: "選擇焦點", En: "Choose a slide"})
+	KeyFactUnitItems = zhOnly("fact.unit.items", "件")
+	KeyFactUnitDays  = zhOnly("fact.unit.days", "天")
 
 	KeyPeriodToday = key("period.today", Message{ZhHant: "今天", En: "Today"})
 

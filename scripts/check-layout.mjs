@@ -87,20 +87,19 @@ try {
 }
 const reflowBaseline = reflowBaselineFile.routes || {};
 
-// What the two artboards fold into. The seeded six departments are 4:3
-// photographs, three to a line on a phone and six from 768; the seeded campaign
-// that ends first has four products, drawn in its slide of the hero under its
-// name: two to a line on a phone, four in a row from 768. The hero's copy
-// stands beside its products only where the page column is 64rem, so at 1440
-// and not at 1024. Column counts are read off the rendered boxes — how many
+// What the two artboards fold into. The bento hero's dark tile stands beside
+// the lifestyle tile and the quick index from 1024 and over them below; the
+// largest department's shelf holds eight cards, two to a line on a phone,
+// three from 768 and four from 1024; the stage's two products stand side by
+// side from 864. Column counts are read off the rendered boxes — how many
 // children share the top row — not off the CSS, so a rule that stops applying
 // is caught rather than a rule that stops existing. tileRows is how many lines
-// the drawn tiles stand on.
+// the shelf's cards stand on.
 const EXPECTED = [
-  { label: '375 (artboard)', width: 375, height: 812, cats: 1, tiles: 2, tileRows: 2, hero: 'stacked' },
-  { label: '768 (md)', width: 768, height: 1024, cats: 2, tiles: 4, tileRows: 1, hero: 'stacked' },
-  { label: '1024 (lg)', width: 1024, height: 900, cats: 2, tiles: 4, tileRows: 1, hero: 'stacked' },
-  { label: '1440 (artboard)', width: 1440, height: 900, cats: 3, tiles: 4, tileRows: 1, hero: 'side-by-side', firstScreen: true },
+  { label: '375 (artboard)', width: 375, height: 812, tiles: 2, tileRows: 4, stage: 1, hero: 'stacked' },
+  { label: '768 (md)', width: 768, height: 1024, tiles: 3, tileRows: 3, stage: 1, hero: 'stacked' },
+  { label: '1024 (lg)', width: 1024, height: 900, tiles: 4, tileRows: 2, stage: 2, hero: 'side-by-side' },
+  { label: '1440 (artboard)', width: 1440, height: 900, tiles: 4, tileRows: 2, stage: 2, hero: 'side-by-side', firstScreen: true },
 ];
 
 // Every page that renders a document, at a phone width and at the artboard.
@@ -674,11 +673,10 @@ const PROBE = `(() => {
     .slice(0, 6)
     .map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]);
 
-  // The first slide's words and its products: side by side, or the products
-  // under the words.
-  const firstSlide = document.querySelector('.goen-hero__slide');
-  const body = firstSlide.querySelector('.goen-hero__inner').getBoundingClientRect();
-  const media = firstSlide.querySelector('.goen-hero__tiles').getBoundingClientRect();
+  // The hero's dark tile and its quick index: side by side, or the index
+  // under the dark tile.
+  const lead = document.querySelector('.goen-bento__lead').getBoundingClientRect();
+  const index = document.querySelector('.goen-bento__index').getBoundingClientRect();
 
   // The content column has to line up across the three landmarks, or the page
   // reads as three documents stacked.
@@ -689,7 +687,7 @@ const PROBE = `(() => {
              +(r.right - parseFloat(cs.paddingRight)).toFixed(1) ];
   };
 
-  const taps = [...document.querySelectorAll('.goen-deptindex__photo, .goen-hero .goen-home__more')]
+  const taps = [...document.querySelectorAll('.goen-bento__chip, .goen-bento__cta, .goen-bento__ghost, .goen-home__more')]
     .map((e) => e.getBoundingClientRect().height);
 
   // Every rendered <img> must have laid out with real pixels. A 404 leaves a
@@ -703,18 +701,16 @@ const PROBE = `(() => {
     viewportWidth: de.clientWidth,
     scrollWidth: pageWidth,
     overflowing,
-    heroSplit: Math.abs(body.y - media.y) < 2 ? 'side-by-side' : 'stacked',
-    cats: cols('.goen-deptindex__item'),
-    tiles: cols('#hero-1 .goen-hero__tiles > li'),
-    tileRows: rows('#hero-1 .goen-hero__tiles > li'),
+    heroSplit: index.left >= lead.right ? 'side-by-side' : 'stacked',
+    tiles: cols('#shelf .goen-tiles__grid > li'),
+    tileRows: rows('#shelf .goen-tiles__grid > li'),
+    stage: cols('.goen-stage__card'),
     header: edges('.goen-header__bar'),
     main: edges('.goen-home'),
-    heroBody: edges('#hero-1 .goen-hero__body'),
-    // How far down the first slide's last price ends, against the window.
-    pricesEnd: Math.max(0, ...[...document.querySelectorAll('#hero-1 .goen-hero__tiles .goen-tile__price')]
-      .map((e) => e.getBoundingClientRect().bottom)),
+    heroBody: edges('.goen-bento__grid'),
+    // How far down the hero's way into the largest department ends, against the window.
+    ctaEnd: document.querySelector('.goen-bento__cta')?.getBoundingClientRect().bottom ?? 0,
     viewportHeight: innerHeight,
-    bandBody: edges('.goen-band__body'),
     footer: edges('.goen-footer__grid'),
     minTap: taps.length ? Math.min(...taps) : 0,
     images,
@@ -1030,17 +1026,17 @@ for (const want of EXPECTED) {
     fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
       (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
   }
-  if (got.cats !== want.cats) fail(at, `department index has ${got.cats} columns, want ${want.cats}`);
-  if (got.tiles !== want.tiles) fail(at, `product grid has ${got.tiles} columns, want ${want.tiles}`);
-  if (got.tileRows !== want.tileRows) fail(at, `product row stands on ${got.tileRows} lines, want ${want.tileRows}`);
+  if (got.tiles !== want.tiles) fail(at, `the shelf has ${got.tiles} columns, want ${want.tiles}`);
+  if (got.tileRows !== want.tileRows) fail(at, `the shelf stands on ${got.tileRows} lines, want ${want.tileRows}`);
+  if (got.stage !== want.stage) fail(at, `the stage has ${got.stage} columns, want ${want.stage}`);
   if (got.heroSplit !== want.hero) fail(at, `hero is ${got.heroSplit}, want ${want.hero}`);
-  // At the artboard the campaign's products and their prices are in the first screen.
-  if (want.firstScreen && !(got.pricesEnd > 0 && got.pricesEnd <= got.viewportHeight)) {
-    fail(at, `the hero's last price ends at ${got.pricesEnd}px, below the ${got.viewportHeight}px first screen`);
+  // At the artboard the hero's way in is in the first screen.
+  if (want.firstScreen && !(got.ctaEnd > 0 && got.ctaEnd <= got.viewportHeight)) {
+    fail(at, `the hero's way in ends at ${got.ctaEnd}px, below the ${got.viewportHeight}px first screen`);
   }
   if (got.minTap < MIN_TAP) fail(at, `smallest tap target is ${got.minTap}px, want >= ${MIN_TAP}`);
 
-  for (const [name, edge] of [['header', got.header], ['footer', got.footer], ['hero', got.heroBody], ['band', got.bandBody]]) {
+  for (const [name, edge] of [['header', got.header], ['footer', got.footer], ['hero', got.heroBody]]) {
     if (!edge || !got.main) continue;
     if (Math.abs(edge[0] - got.main[0]) > 1 || Math.abs(edge[1] - got.main[1]) > 1) {
       fail(at, `${name} content column [${edge}] does not line up with main [${got.main}]`);
@@ -1052,7 +1048,7 @@ for (const want of EXPECTED) {
 
   const mark = failures.length ? '' : ' ok';
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
-    `cats=${got.cats} tiles=${got.tiles} rows=${got.tileRows} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
+    `tiles=${got.tiles} rows=${got.tileRows} stage=${got.stage} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
 }
 
 // The period track (WCAG 1.4.4, 1.4.10, 1.4.11). At 320px, at 200% text and in
@@ -1086,7 +1082,6 @@ const PERIOD_PROBE = `(() => {
       && /px$/.test(across) && parseFloat(across) > 0 && (parseFloat(across) <= 16 || parseFloat(across) < cellWidth);
   };
   periods.forEach((period, n) => {
-    period.closest('.goen-hero__slide')?.scrollIntoView({ inline: 'start', block: 'nearest', behavior: 'instant' });
     const box = period.getBoundingClientRect();
     const at = 'period ' + n + ' [' + box.left.toFixed(1) + ',' + box.right.toFixed(1) + ']';
     tracks.push(box.left.toFixed(1) + '+' + box.width.toFixed(1) + 'x' + box.height.toFixed(1));

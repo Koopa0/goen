@@ -124,27 +124,35 @@ func (s *Store) colourStory(ctx context.Context, slug string) (*ColourStory, err
 	return story, nil
 }
 
-// withHighlights gives each comparable tile the first specifications it lists.
-func (s *Store) withHighlights(ctx context.Context, tiles []tile.Tile) error {
-	var slugs []string
-	for i := range tiles {
-		if tiles[i].Comparable {
-			slugs = append(slugs, tiles[i].Slug)
-		}
-	}
-	if len(slugs) == 0 {
+// withTileFacts gives each tile what its card says beyond the listing's row:
+// the stated warranty, the variant a quick add puts in the cart, the first
+// three specification values, and each colour's name and photograph.
+func (s *Store) withTileFacts(ctx context.Context, tiles []tile.Tile) error {
+	if len(tiles) == 0 {
 		return nil
 	}
-	rows, err := s.q.ListingHighlights(ctx, db.ListingHighlightsParams{Slugs: slugs, Locale: string(i18n.FromContext(ctx))})
-	if err != nil {
-		return fmt.Errorf("read listing highlights: %w", err)
+	slugs := make([]string, len(tiles))
+	for i := range tiles {
+		slugs[i] = tiles[i].Slug
 	}
-	bySlug := make(map[string][]string, len(slugs))
-	for _, r := range rows {
-		bySlug[r.Slug] = append(bySlug[r.Slug], r.Value)
+	rows, err := s.q.ListingTileFacts(ctx, db.ListingTileFactsParams{Slugs: slugs, Locale: string(i18n.FromContext(ctx))})
+	if err != nil {
+		return fmt.Errorf("read listing tile facts: %w", err)
+	}
+	bySlug := make(map[string]*db.ListingTileFactsRow, len(rows))
+	for i := range rows {
+		bySlug[rows[i].Slug] = &rows[i]
 	}
 	for i := range tiles {
-		tiles[i].Highlights = bySlug[tiles[i].Slug]
+		r, ok := bySlug[tiles[i].Slug]
+		if !ok {
+			continue
+		}
+		tiles[i].WarrantyMonths = r.WarrantyMonths
+		tiles[i].QuickAdd = r.QuickAdd
+		tiles[i].Highlights = r.Highlights
+		tiles[i].ColourNames = r.ColourNames
+		tiles[i].ColourPhotos = tile.ColourPhotos(r.ColourDigests, r.ColourBundledKeys, r.ColourWidths)
 	}
 	return nil
 }

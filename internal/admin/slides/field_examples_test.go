@@ -31,11 +31,11 @@ func TestSlidesFieldExamples(t *testing.T) {
 					return result
 				}
 				prefix := "Example: "
-				headline := "What goen sells"
+				headline := "Tea and coffee week"
 				days := "0 means no end date."
 				if locale == i18n.ZhHant {
 					prefix = "例："
-					headline = "goen 販售的商品"
+					headline = "茶與咖啡週"
 					days = "0 表示不設結束日。"
 				}
 				p := frame.Page{}

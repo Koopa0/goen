@@ -171,7 +171,6 @@ check-layout-run:
 	@# The storefront follows the visitor's colour scheme; the night changes no box,
 	@# so one dark pass over a few pages is enough, and /admin stays light in it.
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs /@320@dark /@1024@dark /@320@text200@dark '/p/{PRODUCT_SLUG}@320@dark' '/p/{PRODUCT_SLUG}@1024@dark' /cart@320@dark /checkout@1024@dark '/search?q=pixelight@320@dark' /admin@1024@dark
-	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestHeroCarouselCurrentTab$$' ./internal/home
 	@node --env-file=$(LAYOUT_DIR)/env --test scripts/reflow-staff-check.test.mjs
 	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestProductGalleryThumbnails$$' ./internal/catalog
 	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestCompareFormRowInBrowser$$' ./internal/catalog

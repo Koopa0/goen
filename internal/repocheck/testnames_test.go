@@ -243,7 +243,6 @@ var testNameExceptions = map[string]map[string]string{
 		"TestSaleCampaignNeedsDiscount": "the unit is the sale_campaign_needs_discount trigger on sale_campaign_products, a SQL object the test provokes by featuring products through the pool, not a Go identifier",
 	},
 	"internal/home": {
-		"TestHomeTilesCampaignRow":      "the unit is the HomeTiles query (internal/home/query.sql, generated into internal/db), called directly through db.Queries; Store.Load is not what it exercises",
 		"TestStorefrontSectionsAsDrawn": "a browser measurement of the stylesheet as drawn on several pages (the home page, the deals page, search, the cart, a department, a product and the header) through their own renderers; the home page is only one of them, so no one declared identifier of this package is its unit",
 	},
 	"internal/i18n": {

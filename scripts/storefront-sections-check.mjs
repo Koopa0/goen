@@ -90,30 +90,13 @@ try {
   await send('DOM.enable');
   await send('CSS.enable');
 
-  // The rules row sits a section margin below what precedes it; padding above
-  // its content would stack a second gap on that margin.
-  for (const width of [375, 1440]) {
-    await open('/home', width);
-    const rules = await evaluate(`(() => {
-      const section = document.querySelector('.goen-rules');
-      const content = section && [...section.children].find(child => getComputedStyle(child).position !== 'absolute');
-      if (!content) return null;
-      return { padding: getComputedStyle(section).paddingTop,
-        offset: content.getBoundingClientRect().top - section.getBoundingClientRect().top };
-    })()`);
-    assert.ok(rules, `rules row ${width}px: no section with visible content`);
-    assert.equal(rules.padding, '0px', `rules row ${width}px: padding above the content`);
-    assert.ok(Math.abs(rules.offset) < 0.5, `rules row ${width}px: content starts ${rules.offset}px below the section's top`);
-    console.log(`rules row ${width}px: content at the section's top`);
-  }
-
-  // The home page's departments are the index the missing page and the empty
-  // search draw: a square photograph keeping the 4:3 it is shot in beside the
+  // The departments are the index the missing page and the empty search
+  // draw: a square photograph keeping the 4:3 it is shot in beside the
   // name in the display face, one above another on a phone, two across from
   // 768 and three across a desktop. The heading over it is the display face
   // too, and the photograph's link is out of the tab order beside the name's.
   for (const [width, columns] of [[375, 1], [768, 2], [1024, 2], [1440, 3]]) {
-    await open('/home', width);
+    await open('/departments', width);
     const index = await evaluate(`(() => {
       const items = [...document.querySelectorAll('.goen-deptindex__item')];
       const photos = items.map(item => {
@@ -146,7 +129,7 @@ try {
   // sub-categories are set apart with the dot between spaces that a screen reader
   // skips.
   for (const width of [375, 1440]) {
-    await open('/home?depts=mark', width);
+    await open('/departments?depts=mark', width);
     const mark = await evaluate(`(() => {
       const tile = document.querySelector('.goen-deptindex__photo--mark');
       if (!tile) return null;
@@ -172,82 +155,161 @@ try {
     console.log(`${where}: ${mark.letter} on its tone, no underline, sub-categories spaced around a dot`);
   }
 
-  // Only the script that moves between slides marks a tab aria-current, so the
-  // current tab exists, and is underlined, only where scripting runs: the
-  // script sets data-pill on the row and the stylesheet draws the 2px line on
-  // its ::before, as every current page is marked. Without script no tab is
-  // current, and the first two stand in for the current and another tab.
-  const tabsEvaluated = () => evaluate(`(() => {
-    const row = document.querySelector('.goen-hero__tabs');
-    const current = row?.querySelector('a[aria-current="true"]');
-    const other = row?.querySelector('a:not([aria-current="true"])');
-    if (!current || !other) return null;
-    const marked = row.querySelectorAll('[aria-current]').length;
-    const look = tab => {
-      const style = getComputedStyle(tab);
-      return { background: style.backgroundColor, weight: style.fontWeight, outline: style.outlineStyle, shadow: style.boxShadow, color: style.color };
-    };
-    const colour = value => {
+  // The home page runs in five rhythms. The bento hero: the dark tile, dark in
+  // both schemes, beside the lifestyle tile and the quick index from 1024, one
+  // over another below; its headline the page's one h1 in the display face, its
+  // chips at least 44px tall. The shelf's cards are four across from 1024, two on
+  // a phone, each a hairline frame with the photograph multiplied onto its
+  // plate. The stage is dark in both schemes, its products on light plates, two
+  // across from 864. The rail scrolls inside itself, each card stopping at its
+  // start, under the meter that says what the header's rail says. The other
+  // departments: the photograph beside two by two cards from 1024. The rules are
+  // four framed cards, one column on a phone and four across a desktop. Nothing
+  // widens the page, at 320 and 200% text either.
+  const homeProbe = `(() => {
+    const box = element => element ? element.getBoundingClientRect() : null;
+    // Read where it is drawn: a dark band resolves its tokens in its own scheme.
+    const resolve = (property, value, within = document.body) => {
       const probe = document.createElement('span');
-      probe.style.color = value;
-      document.body.append(probe);
-      const resolved = getComputedStyle(probe).color;
+      probe.style.setProperty(property, value);
+      within.append(probe);
+      const got = getComputedStyle(probe).getPropertyValue(property);
       probe.remove();
-      return resolved;
+      return got;
     };
-    const pill = getComputedStyle(row, '::before');
-    return { scripting: matchMedia('(scripting: enabled)').matches, current: look(current), other: look(other),
-      currents: marked, marked: row.hasAttribute('data-pill'), ink: colour('var(--sys-on-surface)'), muted: colour('var(--sys-on-surface-variant)'),
-      pill: { display: pill.display, background: pill.backgroundColor, top: pill.borderTopWidth, width: pill.borderBottomWidth, style: pill.borderBottomStyle, colour: pill.borderBottomColor } };
-  })()`);
-  // Whether (scripting: none) holds cannot be read without running script, so
-  // the page is asserted by what it draws: a current tab drawn apart, or a row
-  // marked for the pill, means the media feature did not turn off.
-  const tabsRead = async () => {
-    const ids = await queryNodes(['.goen-hero__tabs', '.goen-hero__tabs a:nth-child(1)', '.goen-hero__tabs a:nth-child(2)']);
-    if (!ids) return null;
-    const look = async nodeId => {
-      const { computedStyle } = await send('CSS.getComputedStyleForNode', { nodeId });
-      const value = name => computedStyle.find(property => property.name === name)?.value;
-      return { background: value('background-color'), weight: value('font-weight'), outline: value('outline-style'), shadow: value('box-shadow') };
+    const tops = items => {
+      const first = Math.min(...items.map(item => box(item).top));
+      return items.filter(item => Math.abs(box(item).top - first) < 1).length;
     };
-    const { attributes } = await send('DOM.getAttributes', { nodeId: ids[0] });
-    const read = { marked: attributes.includes('data-pill'), current: await look(ids[1]), other: await look(ids[2]) };
-    // DOM.getDocument discards every node id handed out before it.
-    const { root } = await send('DOM.getDocument', { depth: 0 });
-    const { nodeIds: currents } = await send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '.goen-hero__tabs [aria-current]' });
-    return { currents: currents.length, ...read };
-  };
-  for (const scriptingOff of [false, true]) {
-    const label = `hero tabs scripting ${scriptingOff ? 'off' : 'on'}`;
-    const tabs = scriptingOff ? tabsRead : tabsEvaluated;
-    await send('Emulation.setScriptExecutionDisabled', { value: scriptingOff });
-    if (scriptingOff) await openWithoutScripts('/home', 1440);
-    else await open('/home', 1440);
-    const drawn = await tabs();
-    assert.ok(drawn, `${label}: no tabs to compare`);
-    assert.equal(drawn.currents, scriptingOff ? 0 : 1, `${label}: ${drawn.currents} tabs are marked current, want ${scriptingOff ? 'none' : 'one'}`);
-    if (scriptingOff) {
-      assert.equal(drawn.marked, false, `${label}: the row is marked for a pill`);
-      assert.deepEqual(drawn.current, drawn.other, `${label}: the current tab is drawn apart`);
-    } else {
-      assert.equal(drawn.scripting, true, `${label}: the page does not report scripting on`);
-      assert.equal(drawn.marked, true, `${label}: the script did not mark the row for the pill`);
-      assert.equal(drawn.pill.background, 'rgba(0, 0, 0, 0)', `${label}: the current tab's mark has a fill`);
-      assert.deepEqual([drawn.pill.top, drawn.pill.width, drawn.pill.style, drawn.pill.colour], ['0px', '2px', 'solid', drawn.ink], `${label}: the current tab is not underlined 2px in the ink`);
-      assert.deepEqual([drawn.current.weight, drawn.other.weight], ['500', '500'], `${label}: the tabs' weight`);
-      assert.equal(drawn.current.color, drawn.ink, `${label}: the current tab's text is not --sys-on-surface`);
-      assert.equal(drawn.other.color, drawn.muted, `${label}: another tab's text is not --sys-on-surface-variant`);
+    const lead = document.querySelector('.goen-bento__lead');
+    const life = document.querySelector('.goen-bento__life');
+    const index = document.querySelector('.goen-bento__index');
+    const stage = document.querySelector('.goen-stage');
+    const plate = document.querySelector('.goen-stage__plate');
+    const rail = document.querySelector('.goen-home__rail');
+    const shelfCells = [...document.querySelectorAll('.goen-home__shelf > .goen-tile__cell')];
+    const media = document.querySelector('.goen-home__shelf .goen-tile__media');
+    const img = document.querySelector('.goen-home__shelf .goen-tile__img');
+    const cards = [...document.querySelectorAll('.goen-home__rules .ui-statline > div')];
+    const chips = [...document.querySelectorAll('.goen-bento__chip')];
+    return {
+      page: document.body.scrollWidth, viewport: document.documentElement.clientWidth,
+      wide: [...document.querySelectorAll('body *')].filter(e => {
+        if (box(e).right <= document.documentElement.clientWidth + 0.5) return false;
+        for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) {
+          if (['auto', 'hidden', 'scroll', 'clip'].includes(getComputedStyle(p).overflowX)) return false;
+        }
+        return true;
+      }).slice(0, 4).map(e => e.tagName.toLowerCase() + '.' + String(e.className).split(' ')[0]),
+      h1: [...document.querySelectorAll('h1')].map(h => h.className),
+      headline: getComputedStyle(document.querySelector('.goen-bento__headline')).fontFamily,
+      headlineSize: parseFloat(getComputedStyle(document.querySelector('.goen-bento__headline')).fontSize),
+      lead: { ...box(lead).toJSON(), scheme: getComputedStyle(lead).colorScheme, ground: getComputedStyle(lead).backgroundColor },
+      life: box(life).toJSON(), index: box(index).toJSON(),
+      stageGround: resolve('background-color', 'var(--stage)', stage),
+      leadGround: resolve('background-color', 'var(--stage)', lead),
+      stage: { ground: getComputedStyle(stage).backgroundColor, scheme: getComputedStyle(stage).colorScheme,
+        plate: getComputedStyle(plate).backgroundColor, platePaint: resolve('background-color', 'var(--stage-plate)', stage),
+        blend: getComputedStyle(plate.querySelector('img')).mixBlendMode,
+        across: tops([...document.querySelectorAll('.goen-stage__card')]) },
+      chips: chips.map(chip => box(chip).height),
+      shelf: { across: tops(shelfCells), frame: getComputedStyle(shelfCells[0]).borderTopWidth,
+        plate: getComputedStyle(media).backgroundColor, platePaint: resolve('background-color', 'var(--photo-plate)', media),
+        blend: getComputedStyle(img).mixBlendMode },
+      rail: { overflow: getComputedStyle(rail).overflowX, snap: getComputedStyle(rail).scrollSnapType,
+        align: getComputedStyle(rail.firstElementChild).scrollSnapAlign, scrolls: rail.scrollWidth > rail.clientWidth },
+      meter: document.querySelector('.goen-meter__text')?.textContent.trim(),
+      railWord: document.querySelector('.goen-rail__delivery')?.textContent.trim(),
+      bar: (() => { const bar = document.querySelector('.goen-meter__bar'); return bar && [bar.value, bar.max, bar.getAttribute('aria-labelledby')]; })(),
+      more: { photo: box(document.querySelector('.goen-more__photo')).toJSON(), grid: box(document.querySelector('.goen-more__grid')).toJSON(),
+        columns: tops([...document.querySelectorAll('.goen-more__grid > li')]) },
+      rules: { cards: cards.length, columns: tops(cards), edge: cards.map(card => getComputedStyle(card).borderTopWidth) },
+    };
+  })()`;
+  for (const [width, mobile] of [[320, true], [375, true], [768, false], [1024, false], [1440, false]]) {
+    for (const [rootSize, scheme] of [['', 'light'], ['', 'dark'], ['200%', 'light']]) {
+      if (rootSize && width !== 320) continue;
+      const label = `home ${width}px${rootSize ? ' at 200% text' : ''}${scheme === 'dark' ? ' by night' : ''}`;
+      await media(scheme === 'dark' ? [{ name: 'prefers-color-scheme', value: 'dark' }] : []);
+      await open('/home', width, mobile);
+      if (rootSize) await evaluate(`document.documentElement.style.fontSize = ${JSON.stringify(rootSize)}`);
+      const got = await evaluate(homeProbe);
+      assert.ok(got.page <= got.viewport, `${label}: the page scrolls sideways (${got.page} > ${got.viewport}): ${got.wide}`);
+      assert.deepEqual(got.h1, ['goen-bento__headline'], `${label}: the page's h1s are ${JSON.stringify(got.h1)}, want the hero's headline alone`);
+      assert.match(got.headline, /^"?Instrument Sans"?, "?Noto Sans TC"?/, `${label}: the headline is set in ${got.headline}`);
+      assert.ok(got.headlineSize <= 56, `${label}: the headline is ${got.headlineSize}px, past the 3.5rem cap`);
+      assert.equal(got.lead.scheme, 'dark', `${label}: the dark tile does not read the night's tokens`);
+      assert.equal(got.lead.ground, got.leadGround, `${label}: the dark tile's ground is ${got.lead.ground}, not the stage's ${got.leadGround}`);
+      assert.equal(got.leadGround, got.stageGround, `${label}: the dark tile and the stage are not one ground`);
+      const beside = !rootSize && width >= 1024;
+      if (beside) {
+        assert.ok(got.life.left > got.lead.right && got.index.left > got.lead.right, `${label}: the lifestyle tile and the index are not beside the dark tile`);
+        assert.ok(Math.abs(got.lead.bottom - got.index.bottom) < 1 && Math.abs(got.lead.top - got.life.top) < 1, `${label}: the dark tile does not span the two tiles beside it`);
+      } else {
+        assert.ok(got.life.top >= got.lead.bottom && got.index.top >= got.life.bottom, `${label}: the hero's tiles do not stand one over another`);
+      }
+      for (const height of got.chips) assert.ok(height >= 44, `${label}: a quick-index chip is ${height}px tall, under 44`);
+      assert.equal(got.stage.ground, got.stageGround, `${label}: the stage's ground is ${got.stage.ground}`);
+      assert.equal(got.stage.scheme, 'dark', `${label}: the stage does not read the night's tokens`);
+      assert.equal(got.stage.plate, got.stage.platePaint, `${label}: a stage plate is ${got.stage.plate}, not --stage-plate`);
+      assert.equal(got.stage.blend, 'multiply', `${label}: a stage photograph is not multiplied onto its plate`);
+      assert.equal(got.stage.across, width >= 864 && !rootSize ? 2 : 1, `${label}: ${got.stage.across} stage cards across`);
+      assert.equal(got.shelf.across, rootSize ? 1 : width >= 1024 ? 4 : width >= 768 ? 3 : 2, `${label}: ${got.shelf.across} shelf cards across`);
+      assert.equal(got.shelf.frame, '1px', `${label}: a card's frame is ${got.shelf.frame}`);
+      assert.equal(got.shelf.plate, got.shelf.platePaint, `${label}: a card's photograph stands on ${got.shelf.plate}, not --photo-plate`);
+      assert.equal(got.shelf.blend, 'multiply', `${label}: a card's photograph is not multiplied onto its plate`);
+      assert.deepEqual([got.rail.overflow, got.rail.snap, got.rail.align], ['auto', 'x', 'start'], `${label}: the rail is ${JSON.stringify(got.rail)}`);
+      if (width <= 768) assert.ok(got.rail.scrolls, `${label}: the rail does not scroll inside itself`);
+      assert.ok(got.meter && got.meter === got.railWord, `${label}: the meter says ${JSON.stringify(got.meter)}, the header's rail ${JSON.stringify(got.railWord)}`);
+      assert.deepEqual(got.bar, [190700, 300000, 'meter-text'], `${label}: the meter's bar is ${JSON.stringify(got.bar)}`);
+      if (beside) assert.ok(got.more.grid.left > got.more.photo.right, `${label}: the showcase's cards are not beside its photograph`);
+      else assert.ok(got.more.grid.top >= got.more.photo.bottom, `${label}: the showcase's cards are not under its photograph`);
+      assert.equal(got.more.columns, rootSize ? 1 : 2, `${label}: the showcase's cards are ${got.more.columns} across, want two by two`);
+      assert.equal(got.rules.cards, 4, `${label}: ${got.rules.cards} rule cards`);
+      assert.equal(got.rules.columns, rootSize || width < 528 ? 1 : width < 896 ? 2 : 4, `${label}: the rules stand ${got.rules.columns} across`);
+      assert.deepEqual(got.rules.edge, ['1px', '1px', '1px', '1px'], `${label}: the rule cards are not framed`);
+      console.log(`${label}: hero ${beside ? 'beside' : 'stacked'}, shelf ${got.shelf.across} across, stage ${got.stage.across} across, rail scrolls inside, meter as the rail, rules ${got.rules.columns} across`);
     }
-    await media([{ name: 'forced-colors', value: 'active' }]);
-    const forced = await tabs();
-    await media([]);
-    assert.ok(forced, `${label}: no current and other tab in forced colours`);
-    assert.equal(forced.current.outline === 'solid', !scriptingOff, `${label}: forced colours ${scriptingOff ? 'draw' : 'do not draw'} the current tab's edge`);
-    if (!scriptingOff) assert.equal(forced.pill.display, 'none', `${label}: forced colours draw the pill`);
-    console.log(`${label}: ${scriptingOff ? 'no line' : 'current tab underlined'}, forced-colours edge ${forced.current.outline}${scriptingOff ? '' : `, pill ${forced.pill.display}`}`);
   }
-  await send('Emulation.setScriptExecutionDisabled', { value: false });
+  await media([]);
+
+  // The shelf's pills are links to the page's own address: htmx takes the
+  // shelf out of the page that address draws, keeps the address, marks the pill
+  // chosen and hands focus to it. A colour swatch puts its photograph on the
+  // card without leaving it and marks itself pressed; a card only offers its own
+  // add to cart for a product with one variant, and a struck price says what it
+  // saves in a seal on the photograph.
+  {
+    const label = 'home shelf';
+    await open('/home', 1440);
+    const before = await evaluate(`(() => {
+      const card = document.querySelector('#shelf .goen-tile__cell:nth-child(2)');
+      const swatch = card.querySelector('.goen-tile__swatch[aria-pressed="false"]');
+      const img = card.querySelector('.goen-tile__img');
+      const was = img.getAttribute('src');
+      swatch.click();
+      return { was, now: img.getAttribute('src'), want: swatch.dataset.swatch,
+        pressed: [...card.querySelectorAll('.goen-tile__swatch')].map(button => button.getAttribute('aria-pressed')),
+        href: location.href, adds: [...document.querySelectorAll('#shelf .goen-tile__cell')].map(cell => cell.querySelector('form[data-quick-add]') !== null),
+        seal: document.querySelector('#shelf .goen-tile__cell:first-child .goen-tile__seal')?.textContent,
+        seals: document.querySelectorAll('#shelf .goen-tile__seal').length };
+    })()`);
+    assert.notEqual(before.now, before.was, `${label}: a swatch did not change the card's photograph`);
+    assert.equal(before.now, before.want, `${label}: the swatch put ${before.now} on the card, not its own ${before.want}`);
+    assert.deepEqual(before.pressed, ['false', 'true'], `${label}: the swatches read pressed ${before.pressed}`);
+    assert.equal(before.href, `${origin}/home`, `${label}: a swatch left the page`);
+    assert.deepEqual(before.adds, [false, false, true, false], `${label}: quick adds ${before.adds}, want the one-variant card's alone`);
+    assert.equal(before.seal, 'Save NT$1,000', `${label}: the sale's seal reads ${before.seal}`);
+    assert.equal(before.seals, 1, `${label}: ${before.seals} seals, want the struck price's alone`);
+    await evaluate(`(() => { const pill = document.querySelector('#shelf-audio'); pill.focus(); pill.click(); })()`);
+    await waitFor(`document.querySelector('#shelf-audio')?.getAttribute('aria-current') === 'true' && document.activeElement?.id === 'shelf-audio'`, `${label}: the audio pill`);
+    const after = await evaluate(`(() => ({ search: location.search, names: [...document.querySelectorAll('#shelf .goen-tile__name')].map(name => name.textContent),
+      shelves: document.querySelectorAll('#shelf').length, stage: document.querySelectorAll('.goen-stage').length }))()`);
+    assert.equal(after.search, '?shelf=audio', `${label}: the address after the pill is ${after.search}`);
+    assert.deepEqual(after.names, ['Koto Speaker'], `${label}: the shelf after the pill shows ${after.names}`);
+    assert.deepEqual([after.shelves, after.stage], [1, 1], `${label}: the swap drew ${after.shelves} shelves and ${after.stage} stages`);
+    console.log(`${label}: a swatch swaps the photograph in place, the pill swaps the shelf and keeps focus, one quick add, one seal`);
+  }
 
   // The running campaigns are plain links under a heading: no frame around
   // them, no box around each, and as many columns of at least 20rem as fit.
@@ -310,8 +372,8 @@ try {
   // field and the footer's newsletter field are fields, 4px at any text size,
   // as the field corners below are, and the footer's button sits 4px inside
   // its field, so square. The header's words, the back office's among them,
-  // have no corner at all. The hero arrows are square outlines, a field's corner,
-  // with no fill.
+  // have no corner at all. The home hero's way in is a seal too, and the
+  // shelf's pills are full pills.
   {
     const label = 'pressable corners';
     const measure = (selectors, rootSize) => evaluate(`(() => {
@@ -337,7 +399,8 @@ try {
     // The language button: a word of the bar that every width and text size draws.
     const words = '.goen-header__lang > .goen-header__tool';
     const chip = '.goen-filters__chip';
-    const arrow = '.goen-hero__arrow';
+    const way = '.goen-bento__cta';
+    const pill = '.goen-pill';
     const corner = {};
     for (const rootSize of ['', '200%']) {
       const scale = rootSize || '100%';
@@ -359,14 +422,13 @@ try {
       assert.ok(corner[scale] >= listing[chip].height / 2 - 0.5, `${label}: a filter chip is ${listing[chip].height}px tall with a ${corner[scale]}px corner at ${scale}, not a full pill`);
 
       await open('/home', 1440);
-      const hero = await measure([arrow], rootSize);
-      assert.ok(hero[arrow]?.height > 0, `${label}: no hero arrow is drawn at ${scale}`);
-      assert.equal(length(hero[arrow], arrow), hero[arrow].rem * 0.25, `${label}: a hero arrow at ${scale} has a ${hero[arrow].radius} corner, not --r-sm (${hero[arrow].rem * 0.25}px)`);
-      assert.notEqual(hero[arrow].border, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow's edge at ${scale} is transparent, not an outline`);
-      assert.equal(hero[arrow].background, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow at ${scale} has a ${hero[arrow].background} fill`);
+      const home = await measure([way, pill], rootSize);
+      assert.ok(home[way]?.height > 0 && home[pill]?.height > 0, `${label}: the hero's way in or a pill is not drawn at ${scale}`);
+      assert.equal(length(home[way], way), home[way].rem * 0.5, `${label}: the hero's way in has a ${home[way].radius} corner at ${scale}, not --r-lg (${home[way].rem * 0.5}px)`);
+      assert.ok(length(home[pill], pill) >= home[pill].height / 2 - 0.5, `${label}: a shelf pill is ${home[pill].height}px tall with a ${home[pill].radius} corner at ${scale}, not a full pill`);
     }
     assert.equal(corner['200%'], corner['100%'] * 2, `${label}: ${corner['100%']}px at 100% text is ${corner['200%']}px at 200%, not double`);
-    console.log(`${label}: chips ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; fields 4px, footer button square inside its field, header words 8px, hero arrows square outlines`);
+    console.log(`${label}: chips ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; fields 4px, footer button square inside its field, header words 8px, the hero's way in a seal and the shelf's pills full pills`);
   }
 
   // The page frame. The bar is one row at 1024 and up in either language, it
@@ -526,115 +588,6 @@ try {
     console.log(`${label}: footer link groups two across on a phone, the brand and newsletter across the width`);
   }
 
-  // The home hero is a printed page: each slide's photograph square and across
-  // the window, a quarter of it tall from 768 (never more than 40% of the
-  // screen) and 15:8 of it on a phone; under it, in the page column, the tabs,
-  // then the name in the display size, the end and its days in vermilion, and
-  // the campaign's products, beside the words where the column is 64rem. The
-  // page has no filled button. Boxes are read relative to their own slide, so a
-  // slide the track has not scrolled to needs no scrolling.
-  {
-    const near = (got, want, tolerance = 0.5) => Math.abs(got - want) <= tolerance;
-    for (const width of [375, 800, 1024, 1440]) {
-      const label = `hero ${width}px`;
-      await open('/home', width);
-      const hero = await evaluate(`(() => {
-        const box = element => {
-          const r = element.getBoundingClientRect();
-          return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
-        };
-        const colour = value => {
-          const probe = document.createElement('i');
-          probe.style.color = value;
-          document.body.append(probe);
-          const resolved = getComputedStyle(probe).color;
-          probe.remove();
-          return resolved;
-        };
-        const corners = style => [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
-        const home = document.querySelector('.goen-home');
-        const homeStyle = getComputedStyle(home);
-        const homeBox = box(home);
-        const tabs = document.querySelector('.goen-hero__tabs');
-        const firstTab = tabs.querySelector('a');
-        const slides = [...document.querySelectorAll('.goen-hero__slide')].map(slide => {
-          const style = getComputedStyle(slide);
-          const media = slide.querySelector('.goen-hero__media');
-          const mediaStyle = getComputedStyle(media);
-          const img = media.querySelector('img');
-          const body = slide.querySelector('.goen-hero__body');
-          const bodyStyle = getComputedStyle(body);
-          const bodyBox = box(body);
-          const title = slide.querySelector('.goen-hero__title');
-          const tiles = slide.querySelector('.goen-hero__tiles');
-          const inner = slide.querySelector('.goen-hero__inner');
-          const days = slide.querySelector('.goen-days');
-          const ends = slide.querySelector('.goen-hero__ends');
-          return {
-            slide: box(slide), background: style.backgroundColor, padding: style.padding,
-            media: box(media), corners: corners(mediaStyle), img: img && box(img),
-            // Relative to the slide, which the track may hold beside the window.
-            column: { left: bodyBox.left + parseFloat(bodyStyle.paddingLeft) - slide.getBoundingClientRect().left,
-              right: bodyBox.right - parseFloat(bodyStyle.paddingRight) - slide.getBoundingClientRect().left },
-            title: { top: box(title).top - box(slide).top, size: getComputedStyle(title).fontSize, family: getComputedStyle(title).fontFamily },
-            ends: ends && getComputedStyle(ends).color,
-            days: days && { hidden: days.getAttribute('aria-hidden'), cells: [...days.children].map(cell => [cell.dataset.cell || '', getComputedStyle(cell).backgroundColor]) },
-            tiles: tiles && { columns: getComputedStyle(tiles).gridTemplateColumns.trim().split(/\\s+/).length, beside: Math.abs(box(inner).top - box(tiles).top) < 1 && box(tiles).left > box(inner).right },
-          };
-        });
-        return {
-          viewport: document.documentElement.clientWidth,
-          column: { left: homeBox.left + parseFloat(homeStyle.paddingLeft), right: homeBox.right - parseFloat(homeStyle.paddingRight) },
-          track: box(document.querySelector('.goen-hero__track')),
-          tabs: { top: box(tabs).top - box(document.querySelector('.goen-hero__slide')).top, bottom: box(tabs).bottom - box(document.querySelector('.goen-hero__slide')).top,
-            words: box(firstTab).left + parseFloat(getComputedStyle(firstTab).paddingLeft), padding: [getComputedStyle(tabs).paddingTop, getComputedStyle(tabs).paddingBottom] },
-          vermilion: colour('var(--sys-tertiary)'), quiet: colour('var(--sys-outline-variant)'),
-          buttons: document.querySelectorAll('main .goen-btn, main .ui-btn, .goen-btn--primary').length,
-          slides,
-        };
-      })()`);
-      assert.equal(hero.slides.length, 5, `${label}: five slides drawn`);
-      assert.equal(hero.buttons, 0, `${label}: the home page draws ${hero.buttons} filled buttons, want none`);
-      // Across the window, the slides one track wide and touching.
-      assert.ok(near(hero.track.left, 0) && near(hero.track.right, hero.viewport), `${label}: the track is ${hero.track.left}-${hero.track.right} in a ${hero.viewport}px window`);
-      const tall = width >= 768 ? Math.min(hero.viewport * 0.25, 900 * 0.4) : hero.viewport * 8 / 15;
-      hero.slides.forEach((slide, index) => {
-        const name = `${label}: slide ${index + 1}`;
-        assert.ok(near(slide.slide.width, hero.track.width), `${name} is ${slide.slide.width}px in a ${hero.track.width}px track`);
-        if (index > 0) assert.ok(near(slide.slide.left - hero.slides[index - 1].slide.right, 0), `${name} does not touch the one before`);
-        assert.equal(slide.background, 'rgba(0, 0, 0, 0)', `${name} has a ground of ${slide.background}`);
-        assert.equal(slide.padding, '0px', `${name} has padding ${slide.padding}`);
-        assert.deepEqual(slide.corners, ['0px', '0px', '0px', '0px'], `${name}: the photograph's corners are ${slide.corners}`);
-        assert.ok(near(slide.media.left, slide.slide.left) && near(slide.media.right, slide.slide.right), `${name}: the photograph does not span the slide`);
-        assert.ok(near(slide.media.height, tall, 1), `${name}: the photograph is ${slide.media.height}px tall, want ${tall}`);
-        if (slide.img) for (const edge of ['left', 'right', 'top', 'bottom']) {
-          assert.ok(near(slide.img[edge], slide.media[edge], 1), `${name}: the picture's ${edge} is ${slide.img[edge]}, its frame's ${slide.media[edge]}`);
-        }
-        assert.ok(near(slide.column.left, hero.column.left) && near(slide.column.right, hero.column.right),
-          `${name}: the words stand in ${slide.column.left}-${slide.column.right}, the page column is ${hero.column.left}-${hero.column.right}`);
-        assert.ok(slide.title.top >= hero.tabs.bottom - 0.5, `${name}: the name starts at ${slide.title.top}, over the tabs that end at ${hero.tabs.bottom}`);
-      });
-      assert.ok(hero.tabs.top >= hero.slides[0].media.height - 0.5, `${label}: the tabs start at ${hero.tabs.top}, over the photograph that ends at ${hero.slides[0].media.height}`);
-      assert.ok(near(hero.tabs.words, hero.column.left), `${label}: the first tab's words start at ${hero.tabs.words}, want ${hero.column.left}`);
-      assert.deepEqual(hero.tabs.padding, ['4px', '4px'], `${label}: the tab row's padding above and below`);
-
-      const first = hero.slides[0];
-      if (width >= 1440) assert.equal(first.title.size, '56px', `${label}: the campaign's name is ${first.title.size}, not the display size`);
-      assert.match(first.title.family, /^"?Instrument Sans"?, "?Noto Sans TC"?/, `${label}: the campaign's name is set in ${first.title.family}`);
-      assert.equal(first.ends, hero.vermilion, `${label}: the end is ${first.ends}, not vermilion`);
-      assert.equal(first.days?.hidden, 'true', `${label}: the days are read aloud`);
-      assert.deepEqual(first.days.cells, [['past', hero.quiet], ['past', hero.quiet], ['', hero.vermilion], ['', hero.vermilion], ['', hero.vermilion]],
-        `${label}: the days are drawn ${JSON.stringify(first.days.cells)}`);
-      assert.equal(first.tiles?.columns, width >= 768 ? 4 : 2, `${label}: the campaign's products stand in ${first.tiles?.columns} columns`);
-      assert.equal(first.tiles.beside, width >= 1440, `${label}: the products ${first.tiles.beside ? 'stand beside' : 'stand under'} the words`);
-
-      await force('.goen-hero__tabs a[aria-current="true"]', ['focus', 'focus-visible']);
-      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.goen-hero__tabs a[aria-current="true"]')).outlineOffset`), '2px', `${label}: the focused tab's ring offset`);
-      await force('.goen-hero__tabs a[aria-current="true"]', []);
-      console.log(`${label}: ${hero.slides.length} slides across the window, photograph ${Math.round(tall)}px and square, products ${first.tiles.beside ? 'beside' : 'under'} the words in ${first.tiles.columns} columns`);
-    }
-  }
-
   // The promotion strip keeps its words on a phone: the message, the code, the
   // call to action underlined, and the close. The arrow after the word needs the
   // room a phone does not have, so it stands from 768 only. Nothing in the strip
@@ -664,38 +617,6 @@ try {
     assert.ok(strip.close.width >= 44 && strip.close.right <= strip.viewport + 0.5, `${label}: the close is ${strip.close.width}px wide ending at ${strip.close.right} in a ${strip.viewport}px window`);
     assert.equal(strip.page, strip.viewport, `${label}: the page scrolls sideways`);
     console.log(`${label}: message, code, underlined "Shop now" and close${chevron ? ' and the arrow' : ', no arrow'}`);
-  }
-
-  // A campaign with no photograph draws no empty slab: the slide has no photograph
-  // field at all, and a hero with such a slide stands its tabs above the slides, in
-  // flow, so the name never sits under them nor the tabs over a blank field. The
-  // tabs are never clipped by the row's own ends at 320 or 375.
-  for (const width of [320, 375, 1440]) {
-    const label = `hero without photographs ${width}px`;
-    await open('/home?bare=1', width);
-    const bare = await evaluate(`(() => {
-      const hero = document.querySelector('.goen-hero');
-      const slides = [...hero.querySelectorAll('.goen-hero__slide')];
-      const tabs = hero.querySelector('.goen-hero__tabs');
-      const arrows = [...hero.querySelectorAll('.goen-hero__arrow')].map(arrow => arrow.getClientRects().length);
-      const box = element => element.getBoundingClientRect();
-      const first = box(slides[0]);
-      return {
-        bare: hero.classList.contains('goen-hero--bare'),
-        media: slides.map(slide => slide.querySelector('.goen-hero__media') !== null),
-        tabsBottom: box(tabs).bottom, tabsTop: box(tabs).top, slidesTop: first.top,
-        titles: slides.map(slide => box(slide.querySelector('.goen-hero__title')).top),
-        arrows, viewport: document.documentElement.clientWidth,
-        row: { left: box(tabs).left, right: box(tabs).right },
-      };
-    })()`);
-    assert.equal(bare.bare, true, `${label}: the hero is not marked bare`);
-    assert.deepEqual(bare.media, [true, true, true, false, false], `${label}: photograph fields ${bare.media}, want one only where there is a photograph`);
-    assert.ok(bare.tabsBottom <= bare.slidesTop + 0.5, `${label}: the tabs end at ${bare.tabsBottom}, under the slides that start at ${bare.slidesTop}`);
-    for (const top of bare.titles) assert.ok(top >= bare.tabsBottom - 0.5, `${label}: a name starts at ${top}, over the tabs that end at ${bare.tabsBottom}`);
-    if (width < 768) assert.deepEqual(bare.arrows, [0, 0], `${label}: the arrows are drawn on a phone and eat the tabs' room: ${bare.arrows}`);
-    assert.ok(bare.row.left >= -0.5 && bare.row.right <= bare.viewport + 0.5, `${label}: the tab row runs ${bare.row.left}-${bare.row.right} in a ${bare.viewport}px window`);
-    console.log(`${label}: tabs above the slides, photograph fields only where there is a photograph, ${bare.arrows.every(count => count === 0) ? 'no arrows' : 'arrows beside the tabs'}`);
   }
 
   // A product's main photograph sits on one square well in the photograph's
@@ -813,7 +734,7 @@ try {
       const box = field.getBoundingClientRect();
       const sides = ['Top', 'Right', 'Bottom', 'Left'];
       return {
-        hero: document.querySelector('.goen-hero') !== null,
+        hero: document.querySelector('.goen-bento') !== null,
         rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
         edge: resolve('color', 'var(--edge)'),
         corner: resolve('border-top-left-radius', 'var(--shape-sm)'),
@@ -1005,91 +926,6 @@ try {
     assert.equal(tops.length, 6, `${label}: six sub-categories drawn`);
     assert.ok(tops.every(top => Math.abs(top - tops[0]) < 1), `${label}: the sub-categories are on more than one line: ${tops}`);
     console.log(`${label}: six names on one line`);
-  }
-
-  // The home page's band is the department's shelf on its tone, square and
-  // across the window, its words and products in the page column, the products
-  // a grid at every width. A Chinese name stands upright beside the products
-  // where the column is 64rem, and lies down over them at a narrower column,
-  // at 200% text or in English, without widening the page. A struck price says
-  // its last day under it in vermilion, its comma read and not shown.
-  {
-    const near = (got, want, tolerance = 0.5) => Math.abs(got - want) <= tolerance;
-    const measure = () => evaluate(`(() => {
-      const box = element => { const r = element.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
-      const home = document.querySelector('.goen-home');
-      const homeStyle = getComputedStyle(home);
-      const homeBox = box(home);
-      const band = document.querySelector('.goen-band');
-      const style = getComputedStyle(band);
-      const body = band.querySelector('.goen-band__body');
-      const bodyStyle = getComputedStyle(body);
-      const bodyBox = box(body);
-      const name = band.querySelector('.goen-band__name');
-      const tiles = band.querySelector('.goen-band__tiles');
-      const probe = document.createElement('i');
-      probe.style.backgroundColor = 'var(--tone-ground)';
-      probe.style.color = 'var(--sys-tertiary)';
-      probe.style.position = 'absolute';
-      band.append(probe);
-      const ground = getComputedStyle(probe).backgroundColor, vermilion = getComputedStyle(probe).color;
-      probe.remove();
-      const until = band.querySelector('.goen-tile__until');
-      return {
-        viewport: document.documentElement.clientWidth, page: document.documentElement.scrollWidth,
-        column: { left: homeBox.left + parseFloat(homeStyle.paddingLeft), right: homeBox.right - parseFloat(homeStyle.paddingRight) },
-        band: box(band), background: style.backgroundColor, ground,
-        corners: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius],
-        words: { left: bodyBox.left + parseFloat(bodyStyle.paddingLeft), right: bodyBox.right - parseFloat(bodyStyle.paddingRight) },
-        writing: getComputedStyle(name).writingMode, name: box(name), tiles: box(tiles),
-        overflowX: getComputedStyle(tiles).overflowX, columns: getComputedStyle(tiles).gridTemplateColumns.trim().split(/\\s+/).length,
-        until: until && { shown: (() => { const copy = until.cloneNode(true); copy.querySelectorAll('.goen-sr-only').forEach(e => e.remove()); return copy.textContent.replace(/\\s+/g, ' ').trim(); })(), text: until.textContent.replace(/\\s+/g, ' ').trim(), colour: getComputedStyle(until).color, vermilion,
-          datetime: until.querySelector('time')?.getAttribute('datetime') },
-      };
-    })()`);
-    for (const width of [375, 800, 1024, 1440]) {
-      for (const [query, lang] of [['band=ink', 'en'], ['band=sage', 'en'], ['band=stone&zh=1', 'zh']]) {
-        const label = `home band ${query} ${width}px`;
-        await open(`/home?${query}`, width);
-        const got = await measure();
-        assert.ok(near(got.band.left, 0) && near(got.band.right, got.viewport), `${label}: the band is ${got.band.left}-${got.band.right} in a ${got.viewport}px window`);
-        assert.deepEqual(got.corners, ['0px', '0px', '0px', '0px'], `${label}: corners ${got.corners}`);
-        assert.equal(got.background, got.ground, `${label}: the band is ${got.background}, the tone ground is ${got.ground}`);
-        assert.ok(near(got.words.left, got.column.left) && near(got.words.right, got.column.right),
-          `${label}: the band's words stand in ${got.words.left}-${got.words.right}, the page column is ${got.column.left}-${got.column.right}`);
-        assert.equal(got.overflowX, 'visible', `${label}: the products scroll`);
-        assert.equal(got.columns, width >= 768 ? 4 : 2, `${label}: the products stand in ${got.columns} columns`);
-        const upright = lang === 'zh' && width >= 1440;
-        assert.equal(got.writing, upright ? 'vertical-rl' : 'horizontal-tb', `${label}: the name is set ${got.writing}`);
-        if (upright) assert.ok(got.name.right <= got.tiles.left && got.name.top >= got.tiles.top - 0.5, `${label}: the upright name is not beside the products: ${JSON.stringify([got.name, got.tiles])}`);
-        else assert.ok(got.name.bottom <= got.tiles.top, `${label}: the name does not lie over the products: ${JSON.stringify([got.name, got.tiles])}`);
-        assert.equal(got.page, got.viewport, `${label}: the page scrolls sideways`);
-        if (lang === 'zh') {
-          assert.equal(got.until?.shown, '特價至 11 月 22 日', `${label}: the sale's end reads ${JSON.stringify(got.until)}`);
-        } else {
-          assert.deepEqual([got.until?.shown, got.until?.text], ['On sale until Nov 22', 'On sale until Nov 22,'], `${label}: the sale's end reads ${JSON.stringify(got.until)}`);
-        }
-        assert.equal(got.until.datetime, '2026-11-22', `${label}: the sale's last day is not a time`);
-        if (query !== 'band=ink') assert.equal(got.until.colour, got.until.vermilion, `${label}: the sale's end is ${got.until.colour}, not vermilion`);
-        console.log(`${label}: square across the window, ${got.columns} columns, name ${got.writing}`);
-      }
-    }
-    // At 200% text the 64rem column is out of reach: the name lies down again
-    // and the page stays the window's width.
-    await open('/home?band=stone&zh=1', 1440);
-    await evaluate(`document.documentElement.style.fontSize = '200%'`);
-    const large = await measure();
-    assert.equal(large.writing, 'horizontal-tb', 'home band 1440px at 200% text: the name stays upright');
-    assert.equal(large.page, large.viewport, 'home band 1440px at 200% text: the page scrolls sideways');
-    await evaluate(`document.documentElement.style.fontSize = ''`);
-    await media([{ name: 'forced-colors', value: 'active' }]);
-    const edge = await evaluate(`(() => {
-      const style = getComputedStyle(document.querySelector('.goen-band'));
-      return [style.outlineStyle, style.outlineWidth, style.outlineOffset].join(' ');
-    })()`);
-    await media([]);
-    assert.equal(edge, 'solid 1px -1px', `home band: the band's edge in forced colours is ${edge}`);
-    console.log('home band at 200% text: the name lies down, the page keeps its width; forced colours draw its edge');
   }
 
   // A chosen option, a chosen delivery card and a refused field are marked in
