@@ -10510,6 +10510,53 @@ func (q *Queries) ListedCampaignsCount(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
+const listingSpecs = `-- name: ListingSpecs :many
+SELECT slug, label, value FROM (
+    SELECT p.slug,
+           localized_name(s.label, s.label_en, $1::text) AS label,
+           localized_name(s.value, s.value_en, $1::text) AS value,
+           row_number() OVER (PARTITION BY s.product_id ORDER BY s.position, s.id) AS nth
+    FROM product_specs s
+    JOIN products p ON p.id = s.product_id
+    WHERE p.slug = ANY($2::text[])
+) ranked
+WHERE nth <= 4
+ORDER BY slug, nth
+`
+
+type ListingSpecsParams struct {
+	Locale string
+	Slugs  []string
+}
+
+type ListingSpecsRow struct {
+	Slug  string
+	Label string
+	Value string
+}
+
+// The first four specifications each product lists, for its row in the
+// specification list.
+func (q *Queries) ListingSpecs(ctx context.Context, arg ListingSpecsParams) ([]ListingSpecsRow, error) {
+	rows, err := q.db.Query(ctx, listingSpecs, arg.Locale, arg.Slugs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListingSpecsRow{}
+	for rows.Next() {
+		var i ListingSpecsRow
+		if err := rows.Scan(&i.Slug, &i.Label, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listingTileFacts = `-- name: ListingTileFacts :many
 SELECT
     p.slug,
@@ -10646,53 +10693,6 @@ func (q *Queries) ListingTileFacts(ctx context.Context, arg ListingTileFactsPara
 			&i.ColourBundledKeys,
 			&i.ColourWidths,
 		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listingSpecs = `-- name: ListingSpecs :many
-SELECT slug, label, value FROM (
-    SELECT p.slug,
-           localized_name(s.label, s.label_en, $1::text) AS label,
-           localized_name(s.value, s.value_en, $1::text) AS value,
-           row_number() OVER (PARTITION BY s.product_id ORDER BY s.position, s.id) AS nth
-    FROM product_specs s
-    JOIN products p ON p.id = s.product_id
-    WHERE p.slug = ANY($2::text[])
-) ranked
-WHERE nth <= 4
-ORDER BY slug, nth
-`
-
-type ListingSpecsParams struct {
-	Locale string
-	Slugs  []string
-}
-
-type ListingSpecsRow struct {
-	Slug  string
-	Label string
-	Value string
-}
-
-// The first four specifications each product lists, for its row in the
-// specification list.
-func (q *Queries) ListingSpecs(ctx context.Context, arg ListingSpecsParams) ([]ListingSpecsRow, error) {
-	rows, err := q.db.Query(ctx, listingSpecs, arg.Locale, arg.Slugs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListingSpecsRow{}
-	for rows.Next() {
-		var i ListingSpecsRow
-		if err := rows.Scan(&i.Slug, &i.Label, &i.Value); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
