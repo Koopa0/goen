@@ -50,7 +50,10 @@ type Await uint8
 
 const (
 	AwaitNone Await = iota
-	AwaitGallery
+	// AwaitBuyBox holds the product page's first paint until its buy column is
+	// parsed: the last of what shows above the fold, after the gallery whose
+	// photo the page transition names, so the first frame is never half a page.
+	AwaitBuyBox
 )
 
 // ID is the element's id, or "" for AwaitNone.
@@ -58,8 +61,8 @@ func (a Await) ID() string {
 	switch a {
 	case AwaitNone:
 		return ""
-	case AwaitGallery:
-		return "gallery"
+	case AwaitBuyBox:
+		return "buybox"
 	}
 	return ""
 }

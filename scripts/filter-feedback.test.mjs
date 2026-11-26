@@ -307,9 +307,12 @@ test('a failed filter response cannot push its canonical URL and a successful re
   assert.equal(view.note.hidden, true);
 });
 
-test('only filter requests disable queued view transitions', () => {
+test('only filter and compare-toggle requests disable queued view transitions', () => {
   const view = page();
   assert.equal(view.start().ctx.transition, false, 'filter content must swap without a queued transition');
+  const toggle = new Form();
+  toggle.matches = (selector) => selector === '.goen-comparetoggle';
+  assert.equal(view.start(toggle).ctx.transition, false, 'a compare toggle must swap without a queued transition');
   assert.equal(view.start(new Form()).ctx.transition, undefined);
 });
 

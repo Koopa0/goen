@@ -439,9 +439,12 @@
       if (pending.has(event.target)) event.preventDefault();
       else begin(event.target);
     });
+    // A form that changes one control in place (a filter, the compare toggle)
+    // is no navigation, so it does not cross-fade the whole page.
     document.addEventListener("htmx:config:request", (event) => {
       const ctx = event.detail?.ctx;
-      if (ctx?.request?.form?.matches(".goen-filters")) ctx.transition = false;
+      const form = ctx?.request?.form;
+      if (form?.matches(".goen-filters") || form?.matches(".goen-comparetoggle")) ctx.transition = false;
     });
     document.addEventListener("htmx:before:request", (event) => {
       const ctx = event.detail?.ctx;
