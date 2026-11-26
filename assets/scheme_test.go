@@ -220,6 +220,8 @@ var schemeExceptions = []schemeException{
 	{`.goen-langmenu__panel`, `var(--sh-lg)`, "a shadow: black in both schemes"},
 	{`.goen-menu`, `var(--sh-xl)`, "a shadow: black in both schemes"},
 	{`.goen-menu::backdrop`, `rgb(0 0 0 / 0.4)`, "the scrim: black over either ground"},
+	{`.goen-bagdrawer`, `var(--sh-xl)`, "a shadow: black in both schemes"},
+	{`.goen-bagdrawer::backdrop`, `rgb(0 0 0 / 0.4)`, "the scrim: black over either ground"},
 	{`:root`, `light-dark(var(--period-track), var(--period-track-on-ink))`, "the night's track is the ink tone's, the night's blue at the day track's 30%"},
 	{`:root`, `light-dark(var(--n-900), var(--n-0))`, "the star picker's outline by night is white: see .goen-pdp__starmark"},
 	{`:root`, `color-mix(in srgb, var(--success) 40%, var(--night-on-surface))`, "the night's green is the day's raised toward the night's text"},

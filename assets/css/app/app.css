@@ -6200,10 +6200,11 @@ input.goen-check {
 
    Six screens carrying one transaction, so they share one composition: a page
    head, hairline-divided lines, and a summary holding the money and the single
-   action the screen exists for. Cart and checkout put the summary in a right
-   column and keep it in view from 1024; the phone puts the cart's summary in a
-   bar fixed to the bottom edge, so the total is on screen however many lines
-   sit above it.
+   action the screen exists for. The cart puts its summary in a right column
+   from 1024, the checkout wherever its box holds both at the reader's text
+   size, and both keep it in view; the phone puts the cart's summary in a bar
+   fixed to the bottom edge, so the total is on screen however many lines sit
+   above it.
 
    - The chosen option is read from :has(input:checked) and nothing else: a
      class the server renders would be a second source for one fact.
@@ -6235,12 +6236,15 @@ input.goen-check {
   max-width: 720px;
 }
 
-/* The checkout is one column of 720px: the form is read and filled from the
-   top down, and the order summary with the one button that pays closes it. The
-   box is the page's, as the cart's is, so the name and the column start where
-   the header's text does; the column is the box's own children, left on the
-   page's edge rather than centred in it. */
-.goen-checkout > * {
+/* The checkout is the page's own box, as the cart's is, so the name starts
+   where the header's text does. Its form is one column of numbered panels
+   until the box holds the panels and the summary side by side, measured in
+   rem so text at 200% is a narrow box too, which a viewport query cannot see. */
+.goen-checkout {
+  container: checkout / inline-size;
+}
+
+.goen-checkout > .goen-pagehead {
   max-width: 45rem;
 }
 
@@ -6519,10 +6523,9 @@ input.goen-check {
   padding: 0;
 }
 
-/* The cart's lines are parted by hairlines, as a printed list is: one over each
-   line and one under the last. */
+/* The cart's lines sit in their panel parted by hairlines, as a printed list
+   is: one between each pair, none at the panel's edge, which draws its own. */
 .goen-cart__lines {
-  border-bottom: 1px solid var(--sys-outline-variant);
   container: cartlines / inline-size;
   gap: 0;
 }
@@ -6564,39 +6567,148 @@ input.goen-check {
   width: 100%;
 }
 
-/* The cart's totals sit under the title as a fact line; the sentence that says
-   what blocks checkout comes first, on its own ground so it is not read as a figure. */
-.goen-cart__facts {
+/* The column of the cart's own panels: what blocks checkout and the meter,
+   then the lines. */
+.goen-cart__main {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  margin-top: 1rem;
+  min-width: 0;
 }
 
-/* The figures are set as the cart board draws them: medium, and the count's 件
-   and the subtotal's NT$ at the figure's own size. Each fact is as wide as its
-   words, so on a phone a long one moves to the next row whole rather than
-   leaving a gap sized for a short one. */
-.goen-cart__facts .ui-statline {
-  --stat-gap: var(--s-8);
-  --stat-min: 0;
+/* The sentence that says what blocks checkout comes first, on its own ground
+   so it is not read as a figure, then the meter. Empty, it draws nothing. */
+.goen-cart__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.goen-cart__facts .ui-statline dd {
-  font-weight: var(--fw-medium);
+.goen-cart__facts:empty {
+  display: none;
 }
 
-.goen-cart__facts .ui-statline dd small {
-  color: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  line-height: inherit;
+/* The free-delivery meter: the sentence, the bar and its reading in one row
+   on the tint, and the amount it measures against under them. The row wraps
+   where the words and a usable bar do not fit side by side. */
+.goen-meter {
+  align-items: center;
+  background: var(--ground-tint);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  column-gap: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0.875rem 18px;
+  row-gap: 0.375rem;
 }
 
-@media (max-width: 639px) {
-  .goen-cart__facts .ui-statline {
-    --stat-gap: var(--s-6);
+.goen-meter__text {
+  color: var(--text-strong);
+  font: var(--type-title-s);
+  font-variant-numeric: tabular-nums lining-nums;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.goen-meter__note {
+  color: var(--text-soft);
+  flex: 1 1 100%;
+  font: var(--type-body-s);
+  margin: 0;
+}
+
+.goen-meter__pct {
+  color: var(--text-soft);
+  flex: none;
+  font-family: var(--font-data);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The bar is a native progress element, styled from the ground up: the track
+   on the element, the fill in each engine's own pseudo-element, never grouped,
+   since one rule naming both is dropped by both. The fill is the cobalt of the
+   commerce action until the threshold is met, then the green of a threshold met. */
+.goen-meter__bar {
+  --meter-fill: var(--cta);
+  appearance: none;
+  background: var(--hairline-strong);
+  block-size: 0.375rem;
+  border: 0 solid;
+  border-radius: 1e5px;
+  flex: 1 1 8rem;
+  min-inline-size: 6rem;
+  overflow: clip;
+}
+
+.goen-meter--met .goen-meter__bar {
+  --meter-fill: var(--success-text);
+}
+
+.goen-meter__bar::-webkit-progress-bar {
+  background: transparent;
+}
+
+.goen-meter__bar::-webkit-progress-value {
+  background: var(--meter-fill);
+  border-radius: 1e5px;
+}
+
+.goen-meter__bar::-moz-progress-bar {
+  background: var(--meter-fill);
+  border-radius: 1e5px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-meter__bar::-webkit-progress-value {
+    transition: inline-size var(--dur-base) var(--ease-standard);
   }
+}
+
+/* Forced colours drop both grounds; the track keeps an edge and the fill the
+   system's highlight, so the reading is still drawn. */
+@media (forced-colors: active) {
+  .goen-meter__bar {
+    border: 1px solid CanvasText;
+  }
+
+  .goen-meter__bar::-webkit-progress-value {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+
+  .goen-meter__bar::-moz-progress-bar {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+}
+
+/* The cart's and the checkout's panels: the page's ground inside a hairline,
+   one radius, no shadow. The inline padding is in px so only the text grows
+   with the reader's size and a phone at 200% keeps room for the words. */
+.goen-cart__bag,
+.goen-checkout .goen-checkout__section,
+.goen-checkout .goen-checkout__summary {
+  background: var(--sys-surface);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  box-sizing: border-box;
+  padding: 1.25rem 18px;
+}
+
+.goen-cart__bag {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.goen-cart__bagtitle {
+  color: var(--text-strong);
+  font: var(--type-title-m);
+  font-variant-numeric: tabular-nums lining-nums;
+  margin: 0;
 }
 
 .goen-cart__alert {
@@ -6643,38 +6755,71 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-/* A line in the cart is a grid, so the money and the controls can sit under
-   the name at 375 without the name being squeezed to a word a row. The
-   thumbnail spans both rows. */
+/* A line in the cart is a grid: the photograph, the name with its options and
+   price, the quantity and the line's total in one row where the panel is
+   wide, and the controls and the total under the name where it is not, so the
+   name is never squeezed to a word a row. */
 .goen-line--cart {
-  align-items: start;
+  align-items: center;
   column-gap: 1rem;
   display: grid;
-  grid-template-areas:
-    'thumb body money'
-    'thumb controls controls';
-  grid-template-columns: 6rem minmax(0, 1fr) auto;
+  grid-template-areas: 'thumb body controls money';
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto minmax(5.5rem, auto);
+  padding-block: 1rem;
   row-gap: 0.75rem;
 }
 
+/* A product's photograph was shot on the plate, so it is set on the plate and
+   multiplied into it: the white of the shot disappears into the plate's tone
+   by day and by night alike. */
+.goen-line--cart .goen-line__thumb,
+.goen-bagline__thumb,
+.goen-checkout__linethumb {
+  aspect-ratio: 4 / 3;
+  background: var(--photo-plate);
+  border-radius: 6px;
+  box-sizing: border-box;
+  padding: 4px;
+}
+
 .goen-line--cart .goen-line__thumb {
-  border-radius: 0;
+  align-self: start;
   grid-area: thumb;
 }
 
-.goen-line--cart {
-  border-top: 1px solid var(--sys-outline-variant);
-  padding-block: 1.5rem;
+.goen-line--cart .goen-line__img,
+.goen-bagline__thumb .goen-line__img,
+.goen-checkout__linethumb .goen-line__img {
+  mix-blend-mode: multiply;
+}
+
+.goen-line--cart + .goen-line--cart {
+  border-top: 1px solid var(--hairline);
 }
 
 .goen-line--cart .goen-line__name {
-  color: var(--sys-on-surface);
-  font: var(--type-title-m);
+  color: var(--text-strong);
+  font: var(--type-title-s);
 }
 
 .goen-line--cart :is(.goen-line__brand, .goen-line__meta) {
-  color: var(--sys-on-surface-variant);
+  color: var(--text-soft);
   font: var(--type-body-s);
+}
+
+/* A SKU is read character by character, so it is set in the figures' face. */
+.goen-line__sku {
+  font-family: var(--font-data);
+  font-size: 0.95em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.goen-line__unit {
+  color: var(--text-strong);
+  font-family: var(--font-data);
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 /* A campaign's price is vermilion, the colour of what ends, beside the struck
@@ -6705,8 +6850,9 @@ input.goen-check {
 }
 
 .goen-line--cart .goen-line__total {
-  color: var(--sys-on-surface);
-  font: var(--type-title-m);
+  color: var(--text-strong);
+  font: var(--type-title-s);
+  font-family: var(--font-data);
   font-variant-numeric: tabular-nums lining-nums;
 }
 
@@ -6718,8 +6864,12 @@ input.goen-check {
   grid-area: money;
 }
 
+/* Beside the name the stepper stands over the word that removes the line; under
+   it, in a narrow panel, the two share a row. */
 .goen-line--cart .goen-line__controls {
-  align-self: end;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 0.25rem;
   grid-area: controls;
 }
 
@@ -6841,26 +6991,67 @@ input.goen-check {
   min-width: 0;
 }
 
-/* The checkout's groups and its summary are words on the page, as the cart's
-   summary is: no panel, no corner, a heading and the space before it. */
-.goen-checkout .goen-checkout__section,
-.goen-checkout .goen-checkout__summary {
-  background: none;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-}
-
 .goen-checkout .goen-checkout__heading,
-.goen-checkout .goen-summary__title {
-  color: var(--sys-on-surface);
-  font: var(--type-headline-m);
+.goen-checkout .goen-summary__title,
+.goen-cart .goen-summary__title {
+  color: var(--text-strong);
+  font: var(--fw-semibold) 1.0625rem/1.4 var(--font-display);
 }
 
-.goen-checkout .goen-summary__row--total .goen-summary__value {
-  font: var(--fw-medium) 1.75rem/1.2 var(--font-sans);
+.goen-checkout__heading::before {
+  content: counter(checkout-step) '. ';
+  counter-increment: checkout-step;
   font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Every figure of the money is set in the figures' face, so a column of them
+   lines up digit under digit. */
+.goen-checkout .goen-summary__value,
+.goen-cart .goen-summary__value,
+.goen-bag .goen-summary__value,
+.goen-bagline__total {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* A row that answers in words, delivery that is free or not yet priced, keeps
+   the text's own face: the figures' face is for figures. */
+.goen-checkout .goen-summary__word,
+.goen-cart .goen-summary__word {
+  font-family: var(--font-sans);
+}
+
+.goen-checkout .goen-summary__row--total .goen-summary__value,
+.goen-cart .goen-summary__row--total .goen-summary__value,
+.goen-bag .goen-summary__row--total .goen-summary__value {
+  font-size: 1.375rem;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.goen-checkout .goen-summary__row--total,
+.goen-cart .goen-summary__row--total,
+.goen-bag .goen-summary__row--total {
+  border-top-color: var(--hairline-strong);
+  font-weight: var(--fw-semibold);
+}
+
+/* The one filled control of the cart, the drawer and the checkout is the way
+   to pay, in the cobalt of the commerce action. A checkout that cannot be
+   placed keeps the quiet grey every disabled control wears. */
+.goen-cart__checkout,
+.goen-checkout__pay:not(:disabled) {
+  background: var(--cta);
+  border-color: var(--cta);
+  color: var(--on-cta);
+}
+
+.goen-cart__checkout:hover,
+.goen-checkout__pay:not(:disabled):hover {
+  background: var(--cta-hover);
+  border-color: var(--cta-hover);
+  color: var(--on-cta);
 }
 
 .goen-checkout__summary .goen-summary {
@@ -6878,20 +7069,10 @@ input.goen-check {
 
 /* With scripting off the 更新 button answers with the whole form again and its
    fragment names the section it changed, so the browser lands on this heading
-   rather than the top of the form. The margin keeps it off the viewport edge. */
+   rather than the top of the form. The margin keeps it clear of the header's
+   bar, which stays at the top. */
 .goen-checkout__section {
-  scroll-margin-top: 24px;
-}
-
-.goen-cart__summary .goen-summary__title {
-  color: var(--sys-on-surface);
-  font: var(--type-headline-m);
-}
-
-.goen-cart__summary .goen-summary__row--total .goen-summary__value {
-  font: var(--fw-medium) 1.75rem/1.2 var(--font-sans);
-  font-variant-numeric: tabular-nums lining-nums;
-  letter-spacing: 0;
+  scroll-margin-top: 5.5rem;
 }
 
 /* 繼續選購 is a secondary way on: ink with the faint underline, centred under
@@ -6929,8 +7110,7 @@ input.goen-check {
   gap: 12px;
 }
 
-.goen-summary__actions,
-.goen-checkout__choices {
+.goen-summary__actions {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -7175,14 +7355,31 @@ input.goen-check {
   overflow-anchor: none;
 }
 
-/* The page is white and the form's groups, like the summary under them, are
-   words on it: one layer. A group is parted from the next by space alone. */
+/* The groups are panels a step apart, numbered in the order they are filled:
+   the number is the panel's place, drawn by a counter so it cannot disagree
+   with the order the panels stand in. */
 .goen-checkout__main {
-  gap: var(--s-8);
+  counter-reset: checkout-step;
+  gap: 1.25rem;
 }
 
 .goen-checkout__layout {
-  gap: var(--s-8);
+  gap: 1.25rem;
+}
+
+/* Wide enough for the form and the summary side by side, the summary takes
+   the right column and stays in view under the header's bar while the form is
+   filled. */
+@container checkout (min-width: 58rem) {
+  .goen-checkout__layout {
+    column-gap: 2rem;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
+  }
+
+  .goen-checkout .goen-checkout__summary {
+    position: sticky;
+    top: 5.5rem;
+  }
 }
 
 /* The refusal summary: the count, then a link to each refused field, in the
@@ -7266,29 +7463,32 @@ input.goen-check {
 }
 
 .goen-checkout__ship:hover {
-  background: color-mix(in srgb, var(--sys-on-surface) var(--state-hover), var(--sys-surface));
+  background: var(--shelf-hover);
 }
 
 .goen-checkout__ship > input[type=radio] {
-  accent-color: var(--sys-on-surface);
-  align-self: center;
+  accent-color: var(--cta);
+  align-self: flex-start;
+  margin-block-start: 0.2em;
   clip-path: none;
   flex: none;
   height: 1rem;
-  margin: 0;
+  margin-inline: 0;
+  margin-block-end: 0;
   overflow: visible;
   position: static;
   width: 1rem;
 }
 
-/* The one source for "this is the chosen one": a 2px edge in ink and the
-   name at its medium weight, on the page's own ground, as the board draws a
-   chosen choice. The edge is the border itself, so the padding gives back the
+/* The one source for "this is the chosen one": a 2px edge in the commerce
+   cobalt on its soft tint, the name at its medium weight, as the board draws
+   a chosen card. The edge is the border itself, so the padding gives back the
    extra pixel and the content does not move. The radio inside it is the
-   check. */
-.goen-checkout__ship:has(input:checked) {
-  background: var(--sys-surface);
-  border-color: var(--sys-on-surface);
+   check, and forced colours, which drop the tint, keep the 2px edge. */
+.goen-checkout__ship:has(input:checked),
+.goen-checkout__ship:has(input:checked):hover {
+  background: var(--cobalt-soft);
+  border-color: var(--cta);
   border-width: 2px;
   padding: calc(1rem - 1px) 15px;
 }
@@ -7305,29 +7505,30 @@ input.goen-check {
 }
 
 .goen-checkout__shipname {
-  color: var(--sys-on-surface);
+  color: var(--text-strong);
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
   font-size: var(--fs-15);
-  font-weight: var(--fw-regular);
+  font-weight: var(--fw-medium);
   gap: 2px;
   min-width: 0;
 }
 
 .goen-checkout__ship:has(input:checked) .goen-checkout__shipname {
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-semibold);
 }
 
 .goen-checkout__shipnote {
-  color: var(--sys-on-surface-variant);
-  font-size: var(--fs-12);
+  color: var(--text-soft);
+  font-size: var(--fs-13);
   font-weight: var(--fw-regular);
 }
 
 .goen-checkout__shipfee {
-  color: var(--sys-on-surface);
+  color: var(--text-strong);
   flex: none;
+  font-family: var(--font-data);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
 }
@@ -7339,30 +7540,32 @@ input.goen-check {
   }
 }
 
-/* An option that asks for something of its own keeps it in its card: the fields
-   hang from the card's name and open under the chosen option only, as one
-   card, the panel taking the edge, tint and bottom corners the name gives up.
-   Both are written for :has, so a browser without it shows every option's
-   fields plain, under its name, and the server ignores the ones not chosen. */
+/* A chooser's cards stand two across where the panel holds two of at least
+   15rem, one under the other where it does not, which text at 200% makes
+   narrow too. An option that asks for something of its own has its fields in
+   a tinted panel under the whole row, open for the chosen option only: the
+   option's box gives its card and its fields to the grid, and the fields take
+   a full row after every card. In the document they still follow their own
+   card, so Tab goes from the chosen radio to its first field. Both are written
+   for :has, so a browser without it shows every option's fields, and the
+   server ignores the ones not chosen. */
+.goen-checkout__choices {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(max(min(100%, 15rem), calc(50% - 0.375rem)), 1fr));
+}
+
+.goen-checkout__option {
+  display: contents;
+}
+
 .goen-checkout__optionfields {
-  margin-top: 0.75rem;
-}
-
-.goen-checkout__option:has(input[type=radio]:checked) > .goen-checkout__optionfields {
-  background: var(--sys-surface);
-  border: 2px solid var(--sys-on-surface);
-  border-block-start: 0;
-  border-end-end-radius: var(--r-field);
-  border-end-start-radius: var(--r-field);
-  margin-top: 0;
-  padding: 0.5rem 15px 1rem;
-}
-
-.goen-checkout__option:has(input[type=radio]:checked) > .goen-checkout__ship:has(+ .goen-checkout__optionfields) {
-  border-block-end: 0;
-  border-end-end-radius: 0;
-  border-end-start-radius: 0;
-  padding-block-end: 0.5rem;
+  background: var(--ground-tint);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-field);
+  grid-column: 1 / -1;
+  order: 1;
+  padding: 1rem 16px;
 }
 
 .goen-checkout__option:not(:has(input[type=radio]:checked)) > .goen-checkout__optionfields {
@@ -7524,8 +7727,11 @@ input.goen-check {
   padding: 0;
 }
 
+/* A line of the summary: its photograph, the name with how many, and the
+   line's total; the total drops under the name where the panel is narrow. */
 .goen-checkout__lines li {
-  color: var(--on-surface-soft);
+  align-items: center;
+  color: var(--text-soft);
   display: flex;
   font-size: var(--fs-14);
   flex-wrap: wrap;
@@ -7533,14 +7739,23 @@ input.goen-check {
   justify-content: space-between;
 }
 
-.goen-checkout__lines li > :first-child {
-  flex: 1 1 10rem;
-  min-width: 0;
+.goen-checkout__linethumb {
+  flex: none;
+  width: 3.5rem;
 }
 
-/* The coupon sits under the totals, not above them: a shopper reads the total
-   first and looks for a code only if they have one. The block itself is an
-   ordinary .goen-field; only the row holding the input and its button is new. */
+.goen-checkout__linename {
+  color: var(--text-strong);
+  display: flex;
+  flex: 1 1 8rem;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The coupon sits between the lines and the rows it changes, as the board
+   draws the summary. The block itself is an ordinary .goen-field; only the row
+   holding the input and its button is new. */
 .goen-checkout__couponrow {
   display: flex;
   flex-wrap: wrap;
@@ -7788,21 +8003,31 @@ input.goen-check {
   .goen-pay .goen-pagehead__title {
     font-size: var(--t-44);
   }
-
-  .goen-line--cart {
-    column-gap: 1.5rem;
-    grid-template-columns: 8rem minmax(0, 1fr) auto;
-  }
-}
-
-@media (min-width: 64rem) {
-  .goen-line--cart {
-    grid-template-columns: 10rem minmax(0, 1fr) auto;
-  }
 }
 
 /* Sized in rem so it follows the text: at 200% the line is narrow in the
-   same way a small screen is, and the viewport cannot say so. */
+   same way a small screen is, and the viewport cannot say so. Under 38rem the
+   controls and the total move under the name. */
+@container cartlines (max-width: 38rem) {
+  .goen-line--cart {
+    align-items: start;
+    grid-template-areas:
+      'thumb body body'
+      'thumb controls money';
+    grid-template-columns: 5rem minmax(0, 1fr) auto;
+  }
+
+  .goen-line--cart .goen-line__controls {
+    align-items: center;
+    flex-direction: row;
+    gap: 0.75rem;
+  }
+
+  .goen-line--cart .goen-line__money {
+    align-self: center;
+  }
+}
+
 @container cartlines (max-width: 28rem) {
   .goen-line--cart {
     grid-template-areas:
@@ -7947,23 +8172,214 @@ input.goen-check {
     padding: 2.5rem var(--page-gutter) 5rem;
   }
 
-  /* The lines take eight of twelve columns and the summary the other four. */
+  /* The lines take five parts and the summary three, as the board draws them. */
   .goen-cart__layout {
-    gap: 1.5rem;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 2rem;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
   }
 
+  /* The money is a panel beside the lines and stays in view, under the
+     header's bar, while they are read. */
   .goen-cart__summary {
-    background: none;
-    border-radius: 0;
-    padding: 1.5rem 0 0 1.5rem;
-  }
-
-  /* The money stays in view while the lines are read. */
-  .goen-cart__summary {
+    background: var(--sys-surface);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 1.25rem 18px;
     position: sticky;
-    top: 2rem;
+    top: 5.5rem;
   }
+}
+
+/* The cart's and the checkout's names are set as the board draws them: the
+   sans at its semibold, a step under the catalogue's display name, so the
+   panels under them lead. */
+.goen-cart .goen-pagehead__title,
+.goen-checkout .goen-pagehead__title {
+  font: var(--fw-semibold) 2rem/1.25 var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.goen-cart .goen-pagehead__sub,
+.goen-checkout .goen-pagehead__sub {
+  color: var(--text-soft);
+  font-size: var(--fs-14);
+}
+
+/* The bag drawer: a modal dialog at the right edge, the menu's twin. The
+   browser keeps focus inside it, closes it on Escape and gives focus back;
+   goen.js fills it, opens it and closes it on its button and the backdrop,
+   a strip of which stays in view on a phone. */
+.goen-bagdrawer {
+  background: var(--sys-surface);
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  box-shadow: var(--sh-xl);
+  box-sizing: border-box;
+  color: var(--text-strong);
+  height: 100dvh;
+  inset: 0 0 0 auto;
+  margin: 0;
+  max-height: none;
+  max-width: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0;
+  width: min(26rem, 92vw);
+}
+
+.goen-bagdrawer::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-bagdrawer,
+  .goen-bagdrawer::backdrop {
+    transition-behavior: allow-discrete;
+    transition-duration: var(--dur-move);
+    transition-timing-function: var(--ease-move);
+  }
+
+  .goen-bagdrawer {
+    transition-property: translate, display, overlay;
+    translate: 100% 0;
+  }
+
+  .goen-bagdrawer::backdrop {
+    opacity: 0;
+    transition-property: opacity, display, overlay;
+  }
+
+  .goen-bagdrawer[open] {
+    translate: 0 0;
+  }
+
+  .goen-bagdrawer[open]::backdrop {
+    opacity: 1;
+  }
+
+  @starting-style {
+    .goen-bagdrawer[open] {
+      translate: 100% 0;
+    }
+
+    .goen-bagdrawer[open]::backdrop {
+      opacity: 0;
+    }
+  }
+}
+
+/* The drawer's content: the head, the meter and the lines, then the subtotal
+   and the ways on, which stay at the foot of the drawer however few lines
+   there are. The inline padding is in px so only the text grows with the size. */
+.goen-bag {
+  box-sizing: border-box;
+  container: bag / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100%;
+  padding: 1rem 20px 1.5rem;
+}
+
+.goen-bag__head {
+  align-items: center;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding-bottom: 0.75rem;
+}
+
+.goen-bag__title {
+  color: var(--text-strong);
+  font: var(--fw-semibold) 1.125rem/1.4 var(--font-display);
+  margin: 0;
+}
+
+/* The drawer is narrow: the meter's sentence takes its own row, the bar and
+   its reading the next. */
+.goen-bag .goen-meter__text {
+  flex-basis: 100%;
+}
+
+.goen-bag__count,
+.goen-bag__empty {
+  color: var(--text-soft);
+  font: var(--type-body-m);
+  margin: 0;
+}
+
+.goen-bag__lines {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-bagline {
+  align-items: start;
+  column-gap: 0.75rem;
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) auto;
+  padding-block: 0.75rem;
+}
+
+.goen-bagline + .goen-bagline {
+  border-top: 1px solid var(--hairline);
+}
+
+.goen-bagline__thumb {
+  width: 4rem;
+}
+
+.goen-bagline__body {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.goen-bagline__body :is(.goen-line__meta, .goen-bagline__qty) {
+  color: var(--text-soft);
+  font: var(--type-body-s);
+}
+
+.goen-bagline__body .goen-bagline__qty {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.goen-bagline__total {
+  color: var(--text-strong);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+}
+
+/* At 200% text a line has no room for its total beside the name. */
+@container bag (max-width: 18rem) {
+  .goen-bagline {
+    grid-template-columns: 3rem minmax(0, 1fr);
+  }
+
+  .goen-bagline__thumb {
+    width: 3rem;
+  }
+
+  .goen-bagline__total {
+    grid-column: 2;
+  }
+}
+
+.goen-bag__totals {
+  margin-top: auto;
+}
+
+.goen-bag__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 /* ---------- Account, sign-in, content and campaign pages ----------

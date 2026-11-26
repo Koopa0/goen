@@ -1135,7 +1135,7 @@ try {
     const corners = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'];
     const rootSize = size => evaluate(`document.documentElement.style.fontSize = ${JSON.stringify(size)}`);
     const names = ['--n-0', '--n-50', '--n-500', '--accent', '--accent-faint', '--accent-deep', '--control-boundary', '--error', '--fg',
-      '--sys-surface', '--sys-on-surface', '--sys-outline'];
+      '--sys-surface', '--sys-on-surface', '--sys-outline', '--cta', '--cobalt-soft', '--text-strong'];
 
     // Fields share one corner, in px: a corner in rem would grow with the text
     // and turn a tall textarea into a pill.
@@ -1213,10 +1213,9 @@ try {
         })()`);
         assert.equal(strokeColour, t['--error'], `${where}: the icon is drawn in ${stroke[1]} (${strokeColour}), not the error colour ${t['--error']}`);
       }
-      // The checkout's groups are words on the page, so the field's group is the
-      // page's own ground; what is measured is the refusal against it.
-      assert.equal(got.ground, 'rgba(0, 0, 0, 0)', `${where}: the group the field sits in paints ${got.ground}, not the page's ground`);
-      got.ground = t['--sys-surface'];
+      // The checkout's groups are panels on the page's own ground, so the
+      // field's group paints the surface; what is measured is the refusal on it.
+      assert.equal(got.ground, t['--sys-surface'], `${where}: the panel the field sits in paints ${got.ground}, not the page's surface`);
       for (const [what, colour] of [['name', got.refused], ['sentence', got.sentence]]) {
         assert.ok(ratio(colour, got.ground) >= 4.5, `${where}: the refused ${what} ${colour} on ${got.ground} is ${ratio(colour, got.ground).toFixed(2)}:1, under 4.5:1`);
       }
@@ -1334,9 +1333,11 @@ try {
       }
     }
 
-    // The delivery card: a 2px ink edge on the page's own ground when chosen,
-    // a 1px outline when not, with its radio drawn in every scheme, and a name
-    // that keeps room for words at any text size.
+    // The delivery card: when chosen, a 2px edge in the commerce cobalt on its
+    // soft tint, the edge at least 3:1 on the panel and the name at least 4.5:1
+    // on the tint; when not, a 1px outline on the panel's own ground. Its radio
+    // is drawn in every scheme, and its name keeps room for words at any text
+    // size.
     const cards = ids => evaluate(`${JSON.stringify(ids)}.map(id => {
       const radio = document.getElementById(id);
       const card = radio?.closest('.goen-checkout__ship');
@@ -1348,6 +1349,7 @@ try {
       const dot = radio.getBoundingClientRect();
       const radioStyle = getComputedStyle(radio);
       return { checked: radio.checked, background: style.backgroundColor, shadow: style.boxShadow,
+        nameColour: getComputedStyle(name).color,
         widths: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Width']),
         colours: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Color']),
         nameLeft: nameBox.left - box.left, nameTop: nameBox.top - box.top, nameWidth: nameBox.width,
@@ -1367,11 +1369,13 @@ try {
         assert.ok(chosen && plain, `${where}: the two cards are not on the page`);
         assert.equal(chosen.checked, true, `${where}: the first card is not the chosen one`);
         assert.equal(chosen.forced, false, `${where}: forced colours are on, so this does not measure the ordinary look`);
-        assert.equal(chosen.background, t['--sys-surface'], `${where}: the chosen card is ${chosen.background}, not the page's ground`);
+        assert.equal(chosen.background, t['--cobalt-soft'], `${where}: the chosen card is ${chosen.background}, not the cobalt tint`);
         assert.deepEqual(chosen.widths, Array(4).fill('2px'), `${where}: the chosen edge is ${chosen.widths}`);
-        assert.deepEqual(chosen.colours, Array(4).fill(t['--sys-on-surface']), `${where}: the chosen edge is ${chosen.colours}, not ink`);
+        assert.deepEqual(chosen.colours, Array(4).fill(t['--cta']), `${where}: the chosen edge is ${chosen.colours}, not the cobalt`);
+        assert.ok(ratio(chosen.colours[0], t['--sys-surface']) >= 3, `${where}: the chosen edge on the panel is ${ratio(chosen.colours[0], t['--sys-surface']).toFixed(2)}:1, under 3:1`);
+        assert.ok(ratio(chosen.nameColour, chosen.background) >= 4.5, `${where}: the chosen name on its tint is ${ratio(chosen.nameColour, chosen.background).toFixed(2)}:1, under 4.5:1`);
         assert.equal(chosen.shadow, 'none', `${where}: a shadow draws the chosen edge: ${chosen.shadow}`);
-        assert.equal(plain.background, t['--sys-surface'], `${where}: an unchosen card is ${plain.background}, not the page's ground`);
+        assert.equal(plain.background, t['--sys-surface'], `${where}: an unchosen card is ${plain.background}, not the panel's ground`);
         assert.deepEqual(plain.widths, Array(4).fill('1px'), `${where}: an unchosen edge is ${plain.widths}`);
         assert.deepEqual(plain.colours, Array(4).fill(t['--sys-outline']), `${where}: an unchosen edge is ${plain.colours}, not the outline`);
         assert.ok(ratio(plain.colours[0], t['--sys-surface']) >= 3, `${where}: an unchosen edge on the page is ${ratio(plain.colours[0], t['--sys-surface']).toFixed(2)}:1, under 3:1`);
@@ -1395,7 +1399,7 @@ try {
         for (const card of choices) {
           assert.ok(card.width >= 2.5 * card.em, `${where}: the card "${card.text}" leaves its name ${card.width}px, under two and a half letters of ${card.em}px`);
         }
-        console.log(`${where}: 2px ink edge on the page, 1px outline unchosen, radio drawn, name ${chosen.nameWidth.toFixed(0)}px wide, narrowest of ${choices.length} cards ${Math.min(...choices.map(card => card.width)).toFixed(0)}px`);
+        console.log(`${where}: 2px cobalt edge on the tint, 1px outline unchosen, radio drawn, name ${chosen.nameWidth.toFixed(0)}px wide, narrowest of ${choices.length} cards ${Math.min(...choices.map(card => card.width)).toFixed(0)}px`);
       }
     }
     // Forced colours replace the fills, so the chosen card is the 2px edge
@@ -1450,11 +1454,13 @@ try {
       await send('Emulation.setFocusEmulationEnabled', { enabled: false });
     }
 
-    // The checkout is one layer: a white page, and the form's groups and the
-    // summary on it as words, with no ground, corner, edge or shadow of their
-    // own, so nothing stacks a second layer on the page.
+    // The checkout is panels on the page: each group and the summary paint the
+    // page's surface inside one 1px edge, with one corner and no shadow, so the
+    // page has two layers and no more. The groups are numbered by a counter,
+    // in the order they stand. At 1440 the summary stands beside the form and
+    // stays in view; at 375 it follows the form.
     for (const width of [375, 1440]) {
-      const where = `checkout layers ${width}px`;
+      const where = `checkout panels ${width}px`;
       await open('/checkout', width);
       const t = await tokens(names);
       const got = await evaluate(`(() => {
@@ -1475,30 +1481,45 @@ try {
             const shadow = getComputedStyle(node).boxShadow;
             if (shadow !== 'none') shadows.push((node.className || node.tagName) + ': ' + shadow);
           }
-          return { layers: painted(element), shadows, background: style.backgroundColor,
+          const heading = element.querySelector('h2');
+          const box = element.getBoundingClientRect();
+          return { layers: painted(element), shadows, background: style.backgroundColor, position: style.position,
+            counter: heading ? getComputedStyle(heading, '::before').content : '', left: box.left, right: box.right, top: box.top,
             corners: ${JSON.stringify(corners)}.map(corner => style['border' + corner + 'Radius']),
             edges: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Width'] + ' ' + style['border' + side + 'Style'] + ' ' + style['border' + side + 'Color']) };
         };
         const bare = selector => getComputedStyle(document.querySelector(selector)).backgroundColor;
         const field = getComputedStyle(document.querySelector('#name'));
-        return { page: bare('.goen-checkout'), main: bare('.goen-checkout__main'),
+        const main = document.querySelector('.goen-checkout__main').getBoundingClientRect();
+        return { page: bare('.goen-checkout'), main: bare('.goen-checkout__main'), mainRight: main.right, mainBottom: main.bottom,
           groups: ['#shipping', '#address', '#invoice'].map(panel), summary: panel('#summary'),
           field: field.borderTopColor };
       })()`);
       assert.equal(got.page, 'rgba(0, 0, 0, 0)', `${where}: the checkout paints its own page: ${got.page}`);
       assert.equal(got.main, 'rgba(0, 0, 0, 0)', `${where}: the form is a block of ${got.main}`);
+      const first = got.groups[0];
       for (const [index, panel] of [...got.groups, got.summary].entries()) {
         assert.ok(panel, `${where}: panel ${index} is not on the page`);
-        assert.equal(panel.background, 'rgba(0, 0, 0, 0)', `${where}: group ${index} paints ${panel.background}`);
-        assert.deepEqual(panel.layers, [t['--n-0']], `${where}: group ${index} sits on ${panel.layers}, not the white page alone`);
-        assert.deepEqual(panel.corners, Array(4).fill('0px'), `${where}: group ${index} has corners ${panel.corners}`);
-        assert.deepEqual(panel.shadows, [], `${where}: group ${index} or what holds it draws a shadow, so the page is not one layer: ${panel.shadows}`);
-        assert.ok(panel.edges.every(edge => edge.startsWith('0px ')), `${where}: group ${index} has edges ${panel.edges}`);
+        assert.equal(panel.background, t['--sys-surface'], `${where}: panel ${index} paints ${panel.background}, not the page's surface`);
+        assert.deepEqual(panel.layers, [t['--sys-surface']], `${where}: panel ${index} sits on ${panel.layers}, not the page's surface alone`);
+        assert.ok(panel.corners.every(corner => corner === first.corners[0]) && parseFloat(first.corners[0]) > 0,
+          `${where}: panel ${index} has corners ${panel.corners}, not the panels' one corner`);
+        assert.deepEqual(panel.shadows, [], `${where}: panel ${index} or what holds it draws a shadow: ${panel.shadows}`);
+        assert.ok(panel.edges.every(edge => edge === first.edges[0] && edge.startsWith('1px solid ')), `${where}: panel ${index} has edges ${panel.edges}`);
       }
-      // A field sits on the page, so its edge is read against the page.
-      const edge = ratio(got.field, t['--n-0']);
-      assert.ok(edge >= 3, `${where}: a field's edge on the page is ${edge.toFixed(2)}:1, under 3:1`);
-      console.log(`${where}: one white layer, ${got.groups.length} groups and the summary as words on it, field edge ${edge.toFixed(2)}:1`);
+      for (const [index, panel] of got.groups.entries()) {
+        assert.match(panel.counter, /counter\(checkout-step\)/, `${where}: group ${index}'s heading is not numbered by the counter: ${panel.counter}`);
+      }
+      if (width === 1440) {
+        assert.ok(got.summary.left >= got.mainRight, `${where}: the summary starts at ${got.summary.left}px, not beside the form ending at ${got.mainRight}px`);
+        assert.equal(got.summary.position, 'sticky', `${where}: the summary is ${got.summary.position}, not held in view`);
+      } else {
+        assert.ok(got.summary.top >= got.mainBottom, `${where}: the summary does not follow the form`);
+      }
+      // A field sits on a panel, so its edge is read against the panel.
+      const edge = ratio(got.field, t['--sys-surface']);
+      assert.ok(edge >= 3, `${where}: a field's edge on the panel is ${edge.toFixed(2)}:1, under 3:1`);
+      console.log(`${where}: ${got.groups.length} numbered panels and the summary on the page, one corner, no shadow, field edge ${edge.toFixed(2)}:1`);
     }
   }
 
@@ -1517,14 +1538,16 @@ try {
         probe.remove();
         return got;
       };
-      const action = (() => {
+      // A solid button is one filled in either action colour: the ink of
+      // --sys-action or the cobalt of the commerce action, --cta.
+      const fills = ['var(--sys-action)', 'var(--cta)'].map(fill => {
         const probe = document.createElement('div');
-        probe.style.backgroundColor = 'var(--sys-action)';
+        probe.style.backgroundColor = fill;
         document.body.append(probe);
         const got = getComputedStyle(probe).backgroundColor;
         probe.remove();
         return got;
-      })();
+      });
       const link = selector => {
         const element = document.querySelector(selector);
         if (!element || !element.getClientRects().length) return null;
@@ -1537,7 +1560,7 @@ try {
         next: link('.goen-empty__next, .notice__next'), more: link('.goen-empty__more'),
         solid: [...document.querySelectorAll('a, button, span[role="link"]')]
           .filter(element => !element.closest('.goen-header, .goen-footer') && element.getClientRects().length > 0 &&
-            getComputedStyle(element).backgroundColor === action)
+            fills.includes(getComputedStyle(element).backgroundColor))
           .map(element => element.textContent.trim()),
       };
     })()`);

@@ -285,7 +285,7 @@ func TestHandler_LookupCartFailures(t *testing.T) {
 						t.Errorf("cancelled item-count request logged an error: %s", diagnostics.String())
 					}
 				case tt.failCount:
-					if !strings.Contains(diagnostics.String(), `"level":"ERROR"`) || !strings.Contains(diagnostics.String(), `"msg":"count cart items"`) {
+					if !strings.Contains(diagnostics.String(), `"level":"ERROR"`) || !strings.Contains(diagnostics.String(), `"msg":"read the cart's badge"`) {
 						t.Errorf("live request lost the item-count error diagnostic: %s", diagnostics.String())
 					}
 				case diagnostics.Len() != 0:

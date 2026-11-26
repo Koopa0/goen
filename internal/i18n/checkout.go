@@ -39,6 +39,14 @@ var (
 		En:     ", %s +%s",
 	})
 
+	// KeyCheckoutZonesExtra is said on a delivery card before an address is
+	// quoted: the zones the method charges extra to, which the postcode
+	// decides; %s is their names.
+	KeyCheckoutZonesExtra = key("checkout.zones.extra", Message{
+		ZhHant: "寄往%s另加運費，依郵遞區號計算",
+		En:     "Delivery to %s costs extra, worked out from the postcode",
+	})
+
 	KeyCouponPlaceholder = key("checkout.coupon.placeholder", Message{
 		ZhHant: "有折扣碼嗎？",
 		En:     "Have a discount code?",

@@ -4149,6 +4149,155 @@ await provePdpAdd('pdp add 375 off', true);
 await provePdpAdd('pdp add 375 on', false);
 await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
 
+// The bag drawer. An add that succeeds opens the cart's own fragment in a modal
+// dialog at the edge of the window: the lines, the subtotal and the ways to the
+// cart and to checkout, inside the window at any width. It closes on its
+// button, on Escape and on a press on the backdrop, and each time focus goes
+// back to the button that added. It runs in a cart of its own, so the fixture
+// cart the other checks read is left as it was.
+const proveBagDrawer = async (width, height) => {
+  const label = `bag drawer ${width}`;
+  const { cookies } = await send(ws, 'Network.getCookies', { urls: [ORIGIN] });
+  const fixtureCart = cookies.find((c) => c.name === 'goen_cart');
+  await send(ws, 'Network.deleteCookies', { name: 'goen_cart', domain: '127.0.0.1', path: '/' });
+  try {
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 768 });
+    const slug = process.env.PDP_SLUG || 'nimbus-buds-pro';
+    let target = `${ORIGIN}/p/${slug}`;
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, `${label} open`, target);
+    const swatch = await evalPage(`(() => {
+      const add = document.querySelector('.goen-pdp__add');
+      if (add && add.type === 'submit' && add.getAttribute('aria-disabled') !== 'true') return '';
+      return document.querySelector('.goen-swatch:not(.goen-swatch--on):not(.goen-swatch--out)')?.getAttribute('href') || null;
+    })()`);
+    if (swatch === null || swatch.threw) {
+      fail(label, 'no variant of the product can be added');
+      return;
+    }
+    if (swatch) {
+      target = ORIGIN + swatch;
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, `${label} choose`, target);
+    }
+    const ready = async () => {
+      for (let i = 0; i < 50; i++) {
+        const idle = await evalPage(`(() => {
+          const form = document.getElementById('pdp-add');
+          return !!form && !form.hasAttribute('data-request-pending') && typeof htmx !== 'undefined';
+        })()`);
+        if (idle === true) return true;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return false;
+    };
+    const press = async (x, y) => {
+      for (const type of ['mousePressed', 'mouseReleased']) {
+        await send(ws, 'Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 });
+      }
+    };
+    const openDrawer = async (why) => {
+      if (!await ready()) {
+        fail(label, `${why}: the add form never settled`);
+        return null;
+      }
+      const at = await evalPage(`(() => {
+        const add = document.querySelector('.goen-pdp__add');
+        add.scrollIntoView({ block: 'center', behavior: 'instant' });
+        const box = add.getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.top + box.height / 2, id: add.id };
+      })()`);
+      if (at.threw || !at.id) {
+        fail(label, `${why}: the add button has no id to come back to`);
+        return null;
+      }
+      await press(at.x, at.y);
+      for (let i = 0; i < 80; i++) {
+        if (await evalPage(`document.getElementById('bag-drawer')?.open === true`) === true) {
+          // Let the slide in finish, so what is measured is where it rests.
+          await new Promise((r) => setTimeout(r, 500));
+          return at;
+        }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      fail(label, `${why}: the drawer did not open after a successful add`);
+      return null;
+    };
+    const closed = async (how, at) => {
+      for (let i = 0; i < 30; i++) {
+        const got = await evalPage(`({ open: document.getElementById('bag-drawer').open, focus: document.activeElement?.id || document.activeElement?.tagName })`);
+        if (got.open === false) {
+          if (got.focus !== at.id) fail(label, `${how} closed the drawer but focus is on ${got.focus}, not the button that added (${at.id})`);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      fail(label, `${how} did not close the drawer`);
+    };
+
+    let at = await openDrawer('first add');
+    if (!at) return;
+    const got = await evalPage(`(() => {
+      const dialog = document.getElementById('bag-drawer');
+      const box = dialog.getBoundingClientRect();
+      const close = dialog.querySelector('[data-bag-close]');
+      return {
+        modal: dialog.matches(':modal'), inside: dialog.contains(document.activeElement),
+        body: !!dialog.querySelector('#bag-drawer-body'), lines: dialog.querySelectorAll('.goen-bagline').length,
+        links: [...dialog.querySelectorAll('a[href]')].map((a) => a.getAttribute('href')),
+        subtotal: dialog.querySelector('.goen-summary__value')?.textContent.trim() || '',
+        closeName: close?.getAttribute('aria-label') || '', closeHeight: close ? close.getBoundingClientRect().height : 0,
+        left: box.left, right: box.right, viewport: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        overflowing: [...dialog.querySelectorAll('*')].filter((e) => e.getBoundingClientRect().right > box.right + 0.5).length,
+      };
+    })()`);
+    if (got.threw) {
+      fail(label, `the drawer probe did not run: ${got.why}`);
+      return;
+    }
+    if (!got.modal || !got.inside) fail(label, `the drawer is not a modal holding focus: modal=${got.modal} focus inside=${got.inside}`);
+    if (!got.body || got.lines < 1) fail(label, `the drawer shows ${got.lines} lines from ${got.body ? 'the' : 'no'} cart fragment`);
+    if (!got.links.includes('/cart') || !got.links.includes('/checkout')) fail(label, `the drawer's ways on are ${JSON.stringify(got.links)}, not the cart and checkout`);
+    if (!/^NT\$/.test(got.subtotal)) fail(label, `the drawer's subtotal reads ${JSON.stringify(got.subtotal)}`);
+    if (!got.closeName || got.closeHeight < MIN_TAP) fail(label, `the close button is named ${JSON.stringify(got.closeName)} and ${got.closeHeight}px tall`);
+    if (got.left < -0.5 || got.right > got.viewport + 0.5 || got.overflowing > 0) {
+      fail(label, `the drawer spans ${got.left}-${got.right} in a ${got.viewport}px window, ${got.overflowing} elements past its edge`);
+    }
+    console.log(`${label.padEnd(24)} ${got.lines} line(s) ${got.subtotal} ${Math.round(got.right - got.left)}px wide`);
+
+    await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await closed('Escape', at);
+
+    at = await openDrawer('second add');
+    if (!at) return;
+    const button = await evalPage(`(() => {
+      const box = document.querySelector('#bag-drawer [data-bag-close]').getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    })()`);
+    await press(button.x, button.y);
+    await closed('the close button', at);
+
+    at = await openDrawer('third add');
+    if (!at) return;
+    const backdrop = await evalPage(`(() => {
+      const box = document.getElementById('bag-drawer').getBoundingClientRect();
+      return { x: Math.max(box.left / 2, 1), y: innerHeight / 2 };
+    })()`);
+    await press(backdrop.x, backdrop.y);
+    await closed('a press on the backdrop', at);
+  } finally {
+    await send(ws, 'Network.deleteCookies', { name: 'goen_cart', domain: '127.0.0.1', path: '/' });
+    if (fixtureCart) {
+      await send(ws, 'Network.setCookie', { name: fixtureCart.name, value: fixtureCart.value, domain: fixtureCart.domain, path: fixtureCart.path });
+    }
+  }
+};
+
+await proveBagDrawer(375, 812);
+await proveBagDrawer(1440, 900);
+
 // Choosing a colour whose photograph is tagged puts that photograph first. With
 // script the gallery rides the buy column's swap; with none the navigation
 // renders it. Both start from the page's default state and press the swatch

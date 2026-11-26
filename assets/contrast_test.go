@@ -1604,7 +1604,7 @@ func TestAppCSSShelfAndStageContrast(t *testing.T) {
 		ink, ground string
 		want        float64
 	}
-	checks := make([]pair, 0, len(grounds)*7+2*len(grounds)+6+11)
+	checks := make([]pair, 0, len(grounds)*7+2*len(grounds)+6+13)
 	for _, ink := range []string{
 		"--text-strong", "--text-soft", "--text-faint", "--sys-primary", "--cobalt-hover",
 		"--sys-tertiary", "--success-text",
@@ -1634,6 +1634,10 @@ func TestAppCSSShelfAndStageContrast(t *testing.T) {
 		pair{"--on-success-soft", "--success-soft", 4.5},
 		pair{"--sys-primary", "--cobalt-soft", 4.5},
 		pair{"--text-strong", "--cobalt-soft", 4.5},
+		// A chosen checkout card: its note on the tint, and its cobalt edge
+		// against the panel it stands on (WCAG 1.4.11).
+		pair{"--text-soft", "--cobalt-soft", 4.5},
+		pair{"--cta", "--sys-surface", 3},
 		// The mark's rings are graphical objects on the page.
 		pair{"--mark-ink", "--sys-surface", 3},
 		pair{"--mark-accent", "--sys-surface", 3},

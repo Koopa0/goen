@@ -340,10 +340,13 @@ func withBanner(next http.Handler, banner func(http.Handler) http.Handler) http.
 // The store map's return route is here for a different reason: it is an
 // unauthenticated cross-site POST anybody can send, it renders no header at
 // all, and leaving it a nav path would spend a category query on every one.
+//
+// The bag drawer is a fragment of the cart fetched after every add; it renders
+// no header, so a category query there would be spent on nothing.
 var navFreePrefixes = []string{
 	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz", "/favicon.ico",
 	"/robots.txt", "/sitemap.xml",
-	storemap.ReturnPath,
+	storemap.ReturnPath, "/cart/drawer",
 }
 
 // statelessPrefixes belong to no visitor: goen's own bytes, probes and the
