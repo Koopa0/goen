@@ -81,14 +81,14 @@ func TestStore_ListingBrandCounts(t *testing.T) {
 		t.Errorf("unfiltered counts = %v, want 2 and 2", got)
 	}
 	// A price ceiling empties the dear brand without removing it from the panel.
-	if got := counts(catalog.Filters{MaxPrice: 50000, Page: 1}); got[cheap] != 2 || got[dear] != 0 {
+	if got := counts(catalog.Filters{Price: catalog.PriceBand{Max: 50000}, Page: 1}); got[cheap] != 2 || got[dear] != 0 {
 		t.Errorf("under NT$500 counts = %v, want cheap 2 and dear 0", got)
 	}
 	// The brand filter itself never narrows the counts, or a second brand could not be added.
 	if got := counts(catalog.Filters{BrandSlugs: []string{cheap}, Page: 1}); got[cheap] != 2 || got[dear] != 2 {
 		t.Errorf("with the cheap brand chosen counts = %v, want 2 and 2", got)
 	}
-	if got := counts(catalog.Filters{BrandSlugs: []string{dear}, MaxPrice: 50000, Page: 1}); got[dear] != 0 || got[cheap] != 2 {
+	if got := counts(catalog.Filters{BrandSlugs: []string{dear}, Price: catalog.PriceBand{Max: 50000}, Page: 1}); got[dear] != 0 || got[cheap] != 2 {
 		t.Errorf("a chosen brand the price empties: counts = %v, want dear 0 listed and cheap 2", got)
 	}
 }

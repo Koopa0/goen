@@ -210,15 +210,14 @@ const CART = [
   { label: 'reset 1440', width: 1440, height: 900, path: '/reset?token=layoutcheck', marker: '.goen-auth__form' },
 ];
 
-// The listing page. Its filters are a toolbar open above the grid from lg and a
-// collapsed disclosure above it below; either way they sit over the results, so
-// the rail is always 'stacked'. What lg changes is whether the controls show
-// (`toolbar`), which the desktop probes below assert.
+// The listing page. Its filters stand in a column beside the results where the
+// page is 56rem wide, from 1024, and fold into a drawer below that; the
+// drawer's button and the sort stay in the head (`rail`).
 const LISTING = [
-  { label: 'listing 375', width: 375, height: 812, rail: 'stacked' },
-  { label: 'listing 768', width: 768, height: 1024, rail: 'stacked' },
-  { label: 'listing 1024', width: 1024, height: 900, rail: 'stacked', toolbar: true },
-  { label: 'listing 1440', width: 1440, height: 900, rail: 'stacked', toolbar: true },
+  { label: 'listing 375', width: 375, height: 812, rail: 'drawer' },
+  { label: 'listing 768', width: 768, height: 1024, rail: 'drawer' },
+  { label: 'listing 1024', width: 1024, height: 900, rail: 'beside' },
+  { label: 'listing 1440', width: 1440, height: 900, rail: 'beside' },
 ];
 
 // English category names in the desktop header compete with the search field.
@@ -445,11 +444,11 @@ const ACCOUNT_PAGES = [
 
 const MIN_TAP = 44; // the smallest comfortable touch target, in CSS px
 
-// The narrowest a product card may be once the viewport is wide enough for the
-// filter toolbar to open above the grid. Two-up on a 375px phone gives 166px and
+// The narrowest a product card may be once the page is wide enough for the
+// filters to stand beside the results. Two-up on a 375px phone gives 166px and
 // that is correct; the defect is a card that is no wider at 1024 than it is on
 // a phone, which is a column count that stopped fitting. Only checked where
-// the row has `toolbar`.
+// the filters are `beside`.
 const MIN_CARD = 200;
 
 // The narrowest the desktop search field may be once English names are in
@@ -1197,104 +1196,84 @@ async function periodPass(route, extra = false) {
 // campaign page still draws the period, and its pass stays.
 for (const route of ['/s/layout-campaign']) await periodPass(route);
 
-// Whether the filter shell exposes its menus, and whether the sort shows. On
-// desktop a closed <details> keeps ::details-content at
-// content-visibility:hidden until the stylesheet opens it; display:flex on the
-// menus alone is not enough. The sort is outside the shell, so it shows on a
-// phone while the menus are folded away.
-const FILTER_SHELL_PROBE = `(() => {
-  const shell = document.querySelector('.goen-filters__shell');
-  const form = document.querySelector('.goen-filters__menus');
-  const input = document.querySelector('.goen-filters #sort');
-  const summary = document.querySelector('.goen-filters__shell-summary');
-  const formRect = form ? form.getBoundingClientRect() : null;
-  const inputRect = input ? input.getBoundingClientRect() : null;
-  const summaryStyle = summary ? getComputedStyle(summary) : null;
-  let contentVisibility = null;
-  if (shell) {
-    try {
-      contentVisibility = getComputedStyle(shell, '::details-content').contentVisibility;
-    } catch (_) {
-      contentVisibility = null;
-    }
-  }
+// Where the shelf's filters are: beside the results in their own column, or
+// folded into the drawer behind its button; whether the drawer is open, and
+// whether the sort shows. The sort is in the head, so it shows either way.
+const FILTER_PANEL_PROBE = `(() => {
+  const column = document.querySelector('.goen-facets');
+  const panel = document.querySelector('[data-facets-panel]');
+  const opener = document.querySelector('[data-filters-open]');
+  const drawer = document.getElementById('filters-drawer');
+  const sort = document.getElementById('sort');
+  const shown = (e) => { if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   return {
-    open: shell ? shell.open : null,
-    summaryDisplay: summaryStyle ? summaryStyle.display : null,
-    summaryVisible: !!(summary && summary.getBoundingClientRect().height > 0),
-    menusVisible: !!(formRect && formRect.height > 0 && formRect.width > 0),
-    sortVisible: !!(inputRect && inputRect.height > 0 && inputRect.width > 0),
-    contentVisibility,
-    products: document.querySelectorAll('.goen-tiles__grid > li').length,
+    columnVisible: shown(column),
+    panelVisible: shown(panel),
+    panelHome: !!(column && panel && column.contains(panel)),
+    openerVisible: shown(opener),
+    drawerOpen: !!(drawer && drawer.open),
+    drawerModal: !!(drawer && drawer.matches(':modal')),
+    sortVisible: shown(sort),
+    products: document.querySelectorAll('.goen-tiles__grid > li, .goen-speclist > li').length,
     viewport: document.documentElement.clientWidth,
   };
 })()`;
 
-const assertDesktopFiltersVisible = (at, got) => {
-  if (!got.menusVisible) {
-    fail(at, `desktop filter menus are not visible — ${JSON.stringify(got)}`);
+const assertFiltersBeside = (at, got) => {
+  if (!got.columnVisible || !got.panelVisible || !got.panelHome) {
+    fail(at, `the filters do not stand in their column beside the results — ${JSON.stringify(got)}`);
   }
-  if (!got.sortVisible) {
-    fail(at, `desktop sort is not visible — ${JSON.stringify(got)}`);
-  }
-  if (got.contentVisibility === 'hidden') {
-    fail(at, `desktop ::details-content is still hidden — ${JSON.stringify(got)}`);
-  }
+  if (got.openerVisible || got.drawerOpen) fail(at, `the drawer's button or the drawer shows beside the column — ${JSON.stringify(got)}`);
+  if (got.products > 0 && !got.sortVisible) fail(at, `the sort is not visible — ${JSON.stringify(got)}`);
 };
 
+const assertFiltersFolded = (at, got) => {
+  if (got.columnVisible || got.panelVisible) fail(at, `the filters show while the drawer is closed — ${JSON.stringify(got)}`);
+  if (!got.openerVisible) fail(at, `the drawer has no button — ${JSON.stringify(got)}`);
+  if (got.drawerOpen) fail(at, `the drawer is open before its button is pressed — ${JSON.stringify(got)}`);
+  if (got.products > 0 && !got.sortVisible) fail(at, `the sort is folded away with the filters — ${JSON.stringify(got)}`);
+};
+
+// The grid's four children are the head, the filters' column, the drawer and
+// the results' column. 'beside' is the column left of the results, 'drawer' a
+// column not drawn because the filters are folded away.
 const LISTING_LAYOUT_PROBE = `(() => {
-  const filters = document.querySelector('.goen-listing__filters');
-  const filterForm = document.querySelector('.goen-filters');
+  const column = document.querySelector('.goen-facets');
+  const main = document.querySelector('.goen-listing__main');
   const results = document.querySelector('.goen-listing__results');
   const card = document.querySelector('.goen-tiles__grid > li');
-  const layout = document.querySelector('.goen-listing__layout');
-  if (!filterForm || !results || !layout) {
+  const layout = document.querySelector('.goen-shelf__grid');
+  if (!column || !main || !results || !layout) {
     return { ok: false, why: 'listing layout landmarks missing' };
   }
-  const rail = (filters || filterForm).getBoundingClientRect();
-  // The column the results are in: it also holds the applied-filter chips
-  // above them, which would otherwise push the results below the rail's top.
-  const resultsRect = (document.querySelector('.goen-listing__main') || results).getBoundingClientRect();
+  const rail = column.getBoundingClientRect();
+  const resultsRect = main.getBoundingClientRect();
   const cardRect = card ? card.getBoundingClientRect() : null;
   return {
     ok: true,
-    rail: Math.abs(rail.y - resultsRect.y) < 2 ? 'beside' : 'stacked',
+    rail: rail.width === 0 ? 'drawer' : rail.right <= resultsRect.left + 1 ? 'beside' : 'stacked',
     filterX: +rail.x.toFixed(1),
     filterW: +rail.width.toFixed(1),
     resultsX: +resultsRect.x.toFixed(1),
     resultsW: +resultsRect.width.toFixed(1),
     cardW: cardRect ? +cardRect.width.toFixed(1) : 0,
     layoutChildren: [...layout.children].map((e) => String(e.className || '').split(' ')[0]),
-    resultsBelowFilter: resultsRect.top > rail.bottom - 2,
   };
 })()`;
 
-const assertDesktopResultsLayout = (at, got) => {
-  if (got.threw || !got.ok) {
-    fail(at, got.why || 'listing layout probe failed');
-    return;
-  }
-  if (got.rail !== 'stacked' || !got.resultsBelowFilter) {
-    fail(at, `results are not below the filter toolbar — ${JSON.stringify(got)}`);
-  }
-  if (got.layoutChildren.length !== 2) {
-    fail(at, `layout has ${got.layoutChildren.length} direct children, want 2 — ${got.layoutChildren}`);
-  }
-  if (got.cardW > 0 && got.cardW < MIN_CARD) {
-    fail(at, `product card is ${got.cardW}px wide, want >= ${MIN_CARD} — ${JSON.stringify(got)}`);
-  }
-};
+const LAYOUT_CHILDREN = ['goen-shelf__head', 'goen-facets', 'goen-facets__drawer', 'goen-listing__main'];
 
-const assertMobileResultsLayout = (at, got) => {
+const assertResultsLayout = (at, got, want) => {
   if (got.threw || !got.ok) {
     fail(at, got.why || 'listing layout probe failed');
     return;
   }
-  if (got.rail !== 'stacked') {
-    fail(at, `mobile results are not stacked under the filter rail — ${JSON.stringify(got)}`);
+  if (got.rail !== want) fail(at, `the filters are ${got.rail}, want ${want} — ${JSON.stringify(got)}`);
+  if (JSON.stringify(got.layoutChildren) !== JSON.stringify(LAYOUT_CHILDREN)) {
+    fail(at, `the shelf's grid holds ${got.layoutChildren}, want ${LAYOUT_CHILDREN}`);
   }
-  if (got.layoutChildren.length !== 2) {
-    fail(at, `layout has ${got.layoutChildren.length} direct children, want 2 — ${got.layoutChildren}`);
+  if (want === 'beside' && got.cardW > 0 && got.cardW < MIN_CARD) {
+    fail(at, `product card is ${got.cardW}px wide, want >= ${MIN_CARD} — ${JSON.stringify(got)}`);
   }
 };
 
@@ -1311,9 +1290,9 @@ const evalPage = async (expression) => {
   return evaluated.result.value;
 };
 
-// The listing page. Its own probe: no hero and no category grid, but a filter
-// rail whose position is the fold, and the same no-overflow and shared-gutter
-// rules the home is held to.
+// The listing page. Its own probe: no hero and no category grid, but a column
+// of filters whose place is the fold, and the same no-overflow and
+// shared-gutter rules the home is held to.
 const LISTING_PROBE = `(() => {
   const de = document.documentElement;
   const clipped = (e) => {
@@ -1325,9 +1304,8 @@ const LISTING_PROBE = `(() => {
     }
     return false;
   };
-  const rail = (document.querySelector('.goen-listing__filters')
-    || document.querySelector('.goen-filters')).getBoundingClientRect();
-  const results = document.querySelector('.goen-listing__results').getBoundingClientRect();
+  const rail = document.querySelector('.goen-facets').getBoundingClientRect();
+  const results = document.querySelector('.goen-listing__main').getBoundingClientRect();
   const cols = (sel) => {
     const items = [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0);
     if (!items.length) return 0;
@@ -1341,7 +1319,7 @@ const LISTING_PROBE = `(() => {
              +(r.right - parseFloat(cs.paddingRight)).toFixed(1) ];
   };
   const taps = [...document.querySelectorAll(
-    '.goen-filters__shell-summary, .goen-filters__option, .goen-filters__apply, .goen-filters #sort, .goen-filters .ui-input:not([type=checkbox])',
+    '.goen-shelf__filter, .goen-viewswitch__link, #sort, .goen-filters__option, .goen-facets__link, .goen-facets__reset',
   )].map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
   return {
     viewportWidth: de.clientWidth,
@@ -1349,7 +1327,7 @@ const LISTING_PROBE = `(() => {
     overflowing: [...document.querySelectorAll('body *')]
       .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
       .slice(0, 6).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
-    rail: Math.abs(rail.y - results.y) < 2 ? 'beside' : 'stacked',
+    rail: rail.width === 0 ? 'drawer' : rail.right <= results.left + 1 ? 'beside' : 'stacked',
     tiles: cols('.goen-tiles__grid > li'),
     // A column count copied from the home page once produced 156px cards here —
     // narrower than the same card on a 375px phone. Column count alone would not
@@ -1362,7 +1340,7 @@ const LISTING_PROBE = `(() => {
     main: edges('.goen-listing'),
     minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
     viewportHeight: window.innerHeight,
-    shellOpen: document.querySelector('.goen-filters__shell')?.open ?? null,
+    drawerOpen: document.getElementById('filters-drawer')?.open ?? null,
     firstTileTop: (() => {
       const t = document.querySelector('.goen-tiles__grid > li');
       return t ? +t.getBoundingClientRect().top.toFixed(1) : null;
@@ -1383,6 +1361,36 @@ const LISTING_PROBE = `(() => {
   };
 })()`;
 
+const checkListingEntry = async (at, want, got) => {
+  checkAccessibility(at, got);
+  if (got.scrollWidth > got.viewportWidth) {
+    fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
+      (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
+  }
+  if (got.rail !== want.rail) fail(at, `the filters are ${got.rail}, want ${want.rail}`);
+  const filters = await evalPage(FILTER_PANEL_PROBE);
+  if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+  else if (want.rail === 'beside') assertFiltersBeside(at, filters);
+  else assertFiltersFolded(at, filters);
+  if (want.width < 768) {
+    if (got.firstTileTop !== null && got.firstTileTop >= got.viewportHeight) {
+      fail(at, `first product starts at ${got.firstTileTop}px, below the ${got.viewportHeight}px viewport`);
+    }
+    if (got.firstTileTop !== null && !got.firstTileInView) {
+      fail(at, 'the first product tile is not fully visible on entry');
+    }
+  }
+  if (got.minTap < MIN_TAP) fail(at, `smallest filter control is ${got.minTap}px, want >= ${MIN_TAP}`);
+  if (want.rail === 'beside' && got.cardWidth > 0 && got.cardWidth < MIN_CARD) {
+    fail(at, `product card is ${got.cardWidth}px wide, want >= ${MIN_CARD} — ` +
+      `too many columns for the space the grid has`);
+  }
+  if (got.header && got.main &&
+      (Math.abs(got.header[0] - got.main[0]) > 1 || Math.abs(got.header[1] - got.main[1]) > 1)) {
+    fail(at, `header content column [${got.header}] does not line up with the listing [${got.main}]`);
+  }
+};
+
 for (const want of LISTING) {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: want.width,
@@ -1393,64 +1401,30 @@ for (const want of LISTING) {
   const target = ORIGIN + '/c/phones';
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, want.label, target, want.marker);
-
-  const { result } = await send(ws, 'Runtime.evaluate', { expression: LISTING_PROBE, returnByValue: true });
-  const got = result.value;
-  const at = want.label;
-  checkAccessibility(at, got);
-
-  if (got.scrollWidth > got.viewportWidth) {
-    fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
-      (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
+  const got = await evalPage(LISTING_PROBE);
+  if (got.threw) {
+    fail(want.label, `the listing probe did not run — ${got.why}`);
+    continue;
   }
-  if (got.rail !== want.rail) fail(at, `filter rail is ${got.rail}, want ${want.rail}`);
-  if (want.width === 375) {
-    if (got.shellOpen) fail(at, 'filter shell is open by default on mobile');
-    if (got.firstTileTop !== null && got.firstTileTop >= got.viewportHeight) {
-      fail(at, `first product starts at ${got.firstTileTop}px, below the ${got.viewportHeight}px viewport`);
-    }
-    if (got.firstTileTop !== null && !got.firstTileInView) {
-      fail(at, 'the first product tile is not fully visible on entry');
-    }
-    const filters = await evalPage(FILTER_SHELL_PROBE);
-    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
-    if (filters.menusVisible) fail(at, 'filter menus are visible while the shell is collapsed on mobile');
-    if (filters.products > 0 && !filters.sortVisible) fail(at, 'the sort is folded away with the filters on mobile');
-  }
-  if (want.toolbar) {
-    const filters = await evalPage(FILTER_SHELL_PROBE);
-    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
-    assertDesktopFiltersVisible(at, filters);
-  }
-  if (got.minTap < MIN_TAP) fail(at, `smallest filter control is ${got.minTap}px, want >= ${MIN_TAP}`);
-  if (want.toolbar && got.cardWidth > 0 && got.cardWidth < MIN_CARD) {
-    fail(at, `product card is ${got.cardWidth}px wide, want >= ${MIN_CARD} — ` +
-      `too many columns for the space the grid has`);
-  }
-  if (got.header && got.main &&
-      (Math.abs(got.header[0] - got.main[0]) > 1 || Math.abs(got.header[1] - got.main[1]) > 1)) {
-    fail(at, `header content column [${got.header}] does not line up with the listing [${got.main}]`);
-  }
-
-  console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
+  await checkListingEntry(want.label, want, got);
+  console.log(`${want.label.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `rail=${got.rail} tiles=${got.tiles} tap=${got.minTap}`);
 }
 
-// The seeded /c/audio page at 375px: products must stay in the first viewport,
-// the shell must expand on demand, and a filtered reload must focus results.
+// The seeded /c/audio page in both languages: on a phone the products stay in
+// the first viewport with the filters folded away; on a desktop they stand
+// beside the results.
 const LISTING_AUDIO = [
-  { label: 'listing audio zh 375', width: 375, height: 812, path: '/c/audio', locale: 'zh-Hant' },
-  { label: 'listing audio en 375', width: 375, height: 812, path: '/c/audio', locale: 'en' },
-  { label: 'listing audio zh 1440', width: 1440, height: 900, path: '/c/audio', locale: 'zh-Hant', rail: 'stacked', toolbar: true },
-  { label: 'listing audio en 1440', width: 1440, height: 900, path: '/c/audio', locale: 'en', rail: 'stacked', toolbar: true },
+  { label: 'listing audio zh 375', width: 375, height: 812, path: '/c/audio', locale: 'zh-Hant', rail: 'drawer' },
+  { label: 'listing audio en 375', width: 375, height: 812, path: '/c/audio', locale: 'en', rail: 'drawer' },
+  { label: 'listing audio zh 1440', width: 1440, height: 900, path: '/c/audio', locale: 'zh-Hant', rail: 'beside' },
+  { label: 'listing audio en 1440', width: 1440, height: 900, path: '/c/audio', locale: 'en', rail: 'beside' },
 ];
 
 for (const want of LISTING_AUDIO) {
-  if (want.locale) {
-    await send(ws, 'Network.setCookie', {
-      name: 'goen_locale', value: want.locale, domain: '127.0.0.1', path: '/',
-    });
-  }
+  await send(ws, 'Network.setCookie', {
+    name: 'goen_locale', value: want.locale, domain: '127.0.0.1', path: '/',
+  });
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: want.width,
     height: want.height,
@@ -1460,45 +1434,24 @@ for (const want of LISTING_AUDIO) {
   const target = ORIGIN + want.path;
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, want.label, target, want.marker);
-
-  const { result } = await send(ws, 'Runtime.evaluate', { expression: LISTING_PROBE, returnByValue: true });
-  const got = result.value;
-  const at = want.label;
-  checkAccessibility(at, got);
-
-  if (got.scrollWidth > got.viewportWidth) {
-    fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
-      (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
+  const got = await evalPage(LISTING_PROBE);
+  if (got.threw) {
+    fail(want.label, `the listing probe did not run — ${got.why}`);
+    continue;
   }
-  if (want.rail && got.rail !== want.rail) {
-    fail(at, `filter rail is ${got.rail}, want ${want.rail}`);
-  }
-  if (want.width === 375) {
-    if (got.shellOpen) fail(at, 'filter shell is open by default on mobile');
-    if (got.firstTileTop !== null && got.firstTileTop >= got.viewportHeight) {
-      fail(at, `first product starts at ${got.firstTileTop}px, below the ${got.viewportHeight}px viewport`);
-    }
-    if (!got.firstTileInView) fail(at, 'the first product is not visible on entry');
-    const filters = await evalPage(FILTER_SHELL_PROBE);
-    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
-    if (filters.menusVisible) fail(at, 'filter menus are visible while the shell is collapsed on mobile');
-    if (filters.products > 0 && !filters.sortVisible) fail(at, 'the sort is folded away with the filters on mobile');
-  }
-  if (want.toolbar) {
-    const filters = await evalPage(FILTER_SHELL_PROBE);
-    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
-    assertDesktopFiltersVisible(at, filters);
-  }
-  console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
-    `rail=${got.rail} tileTop=${got.firstTileTop} shell=${got.shellOpen}`);
+  await checkListingEntry(want.label, want, got);
+  console.log(`${want.label.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
+    `rail=${got.rail} tileTop=${got.firstTileTop} drawer=${got.drawerOpen}`);
 }
 
+// The phone's journey: the products come first, the drawer opens from its
+// button as a modal with the filters in it and closes on its last button with
+// focus back on the button, and a filtered address lands on the results with
+// the drawer closed and the chips that clear it.
 const proveListingFilterJourney = async (label, locale) => {
-  if (locale) {
-    await send(ws, 'Network.setCookie', {
-      name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/',
-    });
-  }
+  await send(ws, 'Network.setCookie', {
+    name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/',
+  });
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
   });
@@ -1507,80 +1460,66 @@ const proveListingFilterJourney = async (label, locale) => {
   await settled(ws, `${label} entry`, start);
 
   const collapsed = await evalPage(`(() => {
-    const shell = document.querySelector('.goen-filters__shell');
     const tile = document.querySelector('.goen-tiles__grid > li');
-    if (!shell || !tile) return { ok: false, why: 'shell or product tile missing' };
+    if (!tile) return { ok: false, why: 'product tile missing' };
     const top = tile.getBoundingClientRect().top;
-    return {
-      ok: true,
-      shellOpen: shell.open,
-      tileTop: +top.toFixed(1),
-      inView: top < window.innerHeight,
-    };
+    return { ok: true, drawerOpen: document.getElementById('filters-drawer').open, tileTop: +top.toFixed(1), inView: top < window.innerHeight };
   })()`);
   if (collapsed.threw || !collapsed.ok) {
     fail(label, collapsed.why || 'collapsed entry probe failed');
     return;
   }
-  if (collapsed.shellOpen) fail(label, 'filter shell is open before the visitor asks');
-  if (!collapsed.inView) {
-    fail(label, `first product starts at ${collapsed.tileTop}px, outside the viewport`);
-  }
+  if (collapsed.drawerOpen) fail(label, 'the drawer is open before the visitor asks');
+  if (!collapsed.inView) fail(label, `first product starts at ${collapsed.tileTop}px, outside the viewport`);
 
-  const expanded = await evalPage(`(() => {
-    const shell = document.querySelector('.goen-filters__shell');
-    const summary = document.querySelector('.goen-filters__shell-summary');
-    if (!shell || !summary) return { ok: false, why: 'shell summary missing' };
-    summary.click();
-    return { ok: true, shellOpen: shell.open };
+  const opened = await evalPage(`(async () => {
+    const opener = document.querySelector('[data-filters-open]');
+    if (!opener) return { ok: false, why: 'the drawer has no button' };
+    opener.focus();
+    opener.click();
+    await new Promise((r) => setTimeout(r, 600));
+    const drawer = document.getElementById('filters-drawer');
+    const box = drawer.querySelector('.goen-filters input[name=in_stock]');
+    const rect = box ? box.closest('label').getBoundingClientRect() : null;
+    const done = drawer.querySelector('#facets-done');
+    const doneRect = done ? done.getBoundingClientRect() : null;
+    const result = {
+      ok: true, open: drawer.open, modal: drawer.matches(':modal'), focusInside: drawer.contains(document.activeElement),
+      expanded: opener.getAttribute('aria-expanded'), option: !!(rect && rect.height > 0),
+      doneInView: !!(doneRect && doneRect.height > 0 && doneRect.bottom <= window.innerHeight + 0.5),
+    };
+    done?.click();
+    await new Promise((r) => setTimeout(r, 600));
+    result.closed = !drawer.open;
+    result.focusBack = document.activeElement === opener;
+    result.panelHome = !!document.querySelector('.goen-facets [data-facets-panel]');
+    return result;
   })()`);
-  if (expanded.threw || !expanded.ok) {
-    fail(label, expanded.why || 'expanded probe failed');
+  if (opened.threw || !opened.ok) {
+    fail(label, opened.why || 'drawer probe failed');
     return;
   }
-  if (!expanded.shellOpen) fail(label, 'filter shell did not open after the summary was activated');
-
-  // With scripting on a changed filter applies itself and the stylesheet hides
-  // the button; with scripting off the button is the only way to apply, so it
-  // must show once the shell opens. The page is reloaded because the shell above
-  // was opened by script.
-  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: true });
-  const noScriptTarget = `${ORIGIN}/c/audio`;
-  await send(ws, 'Page.navigate', { url: noScriptTarget });
-  await settled(ws, `${label} no script`, noScriptTarget);
-  const noScript = await evalPage(`(() => {
-    const summary = document.querySelector('.goen-filters__shell-summary');
-    if (!summary) return { ok: false, why: 'shell summary missing with scripting off' };
-    summary.click();
-    const apply = document.querySelector('.goen-filters__apply');
-    const rect = apply ? apply.getBoundingClientRect() : null;
-    return { ok: true, applyVisible: !!(rect && rect.height > 0 && rect.bottom > 0) };
-  })()`);
-  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
-  if (noScript.threw || !noScript.ok) {
-    fail(label, noScript.why || 'no-script apply probe failed');
-    return;
+  if (!opened.open || !opened.modal || !opened.focusInside || opened.expanded !== 'true') {
+    fail(label, `the drawer did not open as a modal with focus inside — ${JSON.stringify(opened)}`);
   }
-  if (!noScript.applyVisible) fail(label, 'apply control is not visible with scripting off after expanding the shell');
+  if (!opened.option) fail(label, 'the stock filter is not drawn in the open drawer');
+  if (!opened.doneInView) fail(label, 'the drawer\'s last button is not in the window, so it cannot be reached');
+  if (!opened.closed || !opened.focusBack || !opened.panelHome) {
+    fail(label, `the drawer's last button did not close it with focus back on its button — ${JSON.stringify(opened)}`);
+  }
 
   const filtered = `${ORIGIN}/c/audio?in_stock=1#listing-results`;
   await send(ws, 'Page.navigate', { url: filtered });
   await settled(ws, `${label} filtered`, filtered);
 
-  const landed = await evalPage(`(() => {
-    const results = document.getElementById('listing-results');
-    const applied = document.querySelector('.goen-filters__applied');
-    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
-    const shell = document.querySelector('.goen-filters__shell');
-    return {
-      ok: true,
-      focused: document.activeElement === results,
-      hasApplied: !!applied,
-      hasClear: !!clear,
-      shellOpen: shell ? shell.open : null,
-      href: location.href,
-    };
-  })()`);
+  const landed = await evalPage(`(() => ({
+    ok: true,
+    focused: document.activeElement === document.getElementById('listing-results'),
+    hasApplied: !!document.querySelector('.goen-filters__applied'),
+    hasClear: !!document.querySelector('.goen-filters__applied .ui-filterbar__clear'),
+    drawerOpen: document.getElementById('filters-drawer').open,
+    active: (document.getElementById('filters-active')?.textContent || '').trim(),
+  }))()`);
   if (landed.threw || !landed.ok) {
     fail(label, landed.why || 'filtered landing probe failed');
     return;
@@ -1588,19 +1527,14 @@ const proveListingFilterJourney = async (label, locale) => {
   if (!landed.focused) fail(label, 'filtered reload did not focus #listing-results');
   if (!landed.hasApplied) fail(label, 'filtered reload shows no applied-filter summary');
   if (!landed.hasClear) fail(label, 'filtered reload offers no clear-all control');
-  if (landed.shellOpen) fail(label, 'filter shell stayed open after a filtered reload');
+  if (landed.drawerOpen) fail(label, 'the drawer opened itself on a filtered reload');
+  if (!landed.active) fail(label, 'the drawer\'s button does not say a filter is on');
 
-  const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
-  assertMobileResultsLayout(`${label} filtered`, filteredLayout);
+  assertResultsLayout(`${label} filtered`, await evalPage(LISTING_LAYOUT_PROBE), 'drawer');
   // MIN_CARD is deliberately NOT asserted here. It asks whether a column count
-  // still fits the grid's columns, which is a question only the desktop layout
-  // can answer — its own declaration says
-  // "Only checked where the row has `toolbar`", and the two call sites that honour
-  // that are assertDesktopResultsLayout and the `want.toolbar` guard
-  // on the LISTING rows. This journey runs at 375, where the filters are stacked and
-  // EXPECTED requires two columns; two columns in a 343px content area is a
-  // 163.5px card, so asserting 200 here contradicts the artboard the same file
-  // declares. Adding it back makes the two assertions unsatisfiable together.
+  // still fits the grid's columns, which is a question only the layout with
+  // the filters beside the results can answer: at 375 EXPECTED requires two
+  // columns, and two columns in a 343px content area is a 163.5px card.
 
   const cleared = await evalPage(`(() => {
     const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
@@ -1613,8 +1547,7 @@ const proveListingFilterJourney = async (label, locale) => {
     return;
   }
   await settled(ws, `${label} cleared`, `${ORIGIN}/c/audio`);
-  const afterClear = await evalPage(LISTING_LAYOUT_PROBE);
-  assertMobileResultsLayout(`${label} cleared`, afterClear);
+  assertResultsLayout(`${label} cleared`, await evalPage(LISTING_LAYOUT_PROBE), 'drawer');
   const clearedProbe = await evalPage(`(() => ({
     hasApplied: !!document.querySelector('.goen-filters__applied'),
     href: location.href,
@@ -1622,7 +1555,7 @@ const proveListingFilterJourney = async (label, locale) => {
   if (clearedProbe.hasApplied) fail(label, 'clear-all left the applied-filter summary visible');
   if (clearedProbe.href.includes('in_stock=')) fail(label, 'clear-all left filter query parameters in the URL');
 
-  console.log(`${label.padEnd(24)} collapsed tileTop=${collapsed.tileTop} filtered focus clear ok`);
+  console.log(`${label.padEnd(24)} collapsed tileTop=${collapsed.tileTop} drawer filtered focus clear ok`);
 };
 
 for (const locale of ['zh-Hant', 'en']) {
@@ -1630,11 +1563,9 @@ for (const locale of ['zh-Hant', 'en']) {
 }
 
 const proveListingDesktopResize = async (label, locale) => {
-  if (locale) {
-    await send(ws, 'Network.setCookie', {
-      name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/',
-    });
-  }
+  await send(ws, 'Network.setCookie', {
+    name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/',
+  });
   const loadDesktop = async (scriptingOff) => {
     await send(ws, 'Emulation.setScriptExecutionDisabled', { value: scriptingOff });
     await send(ws, 'Emulation.setDeviceMetricsOverride', {
@@ -1643,26 +1574,23 @@ const proveListingDesktopResize = async (label, locale) => {
     const target = `${ORIGIN}/c/audio`;
     await send(ws, 'Page.navigate', { url: target });
     await settled(ws, `${label} desktop load`, target);
-    const got = await evalPage(FILTER_SHELL_PROBE);
+    const got = await evalPage(FILTER_PANEL_PROBE);
     if (got.threw) fail(label, got.why || 'desktop filter probe failed');
-    assertDesktopFiltersVisible(`${label} desktop`, got);
-    const layout = await evalPage(LISTING_LAYOUT_PROBE);
-    assertDesktopResultsLayout(`${label} desktop`, layout);
-    return got;
+    else assertFiltersBeside(`${label} desktop`, got);
+    assertResultsLayout(`${label} desktop`, await evalPage(LISTING_LAYOUT_PROBE), 'beside');
   };
 
   await loadDesktop(false);
 
-  // With scripting on, ticking a filter updates the results in place: the URL
-  // follows, the chips appear, the region is a new node, the box keeps focus,
-  // the page does not scroll and the announced count is the page's own.
+  // Ticking a filter updates the results in place: the URL follows, the chips
+  // appear, the region is a new node, the box keeps focus, the page does not
+  // scroll and the announced count is the page's own.
   const live = await evalPage(`(async () => {
     const box = document.querySelector('.goen-filters input[name=in_stock]');
     if (!box) return { ok: false, why: 'stock filter missing' };
     const before = document.getElementById('listing-results');
-    // Extra facets can put stock below the viewport. Bring the control into
+    // Extra facets can put stock below the column's fold. Bring the control into
     // view before measuring whether the results update itself moves the page.
-    box.closest('details').open = true;
     box.scrollIntoView({ block: 'center', behavior: 'instant' });
     box.focus({ preventScroll: true });
     const y = window.scrollY;
@@ -1680,9 +1608,6 @@ const proveListingDesktopResize = async (label, locale) => {
     const scrolled = scrollAfter !== y;
     // The cross is nine pixels wide; what is pressable is the 44px square around
     // its centre, hit-tested at the square's four corners.
-    // An open filter panel overlays the applied row by design; close it so the
-    // link's own target is what is measured.
-    document.querySelectorAll('.goen-filters__group[open]').forEach((group) => group.removeAttribute('open'));
     const remove = document.querySelector('#filters-applied .goen-filters__chip-remove');
     const missed = [];
     if (remove) {
@@ -1743,6 +1668,8 @@ const proveListingDesktopResize = async (label, locale) => {
     fail(label, `the applied chips are not above the results — ${JSON.stringify(placed)}`);
   }
 
+  // The form is a plain GET: submitted without the page's script it lands on
+  // the filtered address at the results, which take focus.
   await loadDesktop(true);
   await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
 
@@ -1758,15 +1685,11 @@ const proveListingDesktopResize = async (label, locale) => {
     fail(label, submitted.why || 'desktop filter submit did not start');
     return;
   }
-  // readyState as well as the URL, for the reason `settled` gives: location.href
-  // is the new document's the moment the navigation commits, which is before that
-  // document has run anything. The landing probe below reads activeElement, and
-  // a URL match alone hands it a document still at readyState "loading".
-  //
-  // `settled` itself is not used here because it records the URL as a route for
-  // the accessibility pass at the end of this file, and this href carries the
-  // empty price and sort fields the form submits — a second spelling of a page
-  // that pass already audits.
+  // readyState as well as the URL: location.href is the new document's the
+  // moment the navigation commits, which is before that document has run
+  // anything. `settled` is not used because it records the URL as a route for
+  // the accessibility pass, and this href carries the empty fields the form
+  // submits — a second spelling of a page that pass already audits.
   const filteredHref = await (async () => {
     for (let i = 0; i < 50; i++) {
       const { result } = await send(ws, 'Runtime.evaluate', {
@@ -1786,16 +1709,9 @@ const proveListingDesktopResize = async (label, locale) => {
   }
 
   // autofocus is flushed when the new document first updates its rendering, and
-  // readyState complete is not that moment: a cross-document view transition
-  // holds the first render until the old page's snapshot is ready, so the focus
-  // a keyboard visitor gets can arrive a frame or two after the load event.
-  // Give it a ceiling rather than one reading — a landing that never focuses
-  // still exhausts the poll and still fails.
-  //
-  // The element has to EXIST for this to be true. Reading
-  // `document.activeElement === document.getElementById(id)` on a page without
-  // the region is null === null, which is how a missing results region would
-  // have passed as a focused one.
+  // a cross-document view transition can hold that a frame or two past the load
+  // event; a landing that never focuses still exhausts the poll and fails. The
+  // element has to EXIST for this to be true.
   const focusReached = await (async () => {
     for (let i = 0; i < 30; i++) {
       const { result } = await send(ws, 'Runtime.evaluate', {
@@ -1812,13 +1728,11 @@ const proveListingDesktopResize = async (label, locale) => {
   })();
 
   const afterFilter = await evalPage(`(() => {
-    const applied = document.querySelector('.goen-filters__applied');
-    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
     const box = document.querySelector('.goen-filters input[name=in_stock]');
     return {
       ok: true,
-      hasApplied: !!applied,
-      hasClear: !!clear,
+      hasApplied: !!document.querySelector('.goen-filters__applied'),
+      hasClear: !!document.querySelector('.goen-filters__applied .ui-filterbar__clear'),
       stockChecked: !!(box && box.checked),
     };
   })()`);
@@ -1830,9 +1744,7 @@ const proveListingDesktopResize = async (label, locale) => {
   if (!afterFilter.hasApplied) fail(label, 'desktop filtered reload shows no applied-filter summary');
   if (!afterFilter.hasClear) fail(label, 'desktop filtered reload offers no clear-all control');
   if (!afterFilter.stockChecked) fail(label, 'desktop filtered reload lost the in_stock checkbox state');
-
-  const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
-  assertDesktopResultsLayout(`${label} filtered`, filteredLayout);
+  assertResultsLayout(`${label} filtered`, await evalPage(LISTING_LAYOUT_PROBE), 'beside');
 
   const cleared = await evalPage(`(() => {
     const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
@@ -1845,51 +1757,41 @@ const proveListingDesktopResize = async (label, locale) => {
     return;
   }
   await settled(ws, `${label} cleared`, `${ORIGIN}/c/audio`);
-  const afterClear = await evalPage(LISTING_LAYOUT_PROBE);
-  assertDesktopResultsLayout(`${label} cleared`, afterClear);
-  const clearedProbe = await evalPage(`(() => ({
-    hasApplied: !!document.querySelector('.goen-filters__applied'),
-    href: location.href,
-  }))()`);
-  if (clearedProbe.hasApplied) fail(label, 'desktop clear-all left the applied-filter summary visible');
+  assertResultsLayout(`${label} cleared`, await evalPage(LISTING_LAYOUT_PROBE), 'beside');
+  if (await evalPage(`!!document.querySelector('.goen-filters__applied')`) === true) {
+    fail(label, 'desktop clear-all left the applied-filter summary visible');
+  }
 
+  // Narrowed to a phone the column folds into the drawer; widened again with
+  // the drawer open, the drawer closes and the column stands beside the results.
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
   });
   await new Promise((r) => setTimeout(r, 250));
-  const mobileCollapsed = await evalPage(FILTER_SHELL_PROBE);
-  if (mobileCollapsed.threw) fail(label, mobileCollapsed.why || 'mobile resize probe failed');
-  if (mobileCollapsed.open) fail(label, 'filter shell is open after resize to mobile');
-  if (mobileCollapsed.menusVisible) {
-    fail(label, 'filter menus are visible while the shell is closed on mobile after resize');
-  }
+  const folded = await evalPage(FILTER_PANEL_PROBE);
+  if (folded.threw) fail(label, folded.why || 'mobile resize probe failed');
+  else assertFiltersFolded(`${label} after resize to a phone`, folded);
 
-  const expanded = await evalPage(`(() => {
-    const summary = document.querySelector('.goen-filters__shell-summary');
-    if (!summary) return { ok: false, why: 'mobile summary missing after resize' };
-    summary.click();
-    const menus = document.querySelector('.goen-filters__menus');
-    const menusRect = menus ? menus.getBoundingClientRect() : null;
-    return {
-      ok: true,
-      menusVisible: !!(menusRect && menusRect.height > 0 && menusRect.width > 0),
-    };
+  const opened = await evalPage(`(async () => {
+    document.querySelector('[data-filters-open]').click();
+    await new Promise((r) => setTimeout(r, 600));
+    const panel = document.querySelector('#filters-drawer [data-facets-panel]');
+    const rect = panel ? panel.getBoundingClientRect() : null;
+    return { ok: true, open: document.getElementById('filters-drawer').open, panelVisible: !!(rect && rect.height > 0 && rect.width > 0) };
   })()`);
-  if (expanded.threw || !expanded.ok) {
-    fail(label, expanded.why || 'mobile expand after resize failed');
-    return;
+  if (opened.threw || !opened.ok || !opened.open || !opened.panelVisible) {
+    fail(label, `the drawer did not open with the filters in it after resize — ${JSON.stringify(opened)}`);
   }
-  if (!expanded.menusVisible) fail(label, 'filter menus did not open after summary click on mobile');
 
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
   });
-  await new Promise((r) => setTimeout(r, 250));
-  const desktopAgain = await evalPage(FILTER_SHELL_PROBE);
-  if (desktopAgain.threw) fail(label, desktopAgain.why || 'desktop re-expand probe failed');
-  assertDesktopFiltersVisible(`${label} after resize`, desktopAgain);
+  await new Promise((r) => setTimeout(r, 400));
+  const wide = await evalPage(FILTER_PANEL_PROBE);
+  if (wide.threw) fail(label, wide.why || 'desktop re-expand probe failed');
+  else assertFiltersBeside(`${label} after resize`, wide);
 
-  console.log(`${label.padEnd(24)} desktop submit filter clear resize ok`);
+  console.log(`${label.padEnd(24)} desktop live filter submit clear resize ok`);
 };
 
 for (const locale of ['zh-Hant', 'en']) {
@@ -2602,7 +2504,9 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
   await proveMorph('morph tile 375', { from: '/c/phones', link: tile, name: 'product-photo', viewport: { width: 375, height: 812 } });
   await proveMorph('morph related 1440', { from: '/p/' + process.env.PRODUCT_SLUG, link: '.goen-pdp__related ' + tile, name: 'product-photo', viewport: desk });
   await proveMorph('morph back visible', { from: '/c/phones', link: tile, name: 'product-photo', viewport: desk, back: 'visible' });
-  await proveMorph('morph back hidden', { from: '/c/phones', link: tile, name: 'product-photo', viewport: { width: 1440, height: 400 }, back: 'hidden' });
+  // The department's last card, below a 400px window: three phones stand in
+  // one row beside the filters, all of them in view.
+  await proveMorph('morph back hidden', { from: '/c/tech', link: tile, name: 'product-photo', viewport: { width: 1440, height: 400 }, back: 'hidden' });
   await proveMorph('morph tile reduced', { from: '/c/phones', link: tile, name: 'product-photo', viewport: desk, reduce: true });
   await send(ws, 'Page.removeScriptToEvaluateOnNewDocument', { identifier: recorder.identifier });
   await send(ws, 'Emulation.setEmulatedMedia', { features: [] });

@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -135,12 +136,16 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /search", func(w http.ResponseWriter, r *http.Request) {
-		view := catalog.SearchView{Query: "tote", Total: 2, Page: 1, PageSize: 20, Products: []tile.Tile{
-			{Slug: "canvas-tote", Name: "Canvas tote", PriceCents: 89000, InStock: true, Comparable: true},
-			{Slug: "city-tote", Name: "City tote", PriceCents: 129000, InStock: true, Comparable: true},
+		view := catalog.SearchView{Query: "tote", Matches: 2, Shelf: catalog.Shelf{
+			Path: "/search", Keep: url.Values{"q": {"tote"}}, Searching: true, Total: 2, Page: 1, PageSize: 20,
+			Departments: []catalog.TreeLink{{Slug: "fashion", Name: "Fashion", Count: 2}},
+			Products: []tile.Tile{
+				{Slug: "canvas-tote", Name: "Canvas tote", PriceCents: 89000, InStock: true, Comparable: true},
+				{Slug: "city-tote", Name: "City tote", PriceCents: 129000, InStock: true, Comparable: true},
+			},
 		}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := catalog.Search(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Search(frame.Page{}, &view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render search fixture: %v", renderErr)
 		}
 	})
@@ -181,35 +186,42 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /c/audio", func(w http.ResponseWriter, r *http.Request) {
-		view := catalog.ListingView{Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, Query: "in_stock=1"}
+		view := catalog.ListingView{Slug: "audio", Name: "Audio", Shelf: catalog.Shelf{Path: "/c/audio", Filters: catalog.Filters{InStockOnly: true}}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := catalog.Listing(frame.Page{}, view, nil, nil).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Listing(frame.Page{}, &view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render listing fixture: %v", renderErr)
 		}
 	})
+	// A department's sub-category, its shelf beside the catalogue's tree, in
+	// either language (?zh=1); ?photo=1 gives the department a photograph the
+	// head must not draw.
 	mux.HandleFunc("GET /department", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
-		locale, names := i18n.En, []string{"Phones", "Laptops", "Tablets", "Audio", "Wearables", "Accessories"}
+		locale, tech, names := i18n.En, "Tech", []string{"Phones", "Laptops", "Tablets", "Audio", "Wearables", "Accessories"}
 		if query.Get("zh") == "1" {
-			locale, names = i18n.ZhHant, []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"}
+			locale, tech, names = i18n.ZhHant, "3C 數位", []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"}
 		}
-		theme := &catalog.Theme{Tone: tones[query.Get("tone")], Children: []catalog.Crumb{
-			{Slug: "phones", Name: names[0]}, {Slug: "laptops", Name: names[1]}, {Slug: "tablets", Name: names[2]},
-			{Slug: "audio", Name: names[3]}, {Slug: "wearables", Name: names[4]}, {Slug: "accessories", Name: names[5]},
-		}}
+		theme := &catalog.Theme{Tone: tones[query.Get("tone")]}
 		if query.Get("photo") == "1" {
 			theme.Photo = widget.Photo{URL: picture.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		}
-		var head *catalog.DepartmentHead
-		if query.Get("notice") == "1" {
-			now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
-			head = &catalog.DepartmentHead{Notice: &catalog.DepartmentNotice{
-				Title: "Autumn audio", Href: "/s/autumn", End: campaign.NewEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now),
-			}}
+		view := catalog.ListingView{Slug: "phones", Name: names[0], Crumbs: []catalog.Crumb{{Slug: "tech", Name: tech}}, Theme: theme, Shelf: catalog.Shelf{
+			Path: "/c/phones", Total: 3, Page: 1, PageSize: 24, SubsTitle: tech,
+			Departments: []catalog.TreeLink{
+				{Name: "All", Href: "/shop", Count: 40},
+				{Slug: "tech", Name: tech, Href: "/c/tech", Count: 20, Open: true},
+			},
+			Products: []tile.Tile{
+				{Slug: "pixelight-9", Name: "Pixelight 9", PriceCents: 2590000, InStock: true},
+				{Slug: "aurora-edge-7", Name: "Aurora Edge 7", PriceCents: 1990000, InStock: true},
+				{Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", PriceCents: 3390000, InStock: true},
+			},
+		}}
+		for i, slug := range []string{"phones", "laptops", "tablets", "audio", "wearables", "accessories"} {
+			view.Subs = append(view.Subs, catalog.TreeLink{Slug: slug, Name: names[i], Href: "/c/" + slug, Count: 3, Current: slug == "phones"})
 		}
-		view := catalog.ListingView{Slug: "phones", Name: names[0], Theme: theme}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := catalog.Listing(frame.Page{}, view, nil, head).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
+		if renderErr := catalog.Listing(frame.Page{}, &view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
 			t.Errorf("render department fixture: %v", renderErr)
 		}
 	})

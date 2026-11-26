@@ -996,9 +996,7 @@ th {
 
 /* Focus darkens the border and the ring sits just outside it. */
 .goen-input:focus-visible,
-.goen-filters .ui-input:focus-visible,
-.goen-filters .ui-select:focus-visible,
-.goen-search-sort .ui-select:focus-visible,
+.goen-shelf .ui-select:focus-visible,
 .contact__select:focus-visible,
 .goen-checkout__select:focus-visible {
   border-color: var(--sys-on-surface);
@@ -3059,100 +3057,6 @@ th {
   content: none;
 }
 
-/* The head is words on the page, as a catalogue's section opens: the crumbs,
-   the name, the count, and the sub-categories in one row under them. */
-.goen-listing__head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  margin-inline: auto;
-  max-width: var(--page-width);
-  padding: var(--s-2) var(--page-gutter) 0;
-}
-
-.goen-listing__head .goen-pagehead {
-  gap: var(--s-2);
-}
-
-/* The page's name, one step under the display size; Han reads it with a little
-   air between characters. */
-.goen-listing__head .goen-pagehead__title {
-  font: var(--fw-medium) var(--t-40)/1.2 var(--font-display);
-  letter-spacing: 0.02em;
-  text-wrap: balance;
-}
-
-.goen-listing__head .goen-pagehead__title:lang(en) {
-  letter-spacing: 0;
-}
-
-/* The sub-categories are a row of words. The current one is underlined 2px,
-   not boxed or coloured, so forced colours keep the mark as it is. */
-.goen-subindex {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--s-6);
-}
-
-.goen-subindex__link {
-  align-items: center;
-  color: var(--sys-on-surface);
-  display: inline-flex;
-  flex: none;
-  font: var(--type-label-l);
-  font-weight: var(--fw-regular);
-  min-height: 2.75rem;
-  text-decoration: none;
-  text-underline-offset: 8px;
-}
-
-.goen-subindex__link:hover {
-  color: var(--sys-on-surface);
-  text-decoration: underline 1px;
-}
-
-.goen-subindex__link[aria-current='page'] {
-  font-weight: var(--fw-medium);
-  text-decoration: underline 2px;
-}
-
-/* A phone's row scrolls sideways in one line and shows that it does: the edge
-   of the screen cuts the next name, and a flick stops at a name's start. The
-   row bleeds by the gutter; its end is an ::after, because Safari drops a flex
-   container's end padding inside a scroller. The ring is drawn inside the
-   link's box, which the scroller would otherwise cut. */
-@media (max-width: 47.99rem) {
-  .goen-subindex {
-    flex-wrap: nowrap;
-    gap: 24px;
-    margin-inline: calc(-1 * var(--page-gutter));
-    overflow-x: auto;
-    padding-inline-start: var(--page-gutter);
-    scroll-padding-inline: var(--page-gutter);
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
-  }
-
-  .goen-subindex::-webkit-scrollbar {
-    display: none;
-  }
-
-  .goen-subindex::after {
-    content: '';
-    flex: 0 0 var(--s-4);
-  }
-
-  .goen-subindex__link {
-    scroll-margin-inline: var(--s-4);
-    scroll-snap-align: start;
-    white-space: nowrap;
-  }
-
-  .goen-subindex__link:focus-visible {
-    outline-offset: -2px;
-  }
-}
-
 /* ---------- Product tile ----------
 
    One card, shared by the home page, the listing, search, the deals page, a
@@ -3563,10 +3467,10 @@ input.goen-check {
    content column the header and the footer use, a page head, and then whatever
    the page is about.
 
-   The filters are a native <details> at every width. Above 1024, where the
-   browser has ::details-content, its summary is hidden and the slot is forced
-   open, because a descendant display rule alone cannot override the closed
-   details slot in Chrome; elsewhere the toolbar stays behind its summary.
+   A category, every product (/shop) and a search with matches are a shelf
+   (.goen-shelf): the filters in a sticky column on the left from 56rem of
+   page and in a modal drawer below it, the head with the name, the count, the
+   view and the sort, and the results as a grid of cards or a list of rows.
    ------------------------------------------------------------------------ */
 
 .goen-listing {
@@ -3729,329 +3633,426 @@ input.goen-check {
   font: var(--type-body-m);
 }
 
-.goen-listing__layout {
+/* The shelf: a category's page, every product's and a search with matches.
+   Below 56rem of page the filters are a drawer and the head, then the
+   results, fill the column; from 56rem the filters stand in a sticky column
+   on the left and the head and the results take the rest. Both switches are
+   container queries in rem on the page, so text at 200% gets the drawer a
+   narrow window does. */
+.goen-shelf {
+  container: shelf / inline-size;
+}
+
+.goen-shelf__grid {
   display: grid;
-  gap: 24px;
+  gap: var(--s-5) 2rem;
+  grid-template-areas: "head" "main";
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.goen-listing__filters {
-  min-width: 0;
-}
-
-.goen-listing__main {
+.goen-shelf__head {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--s-4);
+  grid-area: head;
   min-width: 0;
 }
 
-.goen-listing__results {
+/* The name and its count on the left, the tools on the right, over a line
+   that closes the head. */
+.goen-shelf__bar {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4) var(--s-5);
+  justify-content: space-between;
+  padding-bottom: var(--s-4);
+}
+
+.goen-shelf__titles {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--s-1);
   min-width: 0;
 }
 
-.goen-filters__shell {
-  grid-column: 1 / -1;
-  grid-row: 1;
-  min-width: 0;
+/* The page's name, one step under the display size; Han reads it with a little
+   air between characters. */
+.goen-shelf__titles .goen-pagehead__title {
+  font: var(--fw-medium) var(--t-40)/1.2 var(--font-display);
+  letter-spacing: 0.02em;
+  text-wrap: balance;
 }
 
-.goen-filters__shell-summary {
-  align-items: center;
-  cursor: pointer;
-  display: flex;
-  font: var(--type-label-l);
-  gap: 6px;
-  list-style: none;
-  min-height: 44px;
-  width: fit-content;
+.goen-shelf__titles .goen-pagehead__title:lang(en) {
+  letter-spacing: 0;
 }
 
-.goen-filters__shell-summary::-webkit-details-marker {
-  display: none;
+.goen-shelf .goen-listing__count {
+  color: var(--text-soft);
+  font: var(--fw-regular) 0.8125rem/1.5 var(--font-data);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
-.goen-filters__shell-summary::after,
-.goen-filters__summary::after {
-  background: var(--chevron-scheme) center / 1.15em no-repeat;
-  content: '';
-  flex: none;
-  height: 1.15em;
-  transition: transform var(--dur-base) var(--ease-standard);
-  width: 1.15em;
-}
-
-.goen-filters__shell[open] > .goen-filters__shell-summary::after,
-.goen-filters__group[open] > .goen-filters__summary::after {
-  transform: rotate(180deg);
-}
-
-/* A closed disclosure hides its menus outright. Chrome keeps the layout of the
-   subtree ::details-content skips, so menus measured once go on measuring —
-   which is the mobile half of #390. */
-.goen-filters__shell:not([open]) > .goen-filters__menus {
-  display: none;
-}
-
-/* The disclosure spans the row and the sort sits over its right end, so the
-   sort stays beside the closed summary on a phone and the open menus take the
-   whole width under them. */
-.goen-filters {
-  align-items: start;
-  display: grid;
-  gap: 0 var(--s-4);
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-/* The heading keeps the outline unbroken at every width, but on a phone the
-   disclosure's own summary already says it, so it is read, not shown. */
-.goen-filters__title {
-  border: 0;
-  clip-path: inset(50%);
-  font-size: var(--fs-16);
-  font-weight: var(--fw-medium);
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  padding: 0;
-  position: absolute;
-  white-space: nowrap;
-  width: 1px;
-}
-
-.goen-filters__menus {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding-bottom: 16px;
-}
-
-.goen-filters__end {
+.goen-shelf__tools {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--s-4);
-  grid-column: 2;
-  grid-row: 1;
-  justify-content: flex-end;
+  gap: var(--s-2);
 }
 
-.goen-filters__group {
-  padding-bottom: 12px;
-}
-
-.goen-filters__summary {
+/* The drawer's button, the view's two words and the sort are one family of
+   pressable things: 44px tall, a hairline edge, ink when chosen. */
+.goen-shelf__filter,
+.goen-viewswitch__link {
   align-items: center;
+  background: var(--sys-surface);
+  border: 1px solid var(--field-edge);
+  border-radius: var(--r-full);
+  box-sizing: border-box;
+  color: var(--text-strong);
   cursor: pointer;
-  color: var(--on-surface-firm);
-  display: flex;
-  font: var(--type-label-l);
-  gap: 8px;
-  list-style: none;
-  min-height: 44px;
+  display: inline-flex;
+  font: var(--type-label-m);
+  gap: var(--s-2);
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
-.goen-filters__summary:hover,
-.goen-filters__group[open] > .goen-filters__summary {
-  color: var(--sys-on-surface);
+.goen-shelf__filter:hover,
+.goen-viewswitch__link:hover {
+  background: var(--shelf-hover);
+  color: var(--text-strong);
 }
 
-.goen-filters__summary::-webkit-details-marker {
+.goen-shelf__filter svg,
+.goen-viewswitch__link svg {
+  flex: none;
+  height: 1rem;
+  width: 1rem;
+}
+
+/* On a narrow shelf each view is its glyph in a 44px square, its word read
+   and not shown, so the drawer's button, the views and the sort keep to one
+   line on a phone. */
+@container shelf (max-width: 39.99rem) {
+  .goen-viewswitch__link {
+    justify-content: center;
+    padding: 0;
+    width: 2.75rem;
+  }
+
+  .goen-viewswitch__word {
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+}
+
+/* How many filters are on, beside the drawer's word. Empty when none, and
+   then not drawn; the element stays so a swap has somewhere to put it. */
+.goen-shelf__active {
+  align-items: center;
+  background: var(--fill-ink);
+  border-radius: var(--r-full);
+  color: var(--on-fill-ink);
+  display: inline-flex;
+  font: var(--fw-medium) 0.75rem/1 var(--font-data);
+  font-variant-numeric: tabular-nums;
+  justify-content: center;
+  min-height: 1.25rem;
+  min-width: 1.25rem;
+  padding: 0 0.3rem;
+}
+
+.goen-shelf__active:empty {
   display: none;
 }
 
-.goen-filters__summary::after {
+.goen-viewswitch {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.goen-viewswitch__link[aria-current="true"] {
+  background: var(--fill-ink);
+  border-color: var(--fill-ink);
+  color: var(--on-fill-ink);
+}
+
+.goen-viewswitch__link[aria-current="true"]:hover {
+  background: var(--fill-ink);
+  color: var(--on-fill-ink);
+}
+
+.goen-shelf .ui-select {
+  appearance: none;
+  background: var(--sys-surface) var(--chevron-scheme) no-repeat right 0.6rem center / 1.15em;
+  border: 1px solid var(--field-edge);
+  border-radius: var(--r-field);
+  box-sizing: border-box;
+  color: var(--text-strong);
+  cursor: pointer;
+  font: var(--type-label-m);
+  min-height: 2.75rem;
+  padding: 0 2.25rem 0 0.85rem;
+}
+
+.goen-listing__count:empty {
+  display: none;
+}
+
+/* Nothing to sort while nothing is listed: the count is empty then. */
+.goen-shelf__bar:has(#listing-count:empty) .goen-filters__sort {
+  display: none;
+}
+
+/* The department's sub-categories, as a row of words under the name, where
+   the tree that carries them is folded into the drawer. The current one is
+   underlined 2px, not boxed or coloured, so forced colours keep the mark. */
+.goen-subindex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s-6);
+}
+
+.goen-subindex__link {
+  align-items: center;
+  color: var(--sys-on-surface);
+  display: inline-flex;
+  flex: none;
+  font: var(--type-label-l);
+  font-weight: var(--fw-regular);
+  min-height: 2.75rem;
+  text-decoration: none;
+  text-underline-offset: 8px;
+}
+
+.goen-subindex__link:hover {
+  color: var(--sys-on-surface);
+  text-decoration: underline 1px;
+}
+
+.goen-subindex__link[aria-current='page'] {
+  font-weight: var(--fw-medium);
+  text-decoration: underline 2px;
+}
+
+/* A phone's row scrolls sideways in one line and shows that it does: the edge
+   of the screen cuts the next name, and a flick stops at a name's start. The
+   row bleeds by the gutter; its end is an ::after, because Safari drops a flex
+   container's end padding inside a scroller. The ring is drawn inside the
+   link's box, which the scroller would otherwise cut. */
+@media (max-width: 47.99rem) {
+  .goen-subindex {
+    flex-wrap: nowrap;
+    gap: 24px;
+    margin-inline: calc(-1 * var(--page-gutter));
+    overflow-x: auto;
+    padding-inline-start: var(--page-gutter);
+    scroll-padding-inline: var(--page-gutter);
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .goen-subindex::-webkit-scrollbar {
+    display: none;
+  }
+
+  .goen-subindex::after {
+    content: '';
+    flex: 0 0 var(--s-4);
+  }
+
+  .goen-subindex__link {
+    scroll-margin-inline: var(--s-4);
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+
+  .goen-subindex__link:focus-visible {
+    outline-offset: -2px;
+  }
+}
+
+/* The filters' column. Below 56rem it is not drawn: its panel is the
+   drawer's, carried there by goen.js. */
+.goen-facets {
+  display: none;
+  grid-area: side;
+  min-width: 0;
+}
+
+.goen-facets__panel {
+  background: var(--ground-tint);
+  border: 1px solid var(--hairline);
+  border-radius: var(--shape-md);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: 1.15rem;
+}
+
+.goen-facets__head {
+  align-items: center;
+  display: flex;
+  gap: var(--s-2);
+  justify-content: space-between;
+}
+
+.goen-facets__title {
+  color: var(--text-strong);
+  font: var(--type-title-m);
+  margin: 0;
+}
+
+/* A secondary link, ink with the faint line every link but a next step wears,
+   44px tall to the hand. */
+.goen-facets__reset {
+  align-items: center;
+  color: var(--text-soft);
+  display: inline-flex;
+  font: var(--type-label-m);
   margin-inline-start: auto;
+  min-height: 2.75rem;
+  text-decoration: underline 1px;
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
+  text-underline-offset: 3px;
+}
+
+.goen-facets__reset:hover {
+  color: var(--text-strong);
+  text-decoration-color: currentcolor;
+}
+
+.goen-facets__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.goen-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  margin: 0;
+}
+
+.goen-facets__group {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+/* A group's name is a label of the catalogue's, in the data face, above its
+   choices; a legend and a heading wear it alike. */
+.goen-facets__legend {
+  color: var(--text-faint);
+  font: var(--fw-medium) 0.75rem/1.4 var(--font-data);
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--s-2);
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.goen-facets__links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A department: its name, then how many products it holds. The page's own,
+   and the department it is in, are filled ink. */
+.goen-facets__link,
+.goen-filters__option {
+  align-items: center;
+  border-radius: var(--shape-xs);
+  box-sizing: border-box;
+  color: var(--text-soft);
+  display: flex;
+  font-size: 0.875rem;
+  gap: var(--s-2);
+  line-height: 1.35;
+  min-height: 2.75rem;
+  padding: 0.25rem 0.6rem;
+  text-decoration: none;
+}
+
+.goen-filters__option {
+  cursor: pointer;
+}
+
+.goen-facets__link:hover,
+.goen-filters__option:hover {
+  background: var(--shelf-hover);
+  color: var(--text-strong);
+}
+
+.goen-facets__link[aria-current] {
+  background: var(--fill-ink);
+  color: var(--on-fill-ink);
+  font-weight: var(--fw-medium);
+}
+
+.goen-facets__name,
+.goen-filters__label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.goen-facets__count,
+.goen-filters__count {
+  color: var(--text-faint);
+  flex: none;
+  font: var(--fw-regular) 0.75rem/1 var(--font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.goen-facets__link[aria-current] .goen-facets__count {
+  color: inherit;
 }
 
 .goen-filters__options {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 8px;
+  gap: 2px;
 }
 
-/* The whole row is the target, not the box inside it. */
-.goen-filters__option {
-  align-items: center;
-  border-radius: var(--r-md);
-  cursor: pointer;
-  display: flex;
-  font-size: var(--fs-14);
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 8px;
-  transition: background-color var(--dur-base) var(--ease-standard);
-}
-
-.goen-filters__option:hover {
-  background: var(--sys-surface-container);
-}
-
-.goen-filters__label {
-  flex: 1;
-  min-width: 0;
-}
-
-.goen-filters__count {
-  color: var(--sys-on-surface-variant);
-  font-size: var(--fs-12);
-  font-variant-numeric: tabular-nums;
-}
-
-/* How many of a group's options are on. Empty when none, and then not drawn;
-   the element stays so a swap has somewhere to put the number. */
-.goen-filters__selected {
-  align-items: center;
-  background: var(--primary-faint);
-  border-radius: var(--r-full);
-  color: var(--primary-deep);
-  display: inline-flex;
-  font-size: var(--fs-12);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-medium);
-  justify-content: center;
-  line-height: 1;
-  min-height: 1.25rem;
-  min-width: 1.25rem;
-  padding: 0 0.375rem;
-}
-
-.goen-filters__selected:empty {
-  display: none;
-}
-
-.goen-filters__prices {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.goen-filters__dash {
-  color: var(--sys-on-surface-variant);
+.goen-filters__option input {
+  accent-color: var(--fill-ink);
   flex: none;
+  height: 1rem;
+  margin: 0;
+  width: 1rem;
 }
 
-.goen-filters__field {
-  align-items: center;
-  display: flex;
-  gap: 4px;
-}
-
-.goen-filters__field > .goen-label {
-  color: var(--sys-on-surface-variant);
-  font-weight: var(--fw-regular);
-}
-
-/* The price pair and the sort control keep the shared names: the shell probe
-   at `check-layout.mjs:668` decides the desktop rail rendered at all by finding
-   one of them, and the tap sweep at `:805` measures them. */
-.goen-filters .ui-input {
-  background: var(--sys-surface);
-  border: 0;
-  border-radius: var(--r-field);
-  box-sizing: border-box;
-  color: var(--sys-on-surface);
-  font-family: inherit;
-  font-size: var(--fs-16);
-  outline: 1px solid var(--field-edge);
-  outline-offset: -1px;
-  min-height: 44px;
-  min-width: 0;
-  padding: 0 12px;
-  width: 100%;
-}
-
-/* The sort is words and an arrow, not a box. The arrow is its cue (1.4.11,
-   5.70:1 on white) and the target stays 44px tall. */
-.goen-filters .ui-select,
-.goen-search-sort .ui-select {
-  appearance: none;
-  background: transparent var(--chevron-scheme) no-repeat right 0.25rem center / 1.15em;
-  border: 1px solid transparent;
-  border-radius: var(--r-field);
-  color: var(--sys-on-surface);
-  cursor: pointer;
-  field-sizing: content;
-  font-family: inherit;
-  font-size: var(--fs-16);
+.goen-filters__option:has(input:checked) {
+  color: var(--text-strong);
   font-weight: var(--fw-medium);
-  min-height: 44px;
-  min-width: 0;
-  outline: 0;
-  padding: 0 1.75em 0 0.25rem;
-  width: auto;
 }
 
-@media (min-width: 640px) {
-  .goen-filters .ui-select,
-  .goen-search-sort .ui-select {
-    font-size: var(--fs-14);
-  }
-}
-
-.goen-filters__end .goen-filters__apply {
-  width: auto;
-}
-
-.goen-filters__sort {
-  display: contents;
-}
-
-.goen-filters__sort:empty,
-.goen-listing__count:empty {
-  display: none;
-}
-
-/* The search's one control sits above the grid, on the right where a phone and
-   a desktop both find it. */
-.goen-search-sort {
-  align-items: center;
-  border-bottom: 1px solid var(--rule-line);
+.goen-facets__foot {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0 12px;
-  justify-content: flex-end;
-  margin-bottom: 16px;
+  flex-direction: column;
+  gap: var(--s-3);
 }
 
-.goen-search-sort .goen-listing__count {
-  align-items: center;
-  display: flex;
-  margin-inline-end: auto;
-  min-height: 44px;
-  order: -1;
-}
 
-.goen-search-sort .goen-filters__field > label {
-  flex: none;
-  white-space: nowrap;
-}
-
-.goen-search-sort .goen-filters__apply {
-  margin-top: 0;
-}
-
-.goen-listing__subhead {
-  font: var(--type-headline-m);
-  margin: 0 0 var(--s-4);
-}
-
-/* Where scripting is on, a changed filter or sort applies itself, so the button
-   goes. Hidden when the sheet is told scripting is on, so a browser that has
-   never heard of the query keeps the button that always works. */
-@media (scripting: enabled) {
-  .goen-filters__apply {
-    display: none;
-  }
-}
-
-/* Present even when nothing is filtered so a swap can fill or clear it; an
-   empty one must not add a flex gap. */
-#filters-applied:empty {
+/* The close button and the drawer's last button are the drawer's. */
+.goen-facets .goen-facets__close,
+.goen-facets .goen-facets__done {
   display: none;
 }
 
@@ -4061,11 +4062,336 @@ input.goen-check {
   margin: 0;
 }
 
+/* The update's feedback takes no room of its own: hidden, its note is not
+   drawn and its status is read, not shown, so the column or the drawer's foot
+   gains no gap until there is something to say. */
+.goen-shelf__feedback {
+  display: contents;
+}
+
+/* The drawer: a modal <dialog> from the left edge, as the menu is, holding
+   the same panel; its head and its last button stay put while its choices
+   scroll between them. */
+.goen-facets__drawer {
+  background: var(--sys-surface);
+  border: 0;
+  border-right: 1px solid var(--hairline);
+  box-shadow: var(--sh-xl);
+  box-sizing: border-box;
+  color: var(--text-strong);
+  height: 100dvh;
+  inset: 0 auto 0 0;
+  margin: 0;
+  max-height: none;
+  max-width: none;
+  overflow: hidden;
+  padding: 0;
+  width: min(24rem, 90vw);
+}
+
+.goen-facets__drawer::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.goen-facets__drawer .goen-facets__panel {
+  background: var(--sys-surface);
+  border: 0;
+  border-radius: 0;
+  height: 100%;
+  padding: 0;
+}
+
+.goen-facets__drawer .goen-facets__head {
+  border-bottom: 1px solid var(--hairline);
+  padding: 0.5rem 0.75rem 0.5rem 1rem;
+}
+
+.goen-facets__drawer .goen-facets__body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 1rem 1rem;
+}
+
+.goen-facets__drawer .goen-facets__foot {
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  padding: 0.75rem 1rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-facets__drawer,
+  .goen-facets__drawer::backdrop {
+    transition-behavior: allow-discrete;
+    transition-duration: var(--dur-move);
+    transition-timing-function: var(--ease-move);
+  }
+
+  .goen-facets__drawer {
+    transition-property: translate, display, overlay;
+    translate: -100% 0;
+  }
+
+  .goen-facets__drawer::backdrop {
+    opacity: 0;
+    transition-property: opacity, display, overlay;
+  }
+
+  .goen-facets__drawer[open] {
+    translate: 0 0;
+  }
+
+  .goen-facets__drawer[open]::backdrop {
+    opacity: 1;
+  }
+
+  @starting-style {
+    .goen-facets__drawer[open] {
+      translate: -100% 0;
+    }
+
+    .goen-facets__drawer[open]::backdrop {
+      opacity: 0;
+    }
+  }
+}
+
+.goen-listing__main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  grid-area: main;
+  min-width: 0;
+}
+
+.goen-listing__results {
+  container: shelfmain / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+/* The cards stand two to a row while two of 6.5rem fit, as the grid's own
+   rule has them, and three where the results' column has the room, whatever
+   the window: beside the filters a card that counted the window would be too
+   narrow to read. */
+.goen-shelf .goen-tiles__grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
+}
+
+@container shelfmain (min-width: 38rem) {
+  .goen-shelf .goen-tiles__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The list: a row a product, its photograph, its name, the specifications it
+   lists first as capsules, whether it can be bought and its price. The rows
+   share the list's columns, so a column of capsules or prices starts at one
+   place down the page. Narrow, the capsules and the price go under the name. */
+.goen-speclist {
+  border: 1px solid var(--hairline);
+  border-radius: var(--shape-md);
+  column-gap: var(--s-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  list-style: none;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.goen-specrow {
+  align-items: center;
+  background: var(--sys-surface);
+  border-bottom: 1px solid var(--hairline);
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-areas:
+    "link link"
+    "specs specs"
+    "stock buy";
+  grid-template-columns: subgrid;
+  padding: 0.85rem 1rem;
+  row-gap: var(--s-3);
+}
+
+.goen-specrow:last-child {
+  border-bottom: 0;
+}
+
+.goen-specrow__link {
+  align-items: center;
+  color: var(--text-strong);
+  display: flex;
+  gap: var(--s-4);
+  grid-area: link;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.goen-specrow__link:hover .goen-specrow__name {
+  text-decoration: underline 1px;
+  text-underline-offset: 3px;
+}
+
+.goen-specrow__media {
+  aspect-ratio: 4 / 3;
+  background: var(--photo-plate);
+  border-radius: var(--shape-xs);
+  flex: none;
+  overflow: hidden;
+  padding: 0.3rem;
+  width: 5rem;
+}
+
+.goen-specrow__img {
+  display: block;
+  height: 100%;
+  mix-blend-mode: multiply;
+  object-fit: contain;
+  width: 100%;
+}
+
+.goen-specrow__id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.goen-specrow__brand {
+  color: var(--text-faint);
+  font: var(--fw-regular) 0.75rem/1.4 var(--font-data);
+}
+
+.goen-specrow__name {
+  font: var(--fw-medium) 0.9375rem/1.35 var(--font-sans);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.goen-specrow__specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  grid-area: specs;
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.goen-specrow__spec {
+  background: var(--shelf);
+  border-radius: var(--shape-xs);
+  color: var(--text-soft);
+  font: var(--fw-regular) 0.6875rem/1.5 var(--font-data);
+  overflow-wrap: anywhere;
+  padding: 0.14rem 0.45rem;
+}
+
+.goen-specrow__stock {
+  color: var(--text-soft);
+  font: var(--fw-regular) 0.78rem/1.4 var(--font-data);
+  grid-area: stock;
+  margin: 0;
+}
+
+.goen-specrow__stock--out {
+  color: var(--sys-tertiary);
+}
+
+.goen-specrow__buy {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  grid-area: buy;
+  justify-content: flex-end;
+}
+
+.goen-specrow__compare {
+  align-items: center;
+  color: var(--text-soft);
+  cursor: pointer;
+  display: inline-flex;
+  font: var(--type-label-m);
+  gap: var(--s-2);
+  min-height: 2.75rem;
+}
+
+@container shelfmain (min-width: 44rem) {
+  .goen-speclist {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.7fr) max-content max-content;
+  }
+
+  .goen-specrow {
+    grid-template-areas: "link specs stock buy";
+  }
+
+  .goen-specrow__media {
+    width: 5.5rem;
+  }
+}
+
+/* A chosen department, view or row keeps its mark where colours are forced
+   and its fill is dropped. */
+@media (forced-colors: active) {
+  .goen-facets__link[aria-current],
+  .goen-viewswitch__link[aria-current="true"] {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
+
+  .goen-specrow__spec {
+    border: 1px solid CanvasText;
+  }
+}
+
+/* Present even when nothing is filtered so a swap can fill or clear it; an
+   empty one must not add a flex gap. */
+#filters-applied:empty {
+  display: none;
+}
+
 /* The results region takes focus when a filtered page loads, so the next Tab
    starts at the products. It is not a control and must not draw a ring. */
 #listing-results:focus,
 #listing-results:focus-visible {
   outline: none;
+}
+
+/* From 56rem the filters stand beside the results, sticky under the bar while
+   the results scroll; a panel taller than the window scrolls on its own. The
+   drawer's button goes, since nothing is folded away. */
+@container shelf (min-width: 56rem) {
+  .goen-shelf__grid {
+    grid-template-areas: "side head" "side main";
+    grid-template-columns: clamp(14rem, 22cqi, 16.5rem) minmax(0, 1fr);
+  }
+
+  .goen-facets {
+    align-self: start;
+    display: block;
+    position: sticky;
+    top: 5.25rem;
+  }
+
+  .goen-facets .goen-facets__panel {
+    max-height: calc(100dvh - 6.5rem);
+  }
+
+  .goen-facets .goen-facets__body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .goen-shelf__filter,
+  .goen-subindex {
+    display: none;
+  }
 }
 
 .goen-filters__applied {
@@ -4418,192 +4744,6 @@ input.goen-check {
   color: var(--tone-muted);
 }
 
-.goen-deptnotice {
-  margin: 0;
-}
-
-/* The whole line is the link, read as words: the campaign's name and the arrow
-   take the tone's link colour, the rest the tone's text. */
-.goen-deptnotice__name {
-  color: var(--tone-text);
-  font-size: var(--fs-14);
-  text-decoration: none;
-}
-
-.goen-deptnotice__name b {
-  color: var(--tone-mark);
-  font-weight: var(--fw-medium);
-}
-
-.goen-deptnotice__name:hover b {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.goen-deptnotice__eyebrow {
-  color: var(--tone-muted);
-  font-size: var(--fs-12);
-  margin-inline-end: var(--s-2);
-}
-
-.goen-deptnotice .goen-ends__until {
-  color: var(--tone-muted);
-}
-
-.goen-deptnotice__name > [aria-hidden="true"] {
-  color: var(--tone-muted);
-  margin-inline: 0.25em;
-}
-
-.goen-deptnotice .goen-ends__left > [aria-hidden] {
-  color: var(--tone-mark);
-}
-
-.goen-deptcompare__head {
-  align-items: baseline;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px var(--s-4);
-  margin-bottom: var(--s-4);
-}
-
-.goen-deptcompare__title {
-  font: var(--type-headline-m);
-  margin: 0;
-}
-
-.goen-deptcompare__meta {
-  color: var(--sys-on-surface-variant);
-  font-size: var(--fs-14);
-  margin: 0;
-}
-
-/* The section's one next step: blue with its arrow, underlined only under the
-   pointer. */
-.goen-deptcompare__more {
-  align-items: center;
-  color: var(--sys-primary);
-  display: inline-flex;
-  font: var(--type-label-l);
-  margin-left: auto;
-  min-height: 2.75rem;
-  text-decoration: none;
-}
-
-.goen-deptcompare__more:hover {
-  color: var(--primary-deep);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
-.goen-story {
-  align-items: center;
-  display: grid;
-  gap: var(--s-6);
-}
-
-.goen-story__eyebrow {
-  color: var(--sys-on-surface-variant);
-  font-size: var(--fs-13);
-  margin: 0;
-}
-
-.goen-story__title {
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-medium);
-  line-height: 1.3;
-  margin: var(--s-2) 0 0;
-  text-wrap: balance;
-}
-
-:lang(zh) .goen-story__title {
-  font-family: var(--font-display);
-}
-
-.goen-story__deck {
-  color: var(--sys-on-surface-variant);
-  line-height: 1.75;
-  margin: var(--s-3) 0 0;
-  max-width: 26em;
-}
-
-.goen-story__buy {
-  margin: var(--s-4) 0 0;
-}
-
-.goen-story__link {
-  color: var(--sys-primary);
-  display: inline-block;
-  font-weight: var(--fw-medium);
-  margin-top: var(--s-4);
-  text-decoration: none;
-  text-underline-offset: 3px;
-}
-
-.goen-story__plates {
-  display: grid;
-  gap: var(--s-4);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.goen-story__plate {
-  margin: 0;
-  min-width: 0;
-}
-
-.goen-story__well {
-  aspect-ratio: 4 / 3;
-  background: var(--well);
-  border-radius: 0;
-  overflow: hidden;
-}
-
-.goen-story__well img {
-  display: block;
-  height: 100%;
-  object-fit: contain;
-  width: 100%;
-}
-
-.goen-story__plate figcaption {
-  align-items: center;
-  display: flex;
-  font-size: var(--fs-14);
-  gap: var(--s-2);
-  padding-top: var(--s-2);
-}
-
-.goen-story__swatch circle {
-  stroke: var(--swatch-edge);
-  stroke-width: 1;
-}
-
-@media (forced-colors: active) {
-  .goen-story__swatch circle {
-    stroke: CanvasText;
-  }
-}
-
-@media (min-width: 1024px) {
-  .goen-story {
-    gap: clamp(32px, 5vw, 88px);
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  }
-
-  .goen-story__title {
-    font-size: var(--fs-ed-30);
-  }
-}
-
-/* The first product stays in the first viewport at 375px (check-layout.mjs:1126), so the
-   editorial gives way below the prototype's stack breakpoint. */
-@media (max-width: 900px) {
-  .goen-deptcompare,
-  .goen-story {
-    display: none;
-  }
-}
-
 /* Where products are put side by side, a card says what it is under its name. */
 .goen-tile__specs {
   color: var(--sys-on-surface-variant);
@@ -4765,76 +4905,6 @@ input.goen-check {
   .goen-compare {
     gap: 32px;
     padding: 32px var(--page-gutter) 56px;
-  }
-
-  /* The filters are a toolbar above the grid: a word for each facet, each a
-     disclosure whose panel hangs under it, and the sort at the far end. The
-     shell's summary is for a phone, so the rules that open the shell are
-     guarded: where ::details-content does not exist the toolbar stays behind
-     its summary, which works. */
-  .goen-filters__shell {
-    grid-column: 1;
-  }
-
-  @supports selector(details::details-content) {
-    .goen-filters__shell-summary {
-      display: none;
-    }
-
-    .goen-filters__shell::details-content {
-      content-visibility: visible;
-    }
-
-    .goen-filters__shell:not([open]) > .goen-filters__menus {
-      display: flex;
-    }
-  }
-
-  .goen-filters {
-    align-items: center;
-    gap: 8px 24px;
-  }
-
-  .goen-filters__menus {
-    align-items: center;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 8px var(--s-6);
-    padding: 0;
-  }
-
-  .goen-filters__group {
-    border: 0;
-    padding: 0;
-    position: relative;
-  }
-
-  .goen-filters__summary {
-    gap: 6px;
-    padding: 0 4px 0 0;
-  }
-
-  .goen-filters__summary::after {
-    margin-inline-start: 0;
-  }
-
-  .goen-filters__options,
-  .goen-filters__prices {
-    background: var(--sys-surface);
-    border: 1px solid var(--rule);
-    border-radius: 16px;
-    box-shadow: 0 16px 32px -16px rgb(0 0 0 / 0.2);
-    left: 0;
-    margin: 0;
-    min-width: 15rem;
-    padding: 12px;
-    position: absolute;
-    top: calc(100% + 0.75rem);
-    z-index: 4;
-  }
-
-  .goen-filters__options .goen-filters__option {
-    border-radius: 4px;
   }
 
 }
@@ -6470,7 +6540,7 @@ input.goen-check {
 /* On a phone the head's first row of products still starts inside the first
    screen. A crumb whose only step is home repeats the logo. */
 @media (max-width: 47.99rem) {
-  .goen-listing__head .ui-crumbs:not(:has(.ui-crumbs__link ~ .ui-crumbs__link)) {
+  .goen-shelf__head .ui-crumbs:not(:has(.ui-crumbs__link ~ .ui-crumbs__link)) {
     display: none;
   }
 

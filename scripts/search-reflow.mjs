@@ -28,7 +28,7 @@ export async function checkSearchReflow({ origin, send, evaluate, navigate }) {
           const got = await evaluate(`(() => {
             const title = document.querySelector('h1.goen-pagehead__title');
             const empty = document.querySelector('p.goen-search__lead');
-            const found = !!document.getElementById('search-results');
+            const found = !!document.getElementById('listing-results');
             const rendered = [title, empty].every((element) => element
               && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0
               && getComputedStyle(element).visibility === 'visible');

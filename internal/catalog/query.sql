@@ -49,15 +49,6 @@ LEFT JOIN LATERAL (
 LEFT JOIN media_objects m ON m.digest = photo.media_digest
 WHERE self.depth = 0;
 
--- The direct children of the category with slug $1, in shelf order: the chips
--- under a department's title.
--- name: CategoryChildren :many
-SELECT c.slug, localized_name(c.name, c.name_en, @locale::text) AS name
-FROM categories c
-JOIN categories p ON p.id = c.parent_id
-WHERE p.slug = $1
-ORDER BY c.position, c.name, c.id;
-
 -- Every category in the subtree rooted at $1, including $1 itself.
 -- name: CategoryDescendants :many
 WITH RECURSIVE d AS (
@@ -70,12 +61,17 @@ SELECT d.id FROM d;
 -- Every brand with an active product in the category, counted over the products
 -- the other filters leave: a brand's count is what choosing it would show, brand
 -- filters aside. A brand the other filters empty stays listed at zero, so a
--- chosen one can always be unchosen.
+-- chosen one can always be unchosen. @product_ids, when not empty, narrows the
+-- shelf to those products (a search's matches).
 -- name: CategoryBrands :many
 SELECT b.id, b.slug, b.name,
        (count(*) FILTER (
            WHERE NOT @filter_variants::boolean
-              OR EXISTS (
+              OR ((NOT @on_sale_only::boolean OR EXISTS (
+                  SELECT 1 FROM sale_campaign_products fp
+                  JOIN listed_campaigns l ON l.id = fp.campaign_id
+                  WHERE fp.product_id = p.id
+              )) AND EXISTS (
                   SELECT 1 FROM product_variants v
                   WHERE v.product_id = p.id AND v.is_active
             AND NOT EXISTS (
@@ -92,14 +88,16 @@ SELECT b.id, b.slug, b.name,
               )
           )
                     AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
+                    AND (NOT @on_sale_only::boolean OR (v.stock_quantity > v.safety_stock AND v.compare_at_price_cents > v.price_cents))
                     AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
                     AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
-              )
+              ))
        ))::bigint AS product_count
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
   AND p.category_id = ANY(@category_ids::uuid[])
+  AND (coalesce(cardinality(@product_ids::uuid[]), 0) = 0 OR p.id = ANY(@product_ids::uuid[]))
 GROUP BY b.id, b.slug, b.name
 ORDER BY b.name;
 
@@ -133,6 +131,7 @@ SELECT
               )
           )
           AND (NOT @in_stock_only::boolean OR dv.stock_quantity > dv.safety_stock)
+          AND (NOT @on_sale_only::boolean OR (dv.stock_quantity > dv.safety_stock AND dv.compare_at_price_cents > dv.price_cents))
           AND (@max_price::bigint = 0 OR dv.price_cents <= @max_price::bigint)
     ) AS price_varies,
     mv.compare_at_price_cents,
@@ -269,6 +268,7 @@ JOIN LATERAL (
       -- The card shows a variant the filters accepted, or it states a price the
       -- shopper excluded; these are the predicates of the EXISTS below.
       AND (NOT @in_stock_only::boolean OR stock_quantity > safety_stock)
+      AND (NOT @on_sale_only::boolean OR (stock_quantity > safety_stock AND compare_at_price_cents > price_cents))
       AND (@min_price::bigint = 0 OR price_cents >= @min_price::bigint)
       AND (@max_price::bigint = 0 OR price_cents <= @max_price::bigint)
     -- A buyable variant first: the price on a card is a promise.
@@ -285,7 +285,16 @@ LEFT JOIN LATERAL (
 ) img ON true
 WHERE p.status = 'active'
   AND p.category_id = ANY(@category_ids::uuid[])
+  AND (coalesce(cardinality(@product_ids::uuid[]), 0) = 0 OR p.id = ANY(@product_ids::uuid[]))
   AND (@brand_ids::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY(@brand_ids::uuid[]))
+  -- On sale is campaign.OnSale's question asked of the card's own variant: a
+  -- listed campaign features the product, and the variant chosen above, which
+  -- the same predicate restricts, is in stock below its compare-at price.
+  AND (NOT @on_sale_only::boolean OR EXISTS (
+      SELECT 1 FROM sale_campaign_products fp
+      JOIN listed_campaigns l ON l.id = fp.campaign_id
+      WHERE fp.product_id = p.id
+  ))
   -- One variant satisfies every variant-level filter at once.
   AND (
       NOT @filter_variants::boolean
@@ -306,6 +315,7 @@ WHERE p.status = 'active'
               )
           )
             AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
+            AND (NOT @on_sale_only::boolean OR (v.stock_quantity > v.safety_stock AND v.compare_at_price_cents > v.price_cents))
             AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
             AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
       )
@@ -314,6 +324,10 @@ ORDER BY
     CASE WHEN @sort::text = 'price_asc'  THEN mv.price_cents END ASC,
     CASE WHEN @sort::text = 'price_desc' THEN mv.price_cents END DESC,
     CASE WHEN @sort::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
+    -- A search passes its matches best first, and their order breaks a chosen
+    -- sort's ties and is the order when none is chosen; with no matches given it
+    -- is NULL for every row and newest first decides.
+    array_position(@product_ids::uuid[], p.id),
     p.published_at DESC, p.id DESC
 LIMIT @page_size::integer OFFSET @page_offset::integer;
 
@@ -323,7 +337,13 @@ SELECT count(*)::bigint
 FROM products p
 WHERE p.status = 'active'
   AND p.category_id = ANY(@category_ids::uuid[])
+  AND (coalesce(cardinality(@product_ids::uuid[]), 0) = 0 OR p.id = ANY(@product_ids::uuid[]))
   AND (@brand_ids::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY(@brand_ids::uuid[]))
+  AND (NOT @on_sale_only::boolean OR EXISTS (
+      SELECT 1 FROM sale_campaign_products fp
+      JOIN listed_campaigns l ON l.id = fp.campaign_id
+      WHERE fp.product_id = p.id
+  ))
   AND (
       NOT @filter_variants::boolean
       OR EXISTS (
@@ -343,6 +363,7 @@ WHERE p.status = 'active'
               )
           )
             AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
+            AND (NOT @on_sale_only::boolean OR (v.stock_quantity > v.safety_stock AND v.compare_at_price_cents > v.price_cents))
             AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
             AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
       )
@@ -568,6 +589,93 @@ ORDER BY
     END DESC,
     p.published_at DESC, p.id DESC
 LIMIT @page_size::integer OFFSET @page_offset::integer;
+
+-- Every product SearchProducts finds, best first, as ids: the search page narrows
+-- and counts them with the listing's own queries. The predicate and the relevance
+-- tiers are SearchProducts', and have to stay so (search_matches_integration_test.go).
+-- @row_limit bounds the array the listing queries are handed.
+-- name: SearchMatches :many
+WITH RECURSIVE category_match AS (
+    SELECT t.pattern, c.id
+    FROM unnest(@patterns::text[]) AS t(pattern)
+    JOIN categories c ON c.name ILIKE t.pattern OR coalesce(c.name_en, '') ILIKE t.pattern
+    UNION
+    SELECT m.pattern, c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
+SELECT p.id
+FROM products p
+LEFT JOIN brands b ON b.id = p.brand_id
+WHERE p.status = 'active'
+  -- Both names: matching only the localized column would make the catalogue
+  -- searchable in one language at a time. Every term must match some field, and
+  -- a term may match a different field from its neighbour: "aurora 65w" is a
+  -- brand and a spec.
+  AND NOT EXISTS (
+      SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
+      WHERE NOT (
+          p.name ILIKE t.pattern
+          OR coalesce(p.name_en, '') ILIKE t.pattern
+          OR coalesce(p.summary, '') ILIKE t.pattern
+          OR coalesce(p.summary_en, '') ILIKE t.pattern
+          OR coalesce(b.name, '') ILIKE t.pattern
+          OR EXISTS (
+              SELECT 1 FROM category_match m
+              WHERE m.pattern = t.pattern AND m.id = p.category_id
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_variants sku_match
+              WHERE sku_match.product_id = p.id AND sku_match.is_active
+                AND sku_match.sku ILIKE t.pattern
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_specs ps
+              WHERE ps.product_id = p.id
+                AND (ps.label ILIKE t.pattern
+                     OR coalesce(ps.label_en, '') ILIKE t.pattern
+                     OR ps.value ILIKE t.pattern
+                     OR coalesce(ps.value_en, '') ILIKE t.pattern)
+          )
+      )
+  )
+ORDER BY
+    -- Field relevance is explicit; repeated words, sales and ratings do not change it.
+    -- The exact tiers compare the whole query; a name that holds the whole query
+    -- leads one that holds every term in another order, which leads one that
+    -- holds only some, then category, SKU, brand and summary follow on any term.
+    CASE
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants exact_sku
+            WHERE exact_sku.product_id = p.id AND exact_sku.is_active
+              AND exact_sku.sku ILIKE @exact_pattern::text
+        ) THEN 9
+        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 8
+        WHEN p.name ILIKE '%' || @exact_pattern::text || '%'
+             OR coalesce(p.name_en, '') ILIKE '%' || @exact_pattern::text || '%' THEN 7
+        WHEN NOT EXISTS (
+            SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
+            WHERE NOT (p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern)
+        ) THEN 6
+        WHEN EXISTS (
+            SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
+            WHERE p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern
+        ) THEN 5
+        WHEN EXISTS (SELECT 1 FROM category_match m WHERE m.id = p.category_id) THEN 4
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants partial_sku, unnest(@patterns::text[]) AS t(pattern)
+            WHERE partial_sku.product_id = p.id AND partial_sku.is_active
+              AND partial_sku.sku ILIKE t.pattern
+        ) THEN 3
+        WHEN EXISTS (
+            SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern) WHERE coalesce(b.name, '') ILIKE t.pattern
+        ) THEN 2
+        WHEN EXISTS (
+            SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
+            WHERE coalesce(p.summary, '') ILIKE t.pattern OR coalesce(p.summary_en, '') ILIKE t.pattern
+        ) THEN 1
+        ELSE 0
+    END DESC,
+    p.published_at DESC, p.id DESC
+LIMIT @row_limit::integer;
 
 -- The newest active products with a buyable price, for a page with nothing else to show.
 -- name: NewestProducts :many
@@ -925,12 +1033,18 @@ SELECT axis.name AS option_name,
        min(localized_name(axis_value.value, axis_value.value_en, @locale::text))::text AS value_label,
        (count(DISTINCT p.id) FILTER (WHERE
           (@brand_ids::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY(@brand_ids::uuid[]))
+          AND (NOT @on_sale_only::boolean OR EXISTS (
+              SELECT 1 FROM sale_campaign_products fp
+              JOIN listed_campaigns l ON l.id = fp.campaign_id
+              WHERE fp.product_id = p.id
+          ))
           AND EXISTS (
              SELECT 1 FROM product_variants candidate
              JOIN variant_option_values carried ON carried.variant_id = candidate.id
              WHERE candidate.product_id = p.id AND candidate.is_active
                AND carried.option_id = axis.id AND carried.option_value_id = axis_value.id
                AND (NOT @in_stock_only::boolean OR candidate.stock_quantity > candidate.safety_stock)
+               AND (NOT @on_sale_only::boolean OR (candidate.stock_quantity > candidate.safety_stock AND candidate.compare_at_price_cents > candidate.price_cents))
                AND (@min_price::bigint = 0 OR candidate.price_cents >= @min_price::bigint)
                AND (@max_price::bigint = 0 OR candidate.price_cents <= @max_price::bigint)
                AND NOT EXISTS (
@@ -952,112 +1066,95 @@ FROM products p
 JOIN product_options axis ON axis.product_id = p.id
 JOIN product_option_values axis_value ON axis_value.option_id = axis.id
 WHERE p.status = 'active' AND p.category_id = ANY(@category_ids::uuid[])
+  AND (coalesce(cardinality(@product_ids::uuid[]), 0) = 0 OR p.id = ANY(@product_ids::uuid[]))
 GROUP BY axis.name, axis_value.value
 ORDER BY min(axis.position), axis.name, min(axis_value.position), axis_value.value;
 
--- Of the campaigns with a deal on a product of the department, the one that ends
--- first.
--- name: DepartmentCampaign :one
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = @slug::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
-)
-SELECT c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
-       c.starts_at, c.ends_at
-FROM sale_campaigns c
-WHERE EXISTS (
-    SELECT 1 FROM campaign_deals cd
-    JOIN products p ON p.id = cd.product_id
-    WHERE cd.campaign_id = c.id AND p.category_id IN (SELECT id FROM d))
-ORDER BY c.ends_at, c.id
-LIMIT 1;
+-- How many products each price band would list, every other filter applied: a
+-- band's count is what choosing it would show. A band is [@band_mins[i],
+-- @band_maxes[i]] in minor units, 0 for no bound; the rows come back in the
+-- bands' order, one for each, zero included.
+-- name: CategoryPriceBands :many
+SELECT band.position::integer AS position, count(p.id)::bigint AS product_count
+FROM unnest(@band_mins::bigint[]) WITH ORDINALITY AS band(min_price, position)
+LEFT JOIN products p ON p.status = 'active'
+  AND p.category_id = ANY(@category_ids::uuid[])
+  AND (coalesce(cardinality(@product_ids::uuid[]), 0) = 0 OR p.id = ANY(@product_ids::uuid[]))
+  AND (@brand_ids::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY(@brand_ids::uuid[]))
+  AND (NOT @on_sale_only::boolean OR EXISTS (
+      SELECT 1 FROM sale_campaign_products fp
+      JOIN listed_campaigns l ON l.id = fp.campaign_id
+      WHERE fp.product_id = p.id
+  ))
+  AND EXISTS (
+      SELECT 1 FROM product_variants v
+      WHERE v.product_id = p.id AND v.is_active
+        AND NOT EXISTS (
+          SELECT 1 FROM unnest(@option_names::text[]) AS chosen(name)
+          WHERE NOT EXISTS (
+              SELECT 1 FROM variant_option_values carried
+              JOIN product_options axis ON axis.id = carried.option_id
+              JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+              WHERE carried.variant_id = v.id
+                AND axis.name = chosen.name AND EXISTS (
+                  SELECT 1 FROM unnest(@option_names::text[]) WITH ORDINALITY chosen_value(name, position)
+                  WHERE chosen_value.name = chosen.name AND (@option_values::text[])[chosen_value.position] = axis_value.value
+                )
+          )
+        )
+        AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
+        AND (NOT @on_sale_only::boolean OR (v.stock_quantity > v.safety_stock AND v.compare_at_price_cents > v.price_cents))
+        AND (band.min_price = 0 OR v.price_cents >= band.min_price)
+        AND ((@band_maxes::bigint[])[band.position] = 0 OR v.price_cents <= (@band_maxes::bigint[])[band.position])
+  )
+GROUP BY band.position
+ORDER BY band.position;
 
--- Per category of the department that holds at least two products that can be bought, its three
--- newest. A category is a candidate for the comparison; whether it may be compared
--- is the caller's to say.
--- name: DepartmentCompareCandidates :many
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = @slug::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+-- The departments, and the sub-categories of the department with slug
+-- @department, each with how many active products its subtree holds: the
+-- catalogue's tree beside a shelf. @product_ids, when not empty, counts only
+-- those (a search's matches). Departments first, each list in shelf order.
+-- name: DepartmentTree :many
+WITH RECURSIVE shown AS (
+    SELECT c.id, c.parent_id, c.slug, c.position,
+           localized_name(c.name, c.name_en, @locale::text) AS name
+    FROM categories c
+    LEFT JOIN categories parent ON parent.id = c.parent_id
+    WHERE c.parent_id IS NULL OR parent.slug = @department::text
 ),
-held AS (
-    SELECT p.category_id, p.slug,
-           row_number() OVER (PARTITION BY p.category_id ORDER BY p.published_at DESC, p.id DESC) AS nth,
-           count(*) OVER (PARTITION BY p.category_id) AS held
-    FROM products p
-    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
-      AND EXISTS (
-          SELECT 1 FROM product_variants v
-          WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
+tree AS (
+    SELECT s.id AS top, s.id FROM shown s
+    UNION ALL
+    SELECT t.top, k.id FROM categories k JOIN tree t ON k.parent_id = t.id
 )
-SELECT category_id, slug FROM held
-WHERE held >= 2 AND nth <= 3
-ORDER BY held DESC, category_id, nth;
+SELECT s.slug, s.name, (s.parent_id IS NULL)::boolean AS department,
+       count(p.id)::bigint AS product_count
+FROM shown s
+JOIN tree t ON t.top = s.id
+LEFT JOIN products p ON p.category_id = t.id AND p.status = 'active'
+  AND (coalesce(cardinality(@product_ids::uuid[]), 0) = 0 OR p.id = ANY(@product_ids::uuid[]))
+GROUP BY s.id, s.parent_id, s.slug, s.name, s.position
+ORDER BY (s.parent_id IS NOT NULL), s.position, s.name, s.id;
 
--- The newest product of the department with three or more colours that each have a
--- photograph, and those colours with the first photograph of each, in the order the
--- product lists them. A swatch marks a colour: the schema leaves it NULL on a value
--- that is not one.
--- name: DepartmentColourStory :many
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = @slug::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
-),
-story AS (
-    SELECT p.id
-    FROM products p
-    JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
-    JOIN product_images i ON i.product_id = p.id AND i.option_value_id = v.id
-    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
-      AND EXISTS (
-          SELECT 1 FROM product_variants sv
-          WHERE sv.product_id = p.id AND sv.is_active AND sv.stock_quantity > sv.safety_stock)
-    GROUP BY p.id
-    HAVING count(DISTINCT v.id) >= 3
-    ORDER BY p.published_at DESC, p.id DESC
-    LIMIT 1
-)
-SELECT
-    p.slug,
-    localized_name(p.name, p.name_en, @locale::text) AS name,
-    coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
-    coalesce(b.name, '') AS brand,
-    mv.price_cents AS price_cents,
-    EXISTS (
-        SELECT 1 FROM product_variants dv
-        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-    ) AS price_varies,
-    mv.compare_at_price_cents,
-    EXISTS (
-        SELECT 1 FROM sale_campaign_products fp
-        JOIN listed_campaigns l ON l.id = fp.campaign_id
-        WHERE fp.product_id = p.id
-    ) AS in_campaign,
-    localized_name(v.value, v.value_en, @locale::text) AS colour,
-    v.swatch_hex::text AS swatch,
-    coalesce(img.media_digest, '')::text AS image_digest,
-    coalesce(img.bundled_key, '')::text AS image_bundled_key,
-    coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
-    coalesce(img.width, 0)::integer AS image_width
-FROM story s
-JOIN products p ON p.id = s.id
-LEFT JOIN brands b ON b.id = p.brand_id
-JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents
-    FROM product_variants
-    WHERE product_id = p.id AND is_active
-    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
-    LIMIT 1
-) mv ON true
-JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
-JOIN LATERAL (
-    SELECT media_digest, bundled_key, alt_text, alt_text_en, width
-    FROM product_images WHERE product_id = p.id AND option_value_id = v.id ORDER BY position LIMIT 1
-) img ON true
-ORDER BY v.position, v.id;
+-- Every category: the whole catalogue's scope, for the shelf of every product
+-- and a search.
+-- name: AllCategoryIDs :many
+SELECT id FROM categories;
+
+-- The first four specifications each product lists, for its row in the
+-- specification list.
+-- name: ListingSpecs :many
+SELECT slug, label, value FROM (
+    SELECT p.slug,
+           localized_name(s.label, s.label_en, @locale::text) AS label,
+           localized_name(s.value, s.value_en, @locale::text) AS value,
+           row_number() OVER (PARTITION BY s.product_id ORDER BY s.position, s.id) AS nth
+    FROM product_specs s
+    JOIN products p ON p.id = s.product_id
+    WHERE p.slug = ANY(@slugs::text[])
+) ranked
+WHERE nth <= 4
+ORDER BY slug, nth;
 
 -- The first two specifications each product lists, for the line under its name on a
 -- department whose products are compared.

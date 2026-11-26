@@ -10,7 +10,7 @@ import (
 
 // dropEmptyParams answers a request whose query string carries a parameter with
 // no value, which is what an untouched form field submits, so a shared address
-// never reads min_price=&sort=. A browser navigation is redirected to the address
+// never reads price=&sort=. A browser navigation is redirected to the address
 // without them and dropEmptyParams reports true; the caller stops there. An htmx
 // request keeps its response, and the address htmx pushes is replaced by the
 // clean one. A parameter named in keep stays when empty: a search box submitted

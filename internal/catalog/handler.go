@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -9,9 +8,9 @@ import (
 	"slices"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/web/ratelimit"
@@ -42,6 +41,7 @@ func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
 // budget, and Notify spends none of its own.
 func (h *Handler) Routes(mux *http.ServeMux, notify *ratelimit.Limiter) {
 	mux.HandleFunc("GET /c/{slug}", h.Listing)
+	mux.HandleFunc("GET /shop", h.Shop)
 	mux.HandleFunc("GET /search", h.Search)
 	mux.HandleFunc("GET /compare", h.Compare)
 	mux.HandleFunc("GET /p/{slug}", h.Product)
@@ -55,9 +55,8 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := r.PathValue("slug")
-	f := parseFilters(r.URL.Query())
-
-	view, head, err := h.store.ListingPage(r.Context(), slug, f, !respond.IsHTMX(r))
+	q := r.URL.Query()
+	view, err := h.store.ListingPage(r.Context(), slug, parseFilters(q, SortNewest), ParseView(q.Get("view")))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.notFound(w, r)
@@ -67,25 +66,32 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
+	h.listing(w, r, &view)
+}
 
-	if redirectUnknownFilters(w, r, view.Facets) || redirectPastLastPage(w, r, int(view.Page), view.Pages()) {
+// Shop is every product on one shelf, under the same filters as a category.
+func (h *Handler) Shop(w http.ResponseWriter, r *http.Request) {
+	if dropEmptyParams(w, r) {
 		return
 	}
+	q := r.URL.Query()
+	view, err := h.store.ShopPage(r.Context(), parseFilters(q, SortNewest), ParseView(q.Get("view")))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "load every product", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	h.listing(w, r, &view)
+}
 
-	// A partial swap never draws the rules or the head, so it does not read them.
-	var rules *policy.Rules
+func (h *Handler) listing(w http.ResponseWriter, r *http.Request, view *ListingView) {
+	if redirectUnknownFilters(w, r, &view.Shelf) || redirectPastLastPage(w, r, int(view.Page), view.Pages()) {
+		return
+	}
 	if respond.IsHTMX(r) {
 		r = r.WithContext(AsPartial(r.Context()))
-	} else {
-		loaded, err := h.store.ShopRules(r.Context())
-		if err != nil {
-			h.log.ErrorContext(r.Context(), "load shop rules", "error", err)
-			h.serverError(w, r)
-			return
-		}
-		rules = &loaded
 	}
-	respond.Component(w, r, h.log, http.StatusOK, Listing(ListingMeta(r.Context(), view), view, rules, head))
+	respond.Component(w, r, h.log, http.StatusOK, Listing(ListingMeta(r.Context(), view), view))
 }
 
 const newestOnEmpty = 4
@@ -94,26 +100,29 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	if dropEmptyParams(w, r, "q") {
 		return
 	}
-	q := r.URL.Query().Get("q")
-	pattern := SearchPattern(q)
-	page := ParsePage(r.URL.Query().Get("page"))
+	q := r.URL.Query()
+	pattern := SearchPattern(q.Get("q"))
+	f := parseFilters(q, SortRelevance)
+	f.Department = boundedSlug(q.Get("c"))
 
-	sort := ParseSort(r.URL.Query().Get("sort"), SortRelevance)
-
-	view := SearchView{Query: trimForDisplay(q), Page: page, PageSize: PageSize}
+	view := SearchView{Query: trimForDisplay(q.Get("q"))}
 	if pattern != "" {
-		var err error
-		if view, err = h.searched(r.Context(), pattern, view.Query, sort, page); err != nil {
+		found, err := h.store.SearchPage(r.Context(), view.Query, f, ParseView(q.Get("view")))
+		if err != nil {
 			h.log.ErrorContext(r.Context(), "search", "error", err)
 			h.serverError(w, r)
 			return
 		}
+		view = found
 	}
 
-	if redirectPastLastPage(w, r, view.Page, view.Pages()) {
+	if view.Searched() && !view.Unmatched() && redirectUnknownFilters(w, r, &view.Shelf) {
 		return
 	}
-	if !view.Searched() || view.Empty() {
+	if redirectPastLastPage(w, r, int(view.Page), view.Pages()) {
+		return
+	}
+	if !view.Searched() || view.Unmatched() {
 		// Best effort: the page says what to do next without them, and the
 		// department chips below it still lead somewhere.
 		newest, err := h.store.NewestProducts(r.Context(), newestOnEmpty)
@@ -125,16 +134,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	if respond.IsHTMX(r) {
 		r = r.WithContext(AsPartial(r.Context()))
 	}
-	respond.Component(w, r, h.log, http.StatusOK, Search(SearchMeta(r.Context(), view.Query), view))
-}
-
-func (h *Handler) searched(ctx context.Context, pattern, query string, sort Sort, page int) (SearchView, error) {
-	view, err := h.store.Search(ctx, pattern, sort, page)
-	if err != nil {
-		return SearchView{}, err
-	}
-	view.Query = query
-	return view, nil
+	respond.Component(w, r, h.log, http.StatusOK, Search(SearchMeta(r.Context(), view.Query), &view))
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
@@ -152,17 +152,28 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseFilters bounds or discards every value, so nothing downstream checks
-// again.
-func parseFilters(q url.Values) Filters {
+// again. unchosen is the page's own order, which no address names.
+func parseFilters(q url.Values, unchosen Sort) Filters {
 	return Filters{
 		BrandSlugs:   boundedBrands(q["brand"]),
 		OptionValues: boundedOptionValues(q["opt"]),
 		InStockOnly:  q.Get("in_stock") == "1",
-		MinPrice:     ParsePrice(q.Get("min_price")),
-		MaxPrice:     ParsePrice(q.Get("max_price")),
-		Sort:         ParseSort(q.Get("sort"), SortNewest),
+		OnSaleOnly:   q.Get("sale") == "1",
+		Price:        parsePriceBand(q.Get("price")),
+		Sort:         ParseSort(q.Get("sort"), unchosen),
 		Page:         ParsePage(q.Get("page")),
 	}
+}
+
+// maxSlugRunes is longer than any slug the catalogue writes; a longer value
+// names no department and is dropped before it reaches a query.
+const maxSlugRunes = 64
+
+func boundedSlug(s string) string {
+	if utf8.RuneCountInString(s) > maxSlugRunes {
+		return ""
+	}
+	return s
 }
 
 const maxBrandFilters = 32
@@ -181,31 +192,6 @@ func boundedBrands(v []string) []string {
 		out = append(out, s)
 	}
 	return out
-}
-
-// canonicalQuery rebuilds the query string from the parsed filters rather than
-// the request, so a pagination href carries nothing a visitor typed.
-func canonicalQuery(f Filters) string {
-	q := url.Values{}
-	for _, pair := range f.OptionValues {
-		q.Add("opt", pair.Name+":"+pair.Value)
-	}
-	for _, b := range f.BrandSlugs {
-		q.Add("brand", b)
-	}
-	if f.InStockOnly {
-		q.Set("in_stock", "1")
-	}
-	if f.MinPrice > 0 {
-		q.Set("min_price", strconv.FormatInt(f.MinPrice/100, 10))
-	}
-	if f.MaxPrice > 0 {
-		q.Set("max_price", strconv.FormatInt(f.MaxPrice/100, 10))
-	}
-	if sort := f.Sort.Param(); sort != "" {
-		q.Set("sort", sort)
-	}
-	return q.Encode()
 }
 
 func trimForDisplay(q string) string {
@@ -263,27 +249,23 @@ func redirectPastLastPage(w http.ResponseWriter, r *http.Request, page, last int
 	return true
 }
 
-func redirectUnknownFilters(w http.ResponseWriter, r *http.Request, facets []FacetGroup) bool {
+// redirectUnknownFilters sends an address naming a brand, an option value or a
+// search's department the shelf does not offer to the same address without it.
+func redirectUnknownFilters(w http.ResponseWriter, r *http.Request, s *Shelf) bool {
 	q := r.URL.Query()
-	if len(q["brand"]) == 0 && len(q["opt"]) == 0 {
+	if len(q["brand"]) == 0 && len(q["opt"]) == 0 && len(q["c"]) == 0 {
 		return false
 	}
-	// Facets include zero-count choices, so an existing value that the other
-	// filters exclude remains a legitimate filter.
-	known := map[string]map[string]bool{"brand": {}, "opt": {}}
-	for _, group := range facets {
-		choices, relevant := known[group.Param()]
-		if !relevant {
-			continue
-		}
-		for _, option := range group.Options {
-			choices[option.Value] = true
-		}
-	}
+	known := offeredFilters(s)
 	changed := false
-	for _, param := range []string{"brand", "opt"} {
+	for _, param := range []string{"brand", "opt", "c"} {
 		kept := make([]string, 0, len(q[param]))
 		for _, value := range q[param] {
+			// An empty value is an untouched field, which dropEmptyParams owns:
+			// a search's 「全部結果」 sends c= with every change.
+			if value == "" {
+				continue
+			}
 			if known[param][filterIdentity(param, value)] {
 				kept = append(kept, value)
 			} else {
@@ -303,6 +285,28 @@ func redirectUnknownFilters(w http.ResponseWriter, r *http.Request, facets []Fac
 	target.RawQuery = q.Encode()
 	http.Redirect(w, r, target.RequestURI(), http.StatusSeeOther) //nolint:gosec // G710: this request's own path with only its query changed
 	return true
+}
+
+// offeredFilters is every value of brand, opt and c the shelf offers, by
+// parameter. Facets include zero-count choices, so an existing value that the
+// other filters exclude remains a legitimate filter.
+func offeredFilters(s *Shelf) map[string]map[string]bool {
+	known := map[string]map[string]bool{"brand": {}, "opt": {}, "c": {}}
+	for _, group := range s.Facets {
+		choices, relevant := known[group.Param()]
+		if !relevant {
+			continue
+		}
+		for _, option := range group.Options {
+			choices[option.Value] = true
+		}
+	}
+	if s.Searching {
+		for _, d := range s.Departments {
+			known["c"][d.Slug] = true
+		}
+	}
+	return known
 }
 
 func filterIdentity(param, value string) string {

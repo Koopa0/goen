@@ -9,10 +9,8 @@ var (
 
 	KeyHome = key("nav.home", Message{ZhHant: "首頁", En: "Home"})
 
-	KeyDeptCompareTitle = key("dept.compare.title", Message{ZhHant: "把規格擺在一起", En: "Specifications, side by side"})
-
-	// The colours' names joined into the story's title.
-	KeyDeptColourJoin = key("dept.colours.join", Message{ZhHant: "、", En: ", "})
+	// The shelf of every product, and the first line of the sidebar's tree.
+	KeyShopAll = key("listing.all", Message{ZhHant: "全館選物", En: "All products"})
 
 	KeyListingCount = countKey("listing.count", "共 %s 件商品", "%s product", "%s products")
 
@@ -26,12 +24,20 @@ var (
 		En:     "Try loosening a filter, or",
 	})
 
-	KeyListingEmptyLink = key("listing.empty.link", Message{
-		ZhHant: "看這個分類的全部商品",
-		En:     "see everything in this category",
+	KeyListingEmptyReset = key("listing.empty.reset", Message{
+		ZhHant: "清除所有篩選條件",
+		En:     "clear every filter",
 	})
 
 	KeyFilters = key("listing.filters", Message{ZhHant: "篩選", En: "Filters"})
+
+	KeyResetFilters = key("listing.filters.reset", Message{ZhHant: "重設條件", En: "Reset"})
+
+	KeyCloseFilters = key("listing.filters.close", Message{ZhHant: "關閉篩選", En: "Close filters"})
+
+	// The drawer's last button: it closes the drawer onto the results it
+	// counts, which are already shown under it.
+	KeyShowResults = countKey("listing.filters.done", "顯示 %s 件商品", "Show %s product", "Show %s products")
 
 	KeyFiltersActive = key("listing.filters.active", Message{
 		ZhHant: "已套用篩選",
@@ -53,32 +59,36 @@ var (
 		En:     "From %s",
 	})
 
-	KeyPriceUpToChip = key("listing.filters.chip.price.upto", Message{
-		ZhHant: "最高 %s",
-		En:     "Up to %s",
+	KeyPriceUnder = key("listing.filters.price.under", Message{
+		ZhHant: "未滿 %s",
+		En:     "Under %s",
 	})
+
+	KeyPriceAny = key("listing.filters.price.any", Message{ZhHant: "全部價格", En: "Any price"})
 
 	KeyRemoveFilter = key("listing.filters.remove", Message{ZhHant: "移除「%s」", En: "Remove “%s”"})
 
 	KeyClearFilters = key("listing.filters.clear", Message{ZhHant: "清除全部", En: "Clear all"})
 
-	KeyApplyFilters = key("listing.filters.apply", Message{ZhHant: "套用篩選", En: "Apply filters"})
-
 	KeyFacetBrand = key("listing.facet.brand", Message{ZhHant: "品牌", En: "Brand"})
-
-	KeyFacetStock = key("listing.facet.stock", Message{ZhHant: "供應狀況", En: "Availability"})
 
 	KeyFacetInStock = key("listing.facet.instock", Message{ZhHant: "現貨供應", En: "In stock"})
 
-	KeyFacetPrice = key("listing.facet.price", Message{ZhHant: "價格", En: "Price"})
+	KeyFacetShowOnly = key("listing.facet.only", Message{ZhHant: "只看", En: "Show only"})
 
-	KeyPriceMin = key("listing.facet.price.min", Message{ZhHant: "最低價", En: "Lowest price"})
+	KeyFacetPrice = key("listing.facet.price", Message{ZhHant: "價格區間", En: "Price"})
 
-	KeyPriceMax = key("listing.facet.price.max", Message{ZhHant: "最高價", En: "Highest price"})
+	KeySearchAllResults = key("search.facet.all", Message{ZhHant: "全部結果", En: "All results"})
 
-	KeyPriceMinShort = key("listing.facet.price.min.short", Message{ZhHant: "最低", En: "Min"})
+	KeyViewSwitch = key("listing.view", Message{ZhHant: "檢視方式", En: "View"})
 
-	KeyPriceMaxShort = key("listing.facet.price.max.short", Message{ZhHant: "最高", En: "Max"})
+	KeyViewGrid = key("listing.view.grid", Message{ZhHant: "圖卡格線", En: "Grid"})
+
+	KeyViewList = key("listing.view.list", Message{ZhHant: "規格清單", En: "Spec list"})
+
+	// Read before a specification's value in the list, which shows only the
+	// value: "螢幕：6.7 吋".
+	KeySpecNamed = key("listing.spec.named", Message{ZhHant: "%s：", En: "%s: "})
 
 	KeySort = key("listing.sort", Message{ZhHant: "排序", En: "Sort"})
 
@@ -126,8 +136,6 @@ var (
 		ZhHant: "試試更短的關鍵字，或從下面的館別開始逛。",
 		En:     "Try a shorter term, or start from one of these departments.",
 	})
-
-	KeySearchSortApply = key("search.sort.apply", Message{ZhHant: "套用排序", En: "Apply sort"})
 
 	KeySearchNewest = key("search.none.newest", Message{ZhHant: "最新上架的商品", En: "Newest products"})
 

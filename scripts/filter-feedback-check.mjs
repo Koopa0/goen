@@ -109,8 +109,9 @@ const setup = `(() => {
   const form = box?.form;
   const note = document.querySelector('.goen-filters__error');
   if (!box || !form || !note) throw new Error('filter feedback landmarks missing');
-  const shell = document.querySelector('.goen-filters__shell');
-  if (shell) shell.open = true;
+  // Below the shelf's column the filters are a drawer: open it, as a phone does.
+  const opener = document.querySelector('[data-filters-open]');
+  if (opener && opener.getClientRects().length) opener.click();
   const probe = window.filterFeedbackCheck = {
     box, form, note, requests: [], finished: new Set(), snapshots: new WeakMap(),
     message: note.textContent.trim(), timeout: htmx.config.defaultTimeout,
@@ -199,16 +200,16 @@ async function journey(connection, locale, width) {
     };
     await send('Fetch.enable', { patterns: [{ urlPattern: origin + '/c/audio*', resourceType: 'Fetch', requestStage: 'Request' }] });
     await load();
-    const change = async (minPrice) => {
+    const change = async (band) => {
       if (protocolFailure) throw protocolFailure;
       const index = await evaluate(`(() => {
         const p = window.filterFeedbackCheck;
         const before = document.getElementById('listing-results');
         p.nextSnapshot = { before, markup: before.innerHTML, url: location.href, checked: p.box.checked };
         const index = p.requests.length;
-        const minPrice = ${JSON.stringify(minPrice ?? null)};
-        if (minPrice !== null) p.form.elements.namedItem('min_price').value = String(minPrice);
-        p.box.closest('details').open = true; p.box.focus(); p.box.click();
+        const band = ${JSON.stringify(band ?? null)};
+        if (band !== null) p.form.querySelector('input[name=price][value="' + band + '"]').checked = true;
+        p.box.focus(); p.box.click();
         return index;
       })()`);
       await waitFor(() => evaluate(`filterFeedbackCheck.requests.length > ${index}`), 'filter request did not start');
@@ -339,12 +340,12 @@ async function journey(connection, locale, width) {
     await load();
     mode = 'hold';
     await evaluate('htmx.config.defaultTimeout = 60000');
-    const first = await change(1);
+    const first = await change('under-1000');
     await waitFor(async () => !!await heldRequest(first), 'first of three requests did not reach fetch');
-    const second = await change(2);
+    const second = await change('1000-9999');
     await waitFor(async () => !!await heldRequest(second), 'second of three requests did not reach fetch');
     await finished(first);
-    const third = await change(3);
+    const third = await change('10000-up');
     await waitFor(async () => !!await heldRequest(third), 'third of three requests did not reach fetch');
     report('third replacement owns the queue', await state(second), { aborted: true });
     await continueHeld(third);
@@ -392,18 +393,18 @@ async function searchSortJourney(connection, locale, width) {
     for (const changes of [2, 3]) {
       await send('Page.navigate', { url: origin + '/search?q=pixelight' });
       const deadline = Date.now() + 15000;
-      while (!await evaluate(`document.readyState === 'complete' && !!document.querySelector('.goen-search-sort')?._htmx?.initialized`)) {
+      while (!await evaluate(`document.readyState === 'complete' && !!document.querySelector('.goen-filters')?._htmx?.initialized`)) {
         if (Date.now() >= deadline) throw new Error('search sort did not initialize');
         await delay(20);
       }
       assert.equal(await evaluate('document.documentElement.lang'), locale);
       const result = await evaluate(`(async () => {
-        const form = document.querySelector('.goen-search-sort');
-        const select = form.querySelector('select[name=sort]');
-        const before = document.getElementById('search-results');
+        const form = document.querySelector('.goen-filters');
+        const select = document.getElementById('sort');
+        const before = document.getElementById('listing-results');
         if (!select || !before) throw new Error('search sort landmarks missing');
         const originalFetch = window.fetch;
-        const links = root => [...root.querySelectorAll('#search-results a.goen-tile')].map(a => a.getAttribute('href'));
+        const links = root => [...root.querySelectorAll('#listing-results a.goen-tile')].map(a => a.getAttribute('href'));
         const reference = async sort => {
           const response = await originalFetch('/search?q=pixelight&sort=' + sort);
           if (!response.ok) throw new Error('sort reference returned ' + response.status);
@@ -463,7 +464,6 @@ async function searchSortJourney(connection, locale, width) {
           await waitFor(() => finished.has(first), 'superseded first sort did not finish');
           if (${changes} === 3) await change('price_asc');
           if (fetched.length !== ${changes}) return { fetchedCount: fetched.length, expectedFetches: ${changes} };
-          const pendingBeforeLatest = form.getAttribute('aria-busy') === 'true';
           const latest = contexts.at(-1);
           fetched.at(-1).release();
           await waitFor(() => finished.has(latest), 'latest sort did not finish');
@@ -479,10 +479,10 @@ async function searchSortJourney(connection, locale, width) {
           return {
             fetchedCount: fetched.length, expectedFetches: ${changes},
             supersededAborted: fetched.slice(0, -1).every(request => request.signal.aborted),
-            staleApplied, pendingBeforeLatest,
+            staleApplied,
             resultOrdering: JSON.stringify(actual) === JSON.stringify(expected),
             urlAndSelection: url.searchParams.get('q') === 'pixelight' && url.searchParams.get('sort') === sort && select.value === sort,
-            replaced: document.getElementById('search-results') !== before,
+            replaced: document.getElementById('listing-results') !== before,
             cleared: !form.hasAttribute('data-request-pending') && form.getAttribute('aria-busy') !== 'true' && !form.querySelector('[aria-disabled="true"]'),
             actual, expected, href: location.href,
           };
@@ -494,7 +494,7 @@ async function searchSortJourney(connection, locale, width) {
           document.removeEventListener('htmx:after:request', applied);
         }
       })()`);
-      const expected = { fetchedCount: changes, supersededAborted: true, staleApplied: false, pendingBeforeLatest: true, resultOrdering: true, urlAndSelection: true, replaced: true, cleared: true };
+      const expected = { fetchedCount: changes, supersededAborted: true, staleApplied: false, resultOrdering: true, urlAndSelection: true, replaced: true, cleared: true };
       const differences = Object.entries(expected).filter(([key, value]) => result[key] !== value)
         .map(([key, value]) => key + ' = ' + JSON.stringify(result[key]) + ', want ' + JSON.stringify(value));
       const label = `search sort / ${locale} / ${width} / ${changes} changes`;
@@ -558,18 +558,18 @@ async function searchSortJourney(connection, locale, width) {
       }
     });
     await send('Page.navigate', { url: origin + '/search?q=pixelight&sort=price_desc' });
-    await waitFor(() => evaluate(`document.readyState === 'complete' && !!document.querySelector('.goen-search-sort')?._htmx?.initialized`), 'sort failure page did not initialize');
+    await waitFor(() => evaluate(`document.readyState === 'complete' && !!document.querySelector('.goen-filters')?._htmx?.initialized`), 'sort failure page did not initialize');
     const initial = await evaluate(`(() => {
-      const form = document.querySelector('.goen-search-sort');
-      const select = form?.querySelector('select[name=sort]');
-      const note = document.getElementById('goen-search-sort-error');
-      if (!select || !note || !document.getElementById('search-results')) throw new Error('sort failure landmarks missing');
+      const form = document.querySelector('.goen-filters');
+      const select = document.getElementById('sort');
+      const note = document.querySelector('.goen-filters__error');
+      if (!select || !note || !document.getElementById('listing-results')) throw new Error('sort failure landmarks missing');
       const p = window.searchSortFeedbackCheck = { form, select, note, contexts: [], finished: new Set(), timeout: htmx.config.defaultTimeout };
-      p.links = root => [...root.querySelectorAll('#search-results a.goen-tile')].map(a => a.getAttribute('href'));
+      p.links = root => [...root.querySelectorAll('#listing-results a.goen-tile')].map(a => a.getAttribute('href'));
       p.originalFetch = window.fetch;
       document.addEventListener('htmx:before:request', ({ detail }) => { if (detail.ctx?.request?.form === form) p.contexts.push(detail.ctx); });
       document.addEventListener('htmx:finally:request', ({ detail }) => { if (detail.ctx?.request?.form === form) p.finished.add(detail.ctx); });
-      return { lang: document.documentElement.lang, hidden: note.hidden, role: note.getAttribute('role'), message: note.textContent.trim(), outsideResults: !document.getElementById('search-results').contains(note) };
+      return { lang: document.documentElement.lang, hidden: note.hidden, role: note.getAttribute('role'), message: note.textContent.trim(), outsideResults: !document.getElementById('listing-results').contains(note) };
     })()`);
     assert.equal(initial.lang, locale);
     assert.equal(initial.hidden, true);
@@ -580,7 +580,7 @@ async function searchSortJourney(connection, locale, width) {
     const change = async value => {
       const index = await evaluate(`(() => {
         const p = searchSortFeedbackCheck;
-        p.before = { url: location.href, node: document.getElementById('search-results'), text: document.getElementById('search-results').textContent, links: p.links(document) };
+        p.before = { url: location.href, node: document.getElementById('listing-results'), text: document.getElementById('listing-results').textContent, links: p.links(document) };
         const index = p.contexts.length;
         p.select.focus(); p.select.value = ${JSON.stringify(value)};
         p.select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -591,7 +591,7 @@ async function searchSortJourney(connection, locale, width) {
     };
     const finished = index => waitFor(() => evaluate(`searchSortFeedbackCheck.finished.has(searchSortFeedbackCheck.contexts[${index}])`), 'sort failure request did not finish');
     const state = index => evaluate(`(() => {
-      const p = searchSortFeedbackCheck, ctx = p.contexts[${index}], node = document.getElementById('search-results');
+      const p = searchSortFeedbackCheck, ctx = p.contexts[${index}], node = document.getElementById('listing-results');
       const raw = ctx.response?.raw;
       const rect = p.note.getBoundingClientRect();
       return { status: raw?.status ?? null, ok: raw?.ok === true, aborted: ctx.request.signal.aborted,

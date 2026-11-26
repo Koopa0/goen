@@ -54,7 +54,7 @@ func TestSearchEmptyNewestSaleUntil(t *testing.T) {
 		{i18n.En, "On sale until"},
 	} {
 		ctx := i18n.WithLocale(t.Context(), tt.locale)
-		page := renderComponent(t, ctx, Search(SearchMeta(ctx, "zzqxv"), SearchView{Query: "zzqxv", Newest: newest}))
+		page := renderComponent(t, ctx, Search(SearchMeta(ctx, "zzqxv"), &SearchView{Query: "zzqxv", Newest: newest}))
 		if got := strings.Count(page, `<span class="goen-tile__until">`); got != 1 {
 			t.Errorf("%s: the empty search draws %d sale-end lines, want 1 (under the product on sale)", tt.locale, got)
 			continue

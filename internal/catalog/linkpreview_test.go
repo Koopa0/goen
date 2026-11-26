@@ -26,7 +26,7 @@ func TestListingMetaAndProductMeta(t *testing.T) {
 		want []string
 	}{
 		"department": {
-			ListingMeta(ctx, department),
+			ListingMeta(ctx, &department),
 			[]string{
 				`og:title" content="書籍 · goen"`,
 				`og:image" content="https://goen.test/static/media/products/books.webp?v=1"`,
@@ -57,7 +57,7 @@ func TestListingMetaAndProductMeta(t *testing.T) {
 func TestListingMetaNoFiller(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	head := renderHeadAt(t, ctx, ListingMeta(ctx, ListingView{Slug: "books", Name: "書籍"}))
+	head := renderHeadAt(t, ctx, ListingMeta(ctx, &ListingView{Slug: "books", Name: "書籍"}))
 	for _, forbidden := range []string{`name="description"`, `og:description`} {
 		if strings.Contains(head, forbidden) {
 			t.Errorf("a department with no subtitle sent %s", forbidden)

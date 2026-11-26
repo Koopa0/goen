@@ -77,7 +77,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/admin/slides/slides_page.templ:templ.SafeURL(slide.PromoteAction())":                           {(slides.HeroSlide{ID: "slide"}).PromoteAction()},
 		"internal/admin/slides/slides_page.templ:templ.SafeURL(slide.ToggleAction())":                            {(slides.HeroSlide{ID: "slide"}).ToggleAction()},
 		"internal/admin/questions/question_page.templ:templ.SafeURL(q.AnswerAction())":                           {(questions.Question{ID: "question"}).AnswerAction()},
-		"internal/catalog/listing.templ:templ.SafeURL(v.FilterAction())":                                         {(catalog.ListingView{Slug: "category"}).FilterAction()},
+		"internal/catalog/listing.templ:templ.SafeURL(s.FilterAction())":                                         {(&catalog.Shelf{Path: "/c/category"}).FilterAction(), (&catalog.Shelf{Path: "/shop"}).FilterAction(), (&catalog.Shelf{Path: "/search"}).FilterAction()},
 		"internal/order/warranty/page.templ:templ.SafeURL(v.Action())":                                           {(warranty.OrderView{Number: "order"}).Action()},
 		"internal/payment/pay.templ:templ.SafeURL(v.Action())":                                                   {(&payment.PayView{Number: "order"}).Action()},
 		"internal/order/buyer/returns.templ:templ.SafeURL(v.Action())":                                           {(buyer.ReturnsView{Number: "order"}).Action()},
