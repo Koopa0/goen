@@ -23,6 +23,7 @@ import { checkAdminNavReflow } from './admin-nav-reflow.mjs';
 import { checkSearchReflow } from './search-reflow.mjs';
 import { checkFooterReflow } from './footer-reflow.mjs';
 import { checkMenu } from './menu-check.mjs';
+import { checkSearchSuggest } from './search-suggest-check.mjs';
 import { checkWarrantyReflow } from './warranty-reflow.mjs';
 import { checkWishlistFocus } from './wishlist-focus-check.mjs';
 import { checkCrumbFocus } from './crumb-focus-check.mjs';
@@ -4892,8 +4893,17 @@ try {
     },
   });
   console.log('menu: both locales, 320px, 100%/200% text, closed by its button, Escape and the backdrop');
+  await checkSearchSuggest({
+    origin: ORIGIN,
+    send: (method, params) => send(ws, method, params),
+    evaluate: evalPage,
+    navigate: async (path) => {
+      if (!await settledFor('search suggest', path, ORIGIN + path)) throw new Error('search page did not load');
+    },
+  });
+  console.log('search suggest: both locales, arrows, Escape, Enter and a press outside');
 } catch (err) {
-  fail('menu fallback', err.message);
+  fail('menu and search suggest', err.message);
 }
 
 try {

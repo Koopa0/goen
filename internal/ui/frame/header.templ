@@ -37,16 +37,34 @@ templ Header(p Page) {
 					@icons.Search()
 				</span>
 				<label class="goen-sr-only" for="site-search">{ i18n.T(ctx, i18n.KeySearch) }</label>
+				// A combobox over the list under it: htmx fills the list as the shopper
+				// types, and goen.js moves through it with the arrow keys. Submitting
+				// still goes to the search page.
 				@widget.Input(widget.FieldProps{
 					ID:    "site-search",
 					Name:  "q",
 					Type:  "search",
 					Value: p.SearchQuery,
 					Class: "goen-header__field",
-					Attrs: templ.Attributes{"placeholder": i18n.T(ctx, i18n.KeySearchHint), "autocomplete": "off"},
+					Attrs: templ.Attributes{
+						"placeholder":       i18n.T(ctx, i18n.KeySearchHint),
+						"autocomplete":      "off",
+						"role":              "combobox",
+						"aria-autocomplete": "list",
+						"aria-expanded":     "false",
+						"aria-controls":     "site-search-list",
+						"hx-get":            "/search/suggest",
+						"hx-trigger":        "input changed delay:200ms",
+						"hx-target":         "#site-search-suggest",
+						"hx-swap":           "innerHTML",
+						"hx-sync":           "this:replace",
+					},
 				})
 				// goen.js names the shortcut for the visitor's keyboard: ⌘K or Ctrl K.
 				<kbd class="goen-header__kbd" data-shortcut hidden></kbd>
+				<div id="site-search-suggest" class="goen-suggest" hidden>
+					<ul id="site-search-list" class="goen-suggest__list" role="listbox" aria-label={ i18n.T(ctx, i18n.KeySearchSuggestions) }></ul>
+				</div>
 			</form>
 			<div class="goen-header__actions">
 				if IsStaff(ctx) {

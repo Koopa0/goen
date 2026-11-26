@@ -10,6 +10,12 @@ var (
 		En:     "Search products",
 	})
 
+	// KeySearchSuggestions names the list under the search field; KeySearchSuggestAll
+	// leads from it to every result, %s their number.
+	KeySearchSuggestions = key("nav.search.suggestions", Message{ZhHant: "搜尋建議", En: "Suggestions"})
+
+	KeySearchSuggestAll = countKey("nav.search.suggestions.all", "查看全部 %s 件商品", "See the %s product", "See all %s products")
+
 	KeyMenu = key("nav.menu", Message{ZhHant: "選單", En: "Menu"})
 
 	KeyCloseMenu = key("nav.menu.close", Message{ZhHant: "關閉選單", En: "Close menu"})

@@ -218,6 +218,7 @@ var schemeExceptions = []schemeException{
 	{`:root`, `%23b5b4ab`, "the night's select arrow, --night-on-surface-variant written out: no custom property reaches into a data: URI"},
 	{`.goen-filters__prices`, `rgb(0 0 0 / 0.2)`, "a shadow: black in both schemes, where by night the surface's own step does the lifting"},
 	{`.goen-langmenu__panel`, `var(--sh-lg)`, "a shadow: black in both schemes"},
+	{`.goen-suggest`, `var(--sh-lg)`, "a shadow: black in both schemes"},
 	{`.goen-menu`, `var(--sh-xl)`, "a shadow: black in both schemes"},
 	{`.goen-menu::backdrop`, `rgb(0 0 0 / 0.4)`, "the scrim: black over either ground"},
 	{`:root`, `light-dark(var(--period-track), var(--period-track-on-ink))`, "the night's track is the ink tone's, the night's blue at the day track's 30%"},

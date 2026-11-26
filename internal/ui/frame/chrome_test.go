@@ -650,3 +650,27 @@ func TestHeaderMenuDialog(t *testing.T) {
 		t.Error("the menu is still a details disclosure")
 	}
 }
+
+// TestHeaderSearchCombobox: the search field is a combobox over a list that is always there.
+//
+// The field names the list it controls, so the list exists from the first
+// paint, empty, and the fragment htmx swaps in keeps its id; the field asks
+// /search/suggest and still submits to the search page.
+func TestHeaderSearchCombobox(t *testing.T) {
+	t.Parallel()
+
+	header, _ := renderChrome(t, i18n.ZhHant, chromeNav)
+	field := regexp.MustCompile(`<input[^>]*id="site-search"[^>]*>`).FindString(header)
+	for _, want := range []string{`role="combobox"`, `aria-controls="site-search-list"`, `aria-expanded="false"`, `aria-autocomplete="list"`,
+		`hx-get="/search/suggest"`, `hx-target="#site-search-suggest"`, `name="q"`} {
+		if !strings.Contains(field, want) {
+			t.Errorf("the search field %s lacks %s", field, want)
+		}
+	}
+	if !regexp.MustCompile(`<div id="site-search-suggest" class="goen-suggest" hidden><ul id="site-search-list" class="goen-suggest__list" role="listbox" aria-label="[^"]+"></ul></div>`).MatchString(header) {
+		t.Error("the header has no empty listbox for the field to control")
+	}
+	if !strings.Contains(header, `action="/search" method="get"`) {
+		t.Error("the search form no longer submits to the search page")
+	}
+}

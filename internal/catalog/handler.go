@@ -43,6 +43,7 @@ func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
 func (h *Handler) Routes(mux *http.ServeMux, notify *ratelimit.Limiter) {
 	mux.HandleFunc("GET /c/{slug}", h.Listing)
 	mux.HandleFunc("GET /search", h.Search)
+	mux.HandleFunc("GET /search/suggest", h.Suggest)
 	mux.HandleFunc("GET /compare", h.Compare)
 	mux.HandleFunc("GET /p/{slug}", h.Product)
 	mux.HandleFunc("POST /p/{slug}/reviews", h.Review)

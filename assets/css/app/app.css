@@ -1502,11 +1502,117 @@ th {
   translate: 0 -50%;
 }
 
-/* A shortcut a touch screen has no key for is not shown there. */
+/* The list under the search field: a product per row, its photograph on the
+   plate, its name and its price, and the way to every result at the foot. The
+   active option is the shelf's hover ground, as a hovered row is. */
+.goen-suggest {
+  background: var(--sys-surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--shape-sm);
+  box-shadow: var(--sh-lg);
+  inset: calc(100% + 0.4rem) 0 auto;
+  max-height: min(70dvh, 32rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.35rem;
+  position: absolute;
+  z-index: var(--z-dropdown);
+}
+
+.goen-suggest__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-suggest__link {
+  align-items: center;
+  border-radius: var(--shape-xs);
+  color: var(--text-strong);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  padding: 0.4rem 0.5rem;
+  text-decoration: none;
+}
+
+.goen-suggest__link:hover,
+.goen-suggest__item[aria-selected='true'] .goen-suggest__link {
+  background: var(--shelf-hover);
+  color: var(--text-strong);
+}
+
+.goen-suggest__photo {
+  aspect-ratio: 4 / 3;
+  background: var(--photo-plate);
+  border-radius: var(--shape-xs);
+  display: block;
+  overflow: hidden;
+}
+
+.goen-suggest__photo img {
+  display: block;
+  height: 100%;
+  mix-blend-mode: multiply;
+  object-fit: contain;
+  width: 100%;
+}
+
+.goen-suggest__words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.goen-suggest__brand {
+  color: var(--text-faint);
+  font: var(--type-label-s);
+}
+
+.goen-suggest__name {
+  font: var(--type-label-m);
+  overflow-wrap: anywhere;
+}
+
+.goen-suggest__price {
+  font-family: var(--font-data);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+.goen-suggest__all,
+.goen-suggest__none {
+  border-top: 1px solid var(--hairline);
+  display: block;
+  font: var(--type-label-m);
+  margin: 0.35rem 0 0;
+  padding: 0.6rem 0.5rem 0.35rem;
+}
+
+.goen-suggest__all {
+  color: var(--sys-primary);
+}
+
+.goen-suggest__none {
+  color: var(--text-soft);
+}
+
+.goen-suggest__list:empty + .goen-suggest__none {
+  border-top: 0;
+  margin-top: 0;
+}
+
+/* A shortcut a touch screen has no key for is not shown there, nor once the
+   field holds words, where the field's own clear button stands. */
 @media (pointer: coarse) {
   .goen-header__kbd {
     display: none;
   }
+}
+
+.goen-header__field:not(:placeholder-shown) ~ .goen-header__kbd {
+  display: none;
 }
 
 /* Comparing, the account and the back office are in the drawer below the

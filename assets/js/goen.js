@@ -163,6 +163,70 @@
   }
 
   /*
+   * The list under the search field, which htmx fills as the shopper types. The
+   * field is a combobox over it: ArrowDown and ArrowUp move the active option,
+   * Enter opens it, Escape closes the list, and leaving the form closes it too.
+   * The list shows whenever it says something, so it is read from its contents
+   * after each swap rather than from htmx's events.
+   */
+  function searchSuggest() {
+    const field = document.getElementById("site-search");
+    const panel = document.getElementById("site-search-suggest");
+    const form = field?.form;
+    if (!(field instanceof HTMLInputElement) || !panel || !form) return;
+    let active = -1;
+    const options = () => [...panel.querySelectorAll('[role="option"]')];
+    const choose = (index) => {
+      const all = options();
+      active = index;
+      all.forEach((option, at) => option.setAttribute("aria-selected", String(at === index)));
+      const chosen = all[index];
+      if (chosen) {
+        field.setAttribute("aria-activedescendant", chosen.id);
+        chosen.scrollIntoView({ block: "nearest" });
+      } else {
+        field.removeAttribute("aria-activedescendant");
+      }
+    };
+    const show = (open) => {
+      panel.hidden = !open;
+      field.setAttribute("aria-expanded", String(open && options().length > 0));
+      if (!open) choose(-1);
+    };
+    const says = () => field.value.trim() !== "" && panel.textContent.trim() !== "";
+    new MutationObserver(() => {
+      active = -1;
+      field.removeAttribute("aria-activedescendant");
+      show(document.activeElement === field && says());
+    }).observe(panel, { childList: true });
+
+    field.addEventListener("focus", () => show(says()));
+    field.addEventListener("keydown", (event) => {
+      const all = options();
+      if (event.key === "ArrowDown" && all.length) {
+        event.preventDefault();
+        show(true);
+        choose(Math.min(active + 1, all.length - 1));
+      } else if (event.key === "ArrowUp" && all.length && !panel.hidden) {
+        event.preventDefault();
+        choose(active - 1);
+      } else if (event.key === "Enter" && active >= 0 && !panel.hidden) {
+        const link = all[active]?.querySelector("a");
+        if (link) {
+          event.preventDefault();
+          location.assign(link.href);
+        }
+      } else if (event.key === "Escape" && !panel.hidden) {
+        event.preventDefault();
+        show(false);
+      }
+    });
+    form.addEventListener("focusout", (event) => {
+      if (!(event.relatedTarget instanceof Node) || !form.contains(event.relatedTarget)) show(false);
+    });
+  }
+
+  /*
    * The bar follows the scroll only while it is short: at large text or in a
    * short window it grows past 12% of the window, and a bar that tall stuck
    * over the page would hide what has focus under it. Measured rather than
@@ -1214,6 +1278,7 @@
   menu();
   stickyBar();
   searchShortcut();
+  searchSuggest();
   departmentRow();
   popovers();
   stepper();
