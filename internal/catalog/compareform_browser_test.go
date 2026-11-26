@@ -72,7 +72,10 @@ func TestCompareFormRowInBrowser(t *testing.T) {
 			ctx = AsPartial(ctx)
 		}
 		brand := r.URL.Query().Get("brand")
-		view := ListingView{Slug: "audio", Name: "Audio", Page: 1, PageSize: 20, Filtered: brand != ""}
+		view := ListingView{Slug: "audio", Name: "Audio", Shelf: Shelf{Path: "/c/audio", Page: 1, PageSize: 20}}
+		if brand != "" {
+			view.Filters.BrandSlugs = []string{brand}
+		}
 		counts := map[string]int64{}
 		for _, p := range products {
 			counts[p.brand]++
@@ -92,7 +95,7 @@ func TestCompareFormRowInBrowser(t *testing.T) {
 		}
 		view.Facets = []FacetGroup{group}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Listing(frame.Page{Title: "Audio", Nav: "audio"}, view, nil, nil).Render(ctx, w); renderErr != nil {
+		if renderErr := Listing(frame.Page{Title: "Audio", Nav: "audio"}, &view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render compare listing: %v", renderErr)
 		}
 	})

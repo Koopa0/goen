@@ -12,9 +12,8 @@ import (
 // the photo plate with the studio ground multiplied away, the values in the
 // data face with figures of one width, a differing row on the cobalt tint, and
 // the differences-only switch hiding every other row but the one that buys. The
-// header's count is the commerce cobalt, not the cart's ink. The department's
-// 查看比較 stays the one blue next step, underlined only under the pointer. Each
-// reads a role or a token, so the night takes its own value from the same rule.
+// header's count is the commerce cobalt, not the cart's ink. Each reads a role
+// or a token, so the night takes its own value from the same rule.
 func TestAppCSSComparePageAsDrawn(t *testing.T) {
 	t.Parallel()
 
@@ -48,11 +47,7 @@ func TestAppCSSComparePageAsDrawn(t *testing.T) {
 		{".goen-compare__table tbody th", `position:\s*sticky;`},
 		{".goen-header__comparecount", `background:\s*var\(--cta\);`},
 		{".goen-header__comparecount", `color:\s*var\(--on-cta\);`},
-		{".goen-deptcompare__title", `font:\s*var\(--type-headline-m\);`},
 		{".goen-compare__suggesthead", `font:\s*var\(--type-headline-m\);`},
-		{".goen-deptcompare__more", `color:\s*var\(--sys-primary\);`},
-		{".goen-deptcompare__more", `text-decoration:\s*none;`},
-		{".goen-deptcompare__more:hover", `text-decoration:\s*underline;`},
 	} {
 		found := false
 		for _, block := range declared(want.selector) {
@@ -71,18 +66,12 @@ func TestAppCSSComparePageAsDrawn(t *testing.T) {
 			t.Errorf("%s: .goen-compare__image paints a ground over the plate: %s", AppCSS, strings.TrimSpace(block))
 		}
 	}
-	// No later rule gives a section's name a size, weight or family of its own,
-	// and the next step is not underlined at rest.
-	for _, selector := range []string{".goen-deptcompare__title", ".goen-compare__suggesthead"} {
+	// No later rule gives a section's name a size, weight or family of its own.
+	for _, selector := range []string{".goen-compare__suggesthead"} {
 		for _, block := range declared(selector) {
 			if regexp.MustCompile(`font-(size|weight|family):`).MatchString(block) {
 				t.Errorf("%s: a rule for %s overrides the type step: %s", AppCSS, selector, strings.TrimSpace(block))
 			}
-		}
-	}
-	for _, block := range declared(".goen-deptcompare__more") {
-		if strings.Contains(block, "underline") {
-			t.Errorf("%s: .goen-deptcompare__more is underlined at rest: %s", AppCSS, strings.TrimSpace(block))
 		}
 	}
 }

@@ -811,15 +811,17 @@ try {
     }
   }
 
-  // A department's head is words on the page, inside the page column: the
-  // crumbs, the name in the display face at 40px at most, the count, a running
-  // campaign's notice under the name, and the sub-categories in one row under
-  // them. It draws no photograph and no tone ground, whatever the department
-  // has. The current sub-category is underlined 2px and the others are not; no
-  // pill, no edge. On a phone the row scrolls sideways, stops at a name's start,
-  // and keeps its focus ring inside the link, which the scroller would cut.
+  // A department's shelf opens with words on the page, inside the page column:
+  // the crumbs, the name in the display face at 40px at most, the count, and
+  // the tools. It draws no photograph and no tone ground, whatever the
+  // department has. Where the page is too narrow for the filters' column the
+  // sub-categories are a row under the name, the current one underlined 2px and
+  // the others not, no pill and no edge; on a phone the row scrolls sideways,
+  // stops at a name's start and keeps its focus ring inside the link, which the
+  // scroller would cut. Where the column stands, the row goes and the tree in
+  // it carries the sub-categories: the page's own filled ink, as is the
+  // department it is in, and the ring drawn on focus.
   {
-    const near = (got, want, tolerance = 0.5) => Math.abs(got - want) <= tolerance;
     const measure = () => evaluate(`(() => {
       const box = element => {
         const r = element.getBoundingClientRect();
@@ -828,13 +830,11 @@ try {
       const page = document.querySelector('.goen-listing');
       const pageStyle = getComputedStyle(page);
       const pageBox = box(page);
-      const head = document.querySelector('.goen-listing__head');
+      const head = document.querySelector('.goen-shelf__head');
       const headStyle = getComputedStyle(head);
       const headBox = box(head);
-      const pagehead = head.querySelector('.goen-pagehead');
       const title = head.querySelector('h1.goen-pagehead__title');
       const titleStyle = getComputedStyle(title);
-      const notice = pagehead.querySelector('.goen-deptnotice');
       const row = head.querySelector('.goen-subindex');
       const rowStyle = getComputedStyle(row);
       const current = row.querySelector('a[aria-current="page"]');
@@ -842,18 +842,34 @@ try {
       const link = element => {
         const style = getComputedStyle(element);
         return { line: style.textDecorationLine, thickness: style.textDecorationThickness, weight: Number(style.fontWeight),
-          background: style.backgroundColor, shadow: style.boxShadow, snap: style.scrollSnapAlign, margin: style.scrollMarginLeft, box: box(element) };
+          background: style.backgroundColor, color: style.color, shadow: style.boxShadow, snap: style.scrollSnapAlign, margin: style.scrollMarginLeft, box: box(element) };
       };
+      const resolve = (property, value) => {
+        const probe = document.createElement('span');
+        probe.style.setProperty(property, value);
+        document.body.append(probe);
+        const got = getComputedStyle(probe).getPropertyValue(property);
+        probe.remove();
+        return got;
+      };
+      const tree = document.querySelector('.goen-facets');
       return {
         viewport: innerWidth,
         column: { left: pageBox.left + parseFloat(pageStyle.paddingLeft), right: pageBox.right - parseFloat(pageStyle.paddingRight) },
-        head: { left: headBox.left + parseFloat(headStyle.paddingLeft), right: headBox.right - parseFloat(headStyle.paddingRight) },
-        grounds: [headStyle.backgroundColor, getComputedStyle(pagehead).backgroundColor],
+        head: { left: headBox.left, right: headBox.right },
+        grounds: [headStyle.backgroundColor],
         images: head.querySelectorAll('img').length,
         title: { box: box(title), size: parseFloat(titleStyle.fontSize), family: titleStyle.fontFamily },
-        notice: notice ? { box: box(notice) } : null,
-        row: { box: box(row), overflowX: rowStyle.overflowX, snap: rowStyle.scrollSnapType, after: getComputedStyle(row, '::after').flexBasis, top: box(row).top },
+        row: { shown: rowStyle.display !== 'none', box: box(row), overflowX: rowStyle.overflowX, snap: rowStyle.scrollSnapType, after: getComputedStyle(row, '::after').flexBasis },
         current: link(current), other: link(other),
+        tree: getComputedStyle(tree).display === 'none' ? null : {
+          page: link(tree.querySelector('.goen-facets__link[aria-current="page"]')),
+          department: link(tree.querySelector('.goen-facets__link[aria-current="true"]')),
+          plain: link(tree.querySelector('.goen-facets__link:not([aria-current])')),
+          subs: [...(document.getElementById('facets-subs')?.parentElement.querySelectorAll('.goen-facets__link') || [])].map(a => box(a).top),
+          fill: resolve('background-color', 'var(--fill-ink)'),
+          onFill: resolve('color', 'var(--on-fill-ink)'),
+        },
       };
     })()`);
     const ringOf = async selector => {
@@ -865,20 +881,15 @@ try {
       await force(selector, []);
       return got;
     };
-    const cases = [
-      { tone: 'ink', photo: 1, notice: 1 },
-      { tone: 'sage', photo: 1, notice: 0 },
-      { tone: 'sage', photo: 0, notice: 0 },
-    ];
     for (const width of [375, 800, 1024, 1440]) {
-      for (const c of cases) {
-        const label = `department head ${c.tone}${c.photo ? '' : ' without a photograph'}${c.notice ? ' with a notice' : ''} ${width}px`;
-        await open(`/department?tone=${c.tone}&photo=${c.photo}&notice=${c.notice}`, width);
+      for (const zh of [0, 1]) {
+        const label = `department head ${zh ? 'zh' : 'en'} ${width}px`;
+        await open(`/department?tone=ink&photo=1&zh=${zh}`, width);
         const head = await measure();
 
         // In the page column, words on the page: no photograph, no ground.
-        assert.ok(near(head.head.left, head.column.left) && near(head.head.right, head.column.right),
-          `${label}: the head is ${head.head.left}-${head.head.right}, the page column ${head.column.left}-${head.column.right}`);
+        assert.ok(head.head.left >= head.column.left - 0.5 && head.head.right <= head.column.right + 0.5,
+          `${label}: the head is ${head.head.left}-${head.head.right}, outside the page column ${head.column.left}-${head.column.right}`);
         assert.equal(head.images, 0, `${label}: the head draws ${head.images} image(s)`);
         for (const ground of head.grounds) assert.equal(ground, 'rgba(0, 0, 0, 0)', `${label}: the head has a ground of ${ground}`);
 
@@ -886,13 +897,28 @@ try {
         assert.ok(head.title.size <= 40 + 0.5 && head.title.size >= 32 - 0.5, `${label}: the name is ${head.title.size}px, not 32 to 40`);
         assert.match(head.title.family, /^"?Instrument Sans"?, "?Noto Sans TC"?/, `${label}: the name is set in ${head.title.family}`);
 
-        // The notice is a line under the name, above the sub-categories.
-        if (c.notice) {
-          assert.ok(head.notice.box.top >= head.title.box.bottom - 0.5, `${label}: the notice starts at ${head.notice.box.top}px, above the name's bottom at ${head.title.box.bottom}px`);
-          assert.ok(head.notice.box.bottom <= head.row.top + 0.5, `${label}: the notice runs into the sub-categories`);
+        if (head.tree) {
+          // The column stands: the row has gone and the tree carries the six.
+          assert.equal(head.row.shown, false, `${label}: the sub-categories' row shows beside the tree that carries them`);
+          assert.equal(head.tree.subs.length, 6, `${label}: the tree lists ${head.tree.subs.length} sub-categories, not six`);
+          assert.ok(head.tree.subs.every((top, i) => i === 0 || top > head.tree.subs[i - 1]), `${label}: the tree's sub-categories are not one to a line, in order: ${head.tree.subs}`);
+          for (const [name, l] of [['the page', head.tree.page], ['its department', head.tree.department]]) {
+            assert.equal(l.background, head.tree.fill, `${label}: ${name} is not filled ink in the tree: ${l.background}`);
+            assert.equal(l.color, head.tree.onFill, `${label}: ${name}'s words are ${l.color} on the ink`);
+          }
+          assert.equal(head.tree.plain.background, 'rgba(0, 0, 0, 0)', `${label}: a line of the tree is filled at rest`);
+          const ring = await ringOf('.goen-facets__link[aria-current="page"]');
+          assert.deepEqual([ring.style, ring.width], ['solid', '2px'], `${label}: the focused line of the tree's ring`);
+          await media([{ name: 'forced-colors', value: 'active' }]);
+          const forced = await evaluate(`getComputedStyle(document.querySelector('.goen-facets__link[aria-current="page"]')).outlineStyle`);
+          await media([]);
+          assert.equal(forced, 'solid', `${label}: the page's line loses its mark in forced colours`);
+          console.log(`${label}: words in the column, name ${head.title.size}px, the tree beside it`);
+          continue;
         }
 
         // The current sub-category is underlined 2px, heavier; the others are plain words.
+        assert.ok(head.row.shown, `${label}: the sub-categories have no row while the tree is folded away`);
         assert.equal(head.current.line, 'underline', `${label}: the current sub-category is not underlined`);
         assert.equal(head.current.thickness, '2px', `${label}: the current sub-category's line is ${head.current.thickness}`);
         assert.ok(head.current.weight > head.other.weight, `${label}: the current sub-category weighs ${head.current.weight}, another ${head.other.weight}`);
@@ -925,18 +951,6 @@ try {
         console.log(`${label}: words in the column, name ${head.title.size}px, current underlined 2px${width < 768 ? ', row scrolls' : ''}`);
       }
     }
-  }
-
-  // Six Chinese sub-category names stay on one line at 1400px and 1440px, so
-  // the last one is never left alone on a second line. Narrower windows, where
-  // the row wraps, are not asserted.
-  for (const width of [1400, 1440]) {
-    const label = `department head sub-categories ${width}px`;
-    await open('/department?tone=sage&photo=1&zh=1', width);
-    const tops = await evaluate(`[...document.querySelectorAll('.goen-listing__head .goen-subindex__link')].map(link => link.getBoundingClientRect().top)`);
-    assert.equal(tops.length, 6, `${label}: six sub-categories drawn`);
-    assert.ok(tops.every(top => Math.abs(top - tops[0]) < 1), `${label}: the sub-categories are on more than one line: ${tops}`);
-    console.log(`${label}: six names on one line`);
   }
 
   // A chosen option, a chosen delivery card and a refused field are marked in
@@ -1008,7 +1022,7 @@ try {
       expectCorners(await measure(['#sort']), '/search');
       await open('/c/audio', 1440);
       await rootSize(size);
-      expectCorners(await measure(['#min-price']), '/c/audio');
+      expectCorners(await measure(['#sort']), '/c/audio');
     }
     console.log(`${label}: inputs, textarea, selects and the filter and sort controls have 4px corners at 100% and 200% text`);
 

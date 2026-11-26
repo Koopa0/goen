@@ -111,17 +111,10 @@ async function key(name, modifiers = 0) {
  await connection.send('Input.dispatchKeyEvent', { type: 'keyDown', ...params });
  await connection.send('Input.dispatchKeyEvent', { type: 'keyUp', ...params });
 }
-async function press(point, description) {
+async function press(point) {
  await connection.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
  await connection.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
- assert.equal(await evaluate('checkedPopover.open'), true, description + ': pointerdown keeps the panel open');
  await connection.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
- assert.equal(await evaluate('checkedPopover.open'), true, description + ': pointer release keeps the panel open');
-}
-
-async function filterShell() {
- const closed = await evaluate("Boolean(document.querySelector('.goen-filters__shell:not([open])'))");
- if (closed) { await evaluate("document.querySelector('.goen-filters__shell > summary').focus()"); await key('Enter'); }
 }
 async function visibleFocus() {
  return evaluate(`(() => { const e = document.activeElement, r = e.getBoundingClientRect(), s = getComputedStyle(e);
@@ -132,49 +125,53 @@ async function visibleFocus() {
   outlineWidth: parseFloat(s.outlineWidth), outlineStyle: s.outlineStyle,
   targetWidth: parseFloat(target.width), targetHeight: parseFloat(target.height) }; })()`);
 }
+// The shelf's filters are a column beside the results where the page has the
+// room, and a modal drawer where it does not; the language menu is the one
+// popover the page keeps. A pointer on an option's words ticks it, the drawer
+// opens from its button by the keyboard, keeps focus inside, and gives it back
+// on Escape, and the chip a filter leaves is reachable and visibly focused.
 try {
  for (const locale of ['zh-Hant', 'en']) for (const width of [1440, 320, 375]) for (const text of [100, 200]) for (const dark of [false, true]) {
   const label = `${locale}-${width}-${text}-${dark ? 'dark' : 'light'}`;
   const path = '/c/' + (process.env.DEPARTMENT_SLUG || 'audio');
   await navigate(path, width, text, locale, dark);
   assert.equal(await evaluate('document.documentElement.lang'), locale);
-  const brand = await evaluate("document.querySelector('.goen-filters__group input[name=brand]')?.value");
+  const brand = await evaluate("document.querySelector('.goen-filters input[name=brand]')?.value");
   assert.ok(brand, label + ': a brand facet is required');
   await navigate(path + '?brand=' + encodeURIComponent(brand), width, text, locale, dark);
-  await filterShell();
-  await evaluate("window.checkedPopover = document.querySelector('.goen-filters__group:has(input[name=brand])'); checkedPopover.querySelector('summary').focus()");
-  await key('Enter');
-  assert.equal(await evaluate('checkedPopover.open'), true, label + ': Enter opens the group');
-  const checked = await evaluate("checkedPopover.querySelector('input').checked");
-  // A pointer can only press what is on the screen. Focusing the summary
-  // scrolls only as far as the summary itself, so where the page puts the
-  // group near the bottom edge (320 at 200% text, under a tall promotion) its
-  // panel opens below the fold: a shopper scrolls to it, and so does the check,
-  // by the least that shows the option, before it reads where to press.
-  await evaluate("checkedPopover.querySelector('.goen-filters__label').scrollIntoView({ block: 'nearest' })");
-  const optionText = await evaluate(`(() => { const e = checkedPopover.querySelector('.goen-filters__label'); const range = document.createRange(); range.selectNodeContents(e); const r = range.getBoundingClientRect(); return {x:r.x + r.width / 2, y:r.y + r.height / 2}; })()`);
-  await press(optionText, label + ': option label');
-  assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), !checked, label + ': native label press toggles its option');
-  await evaluate("checkedPopover.querySelector('summary').focus()");
-  await press(optionText, label + ': restore the applied option');
-  assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), checked, label + ': second native label press restores the filter');
-  await evaluate("checkedPopover.querySelector('summary').focus()");
-  if (width === 1440) {
-   await evaluate("checkedPopover.querySelector('.goen-filters__options').scrollIntoView({ block: 'nearest' })");
-   const padding = await evaluate(`(() => { const panel = checkedPopover.querySelector('.goen-filters__options'), r = panel.getBoundingClientRect(), s = getComputedStyle(panel); return {x:r.x + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft) / 2, y:r.y + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) / 2}; })()`);
-   await press(padding, label + ': panel padding');
-   assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), checked, label + ': padding does not toggle the option');
-   await evaluate("checkedPopover.querySelector('summary').focus()");
+  await evaluate(`window.checkedOpener = document.querySelector('[data-filters-open]');
+   window.checkedBox = document.querySelector('.goen-filters input[name=brand][value=${JSON.stringify(brand)}]'); true`);
+  const drawer = await evaluate('checkedOpener.getClientRects().length > 0');
+  if (drawer) {
+   await evaluate('checkedOpener.focus()');
+   await key('Enter');
+   // The drawer slides in; the probe waits that out.
+   await delay(600);
+   const opened = await evaluate(`(() => { const d = document.getElementById('filters-drawer');
+    return { open: d.open, modal: d.matches(':modal'), inside: d.contains(document.activeElement), box: d.contains(checkedBox), expanded: checkedOpener.getAttribute('aria-expanded') }; })()`);
+   assert.deepEqual(opened, { open: true, modal: true, inside: true, box: true, expanded: 'true' }, label + ': Enter opens the drawer, modal, with focus and the filters in it');
+  } else {
+   assert.equal(await evaluate("getComputedStyle(document.querySelector('.goen-facets')).display !== 'none' && !document.getElementById('filters-drawer').open"), true, label + ': the filters stand beside the results');
   }
-
-  await key('Tab');
-  assert.equal(await evaluate('checkedPopover.open && checkedPopover.contains(document.activeElement)'), true, label + ': focus within the group keeps it open');
-  await evaluate("[...checkedPopover.querySelectorAll('input')].at(-1).focus()");
-  await key('Tab');
-  const exit = await evaluate('({open:checkedPopover.open,inside:checkedPopover.contains(document.activeElement)})');
-  assert.equal(exit.inside, false, label + ': Tab leaves the group');
-  assert.equal(exit.open, false, label + ': panel must close on keyboard focus leaving: ' + JSON.stringify(exit));
-  for (let step = 0; step < 30; step++) {
+  // A pointer can only press what is on the screen: the option is scrolled to,
+  // by the least that shows it, before its words are pressed.
+  await evaluate("checkedBox.closest('label').querySelector('.goen-filters__label').scrollIntoView({ block: 'nearest' })");
+  const checked = await evaluate('checkedBox.checked');
+  const words = await evaluate(`(() => { const e = checkedBox.closest('label').querySelector('.goen-filters__label'); const range = document.createRange(); range.selectNodeContents(e); const r = range.getBoundingClientRect(); return {x:r.x + r.width / 2, y:r.y + r.height / 2}; })()`);
+  await press(words);
+  assert.equal(await evaluate('checkedBox.checked'), !checked, label + ': pressing an option\'s words ticks it');
+  await press(words);
+  assert.equal(await evaluate('checkedBox.checked'), checked, label + ': a second press restores the filter');
+  if (drawer) {
+   await key('Escape');
+   await delay(600);
+   const closed = await evaluate(`(() => ({ open: document.getElementById('filters-drawer').open, back: document.activeElement === checkedOpener,
+    home: !!document.querySelector('.goen-facets [data-facets-panel]'), expanded: checkedOpener.getAttribute('aria-expanded') }))()`);
+   assert.deepEqual(closed, { open: false, back: true, home: true, expanded: 'false' }, label + ': Escape closes the drawer and gives focus back to its button');
+  } else {
+   await evaluate('checkedBox.focus()');
+  }
+  for (let step = 0; step < 40; step++) {
    if (await evaluate("document.activeElement.matches('.goen-filters__chip-remove')")) break;
    await key('Tab');
   }
@@ -182,21 +179,8 @@ try {
   const chip = await visibleFocus();
   assert.ok(chip.uncovered && chip.focusVisible && chip.outlineWidth > 0 && chip.outlineStyle !== 'none' && chip.targetWidth >= 24 && chip.targetHeight >= 24 && chip.right <= chip.viewport, label + ': focused chip must be visible: ' + JSON.stringify(chip));
 
-  await evaluate("checkedPopover.querySelector('summary').focus()"); await key('Enter'); await key('Tab'); await key('Escape');
-  assert.equal(await evaluate("!checkedPopover.open && document.activeElement === checkedPopover.querySelector('summary')"), true, label + ': Escape returns focus to summary');
-  await key('Enter'); await key('Tab'); await evaluate('document.activeElement.blur()');
-  assert.equal(await evaluate('checkedPopover.open'), true, label + ': null relatedTarget keeps the group open');
-  await evaluate('checkedPopover.open = false');
-  await evaluate("checkedPopover.querySelector('summary').focus()"); await key('Enter'); await key('Tab', 8);
-  assert.equal(await evaluate('checkedPopover.open'), false, label + ': reverse Tab out closes the group');
-  await evaluate("checkedPopover.querySelector('summary').focus()"); await key('Enter');
-  const outside = await evaluate("(() => { const r = document.querySelector('h1').getBoundingClientRect(); return {x:r.x+r.width/2, y:r.y+r.height/2}; })()");
-  await connection.send('Input.dispatchMouseEvent', {type:'mousePressed', button:'left', clickCount:1, ...outside});
-  await connection.send('Input.dispatchMouseEvent', {type:'mouseReleased', button:'left', clickCount:1, ...outside});
-  assert.equal(await evaluate('checkedPopover.open'), false, label + ': outside click still closes the group');
-
-  // The language menu lives in the drawer; from 1024 the bar's language is one
-  // button and there is no menu to hold open.
+  // The language menu lives in the site's drawer; from 1024 the bar's language
+  // is one button and there is no menu to hold open.
   if (width === 375) {
    // The drawer slides in; the probe waits that out.
    await evaluate("document.getElementById('site-menu').showModal(); new Promise(done => setTimeout(done, 1000))");
@@ -207,6 +191,6 @@ try {
    assert.equal(await evaluate('checkedLanguage.open'), false, label + ': language menu closes when focus leaves');
    await evaluate("document.getElementById('site-menu').close()");
   }
-  console.log('PASS popover keyboard ' + label + ': ' + JSON.stringify(chip));
+  console.log('PASS shelf keyboard and pointer ' + label + ': ' + JSON.stringify(chip));
  }
 } finally { connection.close(); }

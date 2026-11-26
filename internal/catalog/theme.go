@@ -7,9 +7,8 @@ import (
 
 // Theme is what a sub-category page wears: its department's.
 type Theme struct {
-	Tone     tone.Tone
-	Photo    widget.Photo
-	Children []Crumb
+	Tone  tone.Tone
+	Photo widget.Photo
 	// Comparable is the department's answer to whether its products are put side by side.
 	Comparable bool
 }

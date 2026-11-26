@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/catalog"
@@ -139,25 +138,51 @@ func TestHandler_ListingEveryLevel(t *testing.T) {
 	}
 }
 
-// TestStore_ListingHeadChildren holds that the head offers the department's
-// children from every page under it.
+// TestStore_ListingTree holds that the tree beside a shelf offers the
+// department's children from every page under it, each with what its subtree
+// holds, and opens the department the page is in.
 //
-// A department's head offers its children as chips, from the department itself
-// and from any sub-category under it, so a shopper in one sees the others.
-func TestStore_ListingHeadChildren(t *testing.T) {
+// From the department itself and from any sub-category under it a shopper
+// sees the others; the department's count is its sub-categories' together,
+// and the line for every product is every department's together.
+func TestStore_ListingTree(t *testing.T) {
 	// Tech is the department; accessories sits under it and chargers under that.
 	for _, slug := range []string{"tech", "accessories", "chargers"} {
 		view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Listing(i18n.WithLocale(t.Context(), i18n.ZhHant), slug, catalog.Filters{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		got := make([]string, 0, len(view.Theme.Children))
-		for _, c := range view.Theme.Children {
+		got := make([]string, 0, len(view.Subs))
+		var subs int64
+		for _, c := range view.Subs {
 			got = append(got, c.Slug)
+			subs += c.Count
+			if c.Current != (c.Slug == slug) {
+				t.Errorf("/c/%s marks %s as the page: %t", slug, c.Slug, c.Current)
+			}
 		}
 		want := []string{"phones", "laptops", "tablets", "audio", "wearables", "accessories"}
 		if !slices.Equal(got, want) {
 			t.Errorf("/c/%s offers %v, want %v", slug, got, want)
+		}
+		var every, departments int64
+		for i, d := range view.Departments {
+			if i == 0 {
+				every = d.Count
+				continue
+			}
+			departments += d.Count
+			if d.Slug == "tech" {
+				if d.Count != subs {
+					t.Errorf("/c/%s counts tech %d, its sub-categories %d", slug, d.Count, subs)
+				}
+				if d.Current != (slug == "tech") || d.Open != (slug != "tech") {
+					t.Errorf("/c/%s marks tech current %t open %t", slug, d.Current, d.Open)
+				}
+			}
+		}
+		if every != departments || view.Departments[0].Href != "/shop" {
+			t.Errorf("/c/%s: the first line %+v does not lead to every product, %d, the departments' %d together", slug, view.Departments[0], every, departments)
 		}
 	}
 }
@@ -226,7 +251,7 @@ func TestStore_ListingFacetsOneVariant(t *testing.T) {
 	// In stock AND at most NT$1,000: only the sold-out variant is that cheap.
 	trapped, trapErr := store.Listing(ctx, "phones", catalog.Filters{
 		InStockOnly: true,
-		MaxPrice:    100000,
+		Price:       catalog.PriceBand{Max: 100000},
 		Page:        1,
 	})
 	if trapErr != nil {
@@ -242,7 +267,7 @@ func TestStore_ListingFacetsOneVariant(t *testing.T) {
 	// The control: without it a query returning nothing at all would pass.
 	found, findErr := store.Listing(ctx, "phones", catalog.Filters{
 		InStockOnly: true,
-		MinPrice:    900000,
+		Price:       catalog.PriceBand{Min: 900000},
 		Page:        1,
 	})
 	if findErr != nil {
@@ -459,54 +484,6 @@ func feature(t *testing.T, campaignSlug, productSlug string) error {
 		SELECT c.id, p.id FROM sale_campaigns c, products p
 		WHERE c.slug = $1 AND p.slug = $2`, campaignSlug, productSlug)
 	return err
-}
-
-type sqlExecer interface {
-	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-}
-
-// featureNewProduct puts a new product with one discounted variant holding
-// stock into the campaign; status is the product's status once featured.
-func featureNewProduct(t *testing.T, exec sqlExecer, campaignSlug string, stock int, status string) {
-	t.Helper()
-	ctx := t.Context()
-	slug := "featured-" + uuid.NewString()
-	if _, err := exec.Exec(ctx, `
-		WITH p AS (
-		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
-		    SELECT (SELECT id FROM brands LIMIT 1),
-		           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
-		           $1, '活動商品', 'active', now()
-		    RETURNING id
-		)
-		INSERT INTO product_variants
-		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
-		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, $2, 0, 0 FROM p`, slug, stock); err != nil {
-		t.Fatalf("create product: %v", err)
-	}
-	if _, err := exec.Exec(ctx, `
-		INSERT INTO sale_campaign_products (campaign_id, product_id)
-		SELECT c.id, p.id FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`,
-		campaignSlug, slug); err != nil {
-		t.Fatalf("feature product: %v", err)
-	}
-	if _, err := exec.Exec(ctx, `UPDATE products SET status = $2 WHERE slug = $1`, slug, status); err != nil {
-		t.Fatalf("set product status: %v", err)
-	}
-}
-
-func plainSlug(t *testing.T) string {
-	t.Helper()
-	var slug string
-	if err := pool.QueryRow(t.Context(), `
-		SELECT p.slug FROM products p
-		WHERE p.status = 'active' AND NOT EXISTS (
-			SELECT 1 FROM product_variants v
-			WHERE v.product_id = p.id AND v.compare_at_price_cents IS NOT NULL)
-		LIMIT 1`).Scan(&slug); err != nil {
-		t.Fatalf("find undiscounted product: %v", err)
-	}
-	return slug
 }
 
 // TestStore_CompareBounded holds that a comparison is bounded, deduplicated and
@@ -838,9 +815,9 @@ func TestStore_ListingTileVariant(t *testing.T) {
 		wantNotStale string
 	}{
 		{"unfiltered shows the cheapest buyable variant", catalog.Filters{}, 500000, true, 0, ""},
-		{"min price shows the variant above it, not the cheaper one", catalog.Filters{MinPrice: 1000000}, 1200000, false, 1500000, "the cheaper in-range-excluded variant's price"},
-		{"max price shows the sold-out variant that qualifies it", catalog.Filters{MaxPrice: 400000}, 300000, false, 0, "the dearer in-stock variant's price, above the maximum"},
-		{"in stock and max price excludes dearer variants from the from flag", catalog.Filters{InStockOnly: true, MaxPrice: 600000}, 500000, false, 0, "a from flag for a variant above the maximum"},
+		{"min price shows the variant above it, not the cheaper one", catalog.Filters{Price: catalog.PriceBand{Min: 1000000}}, 1200000, false, 1500000, "the cheaper in-range-excluded variant's price"},
+		{"max price shows the sold-out variant that qualifies it", catalog.Filters{Price: catalog.PriceBand{Max: 400000}}, 300000, false, 0, "the dearer in-stock variant's price, above the maximum"},
+		{"in stock and max price excludes dearer variants from the from flag", catalog.Filters{InStockOnly: true, Price: catalog.PriceBand{Max: 600000}}, 500000, false, 0, "a from flag for a variant above the maximum"},
 	}
 	store := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 	for _, tt := range tests {

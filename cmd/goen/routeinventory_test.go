@@ -326,6 +326,7 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "GET /search", sample: "/search", traits: "banner nav speculation visitor"},
 	{pattern: "GET /search/suggest", sample: "/search/suggest?q=pixel", traits: "visitor"}, // a fragment under the header's field: no header of its own
 	{pattern: "GET /shipping", sample: "/shipping", traits: "banner nav speculation visitor"},
+	{pattern: "GET /shop", sample: "/shop", traits: "banner nav speculation visitor"},
 	{pattern: "GET /signin", sample: "/signin", traits: "nav nostore visitor"},
 	{pattern: "GET /sitemap.xml", sample: "/sitemap.xml", traits: "visitor"}, // still visitor: it needs the request budget, which stateless paths skip
 	{pattern: "GET /static/", sample: "/static/css/app/app.css", traits: ""},

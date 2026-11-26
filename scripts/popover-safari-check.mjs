@@ -30,25 +30,17 @@ async function key(value) {
   const id = element['element-6066-11e4-a52e-4f735466cecf'];
   await command('POST', `/session/${session}/element/${id}/value`, {text: value});
 }
-async function pointer(point, message) {
-  await command('POST', `/session/${session}/actions`, {actions: [{
-    type: 'pointer', id: 'mouse', parameters: {pointerType: 'mouse'},
-    actions: [{type: 'pointerMove', duration: 0, origin: 'viewport', ...point}, {type: 'pointerDown', button: 0}],
-  }]});
-  assert.equal(await evaluate('return checkedPopover.open'), true, message + ': pointerdown keeps the panel open');
-  await command('POST', `/session/${session}/actions`, {actions: [{
-    type: 'pointer', id: 'mouse', parameters: {pointerType: 'mouse'}, actions: [{type: 'pointerUp', button: 0}],
-  }]});
-  assert.equal(await evaluate('return checkedPopover.open'), true, message + ': release keeps the panel open');
-}
-// A press on a control that is not inside a popover: nothing is held open, so
-// there is no panel state to assert between the down and the up.
+// A press: the pointer down and up on one point.
 async function press(point) {
   await command('POST', `/session/${session}/actions`, {actions: [{
     type: 'pointer', id: 'mouse', parameters: {pointerType: 'mouse'},
     actions: [{type: 'pointerMove', duration: 0, origin: 'viewport', ...point}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}],
   }]});
 }
+// The shelf's filters stand beside the results at 100% text and fold into the
+// modal drawer at 200%, where the page is too narrow in rem for their column.
+// A pointer on an option's words ticks it either way; the drawer opens from
+// its button by the keyboard and gives focus back on Escape.
 try {
   const started = await command('POST', '/session', {capabilities: {alwaysMatch: {browserName: 'safari'}}});
   session = started.sessionId;
@@ -68,26 +60,25 @@ try {
     assert.ok(await evaluate('return innerWidth >= 1024'), at + ': desktop layout required');
     const root = await evaluate(rootSnapshot);
     assert.equal(parseFloat(root.computed), text * 16 / 100, at + ': root text size was lost; prepared ' + JSON.stringify(prepared) + ', now ' + JSON.stringify(root));
-    await evaluate("window.checkedPopover = document.querySelector('.goen-filters__group:has(input[name=brand])'); checkedPopover.querySelector('summary').focus(); return true");
-    await key('\uE007');
-    assert.equal(await evaluate('return checkedPopover.open'), true, at + ': Enter opens the group');
-    const checked = await evaluate("return checkedPopover.querySelector('input').checked");
-    const labelPoint = await evaluate("const range = document.createRange(); range.selectNodeContents(checkedPopover.querySelector('.goen-filters__label')); const r = range.getBoundingClientRect(); return {x:Math.round(r.x + r.width / 2), y:Math.round(r.y + r.height / 2)}");
-    await pointer(labelPoint, at + ': native label');
-    assert.equal(await evaluate("return checkedPopover.querySelector('input').checked"), !checked, at + ': label toggles its checkbox');
-    await evaluate("checkedPopover.querySelector('summary').focus(); return true");
-    const padding = await evaluate("const panel = checkedPopover.querySelector('.goen-filters__options'), r = panel.getBoundingClientRect(), s = getComputedStyle(panel); return {x:Math.round(r.x + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft) / 2), y:Math.round(r.y + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) / 2)}");
-    await pointer(padding, at + ': panel padding');
-    assert.equal(await evaluate("return checkedPopover.querySelector('input').checked"), !checked, at + ': padding leaves the checkbox unchanged');
-    await evaluate("checkedPopover.querySelector('summary').focus(); return true");
-    await key('\uE004');
-    assert.equal(await evaluate('return checkedPopover.open && checkedPopover.contains(document.activeElement)'), true, at + ': Tab reaches an option');
-    await evaluate("[...checkedPopover.querySelectorAll('input')].at(-1).focus(); return true");
-    await key('\uE004');
-    assert.equal(await evaluate('return !checkedPopover.open && !checkedPopover.contains(document.activeElement)'), true, at + ': Tab out closes the group');
-    await evaluate("checkedPopover.querySelector('summary').focus(); return true");
-    await key('\uE007'); await key('\uE004'); await key('\uE00C');
-    assert.equal(await evaluate("return !checkedPopover.open && document.activeElement === checkedPopover.querySelector('summary')"), true, at + ': Escape restores summary focus');
+    await evaluate("window.checkedOpener = document.querySelector('[data-filters-open]'); window.checkedBox = document.querySelector('.goen-filters input[name=brand][value=nimbus]'); return true");
+    const drawer = await evaluate('return checkedOpener.getClientRects().length > 0');
+    assert.equal(drawer, text === 200, at + ': the filters are a drawer only where the text is large');
+    if (drawer) {
+      await evaluate('checkedOpener.focus(); return true');
+      await key('');
+      await until("const d = document.getElementById('filters-drawer'); return d.open && d.contains(document.activeElement) && d.contains(checkedBox)", at + ': Enter does not open the drawer with focus and the filters in it');
+      await delay(600);
+    }
+    const checked = await evaluate('return checkedBox.checked');
+    const labelPoint = await evaluate("const e = checkedBox.closest('label').querySelector('.goen-filters__label'); e.scrollIntoView({block: 'nearest'}); const range = document.createRange(); range.selectNodeContents(e); const r = range.getBoundingClientRect(); return {x:Math.round(r.x + r.width / 2), y:Math.round(r.y + r.height / 2)}");
+    await press(labelPoint);
+    assert.equal(await evaluate('return checkedBox.checked'), !checked, at + ': pressing an option\'s words ticks it');
+    await press(labelPoint);
+    assert.equal(await evaluate('return checkedBox.checked'), checked, at + ': a second press restores the filter');
+    if (drawer) {
+      await key('');
+      await until("return !document.getElementById('filters-drawer').open && document.activeElement === checkedOpener", at + ': Escape does not close the drawer and give focus back to its button');
+    }
     // From 1024 the bar's language is one button that posts the other
     // language, outside any popover (the menu is the drawer's, below 1024, and
     // popover-focus-check holds it at 375), so it is pressed, not held open.

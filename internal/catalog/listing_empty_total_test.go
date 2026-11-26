@@ -6,9 +6,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-// TestListingViewSearchViewEmpty holds that an empty listing and an empty
-// search depend on the total of matches, not on the page's products.
-func TestListingViewSearchViewEmpty(t *testing.T) {
+// TestShelf_Empty holds that an empty shelf depends on the total of matches,
+// not on the page's products; and that a search that matched nothing is told
+// apart from one whose filters left none of its matches.
+func TestShelf_Empty(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name     string
@@ -22,15 +23,18 @@ func TestListingViewSearchViewEmpty(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := (ListingView{Total: tc.total, Products: tc.products}).Empty(); got != tc.want {
-				t.Errorf("listing Empty = %v, want %v", got, tc.want)
-			}
-			if got := (SearchView{Query: "match", Total: tc.total, Products: tc.products}).Empty(); got != tc.want {
-				t.Errorf("search Empty = %v, want %v", got, tc.want)
+			if got := (&Shelf{Total: tc.total, Products: tc.products}).Empty(); got != tc.want {
+				t.Errorf("Empty() = %v, want %v", got, tc.want)
 			}
 		})
 	}
-	if (SearchView{}).Empty() {
-		t.Error("an unsubmitted search is empty")
+	if (&SearchView{}).Unmatched() {
+		t.Error("an unsubmitted search is a search that matched nothing")
+	}
+	if !(&SearchView{Query: "zz"}).Unmatched() {
+		t.Error("a search with no matches is not told as one")
+	}
+	if (&SearchView{Query: "pro", Matches: 4}).Unmatched() {
+		t.Error("a search whose filters left nothing is told as one that matched nothing")
 	}
 }

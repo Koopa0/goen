@@ -75,7 +75,7 @@ function page() {
   runInNewContext(source, {
     document, window, URL, Element, Node: Element, HTMLFormElement: Form,
     HTMLInputElement: class extends Element {}, HTMLButtonElement: class extends Element {},
-    HTMLDetailsElement: class extends Element {},
+    HTMLDetailsElement: class extends Element {}, HTMLDialogElement: class extends Element {},
     location: new URL(`${origin}/c/tech`),
   }, { filename: 'assets/js/goen.js' });
   const click = (target, fields = {}) => document.dispatch('click', { target, button: 0, ...fields });

@@ -10,9 +10,8 @@ import (
 )
 
 // presetProducts is how many products a ready-made comparison holds: as many as
-// a phone shows side by side before the table scrolls, and the department's
-// preview of a comparison.
-const presetProducts = previewProducts
+// a phone shows side by side before the table scrolls.
+const presetProducts = 3
 
 // presetLimit is how many ready-made comparisons /compare offers: the row of them
 // beside the title stays one line at the desktop width.

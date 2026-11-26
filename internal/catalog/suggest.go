@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
@@ -25,7 +26,7 @@ type SuggestView struct {
 
 // SearchHref is the search page for the same words, where every result is.
 func (v SuggestView) SearchHref() string {
-	return "/search?q=" + queryEscape(v.Query)
+	return "/search?q=" + url.QueryEscape(v.Query)
 }
 
 // suggestPrice is a product's price as the list shows it, "from" where its

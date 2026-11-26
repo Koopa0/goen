@@ -10,7 +10,7 @@ import (
 // the address without the empty parameters.
 func TestDropEmptyParamsRedirect(t *testing.T) {
 	t.Parallel()
-	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/c/audio?brand=aurora&min_price=&max_price=&sort=", http.NoBody)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/c/audio?brand=aurora&price=&sort=", http.NoBody)
 	w := httptest.NewRecorder()
 	if !dropEmptyParams(w, r) {
 		t.Fatal("a query with empty parameters was not redirected")

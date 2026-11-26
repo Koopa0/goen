@@ -16,9 +16,9 @@ func TestListingEmptyStatesHaveNoPicture(t *testing.T) {
 	// The search says it in its head; what follows the head, the departments'
 	// photographs and the newest products, is the way on, not the empty state.
 	for name, tc := range map[string]struct{ page, box string }{
-		"category":        {renderToString(t, Listing(frame.Page{}, ListingView{Slug: "phones"}, nil, nil)), `class="ui-empty goen-listing__empty">`},
-		"search prompt":   {renderToString(t, Search(frame.Page{}, SearchView{})), `class="goen-pagehead goen-pagehead--search">`},
-		"search no match": {renderToString(t, Search(frame.Page{}, SearchView{Query: "zzz"})), `class="goen-pagehead goen-pagehead--search">`},
+		"category":        {renderToString(t, Listing(frame.Page{}, &ListingView{Slug: "phones"})), `class="ui-empty goen-listing__empty">`},
+		"search prompt":   {renderToString(t, Search(frame.Page{}, &SearchView{})), `class="goen-pagehead goen-pagehead--search">`},
+		"search no match": {renderToString(t, Search(frame.Page{}, &SearchView{Query: "zzz"})), `class="goen-pagehead goen-pagehead--search">`},
 		"compare one":     {renderToString(t, Compare(frame.Page{}, compareOf("pixelight-9-pro"))), `class="ui-empty">`},
 	} {
 		_, rest, ok := strings.Cut(tc.page, tc.box)

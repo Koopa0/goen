@@ -145,6 +145,54 @@
   }
 
   /*
+   * The filters' drawer. Where the shelf is too narrow for its column of
+   * filters, the column is not drawn and its button is; the button moves the
+   * one panel, form and all, into a modal <dialog>, and the drawer's closing
+   * moves it back, so there is never a second set of fields or ids. Moved
+   * controls keep their state and their htmx listeners, which htmx binds to
+   * the form itself. The browser keeps focus in the dialog, closes it on Escape
+   * and gives focus back to the button; this closes it from its own buttons,
+   * from a press on the backdrop, and when the window grows wide enough for the
+   * column, where the button is no longer drawn.
+   */
+  function filtersDrawer() {
+    const dialog = document.getElementById("filters-drawer");
+    const panel = document.querySelector("[data-facets-panel]");
+    const opener = document.querySelector("[data-filters-open]");
+    if (!(dialog instanceof HTMLDialogElement) || !panel || !opener) return;
+    const home = panel.parentElement;
+    // What an update says, which the inert page behind the drawer cannot.
+    // Its home is the head of the results' column, which no swap replaces.
+    const feedback = document.querySelector("[data-drawer-carry]");
+    const feedbackHome = feedback?.parentElement;
+
+    opener.setAttribute("aria-expanded", "false");
+    opener.addEventListener("click", () => {
+      dialog.append(panel);
+      if (feedback) panel.querySelector(".goen-facets__foot")?.prepend(feedback);
+      dialog.showModal();
+      // The close button first, as a drawer opens: the choices are below it
+      // in reading order, and the way out is where the eye lands.
+      panel.querySelector(".goen-facets__close")?.focus();
+      opener.setAttribute("aria-expanded", "true");
+    });
+    dialog.addEventListener("close", () => {
+      home.append(panel);
+      if (feedback) feedbackHome.prepend(feedback);
+      opener.setAttribute("aria-expanded", "false");
+    });
+    panel.addEventListener("click", (event) => {
+      if (dialog.open && event.target instanceof Element && event.target.closest("[data-filters-close]")) dialog.close();
+    });
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    window.addEventListener("resize", () => {
+      if (dialog.open && opener.getClientRects().length === 0) dialog.close();
+    });
+  }
+
+  /*
    * The bar follows the scroll only while it is short: at large text or in a
    * short window it grows past 12% of the window, and a bar that tall stuck
    * over the page would hide what has focus under it. Measured rather than
@@ -446,6 +494,17 @@
       const form = ctx?.request?.form;
       if (form?.matches(".goen-filters") || form?.matches(".goen-comparetoggle")) ctx.transition = false;
     });
+    // A filter's results are replaced in place, and the window stays where the
+    // shopper left it: Chrome moved it by the height of the chips that appear
+    // over the results when the filters' column beside them is sticky.
+    let heldScroll = null;
+    document.addEventListener("htmx:before:swap", (event) => {
+      if (event.detail?.ctx?.request?.form?.matches(".goen-filters")) heldScroll = [window.scrollX, window.scrollY];
+    });
+    document.addEventListener("htmx:after:swap", () => {
+      if (heldScroll && (window.scrollX !== heldScroll[0] || window.scrollY !== heldScroll[1])) window.scrollTo(heldScroll[0], heldScroll[1]);
+      heldScroll = null;
+    });
     document.addEventListener("htmx:before:request", (event) => {
       const ctx = event.detail?.ctx;
       if (isProductChoice(ctx)) {
@@ -485,7 +544,7 @@
       const { sourceElement, response } = event.detail || {};
       const form = sourceElement instanceof HTMLFormElement ? sourceElement : sourceElement?.form;
       // DropEmptyParams may leave HX-Push-Url on an error response.
-      if ((form?.matches(".goen-filters") || form?.matches(".goen-search-sort")) && response?.status >= 400) event.preventDefault();
+      if (form?.matches(".goen-filters") && response?.status >= 400) event.preventDefault();
     });
     // On document, because the source element may be detached by the swap
     // before this fires and an event on a detached node never reaches us.
@@ -498,9 +557,8 @@
       const ownsRead = requestForm && reads.get(requestForm) === ctx;
       if (ownsRead) {
         reads.delete(requestForm);
-        if (requestForm.matches(".goen-filters") || requestForm.matches(".goen-search-sort")) {
-          const note = document.querySelector(requestForm.matches(".goen-search-sort")
-            ? "#goen-search-sort-error" : ".goen-filters__error");
+        if (requestForm.matches(".goen-filters")) {
+          const note = document.querySelector(".goen-filters__error");
           const raw = ctx.response?.raw;
           if (note) note.hidden = raw?.ok === true;
         }
@@ -1058,15 +1116,16 @@
       }
       return img.getAttribute("src") ?? "";
     };
+    // A card in the grid, or a row of the shelf's list.
     const entry = (form, box) => {
-      const cell = box.closest(".goen-tile__cell");
-      const name = cell?.querySelector(".goen-tile__name")?.textContent.trim() || box.value;
+      const cell = box.closest(".goen-tile__cell, .goen-specrow");
+      const name = cell?.querySelector(".goen-tile__name, .goen-specrow__name")?.textContent.trim() || box.value;
       const item = document.createElement("li");
       item.className = "goen-compare-pick__item";
       item.dataset.slug = box.value;
       const frame = document.createElement("span");
       frame.className = "goen-compare-pick__photo";
-      const img = cell?.querySelector(".goen-tile__img");
+      const img = cell?.querySelector(".goen-tile__img, .goen-specrow__img");
       if (img) {
         const photo = document.createElement("img");
         photo.src = small(img);
@@ -1299,6 +1358,7 @@
   linePrice();
   focusAfterSwap();
   menu();
+  filtersDrawer();
   stickyBar();
   searchShortcut();
   searchSuggest();

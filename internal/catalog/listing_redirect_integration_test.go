@@ -82,14 +82,14 @@ func TestHandler_ListingUnknownFilters(t *testing.T) {
 	}
 	for _, tc := range []struct{ query, want string }{
 		{"brand=no-such-catalogue-brand&sort=rating", "sort=rating"},
-		{"opt=no-such-axis%3Ano-such-value&min_price=10", "min_price=10"},
+		{"opt=no-such-axis%3Ano-such-value&price=under-1000", "price=under-1000"},
 	} {
 		w := catalogueRequest(t, store, "/c/phones?"+tc.query)
 		if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/c/phones?"+tc.want {
 			t.Errorf("unknown filter status/location = %d/%q", w.Code, w.Header().Get("Location"))
 		}
 	}
-	q := url.Values{"brand": {brand}, "opt": {option}, "max_price": {"1"}}
+	q := url.Values{"brand": {brand}, "opt": {option}, "price": {"under-1000"}}
 	target := "/c/phones?" + q.Encode()
 	w := catalogueRequest(t, store, target)
 	if w.Code != http.StatusOK || w.Header().Get("Location") != "" || !strings.Contains(w.Body.String(), i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeyListingEmpty)) {
