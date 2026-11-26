@@ -77,7 +77,7 @@ func onlyCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	return cookies[0]
 }
 
-// goenCookies lists the eleven cookies the application sets: nine with a
+// goenCookies lists the twelve cookies the application sets: ten with a
 // __Host- name over https and a plain one over http, and two with one plain
 // name in both modes because their Path is not "/", which __Host- forbids.
 func goenCookies(pool *pgxpool.Pool) map[string]cookiePin {
@@ -112,6 +112,27 @@ func goenCookies(pool *pgxpool.Pool) map[string]cookiePin {
 				t.Helper()
 				rec := httptest.NewRecorder()
 				cart.SetCookie(rec, "token", secure)
+				return onlyCookie(t, rec)
+			},
+		},
+		"compare": {
+			purpose: "the products the visitor keeps to compare, which the header counts",
+			secure:  "__Host-goen_compare", dev: "goen_compare",
+			path: "/", maxAge: 30 * cookieDay, sameSite: http.SameSiteLaxMode,
+			probe: func(t *testing.T, secure bool) *http.Cookie {
+				t.Helper()
+				h := catalog.NewCompareSet(catalog.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), secure)
+				rec := httptest.NewRecorder()
+				req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/compare/items",
+					strings.NewReader("slug=a&action=remove&return=/compare"))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				name := "goen_compare"
+				if secure {
+					name = "__Host-goen_compare"
+				}
+				// Removing one of two writes the set without reading the catalogue.
+				req.AddCookie(&http.Cookie{Name: name, Value: "a.b", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
+				h.Update(rec, req)
 				return onlyCookie(t, rec)
 			},
 		},

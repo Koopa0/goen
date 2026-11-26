@@ -5,28 +5,31 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
+// The page reads top to bottom as one thing: what is compared (the title, the
+// ready-made comparisons and the differences-only switch), the comparison or
+// the state short of one, then the way to add another product and the shelf.
 templ Compare(p frame.Page, v CompareView) {
 	@frame.Base(p) {
 		<div class="goen-compare">
-			<div class="goen-pagehead">
-				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyCompareTitle) }</p>
-				if v.Enough() {
-					<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCompareHeading) }</h1>
-					<p class="goen-pagehead__sub">
-						{ i18n.T(ctx, i18n.KeyCompareSub) }
-					</p>
-				} else {
-					<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCompareChoose) }</h1>
-				}
-			</div>
+			<header class="goen-compare__top">
+				<div class="goen-compare__intro">
+					if v.Enough() {
+						<h1 class="goen-compare__title">{ i18n.T(ctx, i18n.KeyCompareHeading) }</h1>
+						<p class="goen-compare__sub">{ i18n.T(ctx, i18n.KeyCompareSub) }</p>
+					} else {
+						<h1 class="goen-compare__title">{ i18n.T(ctx, i18n.KeyCompareChoose) }</h1>
+					}
+				</div>
+				@compareTools(v)
+			</header>
 			if v.Dropped {
 				<p class="goen-compare__note" role="status">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareOverflow), MaxCompare, MaxCompare) }</p>
 			}
-			@comparePicker(v)
 			if !v.Enough() {
 				<div class="ui-empty">
 					if v.Count() == 1 {
@@ -43,55 +46,95 @@ templ Compare(p frame.Page, v CompareView) {
 						for _, item := range v.Products {
 							<li>
 								<a href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
-								@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, templ.SafeURL(v.RemoveHref(item.Slug))) {
+								@compareChange(v, item.Slug, compareRemoveAction, widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}) {
 									{ i18n.T(ctx, i18n.KeyRemove) }
 								}
 							</li>
 						}
 					</ul>
 				}
+				@comparePicker(v)
 				@compareSuggestions(v)
 			} else {
 				@compareTable(v, false)
+				@comparePicker(v)
 				@compareShelf(v)
 			}
 		</div>
 	}
 }
 
-// A GET search and plain links: works with scripting off and the address stays the comparison.
+// The ready-made comparisons are links, so each is an address to share; the
+// switch hides rows in the page and asks nothing of the server.
+templ compareTools(v CompareView) {
+	{{ filter := v.Enough() && v.Filterable(ctx) }}
+	if len(v.Presets) > 0 || filter {
+		<div class="goen-compare__tools">
+			if len(v.Presets) > 0 {
+				<nav class="goen-compare__presets" aria-label={ i18n.T(ctx, i18n.KeyComparePresets) }>
+					<ul role="list">
+						for _, preset := range v.Presets {
+							<li>
+								<a
+									class="goen-compare__preset"
+									if v.Showing(preset) {
+										aria-current="page"
+									}
+									href={ templ.SafeURL(preset.Href()) }
+								>{ preset.Label(ctx) }</a>
+							</li>
+						}
+					</ul>
+				</nav>
+			}
+			if filter {
+				<label class="goen-compare__diffonly">
+					<input class="goen-check__box" type="checkbox" id="compare-diff"/>
+					<span>{ i18n.T(ctx, i18n.KeyCompareDiffOnly) }</span>
+				</label>
+			}
+		</div>
+	}
+}
+
+// A GET search, so the address says what was searched. What it finds is added as
+// the page adds anything: by link to a link's comparison, by a post to a kept set.
 templ comparePicker(v CompareView) {
 	if v.Full() {
 		<p class="goen-compare__note" role="status">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
 	} else {
-		<form class="goen-compare__picker" method="get" action="/compare" role="search" aria-labelledby="compare-q-label">
-			for _, item := range v.Products {
-				<input type="hidden" name="p" value={ item.Slug }/>
-			}
-			<label class="goen-compare__pickerlabel" id="compare-q-label" for="compare-q">{ i18n.T(ctx, i18n.KeyCompareSearchLabel) }</label>
-			<input class="goen-input" id="compare-q" type="search" name="q" value={ v.Query } maxlength="100"/>
-			@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
-				{ i18n.T(ctx, i18n.KeySearch) }
-			}
-		</form>
-		if v.Query != "" && len(v.Candidates) == 0 {
-			<p class="goen-compare__note">{ i18n.T(ctx, i18n.KeyCompareNoMatch) }</p>
-		}
-		if len(v.Candidates) > 0 {
-			<ul class="goen-compare__chosen" role="list">
-				for _, c := range v.Candidates {
-					<li>
-						{ c.Name }
-						if c.Brand != "" {
-							{ " · " + c.Brand }
-						}
-						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, templ.SafeURL(v.AddHref(c.Slug))) {
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), c.Name) }
-						}
-					</li>
+		<div class="goen-compare__pick">
+			<form class="goen-compare__picker" method="get" action="/compare" role="search" aria-labelledby="compare-q-label">
+				if !v.Kept {
+					for _, item := range v.Products {
+						<input type="hidden" name="p" value={ item.Slug }/>
+					}
 				}
-			</ul>
-		}
+				<label class="goen-compare__pickerlabel" id="compare-q-label" for="compare-q">{ i18n.T(ctx, i18n.KeyCompareSearchLabel) }</label>
+				<input class="goen-input" id="compare-q" type="search" name="q" value={ v.Query } maxlength="100"/>
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
+					{ i18n.T(ctx, i18n.KeySearch) }
+				}
+			</form>
+			if v.Query != "" && len(v.Candidates) == 0 {
+				<p class="goen-compare__note">{ i18n.T(ctx, i18n.KeyCompareNoMatch) }</p>
+			}
+			if len(v.Candidates) > 0 {
+				<ul class="goen-compare__chosen" role="list">
+					for _, c := range v.Candidates {
+						<li>
+							{ c.Name }
+							if c.Brand != "" {
+								{ " · " + c.Brand }
+							}
+							@compareChange(v, c.Slug, compareAddAction, widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}) {
+								{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), c.Name) }
+							}
+						</li>
+					}
+				</ul>
+			}
+		</div>
 	}
 }
 
@@ -119,7 +162,7 @@ templ compareSuggestions(v CompareView) {
 							<span class="goen-compare__brand">{ t.Brand }</span>
 						}
 						<span class="goen-compare__price">{ t.Price() }</span>
-						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}, templ.SafeURL(v.AddHref(t.Slug))) {
+						@compareChange(v, t.Slug, compareAddAction, widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary}) {
 							{ i18n.T(ctx, i18n.KeyAddToCompare) }
 							<span class="goen-sr-only">{ " " + t.Name }</span>
 						}
@@ -139,46 +182,66 @@ templ compareShelf(v CompareView) {
 	}
 }
 
-// The table /compare shows and the department page previews: preview leaves out the rows every
-// product has and the links that change the set, and keeps the specifications.
+// compareChange adds a product or takes one out. A link's comparison is an
+// address, so the change is a link to the address with or without it; a kept set
+// is the shopper's, so the change is a post to it that comes back here.
+templ compareChange(v CompareView, slug, action string, p widget.ButtonProps) {
+	if v.Kept {
+		<form class="goen-compare__change" method="post" action="/compare/items">
+			<input type="hidden" name="slug" value={ slug }/>
+			<input type="hidden" name="action" value={ action }/>
+			<input type="hidden" name="return" value="/compare"/>
+			@widget.Button(p, "submit") {
+				{ children... }
+			}
+		</form>
+	} else if action == compareRemoveAction {
+		@widget.ButtonLink(p, templ.SafeURL(v.RemoveHref(slug))) {
+			{ children... }
+		}
+	} else {
+		@widget.ButtonLink(p, templ.SafeURL(v.AddHref(slug))) {
+			{ children... }
+		}
+	}
+}
+
+// The table /compare shows and the department page previews: preview leaves out
+// the row that buys and removes, and the rating and warranty, and keeps the
+// specifications. A row the products disagree on carries is-differs, which the
+// ground marks and the differences-only switch keeps; the words under its label
+// say so only where every product states a value.
 templ compareTable(v CompareView, preview bool) {
 	<div class="goen-compare__scroll">
 		<table class="goen-compare__table">
 			<caption class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareCaption) }</caption>
 			<thead>
 				<tr>
-					<th scope="col">
-						<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareRowLabel) }</span>
-					</th>
+					<th scope="col" class="goen-compare__corner">{ i18n.T(ctx, i18n.KeySectionSpecs) }</th>
 					for _, item := range v.Products {
 						<th scope="col">
 							<div class="goen-compare__head">
 								if item.ImageURL != "" {
-									<img
-										class="goen-compare__image"
-										src={ item.ImageURL }
-										srcset={ item.ImageSrcset }
-										sizes="96px"
-										alt={ item.ImageAlt }
-										loading="lazy"
-										width="160"
-										height="120"
-									/>
+									<span class="goen-compare__plate">
+										<img
+											class="goen-compare__image"
+											src={ item.ImageURL }
+											srcset={ item.ImageSrcset }
+											sizes="11rem"
+											alt={ item.ImageAlt }
+											loading="lazy"
+											width="160"
+											height="120"
+										/>
+									</span>
 								}
-								<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
 								if item.Brand != "" {
 									<span class="goen-compare__brand">{ item.Brand }</span>
 								}
-								if preview {
-									<span class="goen-compare__price">
-										@tile.Price(item.PriceTile())
-									</span>
-								} else {
-									// A link, not a form button: the comparison set is the URL, so removing writes nothing.
-									<a class="goen-compare__remove" href={ templ.SafeURL(v.RemoveHref(item.Slug)) }>
-										{ i18n.T(ctx, i18n.KeyRemove) }
-									</a>
-								}
+								<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
+								<span class="goen-compare__price">
+									@tile.Price(item.PriceTile())
+								</span>
 							</div>
 						</th>
 					}
@@ -186,57 +249,87 @@ templ compareTable(v CompareView, preview bool) {
 			</thead>
 			<tbody>
 				if !preview {
-					<tr>
-						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowPrice) }</th>
+					<tr class="goen-compare__buy">
+						<th scope="row"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareBuyRow) }</span></th>
 						for _, item := range v.Products {
-							<td class="goen-compare__price">
-								@tile.Price(item.PriceTile())
+							<td>
+								<div class="goen-compare__actions">
+									@compareBuy(v, item)
+									@compareChange(v, item.Slug, compareRemoveAction, widget.ButtonProps{
+										ButtonStyle: widget.ButtonStyleGhost, Icon: true, Class: "goen-compare__remove",
+										Attrs: templ.Attributes{"aria-label": i18n.T(ctx, i18n.KeyRemove) + " " + item.Name},
+									}) {
+										@icons.Close()
+									}
+								</div>
+								// What adding said, put here by the request that added: the
+								// product page's notice, taken out of the page the add returns to.
+								<div class="goen-compare__added" id={ "compare-added-" + item.Slug } role="status"></div>
 							</td>
 						}
 					</tr>
-					<tr>
-						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowStock) }</th>
-						for _, item := range v.Products {
-							<td>{ item.Stock(ctx) }</td>
-						}
-					</tr>
-					<tr>
-						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowRating) }</th>
-						for _, item := range v.Products {
-							<td>{ item.RatingText() }</td>
-						}
-					</tr>
-					<tr>
-						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowWarranty) }</th>
-						for _, item := range v.Products {
-							<td>{ item.Warranty(ctx) }</td>
-						}
-					</tr>
-					<tr>
-						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowCategory) }</th>
-						for _, item := range v.Products {
-							<td>{ item.Category }</td>
-						}
-					</tr>
+					for _, row := range v.Facts(ctx) {
+						@compareRow(v, row)
+					}
 				}
 				for _, row := range v.Rows {
-					<tr class={ templ.KV("is-differs", row.Marked(v.Count())) }>
-						<th scope="row">
-							{ row.Label }
-							if row.Marked(v.Count()) {
-								<span class="goen-compare__differs">{ i18n.T(ctx, i18n.KeyCompareDiffers) }</span>
-							}
-						</th>
-						for i := range v.Products {
-							if row.Stated(i) {
-								<td>{ row.Value(i) }</td>
-							} else {
-								<td class="goen-compare__none">{ row.Value(i) }</td>
-							}
-						}
-					</tr>
+					@compareRow(v, row)
 				}
 			</tbody>
 		</table>
 	</div>
+}
+
+templ compareRow(v CompareView, row CompareRow) {
+	<tr class={ templ.KV("is-differs", row.Differs()) }>
+		<th scope="row">
+			{ row.Label }
+			if row.Marked(v.Count()) {
+				<span class="goen-compare__differs">{ i18n.T(ctx, i18n.KeyCompareDiffers) }</span>
+			}
+		</th>
+		for i := range v.Products {
+			if row.Stated(i) {
+				<td>{ row.Value(i) }</td>
+			} else {
+				<td class="goen-compare__none">{ row.Value(i) }</td>
+			}
+		}
+	</tr>
+}
+
+// A column buys its product only when one press names what goes in the cart: a
+// product with one variant in stock. Any other in stock is chosen on its page,
+// and one sold out says so. The add is the product page's form, so a refusal is
+// that page's; with htmx the notice the product page would show is put in the
+// column and the header's cart is replaced, and the shopper stays here.
+templ compareBuy(v CompareView, item CompareProduct) {
+	if item.SoleVariantID != "" {
+		<form
+			class="goen-compare__cart"
+			method="post"
+			action="/cart/items"
+			hx-post="/cart/items"
+			hx-target={ "#compare-added-" + item.Slug }
+			hx-select="#added"
+			hx-swap="innerHTML"
+			hx-select-oob="#cart-link"
+			hx-push-url="false"
+		>
+			<input type="hidden" name="variant" value={ item.SoleVariantID }/>
+			<input type="hidden" name="quantity" value="1"/>
+			<input type="hidden" name="back" value={ item.Slug }/>
+			@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeSmall}, "submit") {
+				{ i18n.T(ctx, i18n.KeyAddToCart) }
+				<span class="goen-sr-only">{ " " + item.Name }</span>
+			}
+		</form>
+	} else if item.InStock {
+		@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary, Size: widget.SizeSmall}, templ.SafeURL(v.ProductHref(item.Slug))) {
+			{ i18n.T(ctx, i18n.KeyChooseOptions) }
+			<span class="goen-sr-only">{ " " + item.Name }</span>
+		}
+	} else {
+		<span class="goen-compare__soldout">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
+	}
 }

@@ -1628,6 +1628,32 @@ th {
   width: 1rem;
 }
 
+.goen-header__compareshown {
+  align-items: center;
+  display: inline-flex;
+}
+
+/* How many products the visitor keeps to compare: a disc in the commerce
+   action's cobalt, so it is not read as the cart's ink one, with figures of one
+   width so a count that changes does not move the word. */
+.goen-header__comparecount {
+  align-items: center;
+  background: var(--cta);
+  border-radius: var(--r-full);
+  box-sizing: border-box;
+  color: var(--on-cta);
+  display: inline-flex;
+  font-family: var(--font-data);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  justify-content: center;
+  line-height: 1;
+  margin-inline-start: 0.35rem;
+  min-height: 1.25rem;
+  min-width: 1.25rem;
+  padding: 0 0.3rem;
+}
+
 @media (max-width: 29.99rem) {
   .goen-header__subtotal {
     display: none;
@@ -4389,11 +4415,12 @@ input.goen-check {
   color: var(--sys-on-surface);
 }
 
-/* The comparison table. It scrolls inside its own box so the PAGE never moves
-   sideways, and the label column stays put while the products scroll past it —
-   without that a reader loses which row they are on the moment they move. The
-   box is a printed table's: a rule over it and one under each row, no frame and
-   no corner. */
+/* The comparison. A head says what is compared and offers the ready-made
+   comparisons and the differences-only switch; under it the table scrolls inside
+   its own framed box so the PAGE never moves sideways, and the label column
+   stays put while the products scroll past it: without that a reader loses
+   which row they are on the moment they move. Each product stands on the photo
+   plate, as on a shelf, and its figures are set in the data face. */
 .goen-compare {
   display: flex;
   flex-direction: column;
@@ -4403,101 +4430,261 @@ input.goen-check {
   padding: 24px var(--page-gutter) 56px;
 }
 
+.goen-compare__top {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  justify-content: space-between;
+}
+
+.goen-compare__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.goen-compare__title {
+  color: var(--text-strong);
+  font: var(--fw-semibold) clamp(1.5rem, 1.1rem + 1.2vw, 2rem)/1.2 var(--font-display);
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.goen-compare__sub {
+  color: var(--text-soft);
+  font: var(--type-body-s);
+  margin: 0;
+}
+
+.goen-compare__tools {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.goen-compare__presets ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A ready-made comparison and the switch are one kind of pill: a hairline
+   round, ink when it is the page the shopper is on. */
+.goen-compare__preset,
+.goen-compare__diffonly {
+  align-items: center;
+  background: var(--sys-surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-full);
+  box-sizing: border-box;
+  color: var(--text-soft);
+  cursor: pointer;
+  display: inline-flex;
+  font: var(--type-label-m);
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  text-decoration: none;
+}
+
+.goen-compare__preset {
+  white-space: nowrap;
+}
+
+.goen-compare__preset:hover,
+.goen-compare__diffonly:hover {
+  border-color: var(--text-strong);
+  color: var(--text-strong);
+}
+
+.goen-compare__preset[aria-current="page"] {
+  background: var(--fill-ink);
+  border-color: var(--fill-ink);
+  color: var(--on-fill-ink);
+}
+
+.goen-compare__diffonly:has(:checked) {
+  border-color: var(--text-strong);
+  color: var(--text-strong);
+}
+
 .goen-compare__scroll {
-  border-top: 1px solid var(--rule-line);
+  border: 1px solid var(--hairline);
+  border-radius: var(--shape-sm);
   overflow-x: auto;
   position: relative;
 }
 
 .goen-compare__table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: var(--fs-14);
   min-width: 100%;
 }
 
 .goen-compare__table td,
 .goen-compare__table th {
-  border-bottom: 1px solid var(--rule-line);
+  border-bottom: 1px solid var(--hairline);
+  border-inline-end: 1px solid var(--hairline);
   min-width: 160px;
-  padding: 12px;
+  padding: 0.9rem 1rem;
   text-align: left;
   vertical-align: top;
 }
 
+.goen-compare__table td:last-child,
+.goen-compare__table th:last-child {
+  border-inline-end: 0;
+}
+
+.goen-compare__table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* The values are figures to read across: the data face, with figures of one
+   width so a column of them lines up. */
+.goen-compare__table tbody td {
+  color: var(--text-strong);
+  font-family: var(--font-data);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* A label longer than the narrow column a phone gives it breaks at a hyphen
+   rather than running under the products. */
 .goen-compare__table tbody th,
 .goen-compare__table thead th:first-child {
-  background: var(--sys-surface);
-  color: var(--sys-on-surface-variant);
-  font-weight: var(--fw-medium);
+  background: var(--ground-tint);
+  color: var(--text-strong);
+  font-weight: var(--fw-semibold);
+  hyphens: auto;
   left: 0;
   min-width: 140px;
+  overflow-wrap: break-word;
   position: sticky;
   text-align: left;
   z-index: var(--z-base);
 }
 
+.goen-compare__corner {
+  font: var(--type-label-m);
+}
+
 .goen-compare__head {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.2rem;
+}
+
+/* The studio's #f9f9f9 dissolves into the plate under multiply, so the photo
+   reads as the product standing on the shelf, not as a white sticker. */
+.goen-compare__plate {
+  aspect-ratio: 4 / 3;
+  background: var(--photo-plate);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-sizing: border-box;
+  display: block;
+  margin-bottom: 0.65rem;
+  max-width: 11rem;
+  padding: 0.6rem;
 }
 
 .goen-compare__image {
-  height: 96px;
+  display: block;
+  height: 100%;
   margin: 0;
-  object-fit: cover;
-  width: 96px;
+  mix-blend-mode: multiply;
+  object-fit: contain;
+  width: 100%;
+}
+
+.goen-compare__brand {
+  color: var(--text-faint);
+  font-family: var(--font-data);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-regular);
 }
 
 .goen-compare__name {
-  color: var(--sys-on-surface);
+  color: var(--text-strong);
   font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  margin-top: 8px;
+  font-weight: var(--fw-semibold);
   text-decoration: none;
 }
 
 .goen-compare__name:hover {
-  color: var(--sys-on-surface);
+  color: var(--text-strong);
   text-decoration: underline;
-}
-
-.goen-compare__head .goen-compare__name {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 
-.goen-compare__head .goen-compare__name:hover {
-  text-decoration-thickness: 2px;
-}
-
-.goen-compare__brand {
-  color: var(--sys-on-surface-variant);
-  font-size: var(--fs-12);
-}
-
-.goen-compare__remove {
-  color: var(--sys-on-surface-variant);
-  font-size: var(--fs-12);
-  margin-top: 8px;
-}
-
 .goen-compare__price {
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-medium);
+  color: var(--text-strong);
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: var(--fw-semibold);
 }
 
-/* A row the products disagree on: the words under its label are the cue, the
-   ground is only a band for the eye to follow along the row. */
+/* The row that buys and removes is read as the foot of each product's head:
+   no rule between them. */
+.goen-compare__table thead th {
+  border-bottom: 0;
+  font-weight: var(--fw-regular);
+}
+
+.goen-compare__table .goen-compare__buy > * {
+  font-family: var(--font-sans);
+  padding-top: 0;
+}
+
+.goen-compare__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.goen-compare__cart,
+.goen-compare__change {
+  margin: 0;
+}
+
+.goen-compare__soldout {
+  color: var(--text-soft);
+  font: var(--type-label-m);
+}
+
+.goen-compare__added:empty {
+  display: none;
+}
+
+.goen-compare__added {
+  margin-top: 0.5rem;
+}
+
+.goen-compare__added p {
+  margin: 0;
+}
+
+/* A row the products disagree on: the cobalt ground is a band for the eye to
+   follow along the row; where every product states a value the words under
+   its label say so as well. */
 .goen-compare__table .is-differs td,
 .goen-compare__table .is-differs th {
-  background: var(--sys-surface-container-low);
-  color: var(--on-surface-strong);
+  background: var(--cobalt-soft);
+  color: var(--text-strong);
 }
 
 .goen-compare__differs {
-  color: var(--sys-on-surface-variant);
+  color: var(--text-soft);
   display: block;
   font-size: var(--fs-12);
   font-weight: var(--fw-regular);
@@ -4505,7 +4692,62 @@ input.goen-check {
 }
 
 .goen-compare__none {
-  color: var(--sys-on-surface-variant);
+  color: var(--text-soft);
+}
+
+/* Differences only: the rows every product agrees on leave, the row that buys
+   stays. The switch is the page's own; nothing is asked of the server. */
+.goen-compare:has(#compare-diff:checked) .goen-compare__table tbody tr:not(.is-differs):not(.goen-compare__buy) {
+  display: none;
+}
+
+/* The control a tile or the product page can carry to keep a product in the
+   compare set: a hairline pill, ink with a tick when the product is in it. */
+.goen-comparetoggle {
+  align-items: flex-start;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.goen-comparetoggle__button {
+  align-items: center;
+  background: var(--sys-surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-full);
+  box-sizing: border-box;
+  color: var(--text-strong);
+  cursor: pointer;
+  display: inline-flex;
+  font: var(--type-label-m);
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+}
+
+.goen-comparetoggle__button:hover {
+  border-color: var(--text-strong);
+}
+
+.goen-comparetoggle__button[aria-pressed="true"] {
+  background: var(--fill-ink);
+  border-color: var(--fill-ink);
+  color: var(--on-fill-ink);
+}
+
+.goen-comparetoggle__button svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+.goen-comparetoggle__note {
+  color: var(--text-soft);
+  font: var(--type-body-s);
+}
+
+.goen-comparetoggle__note:empty {
+  display: none;
 }
 
 /* A fact line on a head laid on a tone's ground takes the tone's text colours. */
@@ -4717,8 +4959,27 @@ input.goen-check {
 }
 
 
-/* Two products stay in view on a phone; the rest scroll past a label column that stays. */
+/* Two products stay in view on a phone; the rest scroll past a label column that
+   stays. The ready-made comparisons are one row that scrolls sideways in its own
+   box, so they do not push the table down by a line each. */
 @media (max-width: 639px) {
+  .goen-compare__tools {
+    width: 100%;
+  }
+
+  .goen-compare__presets {
+    flex: 1 1 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  .goen-compare__presets ul {
+    flex-wrap: nowrap;
+    width: max-content;
+  }
+
   .goen-compare__table td,
   .goen-compare__table th {
     min-width: 7.5rem;
@@ -8087,20 +8348,18 @@ input.goen-check {
   gap: 12px;
 }
 
-/* The cart's, the checkout's, the wishlist's and the comparison's names in the editorial
-   face, one step under the display size, as the catalogue's pages are named. */
+/* The cart's, the checkout's and the wishlist's names in the editorial face, one
+   step under the display size, as the catalogue's pages are named. */
 .goen-cart .goen-pagehead__title,
 .goen-checkout .goen-pagehead__title,
-.goen-wishlist .goen-pagehead__title,
-.goen-compare .goen-pagehead__title {
+.goen-wishlist .goen-pagehead__title {
   font: var(--fw-medium) var(--t-40)/1.2 var(--font-display);
   letter-spacing: 0.02em;
 }
 
 .goen-cart .goen-pagehead__title:lang(en),
 .goen-checkout .goen-pagehead__title:lang(en),
-.goen-wishlist .goen-pagehead__title:lang(en),
-.goen-compare .goen-pagehead__title:lang(en) {
+.goen-wishlist .goen-pagehead__title:lang(en) {
   letter-spacing: 0;
 }
 

@@ -213,9 +213,10 @@ func trimForDisplay(q string) string {
 	return trimmedQuery(q)
 }
 
-// Compare keeps the set in the URL and nowhere else.
+// Compare shows the products a link names, or the shopper's compare set, and
+// writes nothing either way.
 func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Compare(r.Context(), r.URL.Query()["p"])
+	view, err := h.comparison(r)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read comparison", "error", err)
 		h.serverError(w, r)

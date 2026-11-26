@@ -162,14 +162,31 @@ const PAGES = [
 // empty state, and .goen-compare wraps that state too. A marker on the
 // wrapper measures chrome and calls the table covered.
 // COMPARE_SLUG is a second active seed product. table: true is what says
-// this row measured columns, the sticky first cell, and (at 375) overflow
-// inside the scroll box — not merely that a marker existed.
+// this row measured columns, the sticky first cell, the photo plate, the
+// cobalt of a differing row and (at 375) overflow inside the scroll box — not
+// merely that a marker existed.
+//
+// kept is the compare set's cookie, its slugs joined by dots: the same page
+// without ?p= shows the set, the header counts it, and its columns remove by a
+// post to /compare/items rather than by a link. The cookie is set for the row
+// and deleted after it, so no later page is measured with a count it did not
+// ask for; the axe and reflow passes revisit /compare without it and audit the
+// empty set's page, so the kept table's own reflow at 320px and at 200% text is
+// measured here, under the cookie (reflow: true). diff names a comparison the
+// dev seed holds with rows alike and rows apart (three phones that share a
+// warranty), so the differences-only switch is offered and pressing it is
+// measured.
 //
 // The one-product empty state is a different page. It cannot stand in for
 // the table.
 const COMPARE = [
   { label: 'compare 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG', marker: '.goen-compare__table', table: true },
   { label: 'compare 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG', marker: '.goen-compare__table', table: true },
+  { label: 'compare kept 375', width: 375, height: 812, path: '/compare', kept: 'PRODUCT_SLUG.COMPARE_SLUG', marker: '.goen-compare__table', table: true },
+  { label: 'compare kept 1440', width: 1440, height: 900, path: '/compare', kept: 'PRODUCT_SLUG.COMPARE_SLUG', marker: '.goen-compare__table', table: true },
+  { label: 'compare kept 320', width: 320, height: 800, path: '/compare', kept: 'PRODUCT_SLUG.COMPARE_SLUG', marker: '.goen-compare__table', table: true, reflow: true },
+  { label: 'compare diff 1440', width: 1440, height: 900, path: '/compare?p=pixelight-9-pro&p=pixelight-9&p=aurora-edge-7', marker: '.goen-compare__table', table: true, diff: true },
+  { label: 'compare diff 375', width: 375, height: 812, path: '/compare?p=pixelight-9-pro&p=pixelight-9&p=aurora-edge-7', marker: '.goen-compare__table', table: true, diff: true },
   { label: 'compare one 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG', marker: '.ui-empty' },
   { label: 'compare one 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG', marker: '.ui-empty' },
 ];
@@ -2637,8 +2654,59 @@ const COMPARE_PROBE = `(() => {
     productColumns: table ? table.querySelectorAll('thead .goen-compare__head').length : 0,
     tableScrolls: !!(scroller && scroller.scrollWidth > scroller.clientWidth + 0.5),
     stickyLeft: !!(sticky && sticky.position === 'sticky' && parseFloat(sticky.left) === 0),
+    // The colours the board names, read as the browser resolved them: an
+    // element painted with the token is the reference, so the night's value is
+    // checked by the same line as the day's.
+    ...(() => {
+      const resolved = (token) => {
+        const probe = document.createElement('span');
+        probe.style.setProperty('background', 'var(' + token + ')');
+        (table || document.body).appendChild(probe);
+        const value = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return value;
+      };
+      const plate = document.querySelector('.goen-compare__plate');
+      const photo = plate && plate.querySelector('img');
+      const differing = document.querySelector('.goen-compare__table tbody tr.is-differs td');
+      return {
+        plateGround: plate ? getComputedStyle(plate).backgroundColor === resolved('--photo-plate') : null,
+        photoMultiplied: photo ? getComputedStyle(photo).mixBlendMode === 'multiply' : null,
+        differingTint: differing ? getComputedStyle(differing).backgroundColor === resolved('--cobalt-soft') : null,
+      };
+    })(),
+    presets: [...document.querySelectorAll('.goen-compare__preset')].map((a) => a.getAttribute('href')),
+    headerCount: document.querySelector('#compare-link .goen-header__comparecount')?.textContent.trim() || '',
+    // How a column is taken out: a kept set posts to the set, a link's
+    // comparison links to the address without it.
+    removes: [...document.querySelectorAll('.goen-compare__buy .goen-compare__remove')].map((r) =>
+      r.tagName === 'A' ? 'link' : (r.form && r.form.getAttribute('action') === '/compare/items' && r.form.method === 'post' ? 'post' : 'other')),
     ${ACCESSIBILITY}
   };
+})()`;
+
+// The differences-only switch: pressed, every row the products agree on leaves
+// and every row they disagree on stays, with the row that buys; pressed again,
+// all come back. It is the page's own, so nothing navigates.
+const COMPARE_DIFF_PROBE = `(async () => {
+  const box = document.getElementById('compare-diff');
+  if (!box) return { offered: false };
+  const rows = () => [...document.querySelectorAll('.goen-compare__table tbody tr')];
+  const shown = (r) => r.getClientRects().length > 0;
+  const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const before = location.href;
+  const all = rows().filter(shown).length;
+  box.click();
+  await frame();
+  const on = {
+    alikeShown: rows().filter((r) => !r.classList.contains('is-differs') && !r.classList.contains('goen-compare__buy') && shown(r)).length,
+    differingHidden: rows().filter((r) => r.classList.contains('is-differs') && !shown(r)).length,
+    buyShown: rows().some((r) => r.classList.contains('goen-compare__buy') && shown(r)),
+    alike: rows().filter((r) => !r.classList.contains('is-differs') && !r.classList.contains('goen-compare__buy')).length,
+  };
+  box.click();
+  await frame();
+  return { offered: true, ...on, restored: rows().filter(shown).length === all, stayed: location.href === before };
 })()`;
 
 for (const want of COMPARE) {
@@ -2648,13 +2716,34 @@ for (const want of COMPARE) {
   const target = ORIGIN + want.path
     .replace('COMPARE_SLUG', process.env.COMPARE_SLUG || '')
     .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
+  const kept = want.kept ? want.kept
+    .replace('COMPARE_SLUG', process.env.COMPARE_SLUG || '')
+    .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '') : '';
+  if (kept) await send(ws, 'Network.setCookie', { name: 'goen_compare', value: kept, domain: '127.0.0.1', path: '/' });
   await send(ws, 'Page.navigate', { url: target });
-  await settled(ws, want.label, target, want.marker);
+  // A later pass revisits /compare without the cookie, where the page is the
+  // empty set's: it is recorded as that page, not as the table.
+  await settled(ws, want.label, target, kept ? 'main' : want.marker);
 
   const evaluated = await send(ws, 'Runtime.evaluate', {
     expression: COMPARE_PROBE.replaceAll('__MARKER__', JSON.stringify(want.marker || null)),
     returnByValue: true,
   });
+  const switched = want.diff
+    ? await send(ws, 'Runtime.evaluate', { expression: COMPARE_DIFF_PROBE, awaitPromise: true, returnByValue: true })
+    : null;
+  const reflowed = [];
+  if (want.reflow) {
+    for (const zoom of ['100', '200']) {
+      if (zoom === '200') await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = '200%'` });
+      const measured = await send(ws, 'Runtime.evaluate', {
+        expression: reflowProbe(want.width), awaitPromise: true, returnByValue: true,
+      }, 60000);
+      reflowed.push({ zoom, got: measured.result?.value, error: measured.exceptionDetails?.exception?.description });
+    }
+    await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = ''` });
+  }
+  if (kept) await send(ws, 'Network.deleteCookies', { name: 'goen_compare', domain: '127.0.0.1', path: '/' });
   if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
     fail(want.label, 'the probe did not run — ' +
       (evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400)));
@@ -2681,6 +2770,46 @@ for (const want of COMPARE) {
     }
     if (want.width === 375 && !got.tableScrolls) {
       fail(at, 'the table does not scroll inside its box at 375 — the columns were never wide enough to measure');
+    }
+    if (got.plateGround === false || got.photoMultiplied === false) {
+      fail(at, `a product's photo is not on the photo plate under multiply (plate ${got.plateGround}, multiply ${got.photoMultiplied}) — the studio ground shows as a white sticker`);
+    }
+    if (got.differingTint === false) {
+      fail(at, 'a differing row is not on the cobalt tint');
+    }
+    if (got.presets.length === 0 || got.presets.some((href) => !/^\/compare\?p=[a-z0-9-]+(&p=[a-z0-9-]+)+$/.test(href))) {
+      fail(at, `the ready-made comparisons are ${JSON.stringify(got.presets)}, want at least one link naming two or more products`);
+    }
+    const wantRemove = want.kept ? 'post' : 'link';
+    if (got.removes.length !== got.productColumns || got.removes.some((r) => r !== wantRemove)) {
+      fail(at, `the columns are taken out by ${JSON.stringify(got.removes)}, want one ${wantRemove} each`);
+    }
+    const wantCount = kept ? String(kept.split('.').length) : '';
+    if (got.headerCount !== wantCount) {
+      fail(at, `the header counts ${JSON.stringify(got.headerCount)} products to compare, want ${JSON.stringify(wantCount)}`);
+    }
+  }
+  for (const { zoom, got: r, error } of reflowed) {
+    if (!r) {
+      fail(at, `the reflow measurement at ${zoom}% text did not complete — ${error || 'no result'}`);
+      continue;
+    }
+    if (r.scrollWidth > want.width || r.scrollX !== 0) {
+      fail(at, `at ${zoom}% text the page scrolls sideways (scrollWidth ${r.scrollWidth} > ${want.width}, scrollX ${r.scrollX})`);
+    }
+    for (const run of r.text) fail(at, `at ${zoom}% text ${run.owner} is cut: ${run.detail}`);
+  }
+  if (switched) {
+    const sw = switched.result?.value;
+    if (!sw || !sw.offered) {
+      fail(at, 'the differences-only switch is not offered on a comparison with rows alike and rows apart');
+    } else {
+      if (sw.alike === 0) fail(at, 'the comparison measured for the switch has no row alike, so the switch hid nothing');
+      if (sw.alikeShown !== 0) fail(at, `${sw.alikeShown} rows the products agree on stay with differences only on`);
+      if (sw.differingHidden !== 0) fail(at, `${sw.differingHidden} differing rows leave with differences only on`);
+      if (!sw.buyShown) fail(at, 'the row that buys leaves with differences only on');
+      if (!sw.restored) fail(at, 'turning the switch off does not bring every row back');
+      if (!sw.stayed) fail(at, 'the switch navigated; it is the page\'s own');
     }
   }
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +

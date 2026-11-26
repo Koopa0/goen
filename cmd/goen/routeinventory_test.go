@@ -351,6 +351,7 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "POST /account/wishlist", sample: "/account/wishlist", traits: "nav nostore signin signinreturn visitor"},
 	{pattern: "POST /cart/items", sample: "/cart/items", traits: "clearsite nav nostore visitor"},
 	{pattern: "POST /cart/items/update", sample: "/cart/items/update", traits: "clearsite nav nostore visitor"},
+	{pattern: "POST /compare/items", sample: "/compare/items", traits: "clearsite nav nostore visitor"},
 	{pattern: "POST /checkout", sample: "/checkout", traits: "limited logged nav nostore visitor", limiter: "checkout", burst: 30},
 	{pattern: "POST /checkout/pickup/return", sample: "/checkout/pickup/return", traits: "nostore visitor"},
 	{pattern: "POST /checkout/pickup/start", sample: "/checkout/pickup/start", traits: "limited logged nav nostore visitor", limiter: "checkout", burst: 30},

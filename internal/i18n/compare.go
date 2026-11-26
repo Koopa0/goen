@@ -17,9 +17,10 @@ var (
 		En:     "Browse everything in %s",
 	})
 
-	// KeyCompareDiffers is the small mark under the label of a row where the
-	// products disagree.
-	KeyCompareDiffers = key("compare.differs", Message{ZhHant: "規格不同", En: "Differs"})
+	// KeyCompareDiffers is the small mark under the label of a row where every
+	// product states a value and they disagree. It marks the rating and the
+	// warranty as well as the specifications, so it does not say 規格.
+	KeyCompareDiffers = key("compare.differs", Message{ZhHant: "有差異", En: "Differs"})
 
 	KeyCompareDescription = key("compare.description", Message{
 		ZhHant: "把規格擺在一起看，而不是在兩個分頁之間來回。",
@@ -27,9 +28,38 @@ var (
 	})
 
 	KeyCompareHeading = key("compare.heading", Message{
-		ZhHant: "把規格擺在一起",
+		ZhHant: "規格並排比較",
 		En:     "Specifications, side by side",
 	})
+
+	// KeyComparePreset names a ready-made comparison: %d is how many products it
+	// holds and %s the category they are all from.
+	KeyComparePreset = key("compare.preset", Message{
+		ZhHant: "比較 %d 款%s",
+		En:     "Compare %d in %s",
+	})
+
+	// KeyComparePresets names the row of ready-made comparisons, a navigation of
+	// its own beside the page's.
+	KeyComparePresets = key("compare.presets", Message{
+		ZhHant: "預設比較組合",
+		En:     "Ready-made comparisons",
+	})
+
+	// KeyCompareDiffOnly hides the rows every product agrees on. It is done in
+	// the page; nothing is asked of the server.
+	KeyCompareDiffOnly = key("compare.diffonly", Message{
+		ZhHant: "僅顯示差異項目",
+		En:     "Differences only",
+	})
+
+	// KeyCompareBuyRow heads the row of add-to-cart and remove controls under
+	// the products, which the eye reads as part of each product's head.
+	KeyCompareBuyRow = key("compare.row.buy", Message{ZhHant: "購買", En: "Buy"})
+
+	// KeyCompareCount is the header's compare link's name once the visitor keeps
+	// products to compare; %s is how many.
+	KeyCompareCount = countKey("compare.count", "比較，%s 件商品", "Compare, %s product", "Compare, %s products")
 
 	KeyCompareSub = key("compare.sub", Message{
 		ZhHant: "每個商品都有標示的規格排在前面，這些最能直接比較。",
@@ -108,12 +138,6 @@ var (
 		ZhHant: "商品規格比較",
 		En:     "Product specification comparison",
 	})
-
-	KeyCompareRowLabel = key("compare.row.label", Message{ZhHant: "項目", En: "Attribute"})
-
-	KeyCompareRowPrice = key("compare.row.price", Message{ZhHant: "價格", En: "Price"})
-
-	KeyCompareRowStock = key("compare.row.stock", Message{ZhHant: "供貨", En: "Availability"})
 
 	KeyCompareRowRating = key("compare.row.rating", Message{ZhHant: "評價", En: "Rating"})
 

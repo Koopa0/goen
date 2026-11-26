@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
@@ -37,6 +38,10 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (CompareView, error
 		r := &rows[i]
 		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		at[r.Slug] = i
+		var soleVariant string
+		if r.SoleVariantID != uuid.Nil {
+			soleVariant = r.SoleVariantID.String()
+		}
 		view.Products = append(view.Products, CompareProduct{
 			Slug: r.Slug, Name: r.Name, Summary: r.Summary,
 			Brand: r.Brand, Category: r.Category,
@@ -44,6 +49,7 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (CompareView, error
 			OnSale: campaign.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
 			Rating: r.Rating, RatingCount: r.RatingCount, InStock: r.InStock,
 			WarrantyMonths: int(r.WarrantyMonths),
+			SoleVariantID:  soleVariant,
 			ImageURL:       photo.URL(),
 			ImageSrcset:    photo.Srcset(),
 			ImageAlt:       r.ImageAlt,

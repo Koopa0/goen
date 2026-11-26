@@ -348,3 +348,21 @@ func languageShown(current i18n.Locale, showOther bool) i18n.Locale {
 	}
 	return current
 }
+
+type compareCountKey struct{}
+
+// WithCompareCount carries how many products the visitor keeps to compare, for
+// the header's count. It is set in middleware from the compare set, as the
+// cart's count is.
+func WithCompareCount(ctx context.Context, n int) context.Context {
+	return context.WithValue(ctx, compareCountKey{}, n)
+}
+
+// CompareCount is the count WithCompareCount carried, or zero.
+func CompareCount(ctx context.Context) int {
+	n, ok := ctx.Value(compareCountKey{}).(int)
+	if !ok {
+		return 0
+	}
+	return n
+}

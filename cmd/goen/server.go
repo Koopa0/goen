@@ -198,6 +198,10 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	accounts := account.NewHandler(account.NewStore(pool), log, secureCookies, checkouts.TakesPayment())
 	authn.RefuseOnAccountPage(accounts.Refuse)
 	storefrontRoutes(mux, front, log, catalogue, deals, sitePages, policyPages, basket, checkouts, authn, accounts, orderAccess)
+	// The compare set is read by the chain below for every page's header, so it
+	// is built here beside the cart, whose count it sits next to.
+	compareSet := catalog.NewCompareSet(catalogue, log, secureCookies)
+	compareSet.Routes(mux, clearSpeculations)
 	backOfficeRoutes(mux, &cfg.BackOffice, factorStore, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
@@ -215,6 +219,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 		return withLocale(next, secureCookies)
 	}, handler)
 	handler = onlyVisitorPaths(basket.WithCount, handler)
+	handler = onlyVisitorPaths(compareSet.WithCount, handler)
 	handler = onlyVisitorPaths(authn.Authenticate, handler)
 	handler = withRequestBudget(handler)
 	handler = crossOriginProtection(handler, front.StoreMap.Enabled())

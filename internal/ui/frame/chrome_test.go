@@ -184,7 +184,7 @@ func TestHeaderBarWords(t *testing.T) {
 				t.Errorf("%s: the bar does not contain %q", locale, want)
 			}
 		}
-		compare := regexp.MustCompile(`(?s)<a class="goen-header__tool goen-header__compare" href="/compare">(.*?)</a>`).FindStringSubmatch(bar)
+		compare := regexp.MustCompile(`(?s)<a class="goen-header__tool goen-header__compare" id="compare-link" href="/compare">(.*?)</a>`).FindStringSubmatch(bar)
 		if compare == nil {
 			t.Fatalf("%s: the bar has no link to compare", locale)
 		}
@@ -589,6 +589,42 @@ func TestHeaderCartCount(t *testing.T) {
 		}
 		if tc.cart.SubtotalCents == 0 && strings.Contains(cart, "goen-header__subtotal") {
 			t.Errorf("%+v: a cart with nothing sellable prints a subtotal", tc.cart)
+		}
+	}
+}
+
+// TestHeaderCompareCount: comparing says its word and, once the visitor keeps
+// products to compare, how many, in the bar and in the drawer.
+//
+// The count is the lasting answer to a press of a compare toggle, as the
+// cart's is to an add, so it is drawn the cart's way: the word and the number
+// shown and hidden from a screen reader, and the sentence as the link's name.
+// Both links carry the ids the toggle's answer replaces them by.
+func TestHeaderCompareCount(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		count     int
+		bar, menu string
+	}{
+		{0, `<a class="goen-header__tool goen-header__compare" id="compare-link" href="/compare">`, `<a class="ui-navitem" id="compare-link-menu" href="/compare">比較</a>`},
+		{3, `<span class="goen-header__compareshown" aria-hidden="true">比較 <span class="goen-header__comparecount">3</span></span> <span class="goen-sr-only">比較，3 件商品</span></a>`,
+			`<a class="ui-navitem" id="compare-link-menu" href="/compare"><span class="goen-header__navname" aria-hidden="true">比較</span> <small aria-hidden="true">3</small> <span class="goen-sr-only">比較，3 件商品</span></a>`},
+	} {
+		ctx := frame.WithCompareCount(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.count)
+		var b strings.Builder
+		if err := frame.Header(frame.Page{}).Render(ctx, &b); err != nil {
+			t.Fatalf("render header: %v", err)
+		}
+		header := b.String()
+		if !strings.Contains(header, tc.bar) {
+			t.Errorf("count %d: the bar's compare link lacks %s", tc.count, tc.bar)
+		}
+		if !strings.Contains(drawerOf(t, header), tc.menu) {
+			t.Errorf("count %d: the drawer's compare link is not %s", tc.count, tc.menu)
+		}
+		if tc.count == 0 && strings.Contains(header, "goen-header__comparecount") {
+			t.Errorf("count 0: the bar prints a count")
 		}
 	}
 }
