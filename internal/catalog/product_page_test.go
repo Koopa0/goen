@@ -552,8 +552,9 @@ func TestProductAddFormNoPush(t *testing.T) {
 	}
 }
 
-// TestProductChosenOption holds that the chosen option is named next to its
-// label.
+// TestProductChosenOption holds that the chosen option is named in the group's
+// legend after its label, a space between the two so a screen reader does not
+// run them into one word, and that a group not yet chosen in names nothing.
 func TestProductChosenOption(t *testing.T) {
 	t.Parallel()
 	view := ProductView{
@@ -562,12 +563,15 @@ func TestProductChosenOption(t *testing.T) {
 			{Value: "黑", Label: "曜石黑", Selected: true}, {Value: "白", Label: "雲母白"},
 		}}},
 	}
-	got := renderProduct(t, &view, i18n.ZhHant)
-	if !strings.Contains(got, `顏色：<span class="goen-pdp__optchosen">曜石黑`) {
-		t.Error("the chosen option's name does not follow its label with the full-width colon and nothing between")
+	want := `<legend class="goen-pdp__optname"><span class="goen-pdp__optlabel">顏色</span> <span class="goen-pdp__optchosen">曜石黑</span></legend>`
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		if got := renderProduct(t, &view, locale); !strings.Contains(got, want) {
+			t.Errorf("%s: the legend does not name the chosen option after its label: want %s", locale, want)
+		}
 	}
-	if en := renderProduct(t, &view, i18n.En); !strings.Contains(en, `顏色: <span class="goen-pdp__optchosen">曜石黑`) {
-		t.Error("the English separator is not a colon and a space before the chosen name")
+	view.Options[0].Values[0].Selected = false
+	if got := renderProduct(t, &view, i18n.ZhHant); strings.Contains(got, "goen-pdp__optchosen") {
+		t.Error("a group nobody has chosen in names a value")
 	}
 }
 

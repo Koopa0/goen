@@ -63,6 +63,22 @@ try {
             if (got.scrollWidth > width || got.text.length) {
               problems.push(`「${title}」 ${width} ${lang} ${text} ${at}: scrollWidth ${got.scrollWidth} > ${width} or ${JSON.stringify(got.text.slice(0, 3))}`);
             }
+            // A control can run out of its panel and still stay inside the window, which
+            // the page's width does not show: each panel of the buy column holds what is in it.
+            const spills = await evaluate(`(() => {
+              const out = [];
+              for (const panel of document.querySelectorAll('#buybox :is(.goen-pdp__pricebox, .goen-pdp__option, .goen-pdp__stock, .goen-pdp__buyrow, .goen-pdp__notify)')) {
+                const edge = panel.getBoundingClientRect();
+                for (const inner of panel.querySelectorAll('*')) {
+                  const box = inner.getBoundingClientRect();
+                  if (box.width <= 1 || box.height <= 1) continue;
+                  if (box.left < edge.left - 0.5 || box.right > edge.right + 0.5)
+                    out.push(panel.classList[0] + ' > ' + (inner.getAttribute('class') || inner.tagName).split(' ')[0]);
+                }
+              }
+              return out;
+            })()`);
+            if (spills.length) problems.push(`「${title}」 ${width} ${lang} ${text} ${at}: runs out of its panel: ${spills.slice(0, 3).join(', ')}`);
           }
         }
       }

@@ -105,9 +105,10 @@ func TestProductCampaignSource(t *testing.T) {
 var htmlTag = regexp.MustCompile(`<[^>]*>`)
 
 // TestProductPriceWearsNoBadge holds that the price and the name carry no
-// labels drawn as pills: the vermilion price and the struck original say sale,
-// the page says what is left, and the words "on sale" are only for a screen
-// reader, before the price, as the drawing sets them. Nothing says "in stock".
+// badges: the struck original and the seal of what it saves say sale, the
+// stock line says what is in stock, and the words "on sale" are only for a
+// screen reader, before the price, as the drawing sets them. "In stock" is the
+// stock line's alone, said once.
 func TestProductPriceWearsNoBadge(t *testing.T) {
 	t.Parallel()
 
@@ -121,10 +122,10 @@ func TestProductPriceWearsNoBadge(t *testing.T) {
 		if strings.Contains(box, "goen-badge") {
 			t.Errorf("%s: the buy box draws a badge:\n%s", locale, box)
 		}
-		if word := i18n.T(ctx, i18n.KeyInStock); strings.Contains(box, ">"+word+"<") {
-			t.Errorf("%s: the buy box says %q", locale, word)
+		if word := i18n.T(ctx, i18n.KeyInStock); strings.Count(box, ">"+word+"<") != 1 || !strings.Contains(box, `<p class="goen-pdp__status">`+word+`</p>`) {
+			t.Errorf("%s: the buy box does not say %q once, on the stock line", locale, word)
 		}
-		want := regexp.MustCompile(`<span class="goen-sr-only">` + regexp.QuoteMeta(i18n.T(ctx, i18n.KeyOnSale)) + `</span>\s*<span class="goen-pdp__price goen-pdp__price--sale">`)
+		want := regexp.MustCompile(`<span class="goen-sr-only">` + regexp.QuoteMeta(i18n.T(ctx, i18n.KeyOnSale)) + `</span>\s*<span class="goen-pdp__price">`)
 		if !want.MatchString(box) {
 			t.Errorf("%s: the sale is not said, for a screen reader, just before the price:\n%s", locale, box)
 		}

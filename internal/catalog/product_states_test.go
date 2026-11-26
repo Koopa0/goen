@@ -86,19 +86,18 @@ func TestProductFirstReview(t *testing.T) {
 	}
 }
 
-// TestProductOpinionsNoneShareRow holds that the reviews and questions sections
-// share one row while nobody has reviewed or asked, and stack as before once
-// either has something to show.
-func TestProductOpinionsNoneShareRow(t *testing.T) {
+// TestProductReviewsBesideFacts holds that the reviews stand in one row with the
+// column of facts, the facts first, whether or not anybody has reviewed, and
+// that the questions follow that row rather than share it.
+func TestProductReviewsBesideFacts(t *testing.T) {
 	t.Parallel()
-	const row = `<div class="goen-pdp__opinions">`
+	const row = `<div class="goen-pdp__split"><div class="goen-pdp__more">`
 
 	tests := []struct {
 		name string
 		view ProductView
-		want bool
 	}{
-		{name: "no review and no question", want: true},
+		{name: "no review and no question"},
 		{
 			name: "one review",
 			view: ProductView{RatingCount: 1, Rating: 5, Reviews: []ProductReview{{Rating: 5, Body: "Good."}}},
@@ -112,21 +111,19 @@ func TestProductOpinionsNoneShareRow(t *testing.T) {
 			v.Name, v.Slug, v.PriceCents = "Sample", "sample", 100000
 			html := renderToString(t, Product(ProductMeta(&v), &v))
 			start := strings.Index(html, row)
-			if got := start >= 0; got != tt.want {
-				t.Fatalf("%s: %q present = %v, want %v", tt.name, row, got, tt.want)
+			if start < 0 {
+				t.Fatalf("%s: no %q", tt.name, row)
 			}
-			if !tt.want {
-				return
+			facts := strings.Index(html[start:], `id="delivery-heading"`)
+			reviews := strings.Index(html[start:], `id="reviews"`)
+			questions := strings.Index(html[start:], `id="questions"`)
+			if facts < 0 || reviews < facts || questions < reviews {
+				t.Fatalf("%s: facts at %d, reviews at %d, questions at %d: want them in that order", tt.name, facts, reviews, questions)
 			}
-			end := strings.Index(html[start:], `id="related-heading"`)
-			if end < 0 {
-				end = len(html) - start
-			}
-			inside := html[start : start+end]
-			for _, id := range []string{`id="reviews"`, `id="questions"`} {
-				if !strings.Contains(inside, id) {
-					t.Errorf("the shared row does not hold %s", id)
-				}
+			// The row closes after the reviews section and before the questions.
+			between := html[start+reviews : start+questions]
+			if !strings.Contains(between, "</section></div>") {
+				t.Errorf("%s: the questions share the row of the facts and the reviews", tt.name)
 			}
 		})
 	}

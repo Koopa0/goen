@@ -1347,10 +1347,31 @@
     });
   }
 
+  /*
+   * The product page's add button says what the press costs: the unit price
+   * times the quantity beside it. The server writes it for one, as the field
+   * starts; a step or a typed number changes it here. A number the field
+   * cannot read leaves the sum as it was.
+   */
+  function linePrice() {
+    const sum = (cents) => "NT$" + Math.trunc(cents / 100).toLocaleString("en-US");
+    const update = (event) => {
+      const field = event.target;
+      if (!(field instanceof HTMLInputElement) || !field.matches("#pdp-add [data-stepper] input")) return;
+      const price = field.form?.querySelector("[data-unit-cents]");
+      const quantity = Number(field.value);
+      if (!price || field.validity.badInput || !Number.isInteger(quantity) || quantity < 1) return;
+      price.textContent = sum(Number(price.dataset.unitCents) * quantity);
+    };
+    document.addEventListener("input", update);
+    document.addEventListener("change", update);
+  }
+
   recipientBox();
   demoAccount();
   handoff();
   buyBar();
+  linePrice();
   focusAfterSwap();
   menu();
   stickyBar();

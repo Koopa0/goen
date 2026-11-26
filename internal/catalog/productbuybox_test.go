@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -91,15 +92,19 @@ func TestProductBuyBoxSoldOutOptions(t *testing.T) {
 }
 
 // TestProductBuyBoxOneSoldOut holds that a sold-out product with nothing to
-// choose offers the notify form with no note over it.
+// choose offers the notify form under the words that this variant is out of
+// stock, and asks for no pick.
 func TestProductBuyBoxOneSoldOut(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		v := ProductView{Slug: "buds", Name: "Buds", Rules: testRules, SelectionOK: true, Exact: true, VariantID: "v"}
 		box := buyBox(t, locale, &v)
-		if strings.Contains(box, `class="goen-pdp__notifyhead"`) {
-			t.Errorf("%s: a settled sold-out choice still has a note over the notify form", locale)
+		if want := `<p class="goen-pdp__notifyhead">` + i18n.T(ctx, i18n.KeyRestockTitle) + `</p>`; !strings.Contains(box, want) {
+			t.Errorf("%s: the notify form is not headed %s", locale, want)
+		}
+		if !strings.Contains(box, `<p class="goen-pdp__notifybody">`+i18n.T(ctx, i18n.KeyRestockBody)+`</p>`) {
+			t.Errorf("%s: the notify form does not say what it does", locale)
 		}
 		if strings.Contains(box, i18n.T(ctx, i18n.KeyRestockPick)) {
 			t.Errorf("%s: a single option asks for a pick", locale)
@@ -124,8 +129,8 @@ func TestProductBuyBoxOneColour(t *testing.T) {
 	if strings.Contains(box, "<fieldset") {
 		t.Error("one colour has a fieldset")
 	}
-	if !strings.Contains(box, `顏色：<span class="goen-pdp__optchosen">石墨黑</span>`) {
-		t.Error("one colour is not stated in one line")
+	if !strings.Contains(box, `<span class="goen-pdp__optlabel">顏色</span> <span class="goen-pdp__optchosen">石墨黑</span>`) {
+		t.Error("one colour is not stated in one line, its name and its value apart")
 	}
 
 	v.Options = []ProductOption{colourOption("石墨黑", "星霧藍")}
@@ -135,21 +140,26 @@ func TestProductBuyBoxOneColour(t *testing.T) {
 }
 
 // TestProductView_BuyFacts holds that the buy box facts follow what the shop
-// states.
+// states: the warranty where there is one, free delivery where every method
+// turns free, and the stock hold while there is stock to hold.
 func TestProductView_BuyFacts(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	neverFree := testRules
+	neverFree.FreeDeliveryCents = 0
 	for _, tc := range []struct {
 		name   string
 		view   ProductView
 		labels []string
 	}{
 		{"warranty and hold", ProductView{WarrantyMonths: 24, Rules: testRules, Sellable: true, AnySellable: true, SelectionOK: true},
-			[]string{"保固", "付款時限"}},
+			[]string{"保固", "免運門檻", "付款時限"}},
 		{"no warranty", ProductView{Rules: testRules, Sellable: true, AnySellable: true, SelectionOK: true},
-			[]string{"付款時限"}},
+			[]string{"免運門檻", "付款時限"}},
 		{"nothing to hold", ProductView{WarrantyMonths: 12, Rules: testRules, SelectionOK: true},
-			[]string{"保固"}},
+			[]string{"保固", "免運門檻"}},
+		{"a method never free", ProductView{WarrantyMonths: 12, Rules: neverFree, AnySellable: true, SelectionOK: true},
+			[]string{"保固", "付款時限"}},
 	} {
 		parts := strings.Split(renderIn(t, i18n.ZhHant, widget.StatLine(tc.view.BuyFacts(ctx), widget.StatLinePairs)), "<dt>")[1:]
 		got := make([]string, 0, len(parts))
@@ -163,21 +173,6 @@ func TestProductView_BuyFacts(t *testing.T) {
 		if strings.Join(got, ",") != strings.Join(tc.labels, ",") {
 			t.Errorf("%s: facts = %v, want %v", tc.name, got, tc.labels)
 		}
-	}
-}
-
-// TestProductView_Highlights holds that the highlights are at most three
-// values, and only on a product whose department compares.
-func TestProductView_Highlights(t *testing.T) {
-	t.Parallel()
-	specs := []ProductSpec{{Value: "a"}, {Value: ""}, {Value: "b"}, {Value: "c"}, {Value: "d"}}
-	v := ProductView{Specs: specs, Comparable: true}
-	if got := strings.Join(v.Highlights(), ","); got != "a,b,c" {
-		t.Errorf("Highlights() = %q, want a,b,c", got)
-	}
-	v = ProductView{Specs: specs}
-	if got := v.Highlights(); got != nil {
-		t.Errorf("Highlights() of a product that does not compare = %q, want none", got)
 	}
 }
 
@@ -308,14 +303,14 @@ func TestProductView_SoldOutWho(t *testing.T) {
 		if !strings.Contains(box, tc.want) {
 			t.Errorf("%s: sold-out line missing, want %q", tc.locale, tc.want)
 		}
-		if strings.Contains(box, `class="goen-pdp__notifyhead"`) || !strings.Contains(box, `id="restock"`) {
-			t.Errorf("%s: a settled sold-out choice keeps the note over the form, or lost the form", tc.locale)
+		if strings.Contains(box, i18n.T(i18n.WithLocale(t.Context(), tc.locale), i18n.KeyRestockPick)) || !strings.Contains(box, `id="restock"`) {
+			t.Errorf("%s: a settled sold-out choice still asks for a pick over the form, or lost the form", tc.locale)
 		}
 		if got := strings.Count(box, i18n.T(i18n.WithLocale(t.Context(), tc.locale), i18n.KeySoldOut)); got != 1 || strings.Contains(box, `id="add-to-cart"`) {
 			t.Errorf("%s: says sold out %d times, or keeps a dead add button beside the status line", tc.locale, got)
 		}
 		v.Sellable = true
-		if strings.Contains(buyBox(t, tc.locale, &v), "goen-pdp__status") {
+		if strings.Contains(buyBox(t, tc.locale, &v), "goen-pdp__soldword") {
 			t.Errorf("%s: a choice in stock says sold out", tc.locale)
 		}
 	}
@@ -358,7 +353,8 @@ func TestProductView_FirstInvalidOption(t *testing.T) {
 }
 
 // TestProductView_ShippingFacts holds that the shipping section states the
-// two return rules apart and then free delivery, each with its note.
+// two return rules apart, each with its note, and leaves free delivery to the
+// buy box, which states it with its note under the button.
 func TestProductView_ShippingFacts(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -367,7 +363,6 @@ func TestProductView_ShippingFacts(t *testing.T) {
 	order := []string{
 		"<dt>猶豫期</dt>", "8\u00a0<small>天</small>", "收到次日起算",
 		"<dt>未使用退貨</dt>", "15\u00a0<small>天</small>", "收到次日起算；包裝配件齊全",
-		"<dt>免運門檻</dt>", "NT$</small>3,000", "NT$60 起",
 	}
 	at := 0
 	for _, want := range order {
@@ -377,19 +372,28 @@ func TestProductView_ShippingFacts(t *testing.T) {
 		}
 		at += i + len(want)
 	}
+	if strings.Contains(got, "免運門檻") {
+		t.Errorf("ShippingFacts() states free delivery a second time: %s", got)
+	}
+	facts := renderIn(t, i18n.ZhHant, widget.StatLine(v.BuyFacts(ctx), widget.StatLinePlain))
+	for _, want := range []string{"<dt>免運門檻</dt>", "NT$</small>3,000", "NT$60 起"} {
+		if !strings.Contains(facts, want) {
+			t.Errorf("BuyFacts() lacks %q: %s", want, facts)
+		}
+	}
 }
 
-// TestProductRatingRow holds that the rating row reads as one star, the
-// average and the count in words, with a space either side of the dot as the
-// drawing sets it, and that a screen reader hears the sentence.
+// TestProductRatingRow holds that the rating on the stock line reads as one
+// star, the average and the count in brackets, as drawn, and that a screen
+// reader hears the sentence instead.
 func TestProductRatingRow(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale       i18n.Locale
 		shown, heard string
 	}{
-		{i18n.ZhHant, `4.5&nbsp;<span class="goen-sep">·</span> 2 則評價`, "評分 4.5 分，共 2 則評價"},
-		{i18n.En, `4.5&nbsp;<span class="goen-sep">·</span> 2 reviews`, "Rated 4.5 out of 5, from 2 reviews"},
+		{i18n.ZhHant, `4.5&nbsp;(2)`, "評分 4.5 分，共 2 則評價"},
+		{i18n.En, `4.5&nbsp;(2)`, "Rated 4.5 out of 5, from 2 reviews"},
 	} {
 		v := ProductView{Slug: "book", Name: "Book", Rules: testRules, Rating: 4.5, RatingCount: 2}
 		box := buyBox(t, tc.locale, &v)
@@ -405,18 +409,27 @@ func TestProductRatingRow(t *testing.T) {
 	}
 }
 
-// TestProductKeySpecsSeparated holds that the key specs under the name are
-// parted by a dot with a space either side, the first space one that holds, so
-// "常亮 · 心率" never closes up to "常亮· 心率" or breaks before the dot.
-func TestProductKeySpecsSeparated(t *testing.T) {
+// TestProductBrandAndSKU holds that the line over the name carries the brand,
+// and the variant's code only once one variant is chosen: before that the
+// price is the cheapest variant's, and its code would name one the visitor has
+// not picked. A screen reader hears what the code is.
+func TestProductBrandAndSKU(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		v := ProductView{Slug: "watch", Name: "Watch", Rules: testRules, Comparable: true,
-			Specs: []ProductSpec{{Value: "AMOLED"}, {Value: "48h"}, {Value: "ECG"}}}
-		row := markupFrom(t, buyBox(t, locale, &v), `class="goen-pdp__keyspecs"`, "</p>")
-		want := `<span class="goen-pdp__keyspec">AMOLED</span>&nbsp;<span class="goen-sep" aria-hidden="true">·</span> <span class="goen-pdp__keyspec">48h</span>`
-		if !strings.Contains(row, want) {
-			t.Errorf("%s: the key specs lack a space either side of the dot, want %q in %s", locale, want, row)
+		ctx := i18n.WithLocale(t.Context(), locale)
+		v := ProductView{Slug: "phone", Name: "Phone", Brand: "Pixelight", Rules: testRules, SelectionOK: true, AnySellable: true,
+			SKU: "PXL-9P-1-1", VariantID: "cheapest", Options: []ProductOption{capacityOption(false, "")}}
+		line := markupFrom(t, buyBox(t, locale, &v), `class="goen-pdp__brand"`, "</p>")
+		if !strings.Contains(line, "Pixelight") || strings.Contains(line, "PXL-9P-1-1") {
+			t.Errorf("%s: before a choice the line is not the brand alone: %s", locale, line)
+		}
+		v.Options = []ProductOption{capacityOption(false, "32GB/1TB")}
+		v.Exact, v.Sellable = true, true
+		line = markupFrom(t, buyBox(t, locale, &v), `class="goen-pdp__brand"`, "</p>")
+		want := `<span>Pixelight</span> <span class="goen-sep" aria-hidden="true">·</span> <span class="goen-pdp__sku"><span class="goen-sr-only">` +
+			i18n.T(ctx, i18n.KeyPDPSKU) + `</span>PXL-9P-1-1</span>`
+		if !strings.Contains(line, want) {
+			t.Errorf("%s: the chosen variant's line = %s, want %s", locale, line, want)
 		}
 	}
 }
@@ -457,27 +470,86 @@ func markupFrom(t *testing.T, markup, start, end string) string {
 	return start + before
 }
 
-// TestProductBuyBoxSalePrice holds that only a price with a struck original
-// takes the sale class, which paints it in the colour of what ends; an
-// ordinary price keeps the plain class.
+// TestProductBuyBoxSalePrice holds that a struck original and the seal saying
+// how much less, in money, stand beside the price only while the campaign has
+// the product on sale; a compare-at price the campaign does not run is neither
+// struck nor sealed. The price itself stays ink: the seal is the colour.
 func TestProductBuyBoxSalePrice(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name        string
-		compare     int64
-		onSale      bool
-		price, gone string
+		locale     i18n.Locale
+		name       string
+		onSale     bool
+		want, gone []string
 	}{
-		{"campaign", 1290000, true, `<span class="goen-pdp__price goen-pdp__price--sale">`, `<span class="goen-pdp__price">`},
-		{"ordinary", 0, false, `<span class="goen-pdp__price">`, `goen-pdp__price--sale`},
+		{i18n.ZhHant, "campaign", true,
+			[]string{`<span class="goen-pdp__price">NT$11,900</span>`, `<s class="goen-pdp__was">NT$12,900</s>`, `<span class="goen-pdp__seal">省 NT$1,000</span>`},
+			[]string{`goen-pdp__price--sale`}},
+		{i18n.En, "campaign", true,
+			[]string{`<span class="goen-pdp__seal">Save NT$1,000</span>`},
+			nil},
+		{i18n.ZhHant, "compare-at without a campaign", false,
+			[]string{`<span class="goen-pdp__price">NT$11,900</span>`},
+			[]string{`goen-pdp__was`, `goen-pdp__seal`, `NT$12,900`}},
 	} {
 		v := ProductView{
 			Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
-			VariantID: "v1", Available: 5, PriceCents: 1190000, CompareCents: tc.compare, OnSale: tc.onSale,
+			VariantID: "v1", Available: 5, PriceCents: 1190000, CompareCents: 1290000, OnSale: tc.onSale,
 		}
-		box := buyBox(t, i18n.ZhHant, &v)
-		if !strings.Contains(box, tc.price) || strings.Contains(box, tc.gone) {
-			t.Errorf("%s: the buy box price is not %s: %s", tc.name, tc.price, markupFrom(t, box, `class="goen-pdp__pricebox"`, "</div>"))
+		box := markupFrom(t, buyBox(t, tc.locale, &v), `class="goen-pdp__pricebox"`, "</div>")
+		for _, want := range tc.want {
+			if !strings.Contains(box, want) {
+				t.Errorf("%s, %s: the price box lacks %s: %s", tc.locale, tc.name, want, box)
+			}
 		}
+		for _, gone := range tc.gone {
+			if strings.Contains(box, gone) {
+				t.Errorf("%s, %s: the price box carries %s: %s", tc.locale, tc.name, gone, box)
+			}
+		}
+	}
+}
+
+// TestProductStockLine holds that the stock line states the chosen variant's
+// stock, in stock or how few are left, and states none before a variant is
+// chosen, when only the rating stands on it.
+func TestProductStockLine(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		v := ProductView{Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, AnySellable: true,
+			VariantID: "cheapest", Available: 40, Rating: 4, RatingCount: 3, Options: []ProductOption{capacityOption(false, "")}}
+		line := markupFrom(t, buyBox(t, locale, &v), `class="goen-pdp__stock"`, `class="goen-pdp__actions"`)
+		if strings.Contains(line, "goen-pdp__status") || !strings.Contains(line, "goen-pdp__rating") {
+			t.Errorf("%s: before a choice the stock line states a stock, or lost the rating: %s", locale, line)
+		}
+		v.Options = []ProductOption{capacityOption(false, "32GB/1TB")}
+		v.Exact, v.Sellable = true, true
+		line = markupFrom(t, buyBox(t, locale, &v), `class="goen-pdp__stock"`, `class="goen-pdp__actions"`)
+		if want := `<p class="goen-pdp__status">` + i18n.T(ctx, i18n.KeyInStock) + `</p>`; !strings.Contains(line, want) {
+			t.Errorf("%s: a chosen variant in stock: %s, want %s", locale, line, want)
+		}
+		v.Available = 3
+		line = markupFrom(t, buyBox(t, locale, &v), `class="goen-pdp__stock"`, `class="goen-pdp__actions"`)
+		if want := `<p class="goen-pdp__status goen-pdp__lowstock">` + fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), "3") + `</p>`; !strings.Contains(line, want) {
+			t.Errorf("%s: a chosen variant with three left: %s, want %s", locale, line, want)
+		}
+	}
+}
+
+// TestProductAddButtonLinePrice holds that the add button says what the press
+// costs, the unit price goen.js multiplies by the quantity, only where it can
+// add: a button that waits for a choice or says sold out carries no sum.
+func TestProductAddButtonLinePrice(t *testing.T) {
+	t.Parallel()
+	v := ProductView{Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
+		VariantID: "v1", Available: 5, PriceCents: 3390000}
+	add := markupFrom(t, buyBox(t, i18n.ZhHant, &v), `id="add-to-cart"`, "</button>")
+	if want := `<span class="goen-pdp__addprice" data-unit-cents="3390000">NT$33,900</span>`; !strings.Contains(add, want) {
+		t.Errorf("the add button = %s, want %s", add, want)
+	}
+	v.Exact, v.Options = false, []ProductOption{capacityOption(false, "")}
+	if add := markupFrom(t, buyBox(t, i18n.ZhHant, &v), `id="add-to-cart"`, "</button>"); strings.Contains(add, "data-unit-cents") {
+		t.Errorf("a button that waits for a choice carries a sum: %s", add)
 	}
 }
