@@ -1,0 +1,116 @@
+package cart
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/widget"
+)
+
+// Drawer is the cart as the bag drawer shows it after an add: what it holds,
+// where it stands against free delivery and its subtotal, with the ways on to
+// the cart and to checkout. It is read only. Changing a quantity is the cart
+// page's, whose forms the drawer would otherwise have to repeat. It is a
+// fragment: goen.js puts it in the frame's empty dialog, which already has
+// its name.
+templ Drawer(v View) {
+	<div class="goen-bag" id="bag-drawer-body">
+		<div class="goen-bag__head">
+			<h2 class="goen-bag__title">{ i18n.T(ctx, i18n.KeyCart) }</h2>
+			@widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStyleGhost,
+				Icon:        true,
+				Class:       "goen-bag__close",
+				Attrs:       templ.Attributes{"data-bag-close": true, "aria-label": i18n.T(ctx, i18n.KeyCloseCart)},
+			}, "button") {
+				@icons.Close()
+			}
+		</div>
+		if v.Empty() {
+			<p class="goen-bag__empty">{ i18n.T(ctx, i18n.KeyCartEmptyDesc) }</p>
+		} else {
+			<p class="goen-bag__count">{ v.LineCount(ctx) }</p>
+			@freeDeliveryMeter(v.FreeDelivery, v.SubtotalCents, "bag-meter")
+			<ul class="goen-bag__lines" role="list">
+				for _, l := range v.Lines {
+					@drawerLine(l)
+				}
+			</ul>
+			<dl class="goen-summary goen-bag__totals">
+				<div class="goen-summary__row goen-summary__row--total">
+					<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
+					<dd class="goen-summary__value">{ v.Subtotal() }</dd>
+				</div>
+			</dl>
+			if why := v.drawerHold(ctx); why != "" {
+				<p class="goen-cart__alert">{ why }</p>
+			}
+			<div class="goen-bag__actions">
+				if v.CanCheckout() && !v.NoDelivery {
+					@widget.ButtonLink(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStylePrimary,
+						Size:        widget.SizeLarge,
+						Block:       true,
+						Class:       "goen-cart__checkout",
+					}, "/checkout") {
+						{ i18n.T(ctx, i18n.KeyCheckout) }
+					}
+				}
+				@widget.ButtonLink(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
+					Size:        widget.SizeLarge,
+					Block:       true,
+				}, "/cart") {
+					{ i18n.T(ctx, i18n.KeyViewCart) }
+				}
+			</div>
+			if v.CanCheckout() && !v.NoDelivery {
+				<p class="goen-cart__hold">{ v.PayStartNote(ctx) }</p>
+			}
+		}
+	</div>
+}
+
+// drawerLine is one line as the drawer lists it: the photograph, the name and
+// options, the quantity at its price and the line's total, or why it cannot be
+// bought as it stands.
+templ drawerLine(l Line) {
+	<li class={ "goen-bagline", templ.KV("goen-line--out", l.Unavailable) }>
+		<span class="goen-line__thumb goen-bagline__thumb">
+			if l.HasImage() {
+				<img
+					class="goen-line__img"
+					src={ l.ImageURL }
+					srcset={ l.ImageSrcset }
+					sizes="64px"
+					alt=""
+					width="64"
+					height="64"
+					decoding="async"
+				/>
+			} else {
+				<span class="goen-line__ph"></span>
+			}
+		</span>
+		<div class="goen-bagline__body">
+			<a class="goen-line__name" href={ templ.URL("/p/" + l.Slug) }>{ l.Name }</a>
+			@lineMeta(l)
+			if l.Unavailable {
+				@widget.Badge(widget.BadgeProps{Intent: widget.IntentDanger}) {
+					{ i18n.T(ctx, i18n.KeySoldOut) }
+				}
+			} else {
+				<span class="goen-bagline__qty">{ l.QuantityText() } × { l.UnitPrice() }</span>
+				if l.Short {
+					@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), l.AvailableText()) }
+					}
+				}
+			}
+		</div>
+		if !l.Unavailable {
+			<span class="goen-bagline__total">{ l.LineTotal() }</span>
+		}
+	</li>
+}

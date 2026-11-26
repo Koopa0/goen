@@ -92,6 +92,9 @@ templ Page(p frame.Page, v *View) {
 												if c.Carrier != "" {
 													<span class="goen-checkout__shipnote">{ c.Carrier }</span>
 												}
+												for _, note := range choiceNotes(ctx, c) {
+													<span class="goen-checkout__shipnote">{ note }</span>
+												}
 											</span>
 											<span class="goen-checkout__shipfee">{ v.ChoiceFee(ctx, c) }</span>
 										</label>
@@ -327,7 +330,24 @@ templ Page(p frame.Page, v *View) {
 						<ul class="goen-checkout__lines" role="list">
 							for _, l := range v.Cart.Lines {
 								<li>
-									<span>
+									<span class="goen-line__thumb goen-checkout__linethumb">
+										if l.HasImage() {
+											<img
+												class="goen-line__img"
+												src={ l.ImageURL }
+												srcset={ l.ImageSrcset }
+												sizes="48px"
+												alt=""
+												width="48"
+												height="48"
+												loading="lazy"
+												decoding="async"
+											/>
+										} else {
+											<span class="goen-line__ph"></span>
+										}
+									</span>
+									<span class="goen-checkout__linename">
 										{ l.Name } × { l.QuantityText() }
 										if l.Label != "" {
 											<span class="goen-line__meta">{ l.Label }</span>
@@ -337,6 +357,7 @@ templ Page(p frame.Page, v *View) {
 								</li>
 							}
 						</ul>
+						@couponField(v)
 						// Above the rows, so the reader meets what changed before the figures it changed.
 						// Hidden while empty because the panel's gap would leave a blank band.
 						<div id="summary-moved" hidden?={ !v.HasMoved() }>
@@ -358,7 +379,7 @@ templ Page(p frame.Page, v *View) {
 							</div>
 							<div class="goen-summary__row">
 								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) } @movedMark(v, rowShipping)</dt>
-								<dd class="goen-summary__value">
+								<dd class={ "goen-summary__value", templ.KV("goen-summary__word", !v.HasShipping() || v.ShipsFree()) }>
 									if v.HasShipping() {
 										{ v.ShippingRow(ctx) }
 									} else {
@@ -384,43 +405,6 @@ templ Page(p frame.Page, v *View) {
 								<dd class="goen-summary__value">{ v.Total() }</dd>
 							</div>
 						</dl>
-						<div class="goen-field" id="coupon-field">
-							@widget.Label(widget.LabelProps{For: "coupon"}) {
-								{ i18n.T(ctx, i18n.KeyCouponCode) }
-							}
-							<div class="goen-checkout__couponrow">
-								<input
-									class="goen-input"
-									id="coupon"
-									name="coupon"
-									maxlength="32"
-									autocomplete="off"
-									autofocus?={ v.OnlyCouponRefused() && !v.Partial }
-									value={ v.CouponCode }
-									aria-invalid={ v.Invalid("coupon") }
-									if v.HasErr("coupon") {
-										aria-describedby="coupon-hint coupon-error"
-									} else {
-										aria-describedby="coupon-hint"
-									}
-								/>
-								@widget.Button(widget.ButtonProps{
-									ButtonStyle: widget.ButtonStyleOutline,
-									Attrs:       couponButtonAttrs(ctx),
-								}, "submit") {
-									{ i18n.T(ctx, i18n.KeyApplyCoupon) }
-								}
-							</div>
-							<p class="goen-checkout__note" id="coupon-hint">{ i18n.T(ctx, i18n.KeyCouponPlaceholder) }</p>
-							<div id="coupon-message" aria-live="polite">
-								if v.HasErr("coupon") {
-									<p class="ui-error-text" id="coupon-error">{ v.Err("coupon") }</p>
-								}
-								if v.HasCoupon() {
-									<p class="goen-checkout__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCouponApplied), v.CouponApplied) }</p>
-								}
-							</div>
-						</div>
 						<p class="goen-checkout__note">
 							{ v.PlacementNote(ctx) }
 						</p>
@@ -428,6 +412,7 @@ templ Page(p frame.Page, v *View) {
 							ButtonStyle: widget.ButtonStylePrimary,
 							Size:        widget.SizeLarge,
 							Block:       true,
+							Class:       "goen-checkout__pay",
 							Attrs:       templ.Attributes{"disabled": !v.HasShipping()},
 						}, "submit") {
 							{ i18n.T(ctx, v.PlaceOrderKey()) }
@@ -437,6 +422,50 @@ templ Page(p frame.Page, v *View) {
 			</div>
 		</div>
 	}
+}
+
+// couponField sits above the rows it changes, as the summary is drawn: a
+// shopper with a code enters it before reading the total it lowers. Its
+// sentences are inside the field's own box, so the note under the button
+// stays the only sentence beside the button that places the order.
+templ couponField(v *View) {
+	<div class="goen-field" id="coupon-field">
+		@widget.Label(widget.LabelProps{For: "coupon"}) {
+			{ i18n.T(ctx, i18n.KeyCouponCode) }
+		}
+		<div class="goen-checkout__couponrow">
+			<input
+				class="goen-input"
+				id="coupon"
+				name="coupon"
+				maxlength="32"
+				autocomplete="off"
+				autofocus?={ v.OnlyCouponRefused() && !v.Partial }
+				value={ v.CouponCode }
+				aria-invalid={ v.Invalid("coupon") }
+				if v.HasErr("coupon") {
+					aria-describedby="coupon-hint coupon-error"
+				} else {
+					aria-describedby="coupon-hint"
+				}
+			/>
+			@widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStyleOutline,
+				Attrs:       couponButtonAttrs(ctx),
+			}, "submit") {
+				{ i18n.T(ctx, i18n.KeyApplyCoupon) }
+			}
+		</div>
+		<p class="goen-checkout__note" id="coupon-hint">{ i18n.T(ctx, i18n.KeyCouponPlaceholder) }</p>
+		<div id="coupon-message" aria-live="polite">
+			if v.HasErr("coupon") {
+				<p class="ui-error-text" id="coupon-error">{ v.Err("coupon") }</p>
+			}
+			if v.HasCoupon() {
+				<p class="goen-checkout__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCouponApplied), v.CouponApplied) }</p>
+			}
+		</div>
+	</div>
 }
 
 // The one alert of a refused form. It takes focus when the page opens, with no script, so a

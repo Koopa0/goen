@@ -343,9 +343,10 @@ func withBanner(next http.Handler, banner func(http.Handler) http.Handler) http.
 var navFreePrefixes = []string{
 	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz", "/favicon.ico",
 	"/robots.txt", "/sitemap.xml",
-	// The list under the search field, fetched as the shopper types: it draws no
-	// header, so it reads no department row and is never prerendered.
-	"/search/suggest",
+	// The list under the search field and the bag drawer's contents, fetched as
+	// the shopper types or adds: they draw no header, so they read no department
+	// row and are never prerendered.
+	"/search/suggest", "/cart/drawer",
 	storemap.ReturnPath,
 }
 

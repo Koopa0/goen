@@ -24,6 +24,9 @@ templ Base(p Page) {
 				{ children... }
 			</main>
 			@Footer(p.Newsletter)
+			// The bag drawer, empty until an add to the cart succeeds: goen.js fills it
+			// from the cart's own fragment, then opens it as a modal dialog.
+			<dialog class="goen-bagdrawer" id="bag-drawer" aria-label={ i18n.T(ctx, i18n.KeyCart) }></dialog>
 		</body>
 	</html>
 }

@@ -58,3 +58,53 @@ func TestBaseHtmxRestoresHistoryByReload(t *testing.T) {
 		t.Errorf("htmx-config history = %v, want %q", got, "reload")
 	}
 }
+
+// TestBaseBagDrawerShell holds that every storefront page carries the bag
+// drawer as one empty dialog named in the reader's language, a child of the
+// body: goen.js fills it from the cart's fragment and opens it, so a shell that
+// already held a cart would show the cart as it stood when the page was drawn.
+func TestBaseBagDrawerShell(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale i18n.Locale
+		name   string
+	}{
+		{i18n.ZhHant, "購物車"},
+		{i18n.En, "Cart"},
+	} {
+		var b strings.Builder
+		if err := Base(Page{Title: "t"}).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
+			t.Fatal(err)
+		}
+		doc, err := html.Parse(strings.NewReader(b.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		value := func(n *html.Node, key string) string {
+			for _, a := range n.Attr {
+				if a.Key == key {
+					return a.Val
+				}
+			}
+			return ""
+		}
+		var shells []*html.Node
+		for n := range doc.Descendants() {
+			if n.Type == html.ElementNode && n.Data == "dialog" && value(n, "id") == "bag-drawer" {
+				shells = append(shells, n)
+			}
+		}
+		if len(shells) != 1 {
+			t.Fatalf("%s: %d bag drawers on the page, want one", tt.locale.Tag(), len(shells))
+		}
+		if got := value(shells[0], "aria-label"); got != tt.name {
+			t.Errorf("%s: the drawer is named %q, want %q", tt.locale.Tag(), got, tt.name)
+		}
+		if shells[0].FirstChild != nil {
+			t.Errorf("%s: the drawer's shell holds content before any add", tt.locale.Tag())
+		}
+		if shells[0].Parent == nil || shells[0].Parent.Data != "body" {
+			t.Errorf("%s: the drawer is not a child of the body", tt.locale.Tag())
+		}
+	}
+}

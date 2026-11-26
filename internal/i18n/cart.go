@@ -1,7 +1,16 @@
 package i18n
 
 var (
-	KeyCartFactItems = key("cart.fact.items", Message{ZhHant: "商品", En: "Items"})
+	// KeyCartLineCount heads the cart's lines and the bag drawer: the units a
+	// shopper can still buy, so a sold-out line is not counted.
+	KeyCartLineCount = countKey("cart.lines.count", "%d 件商品", "%d item", "%d items")
+
+	// KeyCartToFree is the free-delivery meter's sentence while the cart is
+	// short of the one amount every method turns free at; %s is the shortfall.
+	KeyCartToFree = key("cart.to_free", Message{ZhHant: "免運還差 %s", En: "%s to free delivery"})
+
+	// KeyCloseCart names the bag drawer's close button, which shows only a cross.
+	KeyCloseCart = key("cart.drawer.close", Message{ZhHant: "關閉購物車", En: "Close the cart"})
 
 	KeyCartEmptyDesc = key("cart.empty.desc", Message{
 		ZhHant: "還沒有挑到東西？",

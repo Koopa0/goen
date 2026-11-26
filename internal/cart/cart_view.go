@@ -66,33 +66,66 @@ func (f FreeDelivery) Word(ctx context.Context) string {
 		strings.Join(f.SurchargeZones, i18n.T(ctx, i18n.KeyListSeparator)))
 }
 
-// Stat is the fact that tells where the cart stands against free delivery; it is absent where the methods on offer disagree.
-func (f FreeDelivery) Stat(ctx context.Context) widget.Stat {
+// Sentence is the meter's words: how far the cart is from free delivery, or
+// that it has it, with the zones still charged extra. It is empty where the
+// methods on offer disagree, and the meter is then not drawn.
+func (f FreeDelivery) Sentence(ctx context.Context) string {
 	switch f.Kind {
 	case FreeDeliveryShort:
-		return widget.Stat{
-			Label: i18n.T(ctx, i18n.KeyCartFactToFree),
-			Value: widget.StatMoney(f.ShortfallCents),
-			Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), twd(f.ThresholdCents)),
-		}
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyCartToFree), twd(f.ShortfallCents))
 	case FreeDeliveryReached:
-		s := widget.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: widget.StatWord(f.Word(ctx))}
-		if f.ThresholdCents > 0 {
-			s.Note = fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFactOver), twd(f.ThresholdCents))
+		if len(f.SurchargeZones) > 0 {
+			return fmt.Sprintf(i18n.T(ctx, i18n.KeyFreeDeliveryReachedExcept),
+				strings.Join(f.SurchargeZones, i18n.T(ctx, i18n.KeyListSeparator)))
 		}
-		return s
+		return i18n.T(ctx, i18n.KeyFreeDeliveryReached)
+	case FreeDeliveryUnstated:
+		return ""
 	default:
-		return widget.Stat{}
+		panic("cart: unknown FreeDeliveryKind: " + string(f.Kind))
 	}
 }
 
-// Facts are the cart's totals as they stand: a sold-out line is in neither the count nor the subtotal.
-func (v View) Facts(ctx context.Context) []widget.Stat {
-	return []widget.Stat{
-		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: widget.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyFactUnitItems))},
-		{Label: i18n.T(ctx, i18n.KeySubtotal), Value: widget.StatMoney(v.SubtotalCents)},
-		v.FreeDelivery.Stat(ctx),
+// Note names the amount the meter measures against, where one is named.
+func (f FreeDelivery) Note(ctx context.Context) string {
+	switch {
+	case f.ThresholdCents <= 0:
+		return ""
+	case f.Kind == FreeDeliveryShort:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), twd(f.ThresholdCents))
+	case f.Kind == FreeDeliveryReached:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFactOver), twd(f.ThresholdCents))
+	default:
+		return ""
 	}
+}
+
+// Meter is the bar's reading in cents: how much of the threshold the subtotal
+// covers, capped at the threshold. ok is false where there is no one amount to
+// measure against, and no bar is drawn.
+func (f FreeDelivery) Meter(subtotalCents int64) (value, limit int64, ok bool) {
+	if f.Kind == FreeDeliveryUnstated || f.ThresholdCents <= 0 {
+		return 0, 0, false
+	}
+	if f.Kind == FreeDeliveryReached {
+		return f.ThresholdCents, f.ThresholdCents, true
+	}
+	return min(max(subtotalCents, 0), f.ThresholdCents), f.ThresholdCents, true
+}
+
+// Percent is the bar's reading in whole percent, rounded down so a cart one
+// dollar short never reads 100%.
+func (f FreeDelivery) Percent(subtotalCents int64) string {
+	value, limit, ok := f.Meter(subtotalCents)
+	if !ok {
+		return ""
+	}
+	return strconv.FormatInt(value*100/limit, 10) + "%"
+}
+
+// LineCount heads the lines: what the cart holds that can still be bought.
+func (v View) LineCount(ctx context.Context) string {
+	return i18n.Count(ctx, i18n.KeyCartLineCount, v.ItemCount, v.ItemCount)
 }
 
 // StockNotice says what stands between the shopper and checkout; a sold-out line outranks a short one.
@@ -102,6 +135,21 @@ func (v View) StockNotice(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyCartSoldOut)
 	case v.Blocked():
 		return i18n.T(ctx, i18n.KeyCartStockShort)
+	default:
+		return ""
+	}
+}
+
+// drawerHold is why the bag drawer offers no checkout: the sentence the cart
+// page says for the same cause, so the two cannot disagree.
+func (v View) drawerHold(ctx context.Context) string {
+	switch {
+	case v.StockNotice(ctx) != "":
+		return v.StockNotice(ctx)
+	case v.MixedTaxTypes:
+		return i18n.T(ctx, i18n.KeyCartMixedTaxTypes)
+	case v.NoDelivery:
+		return i18n.T(ctx, i18n.KeyShippingUnavailable)
 	default:
 		return ""
 	}
@@ -206,9 +254,9 @@ type ShippingChoice struct {
 func (c ShippingChoice) Fee() string { return twd(c.FeeCents) }
 
 // cartLineSwap names what one quantity update changes: that line's text and price,
-// the summary, the item count, the notices and the header's cart link. The stepper
-// in use and the other lines are never replaced.
+// the summary, the count over the lines, the notices, the free-delivery meter and
+// the header's cart link. The stepper in use and the other lines are never replaced.
 func cartLineSwap(variantID string) string {
 	return "#line-body-" + variantID + ",#line-money-" + variantID +
-		",#cart-summary,#cart-notices,#cart-link,#cart-count:innerHTML"
+		",#cart-summary,#cart-lines-heading,#cart-notices,#cart-link,#cart-count:innerHTML"
 }

@@ -2,6 +2,7 @@ package cart
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
@@ -14,14 +15,6 @@ templ Page(p frame.Page, v View) {
 		<div class="goen-cart">
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCart) }</h1>
-				if !v.Empty() {
-					<div id="cart-count" class="goen-cart__facts" role="status">
-						if notice := v.StockNotice(ctx); notice != "" {
-							<p id="cart-alert" class="goen-cart__alert">{ notice }</p>
-						}
-						@widget.StatLine(v.Facts(ctx), widget.StatLinePlain)
-					</div>
-				}
 			</div>
 			// Always present, so an update that changes only the notice has somewhere to put it.
 			<div id="cart-notices" class="goen-cart__notices">
@@ -79,11 +72,25 @@ templ Page(p frame.Page, v View) {
 				</div>
 			} else {
 				<div class="goen-cart__layout">
-					<ul class="goen-cart__lines" role="list">
-						for _, l := range v.Lines {
-							@cartLine(l)
-						}
-					</ul>
+					<div class="goen-cart__main">
+						// What stands between the shopper and checkout, then how far the cart is
+						// from free delivery. A quantity update replaces what is inside, and the
+						// region says it.
+						<div id="cart-count" class="goen-cart__facts" role="status">
+							if notice := v.StockNotice(ctx); notice != "" {
+								<p id="cart-alert" class="goen-cart__alert">{ notice }</p>
+							}
+							@freeDeliveryMeter(v.FreeDelivery, v.SubtotalCents, "cart-meter")
+						</div>
+						<section class="goen-cart__bag" aria-labelledby="cart-lines-heading">
+							<h2 class="goen-cart__bagtitle" id="cart-lines-heading">{ v.LineCount(ctx) }</h2>
+							<ul class="goen-cart__lines" role="list">
+								for _, l := range v.Lines {
+									@cartLine(l)
+								}
+							</ul>
+						</section>
+					</div>
 					@widget.Card(widget.CardProps{
 						Class: "goen-cart__summary",
 						Attrs: templ.Attributes{"id": "cart-summary", "aria-labelledby": "summary-heading"},
@@ -92,7 +99,7 @@ templ Page(p frame.Page, v View) {
 						<dl class="goen-summary">
 							<div class="goen-summary__row">
 								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) }</dt>
-								<dd class="goen-summary__value">
+								<dd class="goen-summary__value goen-summary__word">
 									if v.FreeDelivery.Kind == FreeDeliveryReached {
 										{ v.FreeDelivery.Word(ctx) }
 									} else {
@@ -121,6 +128,7 @@ templ Page(p frame.Page, v View) {
 									ButtonStyle: widget.ButtonStylePrimary,
 									Size:        widget.SizeLarge,
 									Block:       true,
+									Class:       "goen-cart__checkout",
 								}, "/checkout") {
 									{ i18n.T(ctx, i18n.KeyCheckout) }
 								}
@@ -212,9 +220,7 @@ templ cartLine(l Line) {
 				<span class="goen-line__brand">{ l.Brand }</span>
 			}
 			<a class="goen-line__name" href={ templ.URL("/p/" + l.Slug) }>{ l.Name }</a>
-			if l.Label != "" {
-				<span class="goen-line__meta">{ l.Label }</span>
-			}
+			@lineMeta(l)
 			if l.OnSale() {
 				// A campaign's price, in vermilion beside the struck price it replaces, and
 				// the day the campaign ends: what ends is marked, and says when.
@@ -224,7 +230,7 @@ templ cartLine(l Line) {
 				</span>
 				@saleUntil(*l.Sale)
 			} else {
-				<span class="goen-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyUnitPrice), l.UnitPrice()) }</span>
+				<span class="goen-line__unit">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyUnitPrice), l.UnitPrice()) }</span>
 			}
 			if l.TaxExempt {
 				@widget.Badge(widget.BadgeProps{}) {
@@ -293,4 +299,52 @@ templ cartLine(l Line) {
 			}
 		</form>
 	</li>
+}
+
+// lineMeta is the variant's chosen options and its SKU on one line, the SKU in
+// the figures' face so it can be read back to the shop character by character.
+templ lineMeta(l Line) {
+	if l.Label != "" || l.SKU != "" {
+		<span class="goen-line__meta">
+			if l.Label != "" {
+				{ l.Label }
+			}
+			if l.Label != "" && l.SKU != "" {
+				<span aria-hidden="true">{ " · " }</span>
+			}
+			if l.SKU != "" {
+				<span class="goen-line__sku">{ l.SKU }</span>
+			}
+		</span>
+	}
+}
+
+// freeDeliveryMeter says how far the cart is from free delivery and draws it
+// as a bar against the one amount every method offered turns free at. Where
+// the methods disagree nothing here is true for every destination, so nothing
+// is drawn; where none names an amount, the sentence stands without a bar.
+// The bar is a native progress element named by the sentence, so a screen
+// reader hears the words and the reading; the percentage beside it is for the
+// eye only.
+templ freeDeliveryMeter(f FreeDelivery, subtotalCents int64, id string) {
+	if sentence := f.Sentence(ctx); sentence != "" {
+		<div class={ "goen-meter", templ.KV("goen-meter--met", f.Kind == FreeDeliveryReached) }>
+			<p class="goen-meter__text" id={ id }>{ sentence }</p>
+			if value, limit, ok := f.Meter(subtotalCents); ok {
+				<progress
+					class="goen-meter__bar"
+					max={ strconv.FormatInt(limit, 10) }
+					value={ strconv.FormatInt(value, 10) }
+					aria-labelledby={ id }
+					if f.Note(ctx) != "" {
+						aria-describedby={ id + "-note" }
+					}
+				></progress>
+				<span class="goen-meter__pct" aria-hidden="true">{ f.Percent(subtotalCents) }</span>
+			}
+			if note := f.Note(ctx); note != "" {
+				<p class="goen-meter__note" id={ id + "-note" }>{ note }</p>
+			}
+		</div>
+	}
 }

@@ -60,6 +60,7 @@ func (h *Handler) OfferWishlist(hasSaved func(ctx context.Context, userID string
 // shared header.
 func (h *Handler) Routes(mux *http.ServeMux, clearSpeculations func(http.HandlerFunc) http.HandlerFunc) {
 	mux.HandleFunc("GET /cart", h.Page)
+	mux.HandleFunc("GET /cart/drawer", h.Drawer)
 	mux.HandleFunc("POST /cart/items", clearSpeculations(h.AddItem))
 	mux.HandleFunc("POST /cart/items/update", clearSpeculations(h.UpdateItem))
 	mux.HandleFunc("POST /orders/{number}/reorder", clearSpeculations(h.ReorderItems))
@@ -147,6 +148,33 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		view.Notice = notice
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Page(Meta(r.Context()), view))
+}
+
+// Drawer answers the bag drawer's fragment: the cart page's own reading of the
+// cart, with no page around it. A GET never creates a cart, so a visitor with
+// none is shown an empty one.
+func (h *Handler) Drawer(w http.ResponseWriter, r *http.Request) {
+	cartID, found, ok := h.Find(w, r)
+	if !ok {
+		return
+	}
+	var view View
+	if found {
+		var err error
+		view, err = h.store.View(r.Context(), cartID)
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "read cart for the drawer", "error", err)
+			h.serverError(w, r)
+			return
+		}
+		if choices, err := h.OfferedShipping(r.Context(), cartID, view.SubtotalCents); err != nil {
+			h.log.ErrorContext(r.Context(), "read shipping for the drawer", "error", err)
+		} else {
+			view.FreeDelivery = freeDeliveryFor(choices, view.SubtotalCents)
+			view.NoDelivery = len(choices) == 0
+		}
+	}
+	respond.Component(w, r, h.log, http.StatusOK, Drawer(view))
 }
 
 func cartContinuation(r *http.Request) string {

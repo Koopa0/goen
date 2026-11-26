@@ -294,6 +294,7 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "GET /auth/google/callback", sample: "/auth/google/callback", traits: "banner nav nostore visitor"}, // Google is not configured in this test, so this answers the full 404 page, header included; configured, it answers 303 to /signin on a failure and 200 with a page that loads the destination on a success
 	{pattern: "GET /c/{slug}", sample: "/c/" + probeSlug, traits: "banner nav speculation visitor"},
 	{pattern: "GET /cart", sample: "/cart", traits: "nav nostore speculation visitor"},
+	{pattern: "GET /cart/drawer", sample: "/cart/drawer", traits: "nostore visitor"},
 	{pattern: "GET /checkout", sample: "/checkout", traits: "nav nostore visitor"},
 	{pattern: "GET /checkout/pickup/map", sample: "/checkout/pickup/map", traits: "nav nostore visitor"},
 	{pattern: "GET /compare", sample: "/compare", traits: "banner nav speculation visitor"},

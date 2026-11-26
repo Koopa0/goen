@@ -1270,6 +1270,83 @@
     });
   }
 
+  /*
+   * The bag drawer. After an add to the cart succeeds, from any form that
+   * posts to /cart/items through htmx, the cart's own fragment fills the
+   * frame's empty dialog and the dialog opens. Success is read from the
+   * answer, whatever the form and wherever the server sent it: the header's
+   * count in the page that came back is higher than the one on screen. The
+   * fragment comes by a plain fetch, so it is not one of the page's own htmx
+   * requests, and the drawer opens once that request has swapped, so what
+   * had focus is the page's own new control. The browser keeps focus inside
+   * the dialog, closes it on Escape and gives focus back; the close button and
+   * a press on the backdrop are this script's, and so is finding the pressed
+   * button again by its id when the swap replaced it while the drawer was open.
+   */
+  function bagDrawer() {
+    const dialog = document.getElementById("bag-drawer");
+    if (typeof dialog?.showModal !== "function") return;
+    const units = (root) => Number.parseInt(root.querySelector("#cart-link .goen-header__count")?.textContent ?? "", 10) || 0;
+    const adds = (ctx) => {
+      if (String(ctx?.request?.method).toUpperCase() !== "POST") return false;
+      try {
+        return new URL(ctx.request.action, location.href).pathname === "/cart/items";
+      } catch {
+        return false;
+      }
+    };
+    const sent = new WeakMap();
+    const pending = new WeakMap();
+    let turn = 0;
+    let back = { element: null, id: "" };
+
+    document.addEventListener("htmx:before:request", (event) => {
+      const ctx = event.detail?.ctx;
+      if (event.defaultPrevented || !adds(ctx)) return;
+      const pressed = document.activeElement;
+      sent.set(ctx, { units: units(document), id: pressed instanceof HTMLElement ? pressed.id : "" });
+    });
+    document.addEventListener("htmx:after:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const before = sent.get(ctx);
+      if (!before || !(ctx.response?.status < 400) || !ctx.text) return;
+      const answer = new DOMParser().parseFromString(ctx.text, "text/html");
+      if (units(answer) <= before.units) return;
+      const mine = ++turn;
+      pending.set(ctx, {
+        mine, id: before.id,
+        body: fetch("/cart/drawer", { credentials: "same-origin", headers: { Accept: "text/html" } })
+          .then((response) => (response.ok ? response.text() : ""))
+          .then((text) => new DOMParser().parseFromString(text, "text/html").getElementById("bag-drawer-body"))
+          .catch(() => null),
+      });
+    });
+    document.addEventListener("htmx:finally:request", async (event) => {
+      const ctx = event.detail?.ctx;
+      const opening = pending.get(ctx);
+      if (!opening) return;
+      pending.delete(ctx);
+      const body = await opening.body;
+      // A later add, or a fragment that did not come, opens nothing here.
+      if (!body || opening.mine !== turn) return;
+      dialog.replaceChildren(document.importNode(body, true));
+      if (dialog.open) return;
+      const focused = document.activeElement;
+      back = { element: focused instanceof HTMLElement && focused !== document.body ? focused : null, id: opening.id };
+      dialog.showModal();
+    });
+
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog || event.target.closest?.("[data-bag-close]")) dialog.close();
+    });
+    dialog.addEventListener("close", () => {
+      const landed = document.activeElement;
+      if (landed && landed !== document.body && !dialog.contains(landed)) return;
+      const again = back.element?.isConnected ? back.element : back.id ? document.getElementById(back.id) : null;
+      again?.focus();
+    });
+  }
+
   recipientBox();
   demoAccount();
   handoff();
@@ -1286,4 +1363,5 @@
   chartReadout();
   compareRow();
   navigationPending();
+  bagDrawer();
 })();
