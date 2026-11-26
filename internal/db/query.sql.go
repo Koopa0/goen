@@ -5883,6 +5883,70 @@ func (q *Queries) ComparableCategoryIDs(ctx context.Context) ([]uuid.UUID, error
 	return items, nil
 }
 
+const comparePresets = `-- name: ComparePresets :many
+WITH RECURSIVE eff AS (
+    SELECT c.id, c.comparable, ARRAY[c.position] AS path FROM categories c WHERE c.parent_id IS NULL
+    UNION ALL
+    SELECT c.id, coalesce(c.comparable, e.comparable), e.path || c.position
+    FROM categories c JOIN eff e ON c.parent_id = e.id
+),
+held AS (
+    SELECT p.category_id, p.slug,
+           row_number() OVER (PARTITION BY p.category_id ORDER BY p.published_at DESC, p.id DESC) AS nth,
+           count(*) OVER (PARTITION BY p.category_id) AS held
+    FROM products p
+    JOIN eff ON eff.id = p.category_id AND eff.comparable IS TRUE
+    WHERE p.status = 'active'
+      AND EXISTS (
+          SELECT 1 FROM product_variants v
+          WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
+)
+SELECT c.slug AS category_slug,
+       localized_name(c.name, c.name_en, $1::text) AS category,
+       h.slug
+FROM held h
+JOIN categories c ON c.id = h.category_id
+JOIN eff ON eff.id = c.id
+WHERE h.held >= 2 AND h.nth <= $2::integer
+ORDER BY eff.path, c.slug, h.nth
+`
+
+type ComparePresetsParams struct {
+	Locale    string
+	PerPreset int32
+}
+
+type ComparePresetsRow struct {
+	CategorySlug string
+	Category     string
+	Slug         string
+}
+
+// The ready-made comparisons /compare offers: each category that offers
+// comparison (the same inheritance as ComparableCategoryIDs) and holds at least
+// two active products in stock, with its newest per_preset of them, in the
+// order the shop's tree lists the categories. categories_acyclic is what
+// guarantees the walk terminates.
+func (q *Queries) ComparePresets(ctx context.Context, arg ComparePresetsParams) ([]ComparePresetsRow, error) {
+	rows, err := q.db.Query(ctx, comparePresets, arg.Locale, arg.PerPreset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ComparePresetsRow{}
+	for rows.Next() {
+		var i ComparePresetsRow
+		if err := rows.Scan(&i.CategorySlug, &i.Category, &i.Slug); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const compareProducts = `-- name: CompareProducts :many
 SELECT
     p.slug,
@@ -5912,6 +5976,15 @@ SELECT
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
+    -- The one variant a product has, when it has only one and it is in stock:
+    -- the only case where a column's add-to-cart names what goes in the cart.
+    -- The nil uuid when there is none.
+    coalesce((
+        SELECT CASE WHEN count(*) = 1 AND bool_and(ov.stock_quantity > ov.safety_stock)
+                    THEN (array_agg(ov.id))[1] END
+        FROM product_variants ov
+        WHERE ov.product_id = p.id AND ov.is_active
+    ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS sole_variant_id,
     coalesce(img.media_digest, '') AS image_digest,
     coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
@@ -5960,6 +6033,7 @@ type CompareProductsRow struct {
 	RatingCount         int64
 	InStock             bool
 	WarrantyMonths      int32
+	SoleVariantID       uuid.UUID
 	ImageDigest         string
 	ImageBundledKey     string
 	ImageAlt            string
@@ -5993,6 +6067,7 @@ func (q *Queries) CompareProducts(ctx context.Context, arg CompareProductsParams
 			&i.RatingCount,
 			&i.InStock,
 			&i.WarrantyMonths,
+			&i.SoleVariantID,
 			&i.ImageDigest,
 			&i.ImageBundledKey,
 			&i.ImageAlt,
@@ -6008,6 +6083,28 @@ func (q *Queries) CompareProducts(ctx context.Context, arg CompareProductsParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const compareSetProduct = `-- name: CompareSetProduct :one
+SELECT localized_name(p.name, p.name_en, $1::text) AS name
+FROM products p
+WHERE p.slug = $2::text AND p.status = 'active'
+  AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active)
+`
+
+type CompareSetProductParams struct {
+	Locale string
+	Slug   string
+}
+
+// The name of a product /compare can show, which the compare set's control
+// reads its label from: active, with an active variant to price it, as
+// CompareProducts requires. No row is a slug the set must not take.
+func (q *Queries) CompareSetProduct(ctx context.Context, arg CompareSetProductParams) (string, error) {
+	row := q.db.QueryRow(ctx, compareSetProduct, arg.Locale, arg.Slug)
+	var name string
+	err := row.Scan(&name)
+	return name, err
 }
 
 const compareSpecs = `-- name: CompareSpecs :many

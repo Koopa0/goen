@@ -52,9 +52,20 @@ templ Header(p Page) {
 				if IsStaff(ctx) {
 					<a class="goen-header__tool goen-header__backoffice" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
 				}
-				<a class="goen-header__tool goen-header__compare" href="/compare">
+				// An id, because a change to the compare set replaces this link out of
+				// band. With a count it shows the word and the number and is called by
+				// the sentence, as the cart link is.
+				<a class="goen-header__tool goen-header__compare" id="compare-link" href="/compare">
 					@icons.Sliders()
-					{ i18n.T(ctx, i18n.KeyCompareTitle) }
+					if n := CompareCount(ctx); n > 0 {
+						<span class="goen-header__compareshown" aria-hidden="true">
+							{ i18n.T(ctx, i18n.KeyCompareTitle) }
+							<span class="goen-header__comparecount">{ strconv.Itoa(n) }</span>
+						</span>
+						<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyCompareCount, int64(n), strconv.Itoa(n)) }</span>
+					} else {
+						{ i18n.T(ctx, i18n.KeyCompareTitle) }
+					}
 				</a>
 				@languageLink()
 				<a class="goen-header__tool goen-header__wide" href="/account">{ i18n.T(ctx, i18n.KeyAccount) }</a>
@@ -107,7 +118,15 @@ templ Header(p Page) {
 			// place on the page.
 			<div class="goen-header__drawertools">
 				@languageMenu("goen-header__drawerlang", true)
-				<a class="ui-navitem" href="/compare">{ i18n.T(ctx, i18n.KeyCompareTitle) }</a>
+				<a class="ui-navitem" id="compare-link-menu" href="/compare">
+					if n := CompareCount(ctx); n > 0 {
+						<span class="goen-header__navname" aria-hidden="true">{ i18n.T(ctx, i18n.KeyCompareTitle) }</span>
+						<small aria-hidden="true">{ strconv.Itoa(n) }</small>
+						<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyCompareCount, int64(n), strconv.Itoa(n)) }</span>
+					} else {
+						{ i18n.T(ctx, i18n.KeyCompareTitle) }
+					}
+				</a>
 				<a class="ui-navitem" href="/account/wishlist">{ i18n.T(ctx, i18n.KeyWishlist) }</a>
 				<a class="ui-navitem" href="/account">{ i18n.T(ctx, i18n.KeyAccount) }</a>
 			</div>

@@ -7,12 +7,14 @@ import (
 	"testing"
 )
 
-// TestAppCSSComparePageAsDrawn checks the comparison as a printed table is
-// drawn: a rule over it and one under each row, with no frame, no corner on the
-// box or the photographs, the page's name and the section's name in the
-// editorial face, and the department's 查看比較 as the one blue next step that
-// is underlined only under the pointer. Each reads a role or a type step, so
-// the night takes its own value from the same rule.
+// TestAppCSSComparePageAsDrawn checks the comparison as the flagship board
+// draws it: the table in a framed box that scrolls on its own, each product on
+// the photo plate with the studio ground multiplied away, the values in the
+// data face with figures of one width, a differing row on the cobalt tint, and
+// the differences-only switch hiding every other row but the one that buys. The
+// header's count is the commerce cobalt, not the cart's ink. The department's
+// 查看比較 stays the one blue next step, underlined only under the pointer. Each
+// reads a role or a token, so the night takes its own value from the same rule.
 func TestAppCSSComparePageAsDrawn(t *testing.T) {
 	t.Parallel()
 
@@ -33,9 +35,19 @@ func TestAppCSSComparePageAsDrawn(t *testing.T) {
 		return blocks
 	}
 	for _, want := range []struct{ selector, decl string }{
-		{".goen-compare__scroll", `border-top:\s*1px solid var\(--rule-line\);`},
-		{".goen-compare__table td", `border-bottom:\s*1px solid var\(--rule-line\);`},
-		{".goen-compare .goen-pagehead__title", `font:\s*var\(--fw-medium\) var\(--t-40\)/1\.2 var\(--font-display\);`},
+		{".goen-compare__scroll", `border:\s*1px solid var\(--hairline\);`},
+		{".goen-compare__scroll", `overflow-x:\s*auto;`},
+		{".goen-compare__table td", `border-bottom:\s*1px solid var\(--hairline\);`},
+		{".goen-compare__plate", `background:\s*var\(--photo-plate\);`},
+		{".goen-compare__image", `mix-blend-mode:\s*multiply;`},
+		{".goen-compare__table tbody td", `font-family:\s*var\(--font-data\);`},
+		{".goen-compare__table tbody td", `font-variant-numeric:\s*tabular-nums`},
+		{".goen-compare__table .is-differs td", `background:\s*var\(--cobalt-soft\);`},
+		{".goen-compare__table .is-differs th", `background:\s*var\(--cobalt-soft\);`},
+		{".goen-compare:has(#compare-diff:checked) .goen-compare__table tbody tr:not(.is-differs):not(.goen-compare__buy)", `display:\s*none;`},
+		{".goen-compare__table tbody th", `position:\s*sticky;`},
+		{".goen-header__comparecount", `background:\s*var\(--cta\);`},
+		{".goen-header__comparecount", `color:\s*var\(--on-cta\);`},
 		{".goen-deptcompare__title", `font:\s*var\(--type-headline-m\);`},
 		{".goen-compare__suggesthead", `font:\s*var\(--type-headline-m\);`},
 		{".goen-deptcompare__more", `color:\s*var\(--sys-primary\);`},
@@ -52,13 +64,11 @@ func TestAppCSSComparePageAsDrawn(t *testing.T) {
 			t.Errorf("%s: no rule for %s declares %s", AppCSS, want.selector, want.decl)
 		}
 	}
-	// No frame and no corner anywhere on the table's box or its photographs.
-	cornered := regexp.MustCompile(`border-radius:|(?:^|[;\s])border:`)
-	for _, selector := range []string{".goen-compare__scroll", ".goen-compare__table", ".goen-compare__image"} {
-		for _, block := range declared(selector) {
-			if cornered.MatchString(block) {
-				t.Errorf("%s: %s is framed or cornered: %s", AppCSS, selector, strings.TrimSpace(block))
-			}
+	// The photograph is never a white sticker: nothing paints a ground of its
+	// own under it inside the plate.
+	for _, block := range declared(".goen-compare__image") {
+		if regexp.MustCompile(`background`).MatchString(block) {
+			t.Errorf("%s: .goen-compare__image paints a ground over the plate: %s", AppCSS, strings.TrimSpace(block))
 		}
 	}
 	// No later rule gives a section's name a size, weight or family of its own,

@@ -1,0 +1,70 @@
+package catalog
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/icons"
+)
+
+// CompareToggle puts a product in the shopper's compare set or takes it out,
+// from any page that shows the product: name is the product's, for the button's
+// name. Whether the product is in the set is read from the request, where
+// CompareSet.WithCount put the set. The button keeps one name and says which way
+// it is by aria-pressed, as a toggle does. A plain post comes back to the page it
+// was pressed on; with htmx the response's own control is morphed over this one,
+// so focus stays on the button, and the header's compare links are replaced out
+// of band. A full set refuses the add and says so in the status beside the
+// button, which is in the page before it speaks.
+templ CompareToggle(slug, name string) {
+	{{ inSet := inCompareSet(ctx, slug) }}
+	<form
+		class="goen-comparetoggle"
+		method="post"
+		action="/compare/items"
+		hx-post="/compare/items"
+		hx-target="this"
+		hx-select=".goen-comparetoggle"
+		hx-swap="outerMorph"
+		hx-select-oob="#compare-link,#compare-link-menu"
+		hx-push-url="false"
+	>
+		<input type="hidden" name="slug" value={ slug }/>
+		if inSet {
+			<input type="hidden" name="action" value={ compareRemoveAction }/>
+		} else {
+			<input type="hidden" name="action" value={ compareAddAction }/>
+		}
+		<input type="hidden" name="return" value={ frame.ReturnPath(ctx) }/>
+		<button class="goen-comparetoggle__button" type="submit" aria-pressed={ ariaPressed(inSet) }>
+			if inSet {
+				@icons.Check()
+			} else {
+				@icons.Sliders()
+			}
+			{ i18n.T(ctx, i18n.KeyCompareAdd) }
+			<span class="goen-sr-only">{ " " + name }</span>
+		</button>
+		<span class="goen-comparetoggle__note" role="status">
+			if !inSet && frame.CompareCount(ctx) >= MaxCompare {
+				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }
+			}
+		</span>
+	</form>
+}
+
+// compareToggleSwap is htmx's answer to a toggle: the header, whose compare links
+// the toggle selects out of band, and the toggle as it now is. The request it
+// renders under carries the set as the press left it.
+templ compareToggleSwap(slug, name string) {
+	@frame.Header(frame.Page{})
+	@CompareToggle(slug, name)
+}
+
+func ariaPressed(on bool) string {
+	if on {
+		return "true"
+	}
+	return "false"
+}

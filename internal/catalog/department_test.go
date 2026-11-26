@@ -82,7 +82,7 @@ func TestComparePreviewSpecsOnly(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	preview, _ := NewComparePreview("Laptops", previewOf(2, sharedRows(3, 2)...))
 	page := renderComponent(t, ctx, comparePreview(&preview))
-	for _, banned := range []string{"goen-compare__remove", i18n.T(ctx, i18n.KeyCompareRowStock)} {
+	for _, banned := range []string{"goen-compare__remove", "goen-compare__buy", i18n.T(ctx, i18n.KeyCompareRowRating)} {
 		if strings.Contains(page, banned) {
 			t.Errorf("preview draws %q, which belongs to the comparison page", banned)
 		}

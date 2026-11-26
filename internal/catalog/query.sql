@@ -803,6 +803,15 @@ SELECT
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
+    -- The one variant a product has, when it has only one and it is in stock:
+    -- the only case where a column's add-to-cart names what goes in the cart.
+    -- The nil uuid when there is none.
+    coalesce((
+        SELECT CASE WHEN count(*) = 1 AND bool_and(ov.stock_quantity > ov.safety_stock)
+                    THEN (array_agg(ov.id))[1] END
+        FROM product_variants ov
+        WHERE ov.product_id = p.id AND ov.is_active
+    ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS sole_variant_id,
     coalesce(img.media_digest, '') AS image_digest,
     coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
@@ -916,6 +925,47 @@ WHERE p.status = 'active'
   AND NOT (p.slug = ANY(@exclude_slugs::text[]))
 ORDER BY abs(mv.price_cents - @anchor_cents::bigint), p.id
 LIMIT @row_limit::integer;
+
+-- The ready-made comparisons /compare offers: each category that offers
+-- comparison (the same inheritance as ComparableCategoryIDs) and holds at least
+-- two active products in stock, with its newest per_preset of them, in the
+-- order the shop's tree lists the categories. categories_acyclic is what
+-- guarantees the walk terminates.
+-- name: ComparePresets :many
+WITH RECURSIVE eff AS (
+    SELECT c.id, c.comparable, ARRAY[c.position] AS path FROM categories c WHERE c.parent_id IS NULL
+    UNION ALL
+    SELECT c.id, coalesce(c.comparable, e.comparable), e.path || c.position
+    FROM categories c JOIN eff e ON c.parent_id = e.id
+),
+held AS (
+    SELECT p.category_id, p.slug,
+           row_number() OVER (PARTITION BY p.category_id ORDER BY p.published_at DESC, p.id DESC) AS nth,
+           count(*) OVER (PARTITION BY p.category_id) AS held
+    FROM products p
+    JOIN eff ON eff.id = p.category_id AND eff.comparable IS TRUE
+    WHERE p.status = 'active'
+      AND EXISTS (
+          SELECT 1 FROM product_variants v
+          WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
+)
+SELECT c.slug AS category_slug,
+       localized_name(c.name, c.name_en, @locale::text) AS category,
+       h.slug
+FROM held h
+JOIN categories c ON c.id = h.category_id
+JOIN eff ON eff.id = c.id
+WHERE h.held >= 2 AND h.nth <= @per_preset::integer
+ORDER BY eff.path, c.slug, h.nth;
+
+-- The name of a product /compare can show, which the compare set's control
+-- reads its label from: active, with an active variant to price it, as
+-- CompareProducts requires. No row is a slug the set must not take.
+-- name: CompareSetProduct :one
+SELECT localized_name(p.name, p.name_en, @locale::text) AS name
+FROM products p
+WHERE p.slug = @slug::text AND p.status = 'active'
+  AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active);
 
 -- A facet keeps its own zero-count choices so the checked value can still be removed.
 -- name: CategoryOptionValues :many
