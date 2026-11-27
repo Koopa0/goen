@@ -5154,11 +5154,14 @@ input.goen-check {
   min-width: 0;
 }
 
+/* At 320px and 200% text the English "Specifications," is wider than the line,
+   so the word may break anywhere rather than push the page sideways. */
 .goen-compare__title {
   color: var(--text-strong);
   font: var(--fw-semibold) clamp(1.5rem, 1.1rem + 1.2vw, 2rem)/1.2 var(--font-display);
   letter-spacing: -0.02em;
   margin: 0;
+  overflow-wrap: anywhere;
   text-wrap: balance;
 }
 
