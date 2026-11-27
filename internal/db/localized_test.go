@@ -38,6 +38,8 @@ func TestLocalizedNameCategory(t *testing.T) {
 		"AdminCategoryImage": "back office: the category image form names the category it edits",
 		"SearchProductsCount": "matching, not display: the same predicate as " +
 			"SearchProducts, which matches the category name in either language",
+		"SearchMatches": "matching, not display: the same predicate as SearchProducts, " +
+			"whose matches it returns as ids",
 	}
 
 	used := map[string]bool{}
@@ -83,6 +85,7 @@ func TestLocalizedNameSpec(t *testing.T) {
 			"the translation is entered",
 		"AddProductSpec": "the write",
 		"SearchProducts": "matching, not display: matches specifications in either language",
+		"SearchMatches":  "matching, not display: the same predicate as SearchProducts",
 		"SearchProductsCount": "the same predicate as SearchProducts, and it has to stay " +
 			"the same or the count disagrees with the rows",
 	}
@@ -126,6 +129,7 @@ func TestLocalizedNameOption(t *testing.T) {
 	allowed := map[string]string{
 		"CategoryBrands":       "matches canonical option identities when counting brands; no option label is displayed",
 		"CategoryListingCount": "counts matching canonical option identities; renders no text",
+		"CategoryPriceBands":   "counts matching canonical option identities per price band; renders no text",
 		"ProductVariants": "matching, not display: these are the canonical values a " +
 			"URL selection is compared against",
 		"AdminProductOptions": "the back office, which shows BOTH — it is where the " +
@@ -179,6 +183,8 @@ func TestLocalizedNameProduct(t *testing.T) {
 
 	allowed := map[string]string{
 		"CategoryListingCount": "matches option-axis names, not product names; renders no text",
+		"CategoryPriceBands":   "matches option-axis names, not product names; renders no text",
+		"SearchMatches":        "the same predicate as SearchProducts, whose matches it returns as ids",
 		"SearchProducts": "matches BOTH names — searchable in one language at a time " +
 			"would be worse than not translating at all",
 		"SearchProductsCount": "the same predicate as SearchProducts, and it has to stay " +

@@ -1,94 +1,78 @@
 package home
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
-	"github.com/koopa0/goen/internal/ui/hero"
-	"github.com/koopa0/goen/internal/ui/tile"
-	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 var imgTag = regexp.MustCompile(`<img\b[^>]*>`)
 
 func imageTags(html string) []string { return imgTag.FindAllString(html, -1) }
 
-// assertEveryImageReservesItsBox fails for a photograph the browser would have
-// to lay out again when it arrives.
-func assertEveryImageReservesItsBox(t *testing.T, page string) {
-	t.Helper()
-	tags := imageTags(page)
-	if len(tags) == 0 {
-		t.Fatal("the page draws no <img>")
-	}
-	for _, tag := range tags {
-		if !strings.Contains(tag, " width=") || !strings.Contains(tag, " height=") {
-			t.Errorf("an <img> without width and height: %s", tag)
-		}
-	}
-}
-
-func tiledShelf(n int) []tile.Tile {
-	tiles := make([]tile.Tile, 0, n)
-	for i := range n {
-		slug := fmt.Sprintf("p%d", i)
-		tiles = append(tiles, tile.Tile{
-			Slug: slug, Name: slug, PriceCents: 1000, InStock: true,
-			ImageURL: "/img/" + slug + ".webp", ImageAlt: slug, ImageWidth: 1600, ImageHeight: 1200,
-		})
-	}
-	return tiles
-}
-
-func tileImages(page string) []string {
-	var out []string
-	for _, tag := range imageTags(page) {
-		if strings.Contains(tag, `class="goen-tile__img"`) {
-			out = append(out, tag)
-		}
-	}
-	return out
-}
-
-// TestPageImageLoading holds that the home page loads its first-screen
-// photographs at once and reserves a box for every image.
+// TestPageImageLoading holds that the home page asks for one photograph at
+// high priority, the dark tile's, which is the page's largest paint; that the
+// shelf under it loads its first two rows at once, and the rail all of its
+// cards, which lie beside the window in a scroller; that everything further
+// down waits to be scrolled to; and that every product photograph reserves its
+// box, so nothing moves when it lands.
 func TestPageImageLoading(t *testing.T) {
 	t.Parallel()
-	view := View{
-		Slides: []hero.Slide{
-			{Layout: hero.LayoutPhoto, Photo: widget.Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
-			{Layout: hero.LayoutPhoto, Photo: widget.Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
-		},
-		Row: ProductRow{Title: "Row", Href: "/s/row", Tiles: tiledShelf(10)},
-	}
-	page := renderWithNav(t, []frame.NavItem{
-		{Slug: "a", Name: "A", Href: "/c/a", PhotoURL: "/img/a.webp"},
-		{Slug: "b", Name: "B", Href: "/c/b", PhotoURL: "/img/b.webp"},
-	}, Page(frame.Page{}, view))
+	view := fullView()
+	view.Shelf.Tiles = someTiles(10)
+	page := renderComponent(t, i18n.WithLocale(t.Context(), i18n.ZhHant), Page(frame.Page{}, view))
 
-	assertEveryImageReservesItsBox(t, page)
+	var shelf, rail, rest []string
 	for _, tag := range imageTags(page) {
-		if strings.Contains(tag, `/img/a.webp`) || strings.Contains(tag, `/img/b.webp`) {
-			if !strings.Contains(tag, `loading="lazy"`) {
-				t.Errorf("a department photograph, below the product row, is not lazy: %s", tag)
+		switch {
+		case strings.Contains(tag, `class="goen-bento__photo"`):
+			if !strings.Contains(tag, `fetchpriority="high"`) || strings.Contains(tag, `loading="lazy"`) {
+				t.Errorf("the dark tile's photograph is not the one at high priority: %s", tag)
 			}
+		case strings.Contains(tag, `class="goen-bento__lifephoto"`):
+			if strings.Contains(tag, `loading="lazy"`) {
+				t.Errorf("the lifestyle tile, in the first screen, waits: %s", tag)
+			}
+		case strings.Contains(tag, `class="goen-tile__img"`) && len(shelf) < len(view.Shelf.Tiles):
+			shelf = append(shelf, tag)
+		case strings.Contains(tag, `class="goen-tile__img"`) && len(rail) < len(view.Rail.Tiles):
+			rail = append(rail, tag)
+		default:
+			rest = append(rest, tag)
 		}
-	}
-	tiles := tileImages(page)
-	if len(tiles) != 10 {
-		t.Fatalf("%d tile photographs, want 10", len(tiles))
-	}
-	// The first eight, the tile's eagerTiles, which stays unexported in ui/tile.
-	for i, tag := range tiles {
-		wantLazy := i >= 8
-		if got := strings.Contains(tag, `loading="lazy"`); got != wantLazy {
-			t.Errorf("tile %d lazy = %t, want %t: %s", i, got, wantLazy, tag)
+		if strings.Contains(tag, `class="goen-tile__img"`) && (!strings.Contains(tag, ` width=`) || !strings.Contains(tag, ` height=`)) {
+			t.Errorf("a product photograph without width and height: %s", tag)
 		}
 	}
 	if got := strings.Count(page, `fetchpriority="high"`); got != 1 {
 		t.Errorf("%d high-priority photographs, want the hero's alone", got)
+	}
+	if len(shelf) != 10 {
+		t.Fatalf("%d shelf photographs, want 10", len(shelf))
+	}
+	// The first eight, the tile's eagerTiles, which stays unexported in ui/tile.
+	for i, tag := range shelf {
+		if got, want := strings.Contains(tag, `loading="lazy"`), i >= 8; got != want {
+			t.Errorf("shelf photograph %d lazy = %t, want %t: %s", i, got, want, tag)
+		}
+	}
+	if len(rail) != len(view.Rail.Tiles) {
+		t.Fatalf("%d rail photographs, want %d", len(rail), len(view.Rail.Tiles))
+	}
+	for i, tag := range rail {
+		if strings.Contains(tag, `loading="lazy"`) || strings.Contains(tag, "fetchpriority") {
+			t.Errorf("rail photograph %d waits to be scrolled to, or asks for priority: %s", i, tag)
+		}
+	}
+	if len(rest) == 0 {
+		t.Fatal("nothing drawn under the shelf")
+	}
+	for _, tag := range rest {
+		if !strings.Contains(tag, `loading="lazy"`) {
+			t.Errorf("a photograph under the shelf loads at once: %s", tag)
+		}
 	}
 }

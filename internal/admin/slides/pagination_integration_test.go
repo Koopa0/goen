@@ -53,7 +53,8 @@ func TestHandler_SlidesExpiredHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(live) != 3 || live[0].ID != heroes[20] || live[2].ID != heroes[22] {
+	// The home page shows one slide, the first in the queue's window.
+	if len(live) != 1 || live[0].ID != heroes[20] {
 		t.Fatalf("fixture carousel=%+v", live)
 	}
 

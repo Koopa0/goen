@@ -136,6 +136,18 @@ try {
       assert.equal(state.image, `/${expected}.webp`, 'gallery agrees with purchase');
       assert.equal(state.colour, expected, 'history agrees with purchase');
       assert.equal(state.boxes, 1, 'one live purchase form');
+      // The add button says what the press costs: the chosen variant's price
+      // for one, then that price times the quantity once it is stepped or typed.
+      const sum = () => evaluate(`document.querySelector('#add-to-cart .goen-pdp__addprice')?.textContent.trim() ?? null`);
+      const unit = Number(state.price.replace(/\D/g, ''));
+      assert.equal(await sum(), state.price, 'the add button costs the displayed price for one');
+      await evaluate(`document.querySelector('#pdp-add [data-stepper-step="1"]').click()`);
+      assert.equal(await sum(), `NT$${(unit * 2).toLocaleString('en-US')}`, 'the add button follows a step of the quantity');
+      await evaluate(`(() => { const field = document.querySelector('#pdp-add [data-stepper] input'); field.value = '3'; field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+      assert.equal(await sum(), `NT$${(unit * 3).toLocaleString('en-US')}`, 'the add button follows a typed quantity');
+      await evaluate(`(() => { const field = document.querySelector('#pdp-add [data-stepper] input'); field.value = ''; field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+      assert.equal(await sum(), `NT$${(unit * 3).toLocaleString('en-US')}`, 'an empty quantity leaves the sum as it was');
+      await evaluate(`document.querySelector('#pdp-add [data-stepper] input').value = '1'`);
       await evaluate(`document.querySelector('#buybar button[form="pdp-add"]').click()`);
       await until(() => submitted !== undefined, 'sticky purchase POST');
       assert.equal(submitted, expected, 'sticky button submits the displayed variant');

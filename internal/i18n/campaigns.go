@@ -8,8 +8,6 @@ var (
 
 	KeyCampaignsRunning = key("campaign.running", Message{ZhHant: "進行中的活動", En: "Running campaigns"})
 
-	KeyCampaignEyebrow = key("campaign.eyebrow", Message{ZhHant: "活動", En: "Campaign"})
-
 	KeyCampaignStarts = key("campaign.starts", Message{ZhHant: "開始", En: "Starts"})
 
 	KeyCampaignEnded = key("campaign.ended", Message{ZhHant: "已結束", En: "Ended"})

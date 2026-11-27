@@ -12,14 +12,11 @@ import (
 func TestParseFiltersOptions(t *testing.T) {
 	t.Parallel()
 	raw := []string{"容量:256GB", "容量:256GB", " 顏色: 曜石黑 ", "", "broken", ":black", "size:", "axis:\x00", "axis:\xff", strings.Repeat("n", 65) + ":v", "size:" + strings.Repeat("v", 65)}
-	f := parseFilters(url.Values{"opt": raw, "unknown": {"discard"}, "page": {"2"}})
+	f := parseFilters(url.Values{"opt": raw, "unknown": {"discard"}, "page": {"2"}}, SortNewest)
 	if len(f.OptionValues) != 2 || !f.VariantScoped() || !f.Active() {
 		t.Fatalf("option filters = %#v", f)
 	}
-	q, err := url.ParseQuery(canonicalQuery(f))
-	if err != nil {
-		t.Fatal(err)
-	}
+	q := f.Query()
 	if len(q["opt"]) != 2 || q["opt"][0] != "容量:256GB" || q["opt"][1] != "顏色:曜石黑" || q.Has("unknown") || q.Has("page") {
 		t.Fatalf("canonical query = %v", q)
 	}

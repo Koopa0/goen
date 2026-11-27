@@ -422,7 +422,6 @@ body {
      Instrument Sans so Han is covered by a face that sits beside it rather
      than under a second personality. */
   --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
-  --font-editorial: 'Noto Serif TC', serif;
 
   /* Noto Sans TC draws 350; Instrument Sans starts at 400, so Latin and figures in a display title draw at 400. */
   --fw-display: 350;
@@ -507,41 +506,116 @@ body {
   --day-on-action: #ffffff;
   --day-star: #b07c00;
 
-  /* The night. The neutrals carry no chroma, for the reason the day's do. */
-  --night-primary: #a9c0ea;
-  --night-on-primary: #132a50;
-  --night-primary-container: #2a3f63;
+  /* The night, warm obsidian. Its neutrals lean toward the paper plate a
+     product photograph is set on by night (--night-photo-plate), so the
+     plate reads as part of the page and not as a lit card laid on it. The
+     back office never draws the night, so none of these reaches it. */
+  --night-primary: #8cb3f5;
+  --night-on-primary: #0e1726;
+  --night-primary-container: #192438;
   --night-on-primary-container: #dbe4f6;
-  --night-secondary: #bcc3d0;
-  --night-on-secondary: #262b33;
-  --night-secondary-container: #3a404b;
-  --night-on-secondary-container: #e1e5ec;
-  --night-tertiary: #f2a08c;
+  --night-secondary: #c4c2b8;
+  --night-on-secondary: #26261f;
+  --night-secondary-container: #3a3934;
+  --night-on-secondary-container: #e8e6de;
+  --night-tertiary: #f27963;
   --night-on-tertiary: #4f160a;
-  --night-tertiary-container: #6e2616;
+  --night-tertiary-container: #2b1613;
   --night-on-tertiary-container: #fde3dc;
   --night-error: #f2a7a7;
   --night-on-error: #5c0f0f;
   --night-error-container: #7a1c1c;
   --night-on-error-container: #fde2e2;
-  --night-surface: #131315;
-  --night-surface-container-lowest: #0e0e10;
-  --night-surface-container-low: #1b1b1e;
-  --night-surface-container: #202023;
-  --night-surface-container-high: #2a2a2e;
-  --night-surface-container-highest: #353539;
-  --night-on-surface: #e6e6e9;
-  --night-on-surface-variant: #b0b0b8;
-  --night-outline: #8a8a93;
-  --night-outline-variant: #404046;
-  --night-inverse-surface: #e6e6e9;
-  --night-inverse-on-surface: #2f2f33;
+  --night-surface: #111110;
+  --night-surface-container-lowest: #0b0b0a;
+  --night-surface-container-low: #171715;
+  --night-surface-container: #1e1e1b;
+  --night-surface-container-high: #272723;
+  --night-surface-container-highest: #31312c;
+  --night-on-surface: #f3f3ee;
+  --night-on-surface-variant: #b5b4ab;
+  --night-outline: #84837a;
+  --night-outline-variant: #3d3c37;
+  --night-inverse-surface: #f3f3ee;
+  --night-inverse-on-surface: #2b2b27;
   --night-inverse-primary: #2a56a0;
   /* Warm stone: 2.1:1 on --well, so a filled button by night is not taken
      for a photograph's frame. */
   --night-action: #b5ada0;
-  --night-on-action: #131315;
+  --night-on-action: #111110;
   --night-star: #e0b25a;
+}
+
+/* ---------- The shelf and the stage ----------
+
+   The storefront's own grounds, inks and signals, each a day value and a
+   night value that app.css pairs with light-dark(). They sit beside the roles
+   rather than inside them because the back office reads the roles' day
+   values, and these are a warm step away from them.
+
+   The shelf is the pale ground a product photograph stands on. Every
+   photograph is shot on --well and multiplied onto its plate, so its own
+   ground takes the plate's colour and no rectangle shows. By night the plate
+   stays light paper: a photograph multiplied onto the dark page would lose
+   the product. The stage is the one dark band a light page carries, for the
+   flagship hardware; its photographs stand on a light plate of their own for
+   the same reason, and by night a hairline frame keeps it from melting into
+   the page.
+   ------------------------------------------------------------------------ */
+
+:root {
+  --day-tint: #f8f8f6;
+  --day-shelf: #f4f4f2;
+  --day-shelf-hover: #ecece8;
+  --day-ink: #141412;
+  --day-ink-2: #52524c;
+  /* The faintest text: 4.5:1 on --day-shelf-hover, the darkest ground it is
+     drawn on. */
+  --day-ink-3: #6b6b63;
+  --day-cobalt-hover: #1e417d;
+  --day-cobalt-soft: #eef3fa;
+  /* The savings seal: an amount off a price, never an error. */
+  --day-sale: #c23b22;
+  --day-sale-soft: #fdf0ed;
+  --day-success: #1c6b45;
+  --day-success-soft: #e6f4ec;
+  --day-stage: #141412;
+  --day-stage-card: #1d1d1a;
+  --day-stage-plate: #eae7df;
+  --day-stage-ink: #f5f5f0;
+  --day-stage-muted: #a9a89f;
+  --day-stage-accent: #a9c0ea;
+  /* The mark's first ring (assets/brand/goen-mark.svg). */
+  --day-mark-ink: #1b1b15;
+  --day-hairline: rgb(20 20 18 / 0.11);
+  --day-hairline-strong: rgb(20 20 18 / 0.24);
+  --day-stage-frame: rgb(245 245 240 / 0.14);
+
+  --night-ink-3: #8f8e85;
+  --night-cobalt-hover: #b3ccf7;
+  /* The filled commerce action: white on a blue deeper than the night's
+     link, which white would not read on. */
+  --night-cta: #2e61b8;
+  --night-cta-hover: #2754a0;
+  --night-on-cta: #ffffff;
+  /* The seal keeps the day's vermilion: white reads on it in both schemes. */
+  --night-sale: #c23b22;
+  --night-success: #5ac48d;
+  --night-success-soft: #12261c;
+  --night-on-success-soft: #68cf99;
+  --night-photo-plate: #e4e1d8;
+  --night-stage: #1c1c19;
+  --night-stage-card: #242420;
+  --night-stage-plate: #e4e1d8;
+  --night-stage-ink: #f5f5f0;
+  --night-stage-muted: #b0afa6;
+  --night-stage-accent: #a9c0ea;
+  /* The mark's rings by night (assets/brand/favicon.svg). */
+  --night-mark-ink: #f4f4ee;
+  --night-mark-accent: #a9c0ea;
+  --night-hairline: rgb(245 245 240 / 0.12);
+  --night-hairline-strong: rgb(245 245 240 / 0.24);
+  --night-stage-frame: rgb(245 245 240 / 0.14);
 }
 
 /* Each role's day value is a colour a page already draws, so a sheet that

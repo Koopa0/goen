@@ -178,9 +178,11 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 
 	catalogue := catalog.NewStore(pool, log)
 	siteStore := site.NewStore(pool)
+	policyStore := policy.NewStore(pool)
 	if !front.StoreMap.Enabled() {
-		catalogue = catalogue.WithoutPickup()
+		catalogue, policyStore = catalogue.WithoutPickup(), policyStore.WithoutPickup()
 	}
+	policyPages := policy.NewHandler(policyStore, log)
 	deals := campaign.NewStore(pool)
 	sitePages := site.NewHandler(log, baseURL, catalogue, deals, siteStore, secureCookies)
 	orderAccess := access.NewStore(pool, secureCookies)
@@ -195,7 +197,11 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	authn.RequireStepUpFromStaff(storefrontStepUp(factorStore, pool, log))
 	accounts := account.NewHandler(account.NewStore(pool), log, secureCookies, checkouts.TakesPayment())
 	authn.RefuseOnAccountPage(accounts.Refuse)
-	storefrontRoutes(mux, front, log, catalogue, deals, sitePages, basket, checkouts, authn, accounts, orderAccess)
+	storefrontRoutes(mux, front, log, catalogue, deals, sitePages, policyPages, basket, checkouts, authn, accounts, orderAccess)
+	// The compare set is read by the chain below for every page's header, so it
+	// is built here beside the cart, whose count it sits next to.
+	compareSet := catalog.NewCompareSet(catalogue, log, secureCookies)
+	compareSet.Routes(mux, clearSpeculations)
 	backOfficeRoutes(mux, &cfg.BackOffice, factorStore, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
@@ -205,6 +211,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	var handler http.Handler = mux
 	handler = withBanner(handler, sitePages.WithBanner)
 	handler = withTopNav(handler, sitePages.WithTopNav)
+	handler = withTopNav(handler, policyPages.WithFreeDelivery)
 	handler = withStaffEntrance(handler)
 	handler = withSiteOrigin(handler, baseURL)
 	handler = withNoStore(handler)
@@ -212,6 +219,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 		return withLocale(next, secureCookies)
 	}, handler)
 	handler = onlyVisitorPaths(basket.WithCount, handler)
+	handler = onlyVisitorPaths(compareSet.WithCount, handler)
 	handler = onlyVisitorPaths(authn.Authenticate, handler)
 	handler = withRequestBudget(handler)
 	handler = crossOriginProtection(handler, front.StoreMap.Enabled())
@@ -230,7 +238,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 // clearSpeculations and clearCache are this deployment's, handed to the writes
 // that need them; RequireUser is sign-in's, handed to the account's pages.
 func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
-	catalogue *catalog.Store, deals *campaign.Store, sitePages *site.Handler, basket *cart.Handler, checkouts *checkout.Handler,
+	catalogue *catalog.Store, deals *campaign.Store, sitePages *site.Handler, policyPages *policy.Handler, basket *cart.Handler, checkouts *checkout.Handler,
 	authn *auth.Handler, accounts *account.Handler, orderAccess *access.Store) {
 	pool, gateway := cfg.StorePool, cfg.Payments
 	baseURL := cfg.BaseURL
@@ -242,14 +250,12 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	// Everything that describes shipping reads what checkout offers: pickup needs
 	// the store map, so without it nothing may promise pickup or its price.
 	homeStore := home.NewStore(pool)
-	policyStore := policy.NewStore(pool)
 	if !cfg.StoreMap.Enabled() {
-		homeStore, policyStore = homeStore.WithoutPickup(), policyStore.WithoutPickup()
+		homeStore = homeStore.WithoutPickup()
 	}
 	browse := catalog.NewHandler(catalogue, log, baseURL)
 	offers := campaign.NewHandler(deals, log)
-	homePage := home.NewHandler(homeStore, log)
-	policyPages := policy.NewHandler(policyStore, log)
+	homePage := home.NewHandler(homeStore, log, catalog.CompareToggle)
 	images := media.NewHandler(media.NewStore(pool), log)
 	contactLimit := ratelimit.New(ratelimit.Config{
 		Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,

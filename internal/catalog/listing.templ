@@ -5,146 +5,191 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// rules and head are nil where the page has none to state.
-//
-// The head is words on the page, as a catalogue's section opens: the crumbs, the
-// name, how many products, and the sub-categories in one row under them, the
-// current one underlined. No photograph: the products are the pictures.
-templ Listing(p frame.Page, v ListingView, rules *policy.Rules, head *DepartmentHead) {
+// A category's page, and every product's: the name, its count and the tools
+// over the results, and the filters beside them where the page is 60rem wide
+// or in a drawer where it is not. On a phone the department's sub-categories
+// are a row under the name, since the tree that carries them is in the drawer.
+templ Listing(p frame.Page, v *ListingView) {
 	@frame.Base(p) {
-		<div class="goen-listing__head">
-			<div class="goen-pagehead">
-				@widget.Breadcrumb(widget.BreadcrumbProps{
-					Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
-					Crumbs: v.Trail(ctx),
-				})
-				<h1 class="goen-pagehead__title">{ v.Name }</h1>
-				// Empty at zero: the empty state says nothing matched, and a count of
-				// none would only repeat it. The box stays so a swap can fill it.
-				<p class="goen-listing__count" id="listing-count" aria-hidden="true">
-					if !v.Empty() {
-						{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }
-					}
-				</p>
-				if head != nil && head.Notice != nil {
-					@departmentNotice(head.Notice)
-				}
-			</div>
-			if len(v.Children()) > 1 {
-				<nav class="goen-subindex" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
-					for _, c := range v.Children() {
-						if c.Slug == v.Slug {
-							<a class="goen-subindex__link" href={ templ.URL("/c/" + c.Slug) } aria-current="page">{ c.Name }</a>
-						} else {
-							<a class="goen-subindex__link" href={ templ.URL("/c/" + c.Slug) }>{ c.Name }</a>
-						}
-					}
-				</nav>
-			}
-		</div>
-		<div class="goen-listing">
-			if head != nil {
-				@departmentSlot(head)
-			}
-			<div class="goen-listing__layout">
-				@listingFilters(v)
-				<div class="goen-listing__main">
-					@appliedFilters(v)
-					<div
-						class="goen-listing__results"
-						id="listing-results"
-						tabindex="-1"
-						autofocus?={ v.Filtered && !isPartial(ctx) }
-					>
-						if v.Empty() {
-							// The way back to everything is a secondary link, ink with a faint
-							// line: the page's next step is to loosen a filter, not to leave.
-							<div class="ui-empty goen-listing__empty">
-								<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyListingEmpty) }</p>
-								<p class="goen-empty__text">
-									{ i18n.T(ctx, i18n.KeyListingEmptyHint) }<a class="goen-listing__all" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyListingEmptyLink) }</a>
-								</p>
-							</div>
-						} else {
-							<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-							@compareForm(tile.AnyComparable(v.Grid())) {
-								<ul class="goen-tiles__grid" role="list">
-									for _, t := range v.Grid() {
-										@tile.Cell(t)
-									}
-								</ul>
-							}
-							@showMore(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
-						}
+		<div class="goen-listing goen-shelf">
+			<div class="goen-shelf__grid">
+				<div class="goen-shelf__head">
+					@widget.Breadcrumb(widget.BreadcrumbProps{
+						Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
+						Crumbs: v.Trail(ctx),
+					})
+					<div class="goen-shelf__bar">
+						<div class="goen-shelf__titles">
+							<h1 class="goen-pagehead__title">{ v.Name }</h1>
+							@shelfCount(&v.Shelf, i18n.KeyListingCount)
+						</div>
+						@shelfTools(&v.Shelf)
 					</div>
-				</div>
-			</div>
-			if rules != nil && !isPartial(ctx) {
-				@policy.RulesSection(*rules)
-			}
-			if isPartial(ctx) {
-				// The rail is not swapped, or the box the shopper just used would lose focus;
-				// its counts are, because they follow the filters.
-				for _, group := range v.Facets {
-					for position, option := range group.Options {
-						<span class="goen-filters__count" id={ group.CountID(position) } hx-swap-oob="true">{ option.CountText() }</span>
+					if len(v.Children()) > 1 {
+						<nav class="goen-subindex" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
+							for _, c := range v.Children() {
+								<a
+									class="goen-subindex__link"
+									href={ templ.URL(c.Href) }
+									if c.Current {
+										aria-current="page"
+									}
+								>{ c.Name }</a>
+							}
+						</nav>
 					}
-					<span class="goen-filters__selected" id={ group.SelectedID() } hx-swap-oob="true">
-						@selectedCount(group.SelectedCount())
-					</span>
-				}
-				<span class="goen-filters__selected" id={ stockSelectedID } hx-swap-oob="true">
-					@selectedCount(v.StockSelected())
-				</span>
-				<span class="goen-filters__selected" id={ priceSelectedID } hx-swap-oob="true">
-					@selectedCount(v.PriceSelected())
-				</span>
-			}
+				</div>
+				@facets(&v.Shelf)
+				@shelfResults(&v.Shelf)
+			</div>
 		</div>
 	}
 }
 
-// The form holds the filters and the sort. On a phone the filters fold into one
-// disclosure named for them and the sort stays beside it, outside the fold; from
-// 1024 the disclosure is forced open into a row of menus.
-templ listingFilters(v ListingView) {
-	<div class="goen-listing__filters">
-		// With script, a changed control fetches the URL the button would have navigated
-		// to and swaps the results, chips and announced count; the button stays for a
-		// browser without script. A price box fires nothing until left or Enter.
-		<form
-			class="goen-filters"
-			method="get"
-			action={ templ.SafeURL(v.FilterAction()) }
-			hx-get={ "/c/" + v.Slug }
-			hx-trigger="change delay:300ms"
-			hx-target="#listing-results"
-			hx-select="#listing-results"
-			hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML, #listing-sort:innerHTML"
-			hx-swap="outerHTML"
-			hx-push-url="true"
-			hx-sync="this:replace"
-			hx-status:4xx="swap:none"
-			hx-status:5xx="swap:none"
+// Empty at zero: the empty state says nothing matched, and a count of none
+// would only repeat it. The box stays so a swap can fill it. A screen reader
+// hears the count from the status line over the results instead, which says
+// it again after every change.
+templ shelfCount(s *Shelf, k i18n.Key) {
+	<p class="goen-listing__count" id="listing-count" aria-hidden="true">
+		if !s.Empty() {
+			{ i18n.Count(ctx, k, s.Total, s.TotalText()) }
+		}
+	</p>
+}
+
+// The head's tools: the drawer's button where the filters are folded away,
+// the grid or the list, and the sort. The sort lives here, outside the filter
+// form, and belongs to it by its form attribute, so the form sends it.
+templ shelfTools(s *Shelf) {
+	<div class="goen-shelf__tools">
+		<button
+			class="goen-shelf__filter"
+			type="button"
+			data-filters-open
+			aria-haspopup="dialog"
+			aria-controls="filters-drawer"
 		>
-			// Keeps the outline unbroken: without an h2 between the page title and a tile's
-			// h3 the document skips a level (check-layout.mjs reads that as a defect).
-			<h2 class="goen-filters__title">{ i18n.T(ctx, i18n.KeyFilters) }</h2>
-			<details class="goen-filters__shell">
-				<summary class="goen-filters__shell-summary">{ i18n.T(ctx, i18n.KeyFilters) }</summary>
-				<div class="goen-filters__menus">
-					for _, group := range v.Facets {
-						<details class="goen-filters__group" name="filters" data-popover>
-							<summary class="goen-filters__summary">
-								{ group.Label }
-								@selectedBadge(group.SelectedID(), group.SelectedCount())
-							</summary>
+			@icons.Filter()
+			{ i18n.T(ctx, i18n.KeyFilters) }
+			<span class="goen-shelf__active" id={ activeCountID }>
+				@activeCount(s.ActiveCount())
+			</span>
+		</button>
+		<div class="goen-viewswitch" id="listing-views" role="group" aria-label={ i18n.T(ctx, i18n.KeyViewSwitch) }>
+			@viewLinks(s)
+		</div>
+		// Never swapped: the select keeps its node, and the focus on it, through
+		// every update and every failed one. Nothing is sorted while nothing is
+		// listed, which app.css reads off the empty count.
+		<div id="listing-sort" class="goen-filters__sort">
+			@sortField(s.SortOptions(ctx))
+		</div>
+	</div>
+}
+
+templ activeCount(n int64) {
+	if n > 0 {
+		<span aria-hidden="true">{ strconv.FormatInt(n, 10) }</span>
+		<span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFiltersSelected), n) }</span>
+	}
+}
+
+// Links, because each view is an address of its own; the one on screen says so.
+// On a narrow shelf the words are read and the glyphs shown.
+templ viewLinks(s *Shelf) {
+	<a
+		class="goen-viewswitch__link"
+		href={ templ.URL(s.ViewHref(ViewGrid)) }
+		if !s.IsList() {
+			aria-current="true"
+		}
+	>
+		@icons.Tiles()
+		<span class="goen-viewswitch__word">{ i18n.T(ctx, i18n.KeyViewGrid) }</span>
+	</a>
+	<a
+		class="goen-viewswitch__link"
+		href={ templ.URL(s.ViewHref(ViewList)) }
+		if s.IsList() {
+			aria-current="true"
+		}
+	>
+		@icons.Rows()
+		<span class="goen-viewswitch__word">{ i18n.T(ctx, i18n.KeyViewList) }</span>
+	</a>
+}
+
+// Shared by the listing and the search; each owns what its empty value means.
+templ sortField(options []SortOption) {
+	<div class="goen-filters__field">
+		<label class="goen-sr-only" for="sort">{ i18n.T(ctx, i18n.KeySort) }</label>
+		<select class="ui-select" id="sort" name="sort" form="listing-filters">
+			for _, o := range options {
+				<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+			}
+		</select>
+	</div>
+}
+
+// The filters. The panel is drawn in the column beside the results; where the
+// page is too narrow for the column, goen.js moves the same panel into the
+// drawer, a modal <dialog>, when its button is pressed, and back when the
+// drawer closes, so one form, with one set of ids, is all there is.
+//
+// A changed control fetches the address the form would have navigated to and
+// swaps the results, the chips, the counts and the announced total. The sort
+// sits outside the form, so its change is heard on the page and taken by its
+// id.
+templ facets(s *Shelf) {
+	<div class="goen-facets">
+		<div class="goen-facets__panel" data-facets-panel>
+			<div class="goen-facets__head">
+				// Keeps the outline unbroken: without an h2 between the page title and a
+				// tile's h3 the document skips a level (check-layout.mjs reads that as a
+				// defect).
+				<h2 class="goen-facets__title" id="facets-title">{ i18n.T(ctx, i18n.KeyFilters) }</h2>
+				<a class="goen-facets__reset" href={ templ.URL(s.ResetHref()) }>{ i18n.T(ctx, i18n.KeyResetFilters) }</a>
+				<button class="goen-facets__close goen-btn goen-btn--ghost goen-btn--icon" type="button" data-filters-close aria-label={ i18n.T(ctx, i18n.KeyCloseFilters) }>
+					@icons.Close()
+				</button>
+			</div>
+			<div class="goen-facets__body">
+				if !s.Searching && len(s.Departments) > 0 {
+					@departmentLinks(s)
+				}
+				<form
+					class="goen-filters"
+					id="listing-filters"
+					method="get"
+					action={ templ.SafeURL(s.FilterAction()) }
+					hx-get={ s.Path }
+					hx-trigger="change delay:300ms, change delay:300ms from:body target:#sort"
+					hx-target="#listing-results"
+					hx-select="#listing-results"
+					hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML, #listing-views:innerHTML, #filters-active:innerHTML, #facets-done:innerHTML"
+					hx-swap="outerHTML"
+					hx-push-url="true"
+					hx-sync="this:replace"
+					hx-status:4xx="swap:none"
+					hx-status:5xx="swap:none"
+				>
+					for _, field := range s.KeepFields() {
+						<input type="hidden" name={ field.Name } value={ field.Value }/>
+					}
+					if s.Searching && len(s.Departments) > 0 {
+						@departmentChoices(s)
+					}
+					@priceChoices(s)
+					for _, group := range s.Facets {
+						<fieldset class="goen-facets__group">
+							<legend class="goen-facets__legend">{ group.Label }</legend>
 							<div class="goen-filters__options">
 								for position, option := range group.Options {
 									<label class="goen-filters__option">
@@ -154,124 +199,252 @@ templ listingFilters(v ListingView) {
 									</label>
 								}
 							</div>
-						</details>
+						</fieldset>
 					}
-					<details class="goen-filters__group" name="filters" data-popover>
-						<summary class="goen-filters__summary">
-							{ i18n.T(ctx, i18n.KeyFacetStock) }
-							@selectedBadge(stockSelectedID, v.StockSelected())
-						</summary>
+					<fieldset class="goen-facets__group">
+						<legend class="goen-facets__legend">{ i18n.T(ctx, i18n.KeyFacetShowOnly) }</legend>
 						<div class="goen-filters__options">
 							<label class="goen-filters__option">
-								<input type="checkbox" name="in_stock" value="1" class="goen-check" checked?={ v.InStockOnly }/>
+								<input type="checkbox" name="in_stock" value="1" class="goen-check" checked?={ s.Filters.InStockOnly }/>
 								<span class="goen-filters__label">{ i18n.T(ctx, i18n.KeyFacetInStock) }</span>
 							</label>
+							<label class="goen-filters__option">
+								<input type="checkbox" name="sale" value="1" class="goen-check" checked?={ s.Filters.OnSaleOnly }/>
+								<span class="goen-filters__label">{ i18n.T(ctx, i18n.KeyOnSale) }</span>
+							</label>
 						</div>
-					</details>
-					<details class="goen-filters__group" name="filters" data-popover>
-						<summary class="goen-filters__summary">
-							{ i18n.T(ctx, i18n.KeyFacetPrice) }
-							@selectedBadge(priceSelectedID, v.PriceSelected())
-						</summary>
-						<div class="goen-filters__prices">
-							<label class="goen-sr-only" for="min-price">{ i18n.T(ctx, i18n.KeyPriceMin) }</label>
-							// ui-input is what check-layout.mjs measures in its tap sweep; app.css writes the recipe.
-							<input
-								class="ui-input"
-								id="min-price"
-								type="number"
-								name="min_price"
-								inputmode="numeric"
-								min="0"
-								placeholder={ i18n.T(ctx, i18n.KeyPriceMinShort) }
-								value={ v.MinPriceText() }
-							/>
-							<span class="goen-filters__dash" aria-hidden="true">–</span>
-							<label class="goen-sr-only" for="max-price">{ i18n.T(ctx, i18n.KeyPriceMax) }</label>
-							<input
-								class="ui-input"
-								id="max-price"
-								type="number"
-								name="max_price"
-								inputmode="numeric"
-								min="0"
-								placeholder={ i18n.T(ctx, i18n.KeyPriceMaxShort) }
-								value={ v.MaxPriceText() }
-							/>
-						</div>
-					</details>
-				</div>
-			</details>
-			<div class="goen-filters__end">
-				// Nothing to sort when nothing is listed; the box stays so a swap can fill it.
-				<div id="listing-sort" class="goen-filters__sort">
-					if !v.Empty() {
-						@sortField(v.SortOptions(ctx))
-					}
-				</div>
-				@widget.Button(widget.ButtonProps{
-					ButtonStyle: widget.ButtonStylePrimary,
-					Block:       true,
-					Class:       "goen-filters__apply",
-				}, "submit") {
-					{ i18n.T(ctx, i18n.KeyApplyFilters) }
-				}
+					</fieldset>
+				</form>
 			</div>
-		</form>
-		// Shown by script when an update fails: the old results stay and this says why.
-		<p class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
-		// Announced from here, a region that stays while the results around it are
-		// replaced, so focus is left where it is.
-		<p id="listing-status" class="goen-sr-only" role="status" aria-live="polite">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
+			<div class="goen-facets__foot">
+				<button class="goen-facets__done goen-btn goen-btn--primary goen-btn--block" id="facets-done" type="button" data-filters-close>
+					{ i18n.Count(ctx, i18n.KeyShowResults, s.Total, s.TotalText()) }
+				</button>
+			</div>
+		</div>
 	</div>
+	// Empty until the drawer opens: see the panel above.
+	<dialog class="goen-facets__drawer" id="filters-drawer" aria-labelledby="facets-title"></dialog>
 }
 
-// How many of a group's options are on, beside its name. The element is always
-// drawn so a swapped response has a place to put the number.
-templ selectedBadge(id string, n int64) {
-	<span class="goen-filters__selected" id={ id }>
-		@selectedCount(n)
-	</span>
-}
-
-templ selectedCount(n int64) {
-	if n > 0 {
-		<span aria-hidden="true">{ strconv.FormatInt(n, 10) }</span>
-		<span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFiltersSelected), n) }</span>
+// The catalogue as links: every product, then each department, and under the
+// department the page is in, its sub-categories. Lists under headings, not
+// navigation landmarks: the header's rail is the landmark named 館別, and a
+// second of the same name would leave a screen reader two to tell apart.
+templ departmentLinks(s *Shelf) {
+	<div class="goen-facets__group">
+		<h3 class="goen-facets__legend" id="facets-departments">{ i18n.T(ctx, i18n.KeySectionCategories) }</h3>
+		@treeLinks(s.Departments)
+	</div>
+	if len(s.Subs) > 0 {
+		<div class="goen-facets__group">
+			<h3 class="goen-facets__legend" id="facets-subs">{ s.SubsTitle }</h3>
+			@treeLinks(s.Subs)
+		</div>
 	}
 }
 
+templ treeLinks(links []TreeLink) {
+	<ul class="goen-facets__links" role="list">
+		for _, l := range links {
+			<li>
+				<a
+					class="goen-facets__link"
+					href={ templ.URL(l.Href) }
+					if l.AriaCurrent() != "" {
+						aria-current={ l.AriaCurrent() }
+					}
+				>
+					<span class="goen-facets__name">{ l.Name }</span>
+					if l.Count > 0 {
+						<span class="goen-facets__count">{ l.CountText() }</span>
+					}
+				</a>
+			</li>
+		}
+	</ul>
+}
+
+// A search's departments narrow its matches, so they are a choice in the form,
+// each with how many of the matches it holds.
+templ departmentChoices(s *Shelf) {
+	<fieldset class="goen-facets__group">
+		<legend class="goen-facets__legend">{ i18n.T(ctx, i18n.KeySectionCategories) }</legend>
+		<div class="goen-filters__options">
+			<label class="goen-filters__option">
+				<input type="radio" name="c" value="" checked?={ s.Filters.Department == "" }/>
+				<span class="goen-filters__label">{ i18n.T(ctx, i18n.KeySearchAllResults) }</span>
+				<span class="goen-filters__count">{ strconv.FormatInt(s.DepartmentsTotal(), 10) }</span>
+			</label>
+			for _, d := range s.Departments {
+				<label class="goen-filters__option">
+					<input type="radio" name="c" value={ d.Slug } checked?={ d.Current }/>
+					<span class="goen-filters__label">{ d.Name }</span>
+					<span class="goen-filters__count">{ d.CountText() }</span>
+				</label>
+			}
+		</div>
+	</fieldset>
+}
+
+templ priceChoices(s *Shelf) {
+	<fieldset class="goen-facets__group">
+		<legend class="goen-facets__legend">{ i18n.T(ctx, i18n.KeyFacetPrice) }</legend>
+		<div class="goen-filters__options">
+			for _, o := range s.Prices {
+				<label class="goen-filters__option">
+					<input type="radio" name="price" value={ o.Band.ID } checked?={ o.Selected }/>
+					<span class="goen-filters__label">{ o.Label(ctx) }</span>
+					<span class="goen-filters__count" id={ o.CountID() }>{ o.CountText() }</span>
+				</label>
+			}
+		</div>
+	</fieldset>
+}
+
+// The results column: what a failed update says, the chips of what is on, then
+// the products, or the sentence that says none are left.
+templ shelfResults(s *Shelf) {
+	<div class="goen-listing__main">
+		// The update's feedback, beside the results a sort or a filter changes.
+		// The page behind an open drawer is inert, shown to nobody, so goen.js
+		// carries this into the drawer while it is open and back when it closes.
+		<div class="goen-shelf__feedback" data-drawer-carry>
+			// Shown by goen.js when an update fails: the old results stay and this
+			// says why.
+			<p class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
+			// Announced from here, a region that stays while the results are
+			// replaced, so focus is left where it is.
+			<p id="listing-status" class="goen-sr-only" role="status" aria-live="polite">{ i18n.Count(ctx, i18n.KeyListingCount, s.Total, s.TotalText()) }</p>
+		</div>
+		@appliedFilters(s)
+		<div
+			class="goen-listing__results"
+			id="listing-results"
+			tabindex="-1"
+			autofocus?={ s.Filtered() && !isPartial(ctx) }
+		>
+			if s.Empty() {
+				// The way back to everything is a secondary link, ink with a faint
+				// line: the page's next step is to loosen a filter, not to leave.
+				<div class="ui-empty goen-listing__empty">
+					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyListingEmpty) }</p>
+					<p class="goen-empty__text">
+						{ i18n.T(ctx, i18n.KeyListingEmptyHint) }<a class="goen-listing__all" href={ templ.URL(s.ResetHref()) }>{ i18n.T(ctx, i18n.KeyListingEmptyReset) }</a>
+					</p>
+				</div>
+			} else {
+				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
+				if s.IsList() {
+					<ul class="goen-speclist" role="list">
+						for _, t := range s.Grid() {
+							@specRow(t, s.Specs[t.Slug])
+						}
+					</ul>
+				} else {
+					<ul class="goen-tiles__grid" role="list">
+						for _, t := range s.Grid() {
+							@tile.Cell(t)
+						}
+					</ul>
+				}
+				@showMore(s.HasPrev(), s.HasNext(), s.PrevHref(), s.NextHref(), s.PageText(), s.PagesText())
+			}
+		</div>
+	</div>
+	if isPartial(ctx) {
+		// The filters are not swapped, or the control the shopper just used would
+		// lose focus; their counts are, because they follow the filters.
+		for _, group := range s.Facets {
+			for position, option := range group.Options {
+				<span class="goen-filters__count" id={ group.CountID(position) } hx-swap-oob="true">{ option.CountText() }</span>
+			}
+		}
+		for _, o := range s.Prices {
+			<span class="goen-filters__count" id={ o.CountID() } hx-swap-oob="true">{ o.CountText() }</span>
+		}
+	}
+}
+
+// One product as a row of the list: its photograph, brand and name as the one
+// link, then the specifications it lists first, whether it can be bought, and
+// its price. The compare control follows the price, outside the link, as on a
+// card.
+templ specRow(t tile.Tile, specs []Spec) {
+	<li class="goen-specrow">
+		<a class="goen-specrow__link" href={ templ.URL("/p/" + t.Slug) }>
+			<span class="goen-specrow__media">
+				if t.HasImage() {
+					// alt="" as on a card: the link reads the brand and the name beside it.
+					<img
+						class="goen-specrow__img"
+						src={ t.ImageURL }
+						srcset={ t.ImageSrcset }
+						sizes="6rem"
+						alt=""
+						if t.HasImageDimensions() {
+							width={ t.ImageWidthText() }
+							height={ t.ImageHeightText() }
+						}
+						if t.Eager {
+							decoding="async"
+						} else {
+							loading="lazy"
+							decoding="async"
+						}
+						if t.Priority {
+							fetchpriority="high"
+						}
+					/>
+				}
+			</span>
+			<span class="goen-specrow__id">
+				if t.Brand != "" {
+					<span class="goen-specrow__brand">{ t.Brand }</span>
+				}
+				<h3 class="goen-specrow__name">{ t.Name }</h3>
+			</span>
+		</a>
+		if len(specs) > 0 {
+			<ul class="goen-specrow__specs" role="list">
+				for _, spec := range specs {
+					<li class="goen-specrow__spec"><span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeySpecNamed), spec.Label) }</span>{ spec.Value }</li>
+				}
+			</ul>
+		}
+		<p class={ "goen-specrow__stock", templ.KV("goen-specrow__stock--out", t.SoldOut()) }>
+			if t.SoldOut() {
+				{ i18n.T(ctx, i18n.KeySoldOut) }
+			} else {
+				{ i18n.T(ctx, i18n.KeyFacetInStock) }
+			}
+		</p>
+		<div class="goen-specrow__buy">
+			@tile.Price(t)
+			if t.CompareControl != nil {
+				@t.CompareControl
+			}
+		</div>
+	</li>
+}
+
 // Its own swap target: replaced by id beside the results.
-templ appliedFilters(v ListingView) {
+templ appliedFilters(s *Shelf) {
 	<div id="filters-applied">
-		if v.Filtered {
+		if s.Filtered() {
 			<div class="goen-filters__applied">
 				<span class="goen-filters__applied-label">{ i18n.T(ctx, i18n.KeyFiltersActive) }</span>
 				<ul class="goen-filters__chips" role="list">
-					for _, chip := range v.AppliedChips(ctx) {
+					for _, chip := range s.AppliedChips(ctx) {
 						<li class="goen-filters__chip">
 							<span>{ chip.Label }</span>
 							<a class="goen-filters__chip-remove" href={ templ.URL(chip.Remove) } aria-label={ chip.RemoveLabel }><span aria-hidden="true">×</span></a>
 						</li>
 					}
 				</ul>
-				<a class="ui-filterbar__clear" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyClearFilters) }</a>
+				<a class="ui-filterbar__clear" href={ templ.URL(s.ResetHref()) }>{ i18n.T(ctx, i18n.KeyClearFilters) }</a>
 			</div>
 		}
-	</div>
-}
-
-// Shared by the listing and the search; each owns what its empty value means.
-templ sortField(options []SortOption) {
-	<div class="goen-filters__field">
-		@widget.Label(widget.LabelProps{For: "sort"}) {
-			{ i18n.T(ctx, i18n.KeySort) }
-		}
-		<select class="ui-select" id="sort" name="sort">
-			for _, o := range options {
-				<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
-			}
-		</select>
 	</div>
 }
 
@@ -306,87 +479,61 @@ templ searchDepartments() {
 	}
 }
 
-templ searchNewest(v SearchView) {
+templ searchNewest(v *SearchView) {
 	if len(v.Newest) > 0 {
 		<section class="goen-search__section" aria-labelledby="search-newest">
 			<h2 class="goen-listing__subhead" id="search-newest">{ i18n.T(ctx, i18n.KeySearchNewest) }</h2>
-			@compareForm(tile.AnyComparable(v.Newest)) {
-				<ul class="goen-tiles__grid" role="list">
-					for _, t := range tile.FirstRowEager(v.Newest) {
-						@tile.Cell(t)
-					}
-				</ul>
-			}
+			<ul class="goen-tiles__grid" role="list">
+				for _, t := range tile.FirstRowEager(v.Newest) {
+					@tile.Cell(t)
+				}
+			</ul>
 		</section>
 	}
 }
 
-// The search has no facets, so there is no filter rail. With nothing to show,
-// the heading says so and the page offers the departments and the newest
-// products as the way on.
-templ Search(p frame.Page, v SearchView) {
+// A search with matches is a shelf like a category's: the term as its name,
+// the matches narrowed by department, price, brand and the two switches. With
+// nothing to show, the heading says so and the page offers the departments and
+// the newest products as the way on.
+templ Search(p frame.Page, v *SearchView) {
 	@frame.Base(p) {
-		<div class="goen-listing goen-listing--search">
-			<div class="goen-pagehead goen-pagehead--search">
-				<h1 class="goen-pagehead__title">
+		if !v.Searched() || v.Unmatched() {
+			<div class="goen-listing goen-listing--search">
+				<div class="goen-pagehead goen-pagehead--search">
+					<h1 class="goen-pagehead__title">
+						if !v.Searched() {
+							{ i18n.T(ctx, i18n.KeySearchHeading) }
+						} else {
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchNoResults), v.Query) }
+						}
+					</h1>
 					if !v.Searched() {
-						{ i18n.T(ctx, i18n.KeySearchHeading) }
-					} else if v.Empty() {
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchNoResults), v.Query) }
+						<p class="goen-search__lead">{ i18n.T(ctx, i18n.KeySearchPrompt) }</p>
+						<p class="goen-search__lead">{ i18n.T(ctx, i18n.KeySearchPromptHint) }</p>
 					} else {
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchFor), v.Query) }
+						<p class="goen-search__lead">{ i18n.T(ctx, i18n.KeySearchNoResultsHint) }</p>
 					}
-				</h1>
-				if !v.Searched() {
-					<p class="goen-search__lead">{ i18n.T(ctx, i18n.KeySearchPrompt) }</p>
-					<p class="goen-search__lead">{ i18n.T(ctx, i18n.KeySearchPromptHint) }</p>
-				} else if v.Empty() {
-					<p class="goen-search__lead">{ i18n.T(ctx, i18n.KeySearchNoResultsHint) }</p>
-				}
-			</div>
-			if !v.Searched() || v.Empty() {
+				</div>
 				@searchDepartments()
 				@searchNewest(v)
-			} else {
-				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-				// With script, a changed sort fetches the URL the button would have navigated to
-				// and swaps the results.
-				<form
-					class="goen-search-sort"
-					method="get"
-					action="/search"
-					hx-get="/search"
-					hx-trigger="change"
-					hx-target="#search-results"
-					hx-select="#search-results"
-					hx-swap="outerHTML"
-					hx-push-url="true"
-					hx-sync="this:replace"
-					hx-status:4xx="swap:none"
-					hx-status:5xx="swap:none"
-				>
-					<input type="hidden" name="q" value={ v.Query }/>
-					@sortField(v.SortOptions(ctx))
-					@widget.Button(widget.ButtonProps{
-						ButtonStyle: widget.ButtonStyleOutline,
-						Class:       "goen-filters__apply",
-					}, "submit") {
-						{ i18n.T(ctx, i18n.KeySearchSortApply) }
-					}
-					<p class="goen-listing__count">{ i18n.Count(ctx, i18n.KeySearchResults, v.Total, v.TotalText()) }</p>
-				</form>
-				<p id="goen-search-sort-error" class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
-				<div id="search-results">
-					@compareForm(tile.AnyComparable(v.Products)) {
-						<ul class="goen-tiles__grid" role="list">
-							for _, t := range tile.FirstRowEager(v.Products) {
-								@tile.Cell(t)
-							}
-						</ul>
-					}
-					@showMore(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
+			</div>
+		} else {
+			<div class="goen-listing goen-listing--search goen-shelf">
+				<div class="goen-shelf__grid">
+					<div class="goen-shelf__head">
+						<div class="goen-shelf__bar">
+							<div class="goen-shelf__titles">
+								<h1 class="goen-pagehead__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchFor), v.Query) }</h1>
+								@shelfCount(&v.Shelf, i18n.KeySearchResults)
+							</div>
+							@shelfTools(&v.Shelf)
+						</div>
+					</div>
+					@facets(&v.Shelf)
+					@shelfResults(&v.Shelf)
 				</div>
-			}
-		</div>
+			</div>
+		}
 	}
 }

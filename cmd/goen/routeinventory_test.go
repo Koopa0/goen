@@ -294,6 +294,7 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "GET /auth/google/callback", sample: "/auth/google/callback", traits: "banner nav nostore visitor"}, // Google is not configured in this test, so this answers the full 404 page, header included; configured, it answers 303 to /signin on a failure and 200 with a page that loads the destination on a success
 	{pattern: "GET /c/{slug}", sample: "/c/" + probeSlug, traits: "banner nav speculation visitor"},
 	{pattern: "GET /cart", sample: "/cart", traits: "nav nostore speculation visitor"},
+	{pattern: "GET /cart/drawer", sample: "/cart/drawer", traits: "nostore visitor"},
 	{pattern: "GET /checkout", sample: "/checkout", traits: "nav nostore visitor"},
 	{pattern: "GET /checkout/pickup/map", sample: "/checkout/pickup/map", traits: "nav nostore visitor"},
 	{pattern: "GET /compare", sample: "/compare", traits: "banner nav speculation visitor"},
@@ -323,7 +324,9 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "GET /robots.txt", sample: "/robots.txt", traits: "visitor"}, // still visitor: the sitemap needs the request budget, which stateless paths skip, and robots.txt follows it
 	{pattern: "GET /s/{slug}", sample: "/s/" + probeSlug, traits: "banner nav speculation visitor"},
 	{pattern: "GET /search", sample: "/search", traits: "banner nav speculation visitor"},
+	{pattern: "GET /search/suggest", sample: "/search/suggest?q=pixel", traits: "visitor"}, // a fragment under the header's field: no header of its own
 	{pattern: "GET /shipping", sample: "/shipping", traits: "banner nav speculation visitor"},
+	{pattern: "GET /shop", sample: "/shop", traits: "banner nav speculation visitor"},
 	{pattern: "GET /signin", sample: "/signin", traits: "nav nostore visitor"},
 	{pattern: "GET /sitemap.xml", sample: "/sitemap.xml", traits: "visitor"}, // still visitor: it needs the request budget, which stateless paths skip
 	{pattern: "GET /static/", sample: "/static/css/app/app.css", traits: ""},
@@ -349,6 +352,7 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "POST /account/wishlist", sample: "/account/wishlist", traits: "nav nostore signin signinreturn visitor"},
 	{pattern: "POST /cart/items", sample: "/cart/items", traits: "clearsite nav nostore visitor"},
 	{pattern: "POST /cart/items/update", sample: "/cart/items/update", traits: "clearsite nav nostore visitor"},
+	{pattern: "POST /compare/items", sample: "/compare/items", traits: "clearsite nav nostore visitor"},
 	{pattern: "POST /checkout", sample: "/checkout", traits: "limited logged nav nostore visitor", limiter: "checkout", burst: 30},
 	{pattern: "POST /checkout/pickup/return", sample: "/checkout/pickup/return", traits: "nostore visitor"},
 	{pattern: "POST /checkout/pickup/start", sample: "/checkout/pickup/start", traits: "limited logged nav nostore visitor", limiter: "checkout", burst: 30},

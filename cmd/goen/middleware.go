@@ -314,7 +314,7 @@ func withLocale(next http.Handler, secure bool) http.Handler {
 // here so no orchestrator health check makes a database round trip. robots.txt
 // and the sitemap render no page, so no promotion is read for them.
 var bannerFreePrefixes = []string{
-	"/checkout", "/cart", "/orders", "/account", "/admin",
+	"/checkout", "/cart", "/orders", "/account", "/admin", "/search/suggest",
 	"/signin", "/register", "/forgot", "/reset", "/webhooks", "/media", "/static",
 	"/healthz", "/readyz", "/favicon.ico", "/robots.txt", "/sitemap.xml",
 }
@@ -343,6 +343,10 @@ func withBanner(next http.Handler, banner func(http.Handler) http.Handler) http.
 var navFreePrefixes = []string{
 	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz", "/favicon.ico",
 	"/robots.txt", "/sitemap.xml",
+	// The list under the search field and the bag drawer's contents, fetched as
+	// the shopper types or adds: they draw no header, so they read no department
+	// row and are never prerendered.
+	"/search/suggest", "/cart/drawer",
 	storemap.ReturnPath,
 }
 

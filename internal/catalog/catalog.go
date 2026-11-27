@@ -55,21 +55,25 @@ func (s Sort) Param() string {
 	return string(s)
 }
 
-// Filters holds MinPrice and MaxPrice in minor units; zero means no bound.
+// Filters is what the shopper narrowed a shelf to, each value already bounded.
+// Department is a search's: the slug of the department its matches are kept to.
 type Filters struct {
 	OptionValues []OptionFilter
 	BrandSlugs   []string
 	InStockOnly  bool
-	MinPrice     int64
-	MaxPrice     int64
-	Sort         Sort
-	Page         int // 1-based; 0 and below are treated as 1
+	// OnSaleOnly keeps what a card would strike: campaign.OnSale's question,
+	// asked of the variant the card prices.
+	OnSaleOnly bool
+	Price      PriceBand
+	Department string
+	Sort       Sort
+	Page       int // 1-based; 0 and below are treated as 1
 }
 
 // VariantScoped is false when no filter needs a single variant, so the listing
 // skips the EXISTS entirely.
 func (f Filters) VariantScoped() bool {
-	return len(f.OptionValues) > 0 || f.InStockOnly || f.MinPrice > 0 || f.MaxPrice > 0
+	return len(f.OptionValues) > 0 || f.InStockOnly || f.OnSaleOnly || f.Price.Bounded()
 }
 
 func (f Filters) Offset() int32 {
@@ -87,7 +91,7 @@ func offsetFor(page int) int32 {
 }
 
 func (f Filters) Active() bool {
-	return len(f.BrandSlugs) > 0 || f.VariantScoped()
+	return len(f.BrandSlugs) > 0 || f.Department != "" || f.VariantScoped()
 }
 
 // maxPage stops a URL from making the database count its way past the end of
@@ -105,22 +109,35 @@ func ParsePage(s string) int {
 	return n
 }
 
-// ParsePrice reads whole New Taiwan dollars and returns minor units; anything
-// unparseable, negative or above the schema's cap is no bound.
-func ParsePrice(s string) int64 {
-	if s == "" {
-		return 0
-	}
-	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
-	if err != nil || n <= 0 {
-		return 0
-	}
-	const maxTWD = 100_000_000 // 10_000_000_000 minor units, the schema's cap
-	if n > maxTWD {
-		return 0
-	}
-	return n * 100
+// PriceBand is one of the price ranges a shelf offers, [Min, Max] in minor
+// units, 0 for no bound. The zero band is any price. ID is the band's value in
+// an address.
+type PriceBand struct {
+	ID       string
+	Min, Max int64
 }
+
+// priceBands are the ranges every shelf offers, cheapest first. Each ends a
+// cent below the next one's start, so no price falls between two or in both.
+var priceBands = []PriceBand{
+	{ID: "under-1000", Max: 99_999},
+	{ID: "1000-9999", Min: 100_000, Max: 999_999},
+	{ID: "10000-up", Min: 1_000_000},
+}
+
+// parsePriceBand is the band an address names, or any price for a name it does
+// not know.
+func parsePriceBand(id string) PriceBand {
+	for _, b := range priceBands {
+		if b.ID == id {
+			return b
+		}
+	}
+	return PriceBand{}
+}
+
+// Bounded is whether the band limits the price at all.
+func (b PriceBand) Bounded() bool { return b.Min > 0 || b.Max > 0 }
 
 // Unicode space counts as space, so a query of only NBSP is empty for both the
 // ILIKE pattern and the echoed heading rather than a term one side never

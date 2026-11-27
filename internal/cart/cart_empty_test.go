@@ -118,15 +118,15 @@ func TestPageCheckoutEmptyNotice(t *testing.T) {
 	}{
 		"guest": {
 			locale: i18n.ZhHant, turnedAway: true,
-			sentence: "購物車是空的，結帳無法繼續。", href: "/orders/find", label: "查詢訂單",
+			sentence: "購物袋是空的，結帳無法繼續。", href: "/orders/find", label: "查詢訂單",
 		},
 		"member": {
 			locale: i18n.ZhHant, signedIn: true, turnedAway: true,
-			sentence: "購物車是空的，結帳無法繼續。", href: "/account#orders-heading", label: "我的訂單",
+			sentence: "購物袋是空的，結帳無法繼續。", href: "/account#orders-heading", label: "我的訂單",
 		},
 		"guest in english": {
 			locale: i18n.En, turnedAway: true,
-			sentence: "Your cart is empty, so checkout cannot continue.", href: "/orders/find", label: "Find your order",
+			sentence: "Your bag is empty, so checkout cannot continue.", href: "/orders/find", label: "Find your order",
 		},
 		"not turned away": {locale: i18n.ZhHant},
 	} {

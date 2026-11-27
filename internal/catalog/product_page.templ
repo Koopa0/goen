@@ -15,7 +15,7 @@ import (
 )
 
 templ Product(p frame.Page, v *ProductView) {
-	@frame.Base(awaiting(p, frame.AwaitGallery)) {
+	@frame.Base(awaiting(p, frame.AwaitBuyBox)) {
 		<div class="goen-pdp">
 			<div class="goen-pdp__intro">
 				@widget.Breadcrumb(widget.BreadcrumbProps{
@@ -29,73 +29,67 @@ templ Product(p frame.Page, v *ProductView) {
 			</div>
 		</div>
 		<div class="goen-pdp goen-pdp--after">
-			<div class="goen-pdp__more">
-				if v.Description != "" {
-					@productDescription(v)
-				}
-				if v.HasSpecs() || v.HasWarranty() || v.WarrantyNote != "" {
-					<div class="goen-pdp__detail">
-						if v.HasSpecs() {
-							<section class="goen-pdp__block" aria-labelledby="specs-heading">
-								<h2 id="specs-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionSpecs) }</h2>
-								<dl class="goen-pdp__speclist">
-									for _, s := range v.Specs {
-										<div class="goen-pdp__specrow">
-											<dt class="goen-pdp__specterm">{ s.Label }</dt>
-											<dd class="goen-pdp__specvalue">{ s.Value }</dd>
-										</div>
-									}
-								</dl>
-								@productCompare(v)
-							</section>
-						}
-						if v.HasWarranty() || v.WarrantyNote != "" {
-							<section class="goen-pdp__block" aria-labelledby="warranty-heading">
-								<h2 id="warranty-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionWarranty) }</h2>
-								if v.HasWarranty() {
-									<p class="goen-pdp__warranty">{ v.WarrantyText(ctx) }</p>
+			// The facts a shopper compares stand beside what buyers said of them, as drawn: the
+			// description, the specifications, the labelling, the warranty and delivery in one column,
+			// the reviews in the other.
+			<div class="goen-pdp__split">
+				<div class="goen-pdp__more">
+					if v.Description != "" {
+						@productDescription(v)
+					}
+					if v.HasSpecs() {
+						<section class="goen-pdp__block" aria-labelledby="specs-heading">
+							<h2 id="specs-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionSpecs) }</h2>
+							<dl class="goen-pdp__speclist">
+								for _, s := range v.Specs {
+									<div class="goen-pdp__specrow">
+										<dt class="goen-pdp__specterm">{ s.Label }</dt>
+										<dd class="goen-pdp__specvalue">{ s.Value }</dd>
+									</div>
 								}
-								if v.WarrantyNote != "" {
-									<p class="goen-pdp__warranty">{ v.WarrantyNote }</p>
+							</dl>
+							@productCompare(v)
+						</section>
+					}
+					if len(v.LabelRows(ctx)) > 0 {
+						<section class="goen-pdp__block" aria-labelledby="product-label-heading">
+							<h2 class="goen-pdp__sectiontitle" id="product-label-heading">{ i18n.T(ctx, i18n.KeyProductLabel) }</h2>
+							<dl class="goen-pdp__speclist">
+								for _, fact := range v.LabelRows(ctx) {
+									<div class="goen-pdp__specrow">
+										<dt class="goen-pdp__specterm">{ i18n.T(ctx, fact.Term) }</dt>
+										<dd class="goen-pdp__specvalue">{ fact.Value }</dd>
+									</div>
 								}
-							</section>
-						}
-					</div>
-				}
-				if len(v.LabelRows(ctx))>0 {
-					<section class="goen-pdp__desc" aria-labelledby="product-label-heading">
-						<h2 class="goen-pdp__sectiontitle" id="product-label-heading">{ i18n.T(ctx,i18n.KeyProductLabel) }</h2>
-						<dl class="goen-pdp__speclist">
-							for _, fact := range v.LabelRows(ctx) {
-								<div class="goen-pdp__specrow">
-									<dt class="goen-pdp__specterm">{ i18n.T(ctx,fact.Term) }</dt>
-									<dd class="goen-pdp__specvalue">{ fact.Value }</dd>
-								</div>
+							</dl>
+						</section>
+					}
+					if v.HasWarranty() || v.WarrantyNote != "" {
+						<section class="goen-pdp__block" aria-labelledby="warranty-heading">
+							<h2 id="warranty-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionWarranty) }</h2>
+							if v.HasWarranty() {
+								<p class="goen-pdp__warranty">{ v.WarrantyText(ctx) }</p>
 							}
-						</dl>
+							if v.WarrantyNote != "" {
+								<p class="goen-pdp__warranty">{ v.WarrantyNote }</p>
+							}
+						</section>
+					}
+					<section class="goen-pdp__block goen-pdp__ship" aria-labelledby="delivery-heading">
+						<h2 id="delivery-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDelivery) }</h2>
+						@widget.StatLine(v.ShippingFacts(ctx), widget.StatLinePairs)
+						<ul class="goen-pdp__policies" role="list">
+							<li><a href="/shipping">{ i18n.T(ctx, i18n.KeyShippingPolicy) }</a></li>
+							<li><a href="/returns">{ i18n.T(ctx, i18n.KeyReturnsPolicy) }</a></li>
+						</ul>
 					</section>
-				}
-				<section class="goen-pdp__block goen-pdp__ship" aria-labelledby="delivery-heading">
-					<h2 id="delivery-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDelivery) }</h2>
-					@widget.StatLine(v.ShippingFacts(ctx), widget.StatLinePairs)
-					<ul class="goen-pdp__policies" role="list">
-						<li><a href="/shipping">{ i18n.T(ctx, i18n.KeyShippingPolicy) }</a></li>
-						<li><a href="/returns">{ i18n.T(ctx, i18n.KeyReturnsPolicy) }</a></li>
-					</ul>
-				</section>
-				if !v.HasSpecs() {
-					@productCompare(v)
-				}
-			</div>
-			if v.HasOpinions() {
-				@productReviews(v)
-				@productQuestions(v)
-			} else {
-				<div class="goen-pdp__opinions">
-					@productReviews(v)
-					@productQuestions(v)
+					if !v.HasSpecs() {
+						@productCompare(v)
+					}
 				</div>
-			}
+				@productReviews(v)
+			</div>
+			@productQuestions(v)
 			if v.HasRelated() {
 				<section class="goen-pdp__related" aria-labelledby="related-heading">
 					<h2 id="related-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionRelated) }</h2>
@@ -123,8 +117,8 @@ templ Product(p frame.Page, v *ProductView) {
 	}
 }
 
-// A radio group drawn with CSS alone: works with scripting off, and a swap of
-// #gallery by the colour swatches keeps no state.
+// A radio group drawn with CSS alone: a swap of #gallery by the colour swatches
+// keeps no state, and there is nothing to initialise.
 //
 // Every shot sits in the same cell and the unchosen ones are only hidden with
 // visibility, none lazy: choosing a thumbnail must show its photograph at once.
@@ -147,7 +141,7 @@ templ productGallery(v *ProductView) {
 							class="goen-pdp__shotimg"
 							src={ img.URL }
 							srcset={ img.Srcset }
-							sizes="(min-width: 1024px) 42rem, calc(100vw - 2rem)"
+							sizes="(min-width: 1024px) 46rem, calc(100vw - 2rem)"
 							alt={ img.Alt }
 							if img.HasDimensions() {
 								width={ img.WidthText() }
@@ -219,41 +213,36 @@ templ ratingStars(halves int) {
 templ productBuy(v *ProductView) {
 	<div class="goen-pdp__buy" id="buybox">
 		<div class="goen-pdp__head">
-			if v.Brand != "" {
-				<p class="goen-pdp__brand">{ v.Brand }</p>
-			}
-			<h1 class="goen-pdp__title">{ v.Name }</h1>
-			if highlights := v.Highlights(); len(highlights) > 0 {
-				<p class="goen-pdp__keyspecs">
-					for i, h := range highlights {
-						if i > 0 {
-							&nbsp;<span class="goen-sep" aria-hidden="true">·</span>
-						}
-						<span class="goen-pdp__keyspec">{ h }</span>
+			if v.Brand != "" || v.ShowsSKU() {
+				// The brand and the chosen variant's code, the code only once a variant is chosen: before that
+				// the page's price is the cheapest variant's, and its code would name one the visitor has not
+				// picked.
+				<p class="goen-pdp__brand">
+					if v.Brand != "" {
+						<span>{ v.Brand }</span>
+					}
+					if v.Brand != "" && v.ShowsSKU() {
+						<span class="goen-sep" aria-hidden="true">·</span>
+					}
+					if v.ShowsSKU() {
+						<span class="goen-pdp__sku"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyPDPSKU) }</span>{ v.SKU }</span>
 					}
 				</p>
 			}
-			if v.HasRating() {
-				// One star, the average and the count in words; a screen reader hears the sentence instead.
-				<p class="goen-pdp__rating">
-					<span class="goen-pdp__ratingstar" aria-hidden="true">
-						@icons.Star()
-					</span>
-					<a class="goen-pdp__ratinglink" href="#reviews">
-						<span aria-hidden="true">{ v.RatingText() }&nbsp;<span class="goen-sep">·</span>{ " " }{ v.ReviewCount(ctx) }</span>
-						<span class="goen-sr-only">{ v.RatingLabel(ctx) }</span>
-					</a>
-				</p>
+			<h1 class="goen-pdp__title">{ v.Name }</h1>
+			if v.Summary != "" {
+				<p class="goen-pdp__lede">{ v.Summary }</p>
 			}
 		</div>
 		if v.SelectionOK || v.FallbackPrice {
 			<div class="goen-pdp__pricebox">
 				if v.OnSale {
-					// Said, not drawn: the vermilion price and the struck original are the sign, and the
-					// words are for a screen reader.
+					// Said, not drawn: the struck original and the seal are the sign, and the words are for a
+					// screen reader.
 					<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyOnSale) }</span>
 				}
-				<span class={ "goen-pdp__price", templ.KV("goen-pdp__price--sale", v.OnSale) }>
+				// The price keeps the price colour on sale: the seal beside it carries the red, once.
+				<span class="goen-pdp__price">
 					if v.PriceFrom() {
 						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), v.Price()) }
 					} else {
@@ -263,6 +252,7 @@ templ productBuy(v *ProductView) {
 				if v.OnSale {
 					<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
 					<s class="goen-pdp__was">{ v.Compare() }</s>
+					<span class="goen-pdp__seal">{ v.SavesText(ctx) }</span>
 				}
 			</div>
 			if v.OnSale {
@@ -270,18 +260,13 @@ templ productBuy(v *ProductView) {
 				<p class="goen-pdp__source">{ before }<a href={ templ.SafeURL(v.Campaign.Href()) }>{ v.Campaign.Title }</a>{ after }&nbsp;<span class="goen-sep" aria-hidden="true">·</span>{ " " }@campaign.Ends(v.Campaign.End)</p>
 			}
 		}
-		if who := v.SoldOutWho(); who != "" {
-			<p class="goen-pdp__status">{ who }{ v.SoldOutJoin(ctx) }<span class="goen-pdp__soldword">{ i18n.T(ctx, i18n.KeySoldOut) }</span></p>
-		}
-		if v.Summary != "" {
-			<p class="goen-pdp__lede">{ v.Summary }</p>
-		}
 		{{ firstInvalid := v.FirstInvalidOption() }}
 		{{ firstOpen := v.FirstOpenOption() }}
 		for oi, o := range v.Options {
 			if o.Fixed() {
 				<p class="goen-pdp__fact">
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ o.Values[0].Label }</span>
+					<span class="goen-pdp__optlabel">{ o.Label }</span>
+					<span class="goen-pdp__optchosen">{ o.Values[0].Label }</span>
 				</p>
 			} else {
 				<fieldset
@@ -294,19 +279,22 @@ templ productBuy(v *ProductView) {
 						aria-describedby="notify-option-error"
 					}
 				>
+					// The group's name and, at the other end of the line, the value chosen in it: a colour's
+					// name is on its box too, but the line says what is chosen before the eye reaches the row.
+					// A row of colours not yet chosen in asks for one at the end of its line; a row of words
+					// leaves the asking to the line under the add button.
 					<legend class="goen-pdp__optname">
+						<span class="goen-pdp__optlabel">{ o.Label }</span>
 						if o.SelectedLabel() != "" {
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
+							<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
 						} else if o.HasSwatches() {
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ i18n.T(ctx, i18n.KeyOptionChoose) }</span>
-						} else {
-							{ o.Label }
+							<span class="goen-pdp__optchosen">{ i18n.T(ctx, i18n.KeyOptionChoose) }</span>
 						}
 					</legend>
 					<div class={ "goen-pdp__values", templ.KV("goen-pdp__values--swatches", o.HasSwatches()) }>
 						for vi, val := range o.Values {
-							// Still a link and the whole answer with scripting off. The hx- attributes ask for
-							// the same URL and keep only the part that changes: no second server path.
+							// A link, because the choice is an address. The hx- attributes ask for the same URL and
+							// keep only the part that changes: no second server path.
 							//
 							// The gallery comes along only when a photograph shows one option value, because
 							// only then can the choice reorder it; otherwise a test holds that the server sends
@@ -372,6 +360,7 @@ templ productBuy(v *ProductView) {
 				{ i18n.T(ctx, i18n.KeyVariantNotFound) }
 			}
 		}
+		@productStock(v)
 		if v.NotifyUnavailable() {
 			@widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger, ID: "notify-unavailable"}) {
 				{ i18n.T(ctx, i18n.KeyRestockUnavailable) }
@@ -389,6 +378,38 @@ templ productBuy(v *ProductView) {
 		@productLinks(v)
 		@widget.StatLine(v.BuyFacts(ctx), widget.StatLinePairs)
 	</div>
+}
+
+// The stock of the chosen variant on the left and the rating on the right, on one shelf-coloured line.
+// Before a variant is chosen there is no stock to state: only the rating stands. A chosen variant that
+// is sold out is said here, after the values chosen where there was a choice, and nowhere else: the
+// restock form under it is the one action, and no dead button repeats the words.
+templ productStock(v *ProductView) {
+	if v.SoldOut() || v.StockWord(ctx) != "" || v.HasRating() {
+		<div class="goen-pdp__stock">
+			if v.SoldOut() {
+				if who := v.SoldOutWho(); who != "" {
+					<p class="goen-pdp__status">{ who }{ v.SoldOutJoin(ctx) }<span class="goen-pdp__soldword">{ i18n.T(ctx, i18n.KeySoldOut) }</span></p>
+				} else {
+					<p class="goen-pdp__status">{ i18n.T(ctx, i18n.KeySoldOut) }</p>
+				}
+			} else if word := v.StockWord(ctx); word != "" {
+				<p class={ "goen-pdp__status", templ.KV("goen-pdp__lowstock", v.LowStock()) }>{ word }</p>
+			}
+			if v.HasRating() {
+				// One star, the average and the count; a screen reader hears the sentence instead.
+				<p class="goen-pdp__rating">
+					<a class="goen-pdp__ratinglink" href="#reviews">
+						<span class="goen-pdp__ratingstar" aria-hidden="true">
+							@icons.Star()
+						</span>
+						<span aria-hidden="true">{ v.RatingText() }&nbsp;({ v.ReviewCountText() })</span>
+						<span class="goen-sr-only">{ v.RatingLabel(ctx) }</span>
+					</a>
+				</p>
+			}
+		</div>
+	}
 }
 
 templ productLinks(v *ProductView) {
@@ -430,13 +451,10 @@ templ productLinks(v *ProductView) {
 
 templ productAddForm(v *ProductView) {
 	<div class="goen-pdp__actions">
-		// With scripting off nothing below exists: the browser posts, the server answers
-		// 303 and the visitor lands on the product page with the notice on it.
-		//
-		// With script, the same POST goes through htmx, the 303 is followed and hx-select
-		// takes the buy column out of the page a reload would give. hx-select-oob names the
-		// header's cart link in that response, so the count changes from the document the
-		// server just rendered. The address is not pushed: ?added= is not a page to come back to.
+		// The same POST as the plain form, through htmx: the 303 is followed and hx-select takes the buy
+		// column out of the page a reload would give. hx-select-oob names the header's cart link in that
+		// response, so the count changes from the document the server just rendered. The address is not
+		// pushed: ?added= is not a page to come back to.
 		<form
 			id="pdp-add"
 			class="goen-pdp__form"
@@ -451,9 +469,6 @@ templ productAddForm(v *ProductView) {
 		>
 			<input type="hidden" name="variant" value={ v.VariantID }/>
 			<input type="hidden" name="back" value={ v.Slug }/>
-			if v.CanBuy() && v.LowStock() {
-				<p class="goen-pdp__lowstock">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }</p>
-			}
 			<div class="goen-pdp__buyrow">
 				if !v.SoldOut() && !v.AllSoldOut() {
 					@widget.Label(widget.LabelProps{For: "quantity", Class: "goen-sr-only"}) {
@@ -478,22 +493,25 @@ templ productAddForm(v *ProductView) {
 						@icons.Cart()
 						<span>{ i18n.T(ctx, i18n.KeyAddToCart) }</span>
 					}
-				} else if v.SoldOutWho() == "" {
-					// Where the status line names the sold-out choice, the restock form is the one action and no
-					// dead button repeats the words.
+				} else if !v.SoldOut() {
+					// A chosen variant that is sold out is said on the stock line, and the restock form is the
+					// one action: no dead button repeats the words.
 					@widget.Button(widget.ButtonProps{
 						ButtonStyle: widget.ButtonStylePrimary,
 						Class:       "goen-pdp__add",
 						Attrs:       templ.Attributes{"id": "add-to-cart", "disabled": !v.CanBuy()},
 					}, "submit") {
 						@icons.Cart()
-						<span>
-							if v.AllSoldOut() || v.SoldOut() {
-								{ i18n.T(ctx, i18n.KeySoldOut) }
-							} else {
-								{ i18n.T(ctx, i18n.KeyAddToCart) }
-							}
-						</span>
+						if v.AllSoldOut() {
+							<span>{ i18n.T(ctx, i18n.KeySoldOut) }</span>
+						} else if v.CanBuy() {
+							// What the press costs: the price times the quantity beside it, which goen.js keeps
+							// in step with the field. It starts at one, as the field does. One run of text, so a
+							// narrow button wraps it at the space; the dot never ends a line without its sum.
+							<span>{ i18n.T(ctx, i18n.KeyAddToCart) } <span class="goen-pdp__addsum"><span aria-hidden="true">·</span> <span class="goen-pdp__addprice" data-unit-cents={ v.PriceCentsText() }>{ v.Price() }</span></span></span>
+						} else {
+							<span>{ i18n.T(ctx, i18n.KeyAddToCart) }</span>
+						}
 					}
 				}
 			</div>
@@ -529,6 +547,11 @@ templ productAddForm(v *ProductView) {
 				}
 			}
 		</form>
+		// Beside the add, not in its form: a form cannot hold another, and the
+		// toggle is a post of its own that swaps only itself.
+		if v.Comparable {
+			@CompareToggle(v.Slug, v.Name)
+		}
 	</div>
 }
 
@@ -575,7 +598,7 @@ templ productBuyBar(v *ProductView) {
 				}
 			} else {
 				// Nothing is chosen yet, so there is nothing to add: the bar's one action is the way to
-				// the first group still open, a link that works with no script.
+				// the first group still open.
 				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Class: "goen-buybar__btn"}, templ.SafeURL("#option-first")) {
 					{ i18n.T(ctx, i18n.KeyChooseOptions) }
 				}
@@ -588,40 +611,31 @@ templ productBuyBar(v *ProductView) {
 	</div>
 }
 
-// A plain link: the set is the address.
+// The specifications lead to a ready-made comparison, the product beside the
+// ones on its shelf priced closest to it: a link, as the compare page's own
+// ready-made comparisons are, so the shopper's compare set is left as it was;
+// the toggle in the buy column is what keeps the product in the set. The same
+// blue link and arrow the department page uses for its comparison.
 templ productCompare(v *ProductView) {
-	if v.Comparable {
+	if len(v.Similar) > 0 {
 		<div class="goen-pdp__similar">
-			if !v.AlreadyComparing() && !v.ComparingFull() {
-				@productCompareLink(v.CompareHref(), i18n.T(ctx, i18n.KeyCompareSimilar))
-			} else if v.AlreadyComparing() {
-				@productCompareLink(v.CompareHref(), i18n.T(ctx, i18n.KeyViewCompare))
-			} else {
-				<p class="goen-pdp__hint">
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }
-					<a href={ templ.SafeURL(v.CurrentCompareHref()) }>{ i18n.T(ctx, i18n.KeyViewCompare) }</a>
-				</p>
-			}
+			<a class="goen-pdp__compare" href={ templ.SafeURL(v.CompareHref()) }>{ i18n.T(ctx, i18n.KeyCompareSimilar) } <span aria-hidden="true">&rarr;</span></a>
 		</div>
 	}
 }
 
-// The same blue link and arrow the department page uses for its comparison.
-templ productCompareLink(href, label string) {
-	<a class="goen-pdp__compare" href={ templ.SafeURL(href) }>{ label } <span aria-hidden="true">&rarr;</span></a>
-}
-
+// The sold-out notice: what is missing, what the form does, and the form, on the savings tint that a
+// notice about this variant's stock wears.
 templ productNotifyForm(v *ProductView) {
 	<form id="restock" class="goen-pdp__notify" method="post" action={ templ.SafeURL(v.NotifyAction()) }>
 		<input type="hidden" name="variant" value={ v.NotifyVariant() }/>
-		if note := v.RestockNote(ctx); note != "" {
-			<p class="goen-pdp__notifyhead">{ note }</p>
-		}
+		<p class="goen-pdp__notifyhead">{ v.RestockNote(ctx) }</p>
 		if v.NotifyTaken() {
 			@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}) {
 				{ v.NotifyConfirmation(ctx) }
 			}
 		} else {
+			<p class="goen-pdp__notifybody">{ i18n.T(ctx, i18n.KeyRestockBody) }</p>
 			@widget.Label(widget.LabelProps{For: "notify-email"}) {
 				{ i18n.T(ctx, i18n.KeyFieldEmail) }
 			}
@@ -633,7 +647,7 @@ templ productNotifyForm(v *ProductView) {
 						"required": true, "maxlength": "254", "autocomplete": "email",
 					}, fieldrule.Message(i18n.KeyRestockBadEmail), fieldrule.ErrorID("notify-email-error")),
 				})
-				// The one action of a face with nothing to buy: the ink button, under its field.
+				// The one action of a face with nothing to buy: the ink button, beside its field.
 				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 					{ i18n.T(ctx, i18n.KeyRestockSubmit) }
 				}
@@ -659,8 +673,10 @@ templ productReviews(v *ProductView) {
 			<div class="goen-pdp__reviewlayout">
 				<div class="goen-pdp__summary">
 					<p class="goen-pdp__score">{ v.RatingText() }</p>
-					@ratingStars(v.StarHalves())
-					<p class="goen-pdp__scorecount">{ i18n.Count(ctx, i18n.KeyReviewCount, v.RatingCount, v.ReviewCountText()) }</p>
+					<div class="goen-pdp__scoreside">
+						@ratingStars(v.StarHalves())
+						<p class="goen-pdp__scorecount">{ i18n.Count(ctx, i18n.KeyReviewCount, v.RatingCount, v.ReviewCountText()) }</p>
+					</div>
 					if v.RatingsBeyondList() {
 						<div class="goen-pdp__bars">
 							for _, b := range v.RatingBars {
@@ -685,22 +701,22 @@ templ productReviews(v *ProductView) {
 										{ i18n.T(ctx, i18n.KeyYourReview) }
 									}
 								}
-								<span class="goen-pdp__reviewstars" aria-hidden="true">
-									@ratingStars(r.Rating * 2)
-									<span class="goen-pdp__reviewscore">{ r.RatingText() }</span>
-								</span>
 								if r.Verified {
 									@widget.Badge(widget.BadgeProps{}) {
 										{ i18n.T(ctx, i18n.KeyVerifiedBuyer) }
 									}
 								}
-								<time class="goen-pdp__reviewdate" datetime={ r.Date.ISO() }>{ shoptime.DateText(ctx, r.Date) }</time>
+								<span class="goen-pdp__reviewstars" aria-hidden="true">
+									@ratingStars(r.Rating * 2)
+									<span class="goen-pdp__reviewscore">{ r.RatingText() }</span>
+								</span>
 							</div>
 							<p class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingScore), r.RatingText()) }</p>
 							if r.Title != "" {
 								<p class="goen-pdp__reviewtitle">{ r.Title }</p>
 							}
 							<p class="goen-pdp__reviewbody">{ r.Body }</p>
+							<time class="goen-pdp__reviewdate" datetime={ r.Date.ISO() }>{ shoptime.DateText(ctx, r.Date) }</time>
 						</article>
 					}
 				</div>
@@ -715,6 +731,8 @@ templ productReviews(v *ProductView) {
 	</section>
 }
 
+// A question is a disclosure: its words are the summary, and who asked, when, and the answers open
+// under it, so a long thread does not push the next question off the screen.
 templ productQuestions(v *ProductView) {
 	<section class="goen-pdp__qa" id="questions" aria-labelledby="qa-heading">
 		<h2 id="qa-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionQA) }</h2>
@@ -727,28 +745,34 @@ templ productQuestions(v *ProductView) {
 			<ul class="goen-qa" role="list">
 				for _, q := range v.Questions {
 					<li class="goen-qa__item">
-						<p class="goen-qa__question">{ q.Body }</p>
-						<span class="goen-pdp__meta">{ q.Who(ctx) } · { q.Asked }</span>
-						if q.Answered() {
-							<ul class="goen-qa__answers" role="list">
-								for _, a := range q.Answers {
-									<li class="goen-qa__answer">
-										<p class="goen-qa__answerbody">{ a.Body }</p>
-										<span class="goen-pdp__meta">
-											{ a.Who(ctx) }
-											if a.IsStaff {
-												@widget.Badge(widget.BadgeProps{}) {
-													{ i18n.T(ctx, i18n.KeyStaffAnswer) }
-												}
-											}
-											{ " · " + a.At }
-										</span>
-									</li>
+						<details class="goen-qa__thread">
+							<summary class="goen-qa__question">
+								<span class="goen-qa__questionbody">{ q.Body }</span>
+								<span class="goen-qa__count">{ q.AnswerCount(ctx) }</span>
+							</summary>
+							<div class="goen-qa__open">
+								<span class="goen-pdp__meta">{ q.Who(ctx) } · { q.Asked }</span>
+								if q.Answered() {
+									// The count in the summary already says when none has come.
+									<ul class="goen-qa__answers" role="list">
+										for _, a := range q.Answers {
+											<li class="goen-qa__answer">
+												<p class="goen-qa__answerbody">{ a.Body }</p>
+												<span class="goen-pdp__meta">
+													{ a.Who(ctx) }
+													if a.IsStaff {
+														@widget.Badge(widget.BadgeProps{}) {
+															{ i18n.T(ctx, i18n.KeyStaffAnswer) }
+														}
+													}
+													{ " · " + a.At }
+												</span>
+											</li>
+										}
+									</ul>
 								}
-							</ul>
-						} else {
-							<p class="goen-pdp__meta">{ i18n.T(ctx, i18n.KeyNoAnswerYet) }</p>
-						}
+							</div>
+						</details>
 					</li>
 				}
 			</ul>

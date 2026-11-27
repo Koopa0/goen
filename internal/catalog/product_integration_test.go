@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1913,7 +1914,10 @@ func TestHandler_NotifyRefused(t *testing.T) {
 // its department does.
 //
 // A product page offers comparison where its department does: phones inherit it
-// from tech, and a book sits under a department that does not compare.
+// from tech, and a book sits under a department that does not compare. Where it
+// does, the ready-made comparison under the specifications puts the product
+// beside others from its own shelf, never itself, and fills one; where it does
+// not, there is none.
 func TestStore_ProductComparable(t *testing.T) {
 	ctx := t.Context()
 	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
@@ -1924,6 +1928,24 @@ func TestStore_ProductComparable(t *testing.T) {
 		}
 		if view.Comparable != want {
 			t.Errorf("%s: Comparable = %v, want %v", slug, view.Comparable, want)
+		}
+		if !want {
+			if len(view.Similar) > 0 {
+				t.Errorf("%s: Similar = %v in a department that does not compare", slug, view.Similar)
+			}
+			continue
+		}
+		if len(view.Similar) != 2 || slices.Contains(view.Similar, slug) {
+			t.Errorf("%s: Similar = %v, want two others to fill a comparison of three", slug, view.Similar)
+		}
+		for _, other := range view.Similar {
+			near, err := store.Product(ctx, other, nil)
+			if err != nil {
+				t.Fatalf("load %s: %v", other, err)
+			}
+			if near.CategorySlug != view.CategorySlug {
+				t.Errorf("%s: %s is from %s, not the product's own shelf %s", slug, other, near.CategorySlug, view.CategorySlug)
+			}
 		}
 	}
 }

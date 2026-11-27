@@ -37,7 +37,6 @@ var sha256Users = map[string]string{
 	"internal/media/decode.go#normaliseDecoded":                 "content address",
 	"internal/web/ratelimit/ratelimit.go#clampKey":              "bounded limiter key",
 	"internal/catalog/facets.go#CountID":                        "HTML id",
-	"internal/catalog/facets.go#SelectedID":                     "HTML id",
 	"assets/assets.go#index":                                    "asset fingerprint",
 	"migrations/migrations.go#Digest":                           "digest of migrations/001 a database records",
 }

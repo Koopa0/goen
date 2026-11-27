@@ -1,0 +1,42 @@
+package catalog
+
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
+
+// Suggestions is the inside of the search field's list: an option per product,
+// then the way to every result. The list keeps its id from the header's empty
+// one, which the field names in aria-controls; goen.js moves the active option
+// with the arrow keys and opens it with Enter.
+templ Suggestions(v SuggestView) {
+	<ul id="site-search-list" class="goen-suggest__list" role="listbox" aria-label={ i18n.T(ctx, i18n.KeySearchSuggestions) }>
+		for i, t := range v.Products {
+			<li class="goen-suggest__item" id={ "site-search-option-" + strconv.Itoa(i) } role="option" aria-selected="false">
+				<a class="goen-suggest__link" href={ templ.URL("/p/" + t.Slug) } tabindex="-1">
+					<span class="goen-suggest__photo">
+						if t.ImageURL != "" {
+							<img src={ t.ImageURL } srcset={ t.ImageSrcset } sizes="3rem" alt="" width="64" height="48" loading="lazy" decoding="async"/>
+						}
+					</span>
+					<span class="goen-suggest__words">
+						if t.Brand != "" {
+							<span class="goen-suggest__brand">{ t.Brand }</span>
+						}
+						<span class="goen-suggest__name">{ t.Name }</span>
+					</span>
+					<span class="goen-suggest__price">{ suggestPrice(ctx, t.PriceCents, t.PriceVaries) }</span>
+				</a>
+			</li>
+		}
+	</ul>
+	if v.Query != "" {
+		if len(v.Products) == 0 {
+			<p class="goen-suggest__none">{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchNoResults), v.Query) }</p>
+		} else {
+			<a class="goen-suggest__all" href={ templ.URL(v.SearchHref()) }>{ i18n.Count(ctx, i18n.KeySearchSuggestAll, v.Total, strconv.FormatInt(v.Total, 10)) }</a>
+		}
+	}
+}

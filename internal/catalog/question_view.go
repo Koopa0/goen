@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -39,3 +40,13 @@ func (q Question) Who(ctx context.Context) string {
 }
 
 func (q Question) Answered() bool { return len(q.Answers) > 0 }
+
+// AnswerCount is what a closed question says of its thread: how many answers it holds, or that none has
+// come, so a shopper sees which questions are worth opening.
+func (q Question) AnswerCount(ctx context.Context) string {
+	if !q.Answered() {
+		return i18n.T(ctx, i18n.KeyNoAnswerYet)
+	}
+	n := int64(len(q.Answers))
+	return i18n.Count(ctx, i18n.KeyAnswerCount, n, strconv.FormatInt(n, 10))
+}

@@ -19,7 +19,8 @@ import (
 )
 
 // TestStore_LoadShownDepartments holds that a department is shown in the
-// navigation and the home directory only when it lists products.
+// navigation, the department index and the home page's showcase only when it
+// lists products.
 func TestStore_LoadShownDepartments(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
@@ -99,6 +100,21 @@ func TestStore_LoadShownDepartments(t *testing.T) {
 				}
 
 				pageCtx := frame.WithTopNav(ctx, nav)
+				// The home page's showcase offers every department with products
+				// but the featured one, which the seed's tech is.
+				view, loadErr := home.NewStore(tx).Load(ctx, home.Choice{})
+				if loadErr != nil {
+					t.Fatalf("Load(): %v", loadErr)
+				}
+				var tabs []string
+				for _, c := range view.More.Tabs {
+					if strings.HasPrefix(c.Slug, "shown-") {
+						tabs = append(tabs, c.Slug)
+					}
+				}
+				if diff := cmp.Diff(want, tabs); diff != "" {
+					t.Errorf("home showcase tabs mismatch (-want +got):\n%s", diff)
+				}
 				for _, region := range []struct {
 					name      string
 					component templ.Component
@@ -108,7 +124,7 @@ func TestStore_LoadShownDepartments(t *testing.T) {
 					{"desktop nav", frame.Header(frame.Page{}), "goen-header__nav", ""},
 					{"phone menu", frame.Header(frame.Page{}), "goen-header__drawer", ""},
 					{"footer", frame.Footer(frame.NewsletterState{}), "goen-footer__links", i18n.T(ctx, i18n.KeyCategoryNav)},
-					{"home directory", home.Page(frame.Page{}, home.View{}), "goen-deptindex", ""},
+					{"department index", frame.DepartmentIndex(), "goen-deptindex", ""},
 				} {
 					var output strings.Builder
 					if renderErr := region.component.Render(pageCtx, &output); renderErr != nil {

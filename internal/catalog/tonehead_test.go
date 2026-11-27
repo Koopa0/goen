@@ -18,9 +18,9 @@ func TestListingHeadTone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	listing := renderComponent(t, ctx, Listing(frame.Page{Title: "c"}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Sage}}, nil, nil))
-	head, _, _ := strings.Cut(listing, `<div class="goen-listing">`)
-	_, head, _ = strings.Cut(head, `class="goen-listing__head"`)
+	listing := renderComponent(t, ctx, Listing(frame.Page{Title: "c"}, &ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Sage}}))
+	_, head, _ := strings.Cut(listing, `class="goen-shelf__head"`)
+	head, _, _ = strings.Cut(head, `class="goen-facets"`)
 	if head == "" {
 		t.Fatalf("the listing has no head:\n%s", listing)
 	}

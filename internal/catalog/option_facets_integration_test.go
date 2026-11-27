@@ -84,7 +84,7 @@ func TestStore_ListingOptionFacets(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
-	f := catalog.Filters{Page: 1, InStockOnly: true, MaxPrice: 50000, OptionValues: []catalog.OptionFilter{{Name: "容量", Value: "256GB"}, {Name: "顏色", Value: "曜石黑"}}}
+	f := catalog.Filters{Page: 1, InStockOnly: true, Price: catalog.PriceBand{Max: 50000}, OptionValues: []catalog.OptionFilter{{Name: "容量", Value: "256GB"}, {Name: "顏色", Value: "曜石黑"}}}
 	local := i18n.WithLocale(ctx, i18n.En)
 	view, err := store.Listing(local, category, f)
 	if err != nil {
@@ -93,10 +93,10 @@ func TestStore_ListingOptionFacets(t *testing.T) {
 	if view.Total != 0 || len(view.Products) != 0 {
 		t.Fatal("different variants satisfied option, stock or price filters")
 	}
-	assertFacetBrandCount(t, view, brandSlug, 0)
+	assertFacetBrandCount(t, &view, brandSlug, 0)
 	optionsOnly := f
 	optionsOnly.InStockOnly = false
-	optionsOnly.MaxPrice = 0
+	optionsOnly.Price = catalog.PriceBand{}
 	offer, err := store.Listing(local, category, optionsOnly)
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func TestStore_ListingOptionFacets(t *testing.T) {
 	if view.Total != 1 || len(view.Products) != 1 || view.Products[0].Slug != slug || view.Products[0].PriceCents != 10000 || !view.Products[0].InStock || view.Products[0].PriceVaries {
 		t.Errorf("one matching SKU did not supply the listing offer: %#v", view.Products)
 	}
-	assertFacetBrandCount(t, view, brandSlug, 1)
+	assertFacetBrandCount(t, &view, brandSlug, 1)
 	alternatives := f
 	alternatives.OptionValues = []catalog.OptionFilter{{Name: "容量", Value: "256GB"}, {Name: "容量", Value: "128GB"}, {Name: "顏色", Value: "曜石黑"}}
 	view, err = store.Listing(local, category, alternatives)
@@ -167,7 +167,7 @@ func TestStore_ListingOptionFacets(t *testing.T) {
 	}
 }
 
-func assertFacetBrandCount(t *testing.T, view catalog.ListingView, slug string, want int64) {
+func assertFacetBrandCount(t *testing.T, view *catalog.ListingView, slug string, want int64) {
 	t.Helper()
 	for _, group := range view.Facets {
 		if group.Kind != catalog.FacetBrand {

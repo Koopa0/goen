@@ -397,6 +397,23 @@ func (v *View) ChoiceFee(ctx context.Context, c cart.ShippingChoice) string {
 	return text
 }
 
+// choiceNotes are the lines under a method's name: the amount it turns free
+// at, and the zones it charges extra to. Both are the shop's own settings for
+// the method, read through the same choice the fee comes from; the surcharge
+// itself is decided by the postcode, so the card names the zones and the
+// summary, once the address is quoted, the amount.
+func choiceNotes(ctx context.Context, c cart.ShippingChoice) []string {
+	var notes []string
+	if !c.Free && c.FreeOverCents > 0 {
+		notes = append(notes, fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), twd(c.FreeOverCents)))
+	}
+	if len(c.SurchargeZones) > 0 {
+		notes = append(notes, fmt.Sprintf(i18n.T(ctx, i18n.KeyCheckoutZonesExtra),
+			strings.Join(c.SurchargeZones, i18n.T(ctx, i18n.KeyListSeparator))))
+	}
+	return notes
+}
+
 func (v *View) zoneExtra(ctx context.Context) string {
 	if !v.HasSurcharge() {
 		return ""

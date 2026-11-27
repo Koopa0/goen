@@ -137,9 +137,19 @@ LEFT JOIN LATERAL (
 WHERE ci.cart_id = $1
 ORDER BY ci.added_at, pv.id;
 
--- How many items a cart holds, for the header badge. UNITS, not lines.
--- name: CartItemCount :one
-SELECT coalesce(sum(quantity), 0)::bigint FROM cart_items WHERE cart_id = $1;
+-- What the header says of a cart. units is every unit it holds, a sold-out line
+-- included, for the badge: UNITS, not lines. subtotal_cents is the subtotal the
+-- cart page adds up over the same joins (Store.View): a line that cannot be sold
+-- adds nothing, and a short one only what can still be sold, at its price now.
+-- name: CartBadge :one
+SELECT coalesce(sum(ci.quantity), 0)::bigint AS units,
+       coalesce(sum(pv.price_cents * least(ci.quantity, pv.stock_quantity - pv.safety_stock))
+                FILTER (WHERE p.status = 'active' AND pv.is_active
+                        AND pv.stock_quantity - pv.safety_stock > 0), 0)::bigint AS subtotal_cents
+FROM cart_items ci
+JOIN product_variants pv ON pv.id = ci.variant_id
+JOIN products p ON p.id = pv.product_id
+WHERE ci.cart_id = $1;
 
 -- The cart row is already locked by every caller. Updating an existing variant
 -- does not consume another ECPay ItemSeq; inserting a distinct one does.

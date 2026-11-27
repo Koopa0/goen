@@ -3115,6 +3115,32 @@ func (q *Queries) AlarmInvoiceOperation(ctx context.Context, arg AlarmInvoiceOpe
 	return alarmed, err
 }
 
+const allCategoryIDs = `-- name: AllCategoryIDs :many
+SELECT id FROM categories
+`
+
+// Every category: the whole catalogue's scope, for the shelf of every product
+// and a search.
+func (q *Queries) AllCategoryIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, allCategoryIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const answerQuestionAsStaff = `-- name: AnswerQuestionAsStaff :execrows
 INSERT INTO product_answers (question_id, user_id, body, is_staff)
 SELECT q.id, $1, $2::text, true
@@ -4365,6 +4391,33 @@ func (q *Queries) CarryZoneSurcharges(ctx context.Context, arg CarryZoneSurcharg
 	return err
 }
 
+const cartBadge = `-- name: CartBadge :one
+SELECT coalesce(sum(ci.quantity), 0)::bigint AS units,
+       coalesce(sum(pv.price_cents * least(ci.quantity, pv.stock_quantity - pv.safety_stock))
+                FILTER (WHERE p.status = 'active' AND pv.is_active
+                        AND pv.stock_quantity - pv.safety_stock > 0), 0)::bigint AS subtotal_cents
+FROM cart_items ci
+JOIN product_variants pv ON pv.id = ci.variant_id
+JOIN products p ON p.id = pv.product_id
+WHERE ci.cart_id = $1
+`
+
+type CartBadgeRow struct {
+	Units         int64
+	SubtotalCents int64
+}
+
+// What the header says of a cart. units is every unit it holds, a sold-out line
+// included, for the badge: UNITS, not lines. subtotal_cents is the subtotal the
+// cart page adds up over the same joins (Store.View): a line that cannot be sold
+// adds nothing, and a short one only what can still be sold, at its price now.
+func (q *Queries) CartBadge(ctx context.Context, cartID uuid.UUID) (CartBadgeRow, error) {
+	row := q.db.QueryRow(ctx, cartBadge, cartID)
+	var i CartBadgeRow
+	err := row.Scan(&i.Units, &i.SubtotalCents)
+	return i, err
+}
+
 const cartByToken = `-- name: CartByToken :one
 SELECT id, user_id FROM carts WHERE digest = $1
 `
@@ -4390,18 +4443,6 @@ func (q *Queries) CartForUser(ctx context.Context, userID uuid.NullUUID) (uuid.U
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
-}
-
-const cartItemCount = `-- name: CartItemCount :one
-SELECT coalesce(sum(quantity), 0)::bigint FROM cart_items WHERE cart_id = $1
-`
-
-// How many items a cart holds, for the header badge. UNITS, not lines.
-func (q *Queries) CartItemCount(ctx context.Context, cartID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, cartItemCount, cartID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
 }
 
 const cartItemRows = `-- name: CartItemRows :many
@@ -4677,43 +4718,51 @@ const categoryBrands = `-- name: CategoryBrands :many
 SELECT b.id, b.slug, b.name,
        (count(*) FILTER (
            WHERE NOT $1::boolean
-              OR EXISTS (
+              OR ((NOT $2::boolean OR EXISTS (
+                  SELECT 1 FROM sale_campaign_products fp
+                  JOIN listed_campaigns l ON l.id = fp.campaign_id
+                  WHERE fp.product_id = p.id
+              )) AND EXISTS (
                   SELECT 1 FROM product_variants v
                   WHERE v.product_id = p.id AND v.is_active
             AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
+              SELECT 1 FROM unnest($3::text[]) AS chosen(name)
               WHERE NOT EXISTS (
                   SELECT 1 FROM variant_option_values carried
                   JOIN product_options axis ON axis.id = carried.option_id
                   JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
                   WHERE carried.variant_id = v.id
                     AND axis.name = chosen.name AND EXISTS (
-                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
-                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                      SELECT 1 FROM unnest($3::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($4::text[])[chosen_value.position] = axis_value.value
                     )
               )
           )
-                    AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
-                    AND ($5::bigint = 0 OR v.price_cents >= $5::bigint)
-                    AND ($6::bigint = 0 OR v.price_cents <= $6::bigint)
-              )
+                    AND (NOT $5::boolean OR v.stock_quantity > v.safety_stock)
+                    AND (NOT $2::boolean OR (v.stock_quantity > v.safety_stock AND v.compare_at_price_cents > v.price_cents))
+                    AND ($6::bigint = 0 OR v.price_cents >= $6::bigint)
+                    AND ($7::bigint = 0 OR v.price_cents <= $7::bigint)
+              ))
        ))::bigint AS product_count
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
-  AND p.category_id = ANY($7::uuid[])
+  AND p.category_id = ANY($8::uuid[])
+  AND (coalesce(cardinality($9::uuid[]), 0) = 0 OR p.id = ANY($9::uuid[]))
 GROUP BY b.id, b.slug, b.name
 ORDER BY b.name
 `
 
 type CategoryBrandsParams struct {
 	FilterVariants bool
+	OnSaleOnly     bool
 	OptionNames    []string
 	OptionValues   []string
 	InStockOnly    bool
 	MinPrice       int64
 	MaxPrice       int64
 	CategoryIds    []uuid.UUID
+	ProductIds     []uuid.UUID
 }
 
 type CategoryBrandsRow struct {
@@ -4726,16 +4775,19 @@ type CategoryBrandsRow struct {
 // Every brand with an active product in the category, counted over the products
 // the other filters leave: a brand's count is what choosing it would show, brand
 // filters aside. A brand the other filters empty stays listed at zero, so a
-// chosen one can always be unchosen.
+// chosen one can always be unchosen. @product_ids, when not empty, narrows the
+// shelf to those products (a search's matches).
 func (q *Queries) CategoryBrands(ctx context.Context, arg CategoryBrandsParams) ([]CategoryBrandsRow, error) {
 	rows, err := q.db.Query(ctx, categoryBrands,
 		arg.FilterVariants,
+		arg.OnSaleOnly,
 		arg.OptionNames,
 		arg.OptionValues,
 		arg.InStockOnly,
 		arg.MinPrice,
 		arg.MaxPrice,
 		arg.CategoryIds,
+		arg.ProductIds,
 	)
 	if err != nil {
 		return nil, err
@@ -4846,46 +4898,6 @@ func (q *Queries) CategoryBySlug(ctx context.Context, arg CategoryBySlugParams) 
 	return i, err
 }
 
-const categoryChildren = `-- name: CategoryChildren :many
-SELECT c.slug, localized_name(c.name, c.name_en, $2::text) AS name
-FROM categories c
-JOIN categories p ON p.id = c.parent_id
-WHERE p.slug = $1
-ORDER BY c.position, c.name, c.id
-`
-
-type CategoryChildrenParams struct {
-	Slug   string
-	Locale string
-}
-
-type CategoryChildrenRow struct {
-	Slug string
-	Name string
-}
-
-// The direct children of the category with slug $1, in shelf order: the chips
-// under a department's title.
-func (q *Queries) CategoryChildren(ctx context.Context, arg CategoryChildrenParams) ([]CategoryChildrenRow, error) {
-	rows, err := q.db.Query(ctx, categoryChildren, arg.Slug, arg.Locale)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CategoryChildrenRow{}
-	for rows.Next() {
-		var i CategoryChildrenRow
-		if err := rows.Scan(&i.Slug, &i.Name); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const categoryDescendants = `-- name: CategoryDescendants :many
 WITH RECURSIVE d AS (
     SELECT c.id FROM categories c WHERE c.id = $1
@@ -4943,7 +4955,8 @@ SELECT
               )
           )
           AND (NOT $4::boolean OR dv.stock_quantity > dv.safety_stock)
-          AND ($5::bigint = 0 OR dv.price_cents <= $5::bigint)
+          AND (NOT $5::boolean OR (dv.stock_quantity > dv.safety_stock AND dv.compare_at_price_cents > dv.price_cents))
+          AND ($6::bigint = 0 OR dv.price_cents <= $6::bigint)
     ) AS price_varies,
     mv.compare_at_price_cents,
     EXISTS (
@@ -5079,8 +5092,9 @@ JOIN LATERAL (
       -- The card shows a variant the filters accepted, or it states a price the
       -- shopper excluded; these are the predicates of the EXISTS below.
       AND (NOT $4::boolean OR stock_quantity > safety_stock)
-      AND ($6::bigint = 0 OR price_cents >= $6::bigint)
-      AND ($5::bigint = 0 OR price_cents <= $5::bigint)
+      AND (NOT $5::boolean OR (stock_quantity > safety_stock AND compare_at_price_cents > price_cents))
+      AND ($7::bigint = 0 OR price_cents >= $7::bigint)
+      AND ($6::bigint = 0 OR price_cents <= $6::bigint)
     -- A buyable variant first: the price on a card is a promise.
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents
     LIMIT 1
@@ -5094,11 +5108,20 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND p.category_id = ANY($7::uuid[])
-  AND ($8::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($8::uuid[]))
+  AND p.category_id = ANY($8::uuid[])
+  AND (coalesce(cardinality($9::uuid[]), 0) = 0 OR p.id = ANY($9::uuid[]))
+  AND ($10::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($10::uuid[]))
+  -- On sale is campaign.OnSale's question asked of the card's own variant: a
+  -- listed campaign features the product, and the variant chosen above, which
+  -- the same predicate restricts, is in stock below its compare-at price.
+  AND (NOT $5::boolean OR EXISTS (
+      SELECT 1 FROM sale_campaign_products fp
+      JOIN listed_campaigns l ON l.id = fp.campaign_id
+      WHERE fp.product_id = p.id
+  ))
   -- One variant satisfies every variant-level filter at once.
   AND (
-      NOT $9::boolean
+      NOT $11::boolean
       OR EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
@@ -5116,16 +5139,21 @@ WHERE p.status = 'active'
               )
           )
             AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
-            AND ($6::bigint = 0 OR v.price_cents >= $6::bigint)
-            AND ($5::bigint = 0 OR v.price_cents <= $5::bigint)
+            AND (NOT $5::boolean OR (v.stock_quantity > v.safety_stock AND v.compare_at_price_cents > v.price_cents))
+            AND ($7::bigint = 0 OR v.price_cents >= $7::bigint)
+            AND ($6::bigint = 0 OR v.price_cents <= $6::bigint)
       )
   )
 ORDER BY
-    CASE WHEN $10::text = 'price_asc'  THEN mv.price_cents END ASC,
-    CASE WHEN $10::text = 'price_desc' THEN mv.price_cents END DESC,
-    CASE WHEN $10::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
+    CASE WHEN $12::text = 'price_asc'  THEN mv.price_cents END ASC,
+    CASE WHEN $12::text = 'price_desc' THEN mv.price_cents END DESC,
+    CASE WHEN $12::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
+    -- A search passes its matches best first, and their order breaks a chosen
+    -- sort's ties and is the order when none is chosen; with no matches given it
+    -- is NULL for every row and newest first decides.
+    array_position($9::uuid[], p.id),
     p.published_at DESC, p.id DESC
-LIMIT $12::integer OFFSET $11::integer
+LIMIT $14::integer OFFSET $13::integer
 `
 
 type CategoryListingParams struct {
@@ -5133,9 +5161,11 @@ type CategoryListingParams struct {
 	OptionNames    []string
 	OptionValues   []string
 	InStockOnly    bool
+	OnSaleOnly     bool
 	MaxPrice       int64
 	MinPrice       int64
 	CategoryIds    []uuid.UUID
+	ProductIds     []uuid.UUID
 	BrandIds       []uuid.UUID
 	FilterVariants bool
 	Sort           string
@@ -5175,9 +5205,11 @@ func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams
 		arg.OptionNames,
 		arg.OptionValues,
 		arg.InStockOnly,
+		arg.OnSaleOnly,
 		arg.MaxPrice,
 		arg.MinPrice,
 		arg.CategoryIds,
+		arg.ProductIds,
 		arg.BrandIds,
 		arg.FilterVariants,
 		arg.Sort,
@@ -5228,35 +5260,44 @@ SELECT count(*)::bigint
 FROM products p
 WHERE p.status = 'active'
   AND p.category_id = ANY($1::uuid[])
-  AND ($2::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($2::uuid[]))
+  AND (coalesce(cardinality($2::uuid[]), 0) = 0 OR p.id = ANY($2::uuid[]))
+  AND ($3::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($3::uuid[]))
+  AND (NOT $4::boolean OR EXISTS (
+      SELECT 1 FROM sale_campaign_products fp
+      JOIN listed_campaigns l ON l.id = fp.campaign_id
+      WHERE fp.product_id = p.id
+  ))
   AND (
-      NOT $3::boolean
+      NOT $5::boolean
       OR EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
             AND NOT EXISTS (
-              SELECT 1 FROM unnest($4::text[]) AS chosen(name)
+              SELECT 1 FROM unnest($6::text[]) AS chosen(name)
               WHERE NOT EXISTS (
                   SELECT 1 FROM variant_option_values carried
                   JOIN product_options axis ON axis.id = carried.option_id
                   JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
                   WHERE carried.variant_id = v.id
                     AND axis.name = chosen.name AND EXISTS (
-                      SELECT 1 FROM unnest($4::text[]) WITH ORDINALITY chosen_value(name, position)
-                      WHERE chosen_value.name = chosen.name AND ($5::text[])[chosen_value.position] = axis_value.value
+                      SELECT 1 FROM unnest($6::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($7::text[])[chosen_value.position] = axis_value.value
                     )
               )
           )
-            AND (NOT $6::boolean OR v.stock_quantity > v.safety_stock)
-            AND ($7::bigint = 0 OR v.price_cents >= $7::bigint)
-            AND ($8::bigint = 0 OR v.price_cents <= $8::bigint)
+            AND (NOT $8::boolean OR v.stock_quantity > v.safety_stock)
+            AND (NOT $4::boolean OR (v.stock_quantity > v.safety_stock AND v.compare_at_price_cents > v.price_cents))
+            AND ($9::bigint = 0 OR v.price_cents >= $9::bigint)
+            AND ($10::bigint = 0 OR v.price_cents <= $10::bigint)
       )
   )
 `
 
 type CategoryListingCountParams struct {
 	CategoryIds    []uuid.UUID
+	ProductIds     []uuid.UUID
 	BrandIds       []uuid.UUID
+	OnSaleOnly     bool
 	FilterVariants bool
 	OptionNames    []string
 	OptionValues   []string
@@ -5269,7 +5310,9 @@ type CategoryListingCountParams struct {
 func (q *Queries) CategoryListingCount(ctx context.Context, arg CategoryListingCountParams) (int64, error) {
 	row := q.db.QueryRow(ctx, categoryListingCount,
 		arg.CategoryIds,
+		arg.ProductIds,
 		arg.BrandIds,
+		arg.OnSaleOnly,
 		arg.FilterVariants,
 		arg.OptionNames,
 		arg.OptionValues,
@@ -5289,24 +5332,30 @@ SELECT axis.name AS option_name,
        min(localized_name(axis_value.value, axis_value.value_en, $1::text))::text AS value_label,
        (count(DISTINCT p.id) FILTER (WHERE
           ($2::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($2::uuid[]))
+          AND (NOT $3::boolean OR EXISTS (
+              SELECT 1 FROM sale_campaign_products fp
+              JOIN listed_campaigns l ON l.id = fp.campaign_id
+              WHERE fp.product_id = p.id
+          ))
           AND EXISTS (
              SELECT 1 FROM product_variants candidate
              JOIN variant_option_values carried ON carried.variant_id = candidate.id
              WHERE candidate.product_id = p.id AND candidate.is_active
                AND carried.option_id = axis.id AND carried.option_value_id = axis_value.id
-               AND (NOT $3::boolean OR candidate.stock_quantity > candidate.safety_stock)
-               AND ($4::bigint = 0 OR candidate.price_cents >= $4::bigint)
-               AND ($5::bigint = 0 OR candidate.price_cents <= $5::bigint)
+               AND (NOT $4::boolean OR candidate.stock_quantity > candidate.safety_stock)
+               AND (NOT $3::boolean OR (candidate.stock_quantity > candidate.safety_stock AND candidate.compare_at_price_cents > candidate.price_cents))
+               AND ($5::bigint = 0 OR candidate.price_cents >= $5::bigint)
+               AND ($6::bigint = 0 OR candidate.price_cents <= $6::bigint)
                AND NOT EXISTS (
-                  SELECT 1 FROM unnest($6::text[]) AS chosen(name)
+                  SELECT 1 FROM unnest($7::text[]) AS chosen(name)
                   WHERE chosen.name <> axis.name AND NOT EXISTS (
                     SELECT 1 FROM variant_option_values other_carried
                     JOIN product_options other_axis ON other_axis.id = other_carried.option_id
                     JOIN product_option_values other_axis_value ON other_axis_value.id = other_carried.option_value_id
                     WHERE other_carried.variant_id = candidate.id
                       AND other_axis.name = chosen.name AND EXISTS (
-                      SELECT 1 FROM unnest($6::text[]) WITH ORDINALITY chosen_value(name, position)
-                      WHERE chosen_value.name = chosen.name AND ($7::text[])[chosen_value.position] = other_axis_value.value
+                      SELECT 1 FROM unnest($7::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($8::text[])[chosen_value.position] = other_axis_value.value
                     )
                   )
                )
@@ -5315,7 +5364,8 @@ SELECT axis.name AS option_name,
 FROM products p
 JOIN product_options axis ON axis.product_id = p.id
 JOIN product_option_values axis_value ON axis_value.option_id = axis.id
-WHERE p.status = 'active' AND p.category_id = ANY($8::uuid[])
+WHERE p.status = 'active' AND p.category_id = ANY($9::uuid[])
+  AND (coalesce(cardinality($10::uuid[]), 0) = 0 OR p.id = ANY($10::uuid[]))
 GROUP BY axis.name, axis_value.value
 ORDER BY min(axis.position), axis.name, min(axis_value.position), axis_value.value
 `
@@ -5323,12 +5373,14 @@ ORDER BY min(axis.position), axis.name, min(axis_value.position), axis_value.val
 type CategoryOptionValuesParams struct {
 	Locale       string
 	BrandIds     []uuid.UUID
+	OnSaleOnly   bool
 	InStockOnly  bool
 	MinPrice     int64
 	MaxPrice     int64
 	OptionNames  []string
 	OptionValues []string
 	CategoryIds  []uuid.UUID
+	ProductIds   []uuid.UUID
 }
 
 type CategoryOptionValuesRow struct {
@@ -5344,12 +5396,14 @@ func (q *Queries) CategoryOptionValues(ctx context.Context, arg CategoryOptionVa
 	rows, err := q.db.Query(ctx, categoryOptionValues,
 		arg.Locale,
 		arg.BrandIds,
+		arg.OnSaleOnly,
 		arg.InStockOnly,
 		arg.MinPrice,
 		arg.MaxPrice,
 		arg.OptionNames,
 		arg.OptionValues,
 		arg.CategoryIds,
+		arg.ProductIds,
 	)
 	if err != nil {
 		return nil, err
@@ -5365,6 +5419,94 @@ func (q *Queries) CategoryOptionValues(ctx context.Context, arg CategoryOptionVa
 			&i.ValueLabel,
 			&i.ProductCount,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const categoryPriceBands = `-- name: CategoryPriceBands :many
+SELECT band.position::integer AS position, count(p.id)::bigint AS product_count
+FROM unnest($1::bigint[]) WITH ORDINALITY AS band(min_price, position)
+LEFT JOIN products p ON p.status = 'active'
+  AND p.category_id = ANY($2::uuid[])
+  AND (coalesce(cardinality($3::uuid[]), 0) = 0 OR p.id = ANY($3::uuid[]))
+  AND ($4::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($4::uuid[]))
+  AND (NOT $5::boolean OR EXISTS (
+      SELECT 1 FROM sale_campaign_products fp
+      JOIN listed_campaigns l ON l.id = fp.campaign_id
+      WHERE fp.product_id = p.id
+  ))
+  AND EXISTS (
+      SELECT 1 FROM product_variants v
+      WHERE v.product_id = p.id AND v.is_active
+        AND NOT EXISTS (
+          SELECT 1 FROM unnest($6::text[]) AS chosen(name)
+          WHERE NOT EXISTS (
+              SELECT 1 FROM variant_option_values carried
+              JOIN product_options axis ON axis.id = carried.option_id
+              JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+              WHERE carried.variant_id = v.id
+                AND axis.name = chosen.name AND EXISTS (
+                  SELECT 1 FROM unnest($6::text[]) WITH ORDINALITY chosen_value(name, position)
+                  WHERE chosen_value.name = chosen.name AND ($7::text[])[chosen_value.position] = axis_value.value
+                )
+          )
+        )
+        AND (NOT $8::boolean OR v.stock_quantity > v.safety_stock)
+        AND (NOT $5::boolean OR (v.stock_quantity > v.safety_stock AND v.compare_at_price_cents > v.price_cents))
+        AND (band.min_price = 0 OR v.price_cents >= band.min_price)
+        AND (($9::bigint[])[band.position] = 0 OR v.price_cents <= ($9::bigint[])[band.position])
+  )
+GROUP BY band.position
+ORDER BY band.position
+`
+
+type CategoryPriceBandsParams struct {
+	BandMins     []int64
+	CategoryIds  []uuid.UUID
+	ProductIds   []uuid.UUID
+	BrandIds     []uuid.UUID
+	OnSaleOnly   bool
+	OptionNames  []string
+	OptionValues []string
+	InStockOnly  bool
+	BandMaxes    []int64
+}
+
+type CategoryPriceBandsRow struct {
+	Position     int32
+	ProductCount int64
+}
+
+// How many products each price band would list, every other filter applied: a
+// band's count is what choosing it would show. A band is [@band_mins[i],
+// @band_maxes[i]] in minor units, 0 for no bound; the rows come back in the
+// bands' order, one for each, zero included.
+func (q *Queries) CategoryPriceBands(ctx context.Context, arg CategoryPriceBandsParams) ([]CategoryPriceBandsRow, error) {
+	rows, err := q.db.Query(ctx, categoryPriceBands,
+		arg.BandMins,
+		arg.CategoryIds,
+		arg.ProductIds,
+		arg.BrandIds,
+		arg.OnSaleOnly,
+		arg.OptionNames,
+		arg.OptionValues,
+		arg.InStockOnly,
+		arg.BandMaxes,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CategoryPriceBandsRow{}
+	for rows.Next() {
+		var i CategoryPriceBandsRow
+		if err := rows.Scan(&i.Position, &i.ProductCount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -5868,6 +6010,70 @@ func (q *Queries) ComparableCategoryIDs(ctx context.Context) ([]uuid.UUID, error
 	return items, nil
 }
 
+const comparePresets = `-- name: ComparePresets :many
+WITH RECURSIVE eff AS (
+    SELECT c.id, c.comparable, ARRAY[c.position] AS path FROM categories c WHERE c.parent_id IS NULL
+    UNION ALL
+    SELECT c.id, coalesce(c.comparable, e.comparable), e.path || c.position
+    FROM categories c JOIN eff e ON c.parent_id = e.id
+),
+held AS (
+    SELECT p.category_id, p.slug,
+           row_number() OVER (PARTITION BY p.category_id ORDER BY p.published_at DESC, p.id DESC) AS nth,
+           count(*) OVER (PARTITION BY p.category_id) AS held
+    FROM products p
+    JOIN eff ON eff.id = p.category_id AND eff.comparable IS TRUE
+    WHERE p.status = 'active'
+      AND EXISTS (
+          SELECT 1 FROM product_variants v
+          WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
+)
+SELECT c.slug AS category_slug,
+       localized_name(c.name, c.name_en, $1::text) AS category,
+       h.slug
+FROM held h
+JOIN categories c ON c.id = h.category_id
+JOIN eff ON eff.id = c.id
+WHERE h.held >= 2 AND h.nth <= $2::integer
+ORDER BY eff.path, c.slug, h.nth
+`
+
+type ComparePresetsParams struct {
+	Locale    string
+	PerPreset int32
+}
+
+type ComparePresetsRow struct {
+	CategorySlug string
+	Category     string
+	Slug         string
+}
+
+// The ready-made comparisons /compare offers: each category that offers
+// comparison (the same inheritance as ComparableCategoryIDs) and holds at least
+// two active products in stock, with its newest per_preset of them, in the
+// order the shop's tree lists the categories. categories_acyclic is what
+// guarantees the walk terminates.
+func (q *Queries) ComparePresets(ctx context.Context, arg ComparePresetsParams) ([]ComparePresetsRow, error) {
+	rows, err := q.db.Query(ctx, comparePresets, arg.Locale, arg.PerPreset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ComparePresetsRow{}
+	for rows.Next() {
+		var i ComparePresetsRow
+		if err := rows.Scan(&i.CategorySlug, &i.Category, &i.Slug); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const compareProducts = `-- name: CompareProducts :many
 SELECT
     p.slug,
@@ -5897,6 +6103,15 @@ SELECT
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
+    -- The one variant a product has, when it has only one and it is in stock:
+    -- the only case where a column's add-to-cart names what goes in the cart.
+    -- The nil uuid when there is none.
+    coalesce((
+        SELECT CASE WHEN count(*) = 1 AND bool_and(ov.stock_quantity > ov.safety_stock)
+                    THEN (array_agg(ov.id))[1] END
+        FROM product_variants ov
+        WHERE ov.product_id = p.id AND ov.is_active
+    ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS sole_variant_id,
     coalesce(img.media_digest, '') AS image_digest,
     coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
@@ -5945,6 +6160,7 @@ type CompareProductsRow struct {
 	RatingCount         int64
 	InStock             bool
 	WarrantyMonths      int32
+	SoleVariantID       uuid.UUID
 	ImageDigest         string
 	ImageBundledKey     string
 	ImageAlt            string
@@ -5978,6 +6194,7 @@ func (q *Queries) CompareProducts(ctx context.Context, arg CompareProductsParams
 			&i.RatingCount,
 			&i.InStock,
 			&i.WarrantyMonths,
+			&i.SoleVariantID,
 			&i.ImageDigest,
 			&i.ImageBundledKey,
 			&i.ImageAlt,
@@ -5993,6 +6210,28 @@ func (q *Queries) CompareProducts(ctx context.Context, arg CompareProductsParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const compareSetProduct = `-- name: CompareSetProduct :one
+SELECT localized_name(p.name, p.name_en, $1::text) AS name
+FROM products p
+WHERE p.slug = $2::text AND p.status = 'active'
+  AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active)
+`
+
+type CompareSetProductParams struct {
+	Locale string
+	Slug   string
+}
+
+// The name of a product /compare can show, which the compare set's control
+// reads its label from: active, with an active variant to price it, as
+// CompareProducts requires. No row is a slug the set must not take.
+func (q *Queries) CompareSetProduct(ctx context.Context, arg CompareSetProductParams) (string, error) {
+	row := q.db.QueryRow(ctx, compareSetProduct, arg.Locale, arg.Slug)
+	var name string
+	err := row.Scan(&name)
+	return name, err
 }
 
 const compareSpecs = `-- name: CompareSpecs :many
@@ -8166,219 +8405,6 @@ func (q *Queries) DeliveryZoneComparison(ctx context.Context, arg DeliveryZoneCo
 	return i, err
 }
 
-const departmentCampaign = `-- name: DepartmentCampaign :one
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = $2::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
-)
-SELECT c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
-       c.starts_at, c.ends_at
-FROM sale_campaigns c
-WHERE EXISTS (
-    SELECT 1 FROM campaign_deals cd
-    JOIN products p ON p.id = cd.product_id
-    WHERE cd.campaign_id = c.id AND p.category_id IN (SELECT id FROM d))
-ORDER BY c.ends_at, c.id
-LIMIT 1
-`
-
-type DepartmentCampaignParams struct {
-	Locale string
-	Slug   string
-}
-
-type DepartmentCampaignRow struct {
-	Slug     string
-	Title    string
-	StartsAt time.Time
-	EndsAt   time.Time
-}
-
-// Of the campaigns with a deal on a product of the department, the one that ends
-// first.
-func (q *Queries) DepartmentCampaign(ctx context.Context, arg DepartmentCampaignParams) (DepartmentCampaignRow, error) {
-	row := q.db.QueryRow(ctx, departmentCampaign, arg.Locale, arg.Slug)
-	var i DepartmentCampaignRow
-	err := row.Scan(
-		&i.Slug,
-		&i.Title,
-		&i.StartsAt,
-		&i.EndsAt,
-	)
-	return i, err
-}
-
-const departmentColourStory = `-- name: DepartmentColourStory :many
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = $2::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
-),
-story AS (
-    SELECT p.id
-    FROM products p
-    JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
-    JOIN product_images i ON i.product_id = p.id AND i.option_value_id = v.id
-    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
-      AND EXISTS (
-          SELECT 1 FROM product_variants sv
-          WHERE sv.product_id = p.id AND sv.is_active AND sv.stock_quantity > sv.safety_stock)
-    GROUP BY p.id
-    HAVING count(DISTINCT v.id) >= 3
-    ORDER BY p.published_at DESC, p.id DESC
-    LIMIT 1
-)
-SELECT
-    p.slug,
-    localized_name(p.name, p.name_en, $1::text) AS name,
-    coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    coalesce(b.name, '') AS brand,
-    mv.price_cents AS price_cents,
-    EXISTS (
-        SELECT 1 FROM product_variants dv
-        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-    ) AS price_varies,
-    mv.compare_at_price_cents,
-    EXISTS (
-        SELECT 1 FROM sale_campaign_products fp
-        JOIN listed_campaigns l ON l.id = fp.campaign_id
-        WHERE fp.product_id = p.id
-    ) AS in_campaign,
-    localized_name(v.value, v.value_en, $1::text) AS colour,
-    v.swatch_hex::text AS swatch,
-    coalesce(img.media_digest, '')::text AS image_digest,
-    coalesce(img.bundled_key, '')::text AS image_bundled_key,
-    coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
-    coalesce(img.width, 0)::integer AS image_width
-FROM story s
-JOIN products p ON p.id = s.id
-LEFT JOIN brands b ON b.id = p.brand_id
-JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents
-    FROM product_variants
-    WHERE product_id = p.id AND is_active
-    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
-    LIMIT 1
-) mv ON true
-JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
-JOIN LATERAL (
-    SELECT media_digest, bundled_key, alt_text, alt_text_en, width
-    FROM product_images WHERE product_id = p.id AND option_value_id = v.id ORDER BY position LIMIT 1
-) img ON true
-ORDER BY v.position, v.id
-`
-
-type DepartmentColourStoryParams struct {
-	Locale string
-	Slug   string
-}
-
-type DepartmentColourStoryRow struct {
-	Slug                string
-	Name                string
-	Summary             string
-	Brand               string
-	PriceCents          int64
-	PriceVaries         bool
-	CompareAtPriceCents pgtype.Int8
-	InCampaign          bool
-	Colour              string
-	Swatch              string
-	ImageDigest         string
-	ImageBundledKey     string
-	ImageAlt            string
-	ImageWidth          int32
-}
-
-// The newest product of the department with three or more colours that each have a
-// photograph, and those colours with the first photograph of each, in the order the
-// product lists them. A swatch marks a colour: the schema leaves it NULL on a value
-// that is not one.
-func (q *Queries) DepartmentColourStory(ctx context.Context, arg DepartmentColourStoryParams) ([]DepartmentColourStoryRow, error) {
-	rows, err := q.db.Query(ctx, departmentColourStory, arg.Locale, arg.Slug)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DepartmentColourStoryRow{}
-	for rows.Next() {
-		var i DepartmentColourStoryRow
-		if err := rows.Scan(
-			&i.Slug,
-			&i.Name,
-			&i.Summary,
-			&i.Brand,
-			&i.PriceCents,
-			&i.PriceVaries,
-			&i.CompareAtPriceCents,
-			&i.InCampaign,
-			&i.Colour,
-			&i.Swatch,
-			&i.ImageDigest,
-			&i.ImageBundledKey,
-			&i.ImageAlt,
-			&i.ImageWidth,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const departmentCompareCandidates = `-- name: DepartmentCompareCandidates :many
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = $1::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
-),
-held AS (
-    SELECT p.category_id, p.slug,
-           row_number() OVER (PARTITION BY p.category_id ORDER BY p.published_at DESC, p.id DESC) AS nth,
-           count(*) OVER (PARTITION BY p.category_id) AS held
-    FROM products p
-    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
-      AND EXISTS (
-          SELECT 1 FROM product_variants v
-          WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
-)
-SELECT category_id, slug FROM held
-WHERE held >= 2 AND nth <= 3
-ORDER BY held DESC, category_id, nth
-`
-
-type DepartmentCompareCandidatesRow struct {
-	CategoryID uuid.UUID
-	Slug       string
-}
-
-// Per category of the department that holds at least two products that can be bought, its three
-// newest. A category is a candidate for the comparison; whether it may be compared
-// is the caller's to say.
-func (q *Queries) DepartmentCompareCandidates(ctx context.Context, slug string) ([]DepartmentCompareCandidatesRow, error) {
-	rows, err := q.db.Query(ctx, departmentCompareCandidates, slug)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DepartmentCompareCandidatesRow{}
-	for rows.Next() {
-		var i DepartmentCompareCandidatesRow
-		if err := rows.Scan(&i.CategoryID, &i.Slug); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const departmentSalesBetween = `-- name: DepartmentSalesBetween :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root_id FROM categories WHERE parent_id IS NULL
@@ -8465,6 +8491,71 @@ func (q *Queries) DepartmentStock(ctx context.Context) ([]DepartmentStockRow, er
 	for rows.Next() {
 		var i DepartmentStockRow
 		if err := rows.Scan(&i.ID, &i.Products); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const departmentTree = `-- name: DepartmentTree :many
+WITH RECURSIVE shown AS (
+    SELECT c.id, c.parent_id, c.slug, c.position,
+           localized_name(c.name, c.name_en, $2::text) AS name
+    FROM categories c
+    LEFT JOIN categories parent ON parent.id = c.parent_id
+    WHERE c.parent_id IS NULL OR parent.slug = $3::text
+),
+tree AS (
+    SELECT s.id AS top, s.id FROM shown s
+    UNION ALL
+    SELECT t.top, k.id FROM categories k JOIN tree t ON k.parent_id = t.id
+)
+SELECT s.slug, s.name, (s.parent_id IS NULL)::boolean AS department,
+       count(p.id)::bigint AS product_count
+FROM shown s
+JOIN tree t ON t.top = s.id
+LEFT JOIN products p ON p.category_id = t.id AND p.status = 'active'
+  AND (coalesce(cardinality($1::uuid[]), 0) = 0 OR p.id = ANY($1::uuid[]))
+GROUP BY s.id, s.parent_id, s.slug, s.name, s.position
+ORDER BY (s.parent_id IS NOT NULL), s.position, s.name, s.id
+`
+
+type DepartmentTreeParams struct {
+	ProductIds []uuid.UUID
+	Locale     string
+	Department string
+}
+
+type DepartmentTreeRow struct {
+	Slug         string
+	Name         string
+	Department   bool
+	ProductCount int64
+}
+
+// The departments, and the sub-categories of the department with slug
+// @department, each with how many active products its subtree holds: the
+// catalogue's tree beside a shelf. @product_ids, when not empty, counts only
+// those (a search's matches). Departments first, each list in shelf order.
+func (q *Queries) DepartmentTree(ctx context.Context, arg DepartmentTreeParams) ([]DepartmentTreeRow, error) {
+	rows, err := q.db.Query(ctx, departmentTree, arg.ProductIds, arg.Locale, arg.Department)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DepartmentTreeRow{}
+	for rows.Next() {
+		var i DepartmentTreeRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.Department,
+			&i.ProductCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -9018,16 +9109,8 @@ SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::te
        coalesce(localized_name(h.body, h.body_en, $1::text), '')::text AS body,
        localized_name(h.primary_cta_label, h.primary_cta_label_en, $1::text)
            AS primary_cta_label,
-       h.primary_cta_href,
-       coalesce(localized_name(h.secondary_cta_label, h.secondary_cta_label_en,
-                               $1::text), '')::text AS secondary_cta_label,
-       h.secondary_cta_href, h.media_digest,
-       coalesce(localized_name(h.image_alt, h.image_alt_en, $1::text), '')::text
-           AS image_alt,
-       -- Dimensions come from media_objects: one row of bytes, one row of size.
-       -- Both, because a width without a height reserves no space in the layout.
-       coalesce(m.width, 0)::integer AS image_width,
-       coalesce(m.height, 0)::integer AS image_height
+       h.primary_cta_href, h.media_digest,
+       coalesce(m.width, 0)::integer AS image_width
 FROM hero_slides h
 LEFT JOIN media_objects m ON m.digest = h.media_digest
 WHERE h.is_active
@@ -9043,18 +9126,14 @@ type HeroSlidesParams struct {
 }
 
 type HeroSlidesRow struct {
-	ID                uuid.UUID
-	Eyebrow           string
-	Headline          string
-	Body              string
-	PrimaryCtaLabel   string
-	PrimaryCtaHref    string
-	SecondaryCtaLabel string
-	SecondaryCtaHref  pgtype.Text
-	MediaDigest       pgtype.Text
-	ImageAlt          string
-	ImageWidth        int32
-	ImageHeight       int32
+	ID              uuid.UUID
+	Eyebrow         string
+	Headline        string
+	Body            string
+	PrimaryCtaLabel string
+	PrimaryCtaHref  string
+	MediaDigest     pgtype.Text
+	ImageWidth      int32
 }
 
 // The scheduled slides in the order an editor queued them by `position`. The
@@ -9078,12 +9157,8 @@ func (q *Queries) HeroSlides(ctx context.Context, arg HeroSlidesParams) ([]HeroS
 			&i.Body,
 			&i.PrimaryCtaLabel,
 			&i.PrimaryCtaHref,
-			&i.SecondaryCtaLabel,
-			&i.SecondaryCtaHref,
 			&i.MediaDigest,
-			&i.ImageAlt,
 			&i.ImageWidth,
-			&i.ImageHeight,
 		); err != nil {
 			return nil, err
 		}
@@ -9166,6 +9241,60 @@ func (q *Queries) HoldForOrder(ctx context.Context, arg HoldForOrderParams) (uui
 	return hold_inventory, err
 }
 
+const homeShelfCategories = `-- name: HomeShelfCategories :many
+WITH RECURSIVE tree AS (
+    SELECT c.id AS top, c.id FROM categories c WHERE c.parent_id = $2::uuid
+    UNION ALL
+    SELECT t.top, k.id FROM categories k JOIN tree t ON k.parent_id = t.id
+)
+SELECT c.id, c.slug, localized_name(c.name, c.name_en, $1::text) AS name,
+       (SELECT count(*) FROM products p JOIN tree t ON t.id = p.category_id
+        WHERE t.top = c.id AND p.status = 'active')::bigint AS products
+FROM categories c
+WHERE c.parent_id = $2::uuid
+ORDER BY c.position, c.name, c.id
+`
+
+type HomeShelfCategoriesParams struct {
+	Locale       string
+	DepartmentID uuid.UUID
+}
+
+type HomeShelfCategoriesRow struct {
+	ID       uuid.UUID
+	Slug     string
+	Name     string
+	Products int64
+}
+
+// One department's direct children, each with the active products of its whole
+// subtree, for the featured shelf's filter; counted as the header counts a
+// department (site's DepartmentStock).
+func (q *Queries) HomeShelfCategories(ctx context.Context, arg HomeShelfCategoriesParams) ([]HomeShelfCategoriesRow, error) {
+	rows, err := q.db.Query(ctx, homeShelfCategories, arg.Locale, arg.DepartmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HomeShelfCategoriesRow{}
+	for rows.Next() {
+		var i HomeShelfCategoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.Products,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const homeSubcategories = `-- name: HomeSubcategories :many
 SELECT c.parent_id, localized_name(c.name, c.name_en, $1::text) AS name
 FROM categories c
@@ -9201,9 +9330,8 @@ func (q *Queries) HomeSubcategories(ctx context.Context, locale string) ([]HomeS
 }
 
 const homeTiles = `-- name: HomeTiles :many
-
 WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.id = $3::uuid
+    SELECT c.id FROM categories c WHERE c.id = $2::uuid
     UNION ALL
     SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
 )
@@ -9214,17 +9342,11 @@ SELECT
     coalesce(b.name, '') AS brand,
     mv.price_cents AS tile_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
-    -- rather than state one variant's price as the product's. On a campaign's row
-    -- the price can be a discounted variant's with a cheaper one that can be
-    -- bought beside it.
-    (EXISTS (
+    -- rather than state one variant's price as the product's.
+    EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-    ) AND ($2::uuid IS NULL OR NOT EXISTS (
-        SELECT 1 FROM product_variants cv
-        WHERE cv.product_id = p.id AND cv.is_active AND cv.price_cents < mv.price_cents
-          AND cv.stock_quantity > cv.safety_stock
-    )))::boolean AS price_varies,
+    )::boolean AS price_varies,
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
@@ -9257,77 +9379,102 @@ SELECT
         WHERE product_id = p.id AND is_active
           AND stock_quantity > safety_stock
     ) AS in_stock,
+    coalesce(p.warranty_months, 0)::integer AS warranty_months,
+    -- The one variant a card can add without a choice: the product's only
+    -- active variant, while it can be bought; '' for any other product.
     coalesce((
-        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        SELECT min(qv.id::text) FROM product_variants qv
+        WHERE qv.product_id = p.id AND qv.is_active
+        HAVING count(*) = 1 AND bool_and(qv.stock_quantity > qv.safety_stock)
+    ), '')::text AS quick_add,
+    -- The first three specification values, in the order the product lists them.
+    ARRAY(
+        SELECT localized_name(s.value, s.value_en, $1::text)
+        FROM product_specs s WHERE s.product_id = p.id
+        ORDER BY s.position, s.id
+        LIMIT 3
+    )::text[] AS highlights,
+    -- The colour option's values in use, each with its hex, its name, its name
+    -- again where no variant of it is in stock, and the first photograph that
+    -- shows it, all in one order.
+    ARRAY(
+        SELECT cv.swatch_hex FROM product_option_values cv
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::text[] AS colours,
+    ARRAY(
+        SELECT CASE WHEN EXISTS (
+            SELECT 1 FROM variant_option_values sov
+            JOIN product_variants spv ON spv.id = sov.variant_id
+            WHERE sov.option_value_id = cv.id AND spv.is_active AND spv.stock_quantity > spv.safety_stock
+        ) THEN '' ELSE localized_name(cv.value, cv.value_en, $1::text) END
         FROM product_option_values cv
-        WHERE cv.option_id = (
-            SELECT co.id FROM product_options co
-            WHERE co.product_id = p.id
-              AND EXISTS (
-                  SELECT 1 FROM product_option_values x
-                  WHERE x.option_id = co.id AND EXISTS (
-                      SELECT 1 FROM variant_option_values vov
-                      JOIN product_variants pv ON pv.id = vov.variant_id
-                      WHERE vov.option_value_id = x.id AND pv.is_active
-                  )
-              )
-              AND NOT EXISTS (
-                  SELECT 1 FROM product_option_values x
-                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
-                      SELECT 1 FROM variant_option_values vov
-                      JOIN product_variants pv ON pv.id = vov.variant_id
-                      WHERE vov.option_value_id = x.id AND pv.is_active
-                  )
-              )
-            ORDER BY co.position, co.id
-            LIMIT 1
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
         )
-          AND EXISTS (
-                      SELECT 1 FROM variant_option_values vov
-                      JOIN product_variants pv ON pv.id = vov.variant_id
-                      WHERE vov.option_value_id = cv.id AND pv.is_active
-                  )
-    ), ARRAY[]::text[])::text[] AS colours,
-    -- Beside colours, in the same order: the name of a colour no variant of
-    -- which is in stock, and '' where one is.
-    coalesce((
-        SELECT array_agg(
-            CASE WHEN EXISTS (
-                SELECT 1 FROM variant_option_values sov
-                JOIN product_variants spv ON spv.id = sov.variant_id
-                WHERE sov.option_value_id = cv.id AND spv.is_active AND spv.stock_quantity > spv.safety_stock
-            ) THEN '' ELSE localized_name(cv.value, cv.value_en, $1::text) END
-            ORDER BY cv.position, cv.id
-        )
+        ORDER BY cv.position, cv.id
+    )::text[] AS colours_sold_out,
+    ARRAY(
+        SELECT localized_name(cv.value, cv.value_en, $1::text)
         FROM product_option_values cv
-        WHERE cv.option_id = (
-            SELECT co.id FROM product_options co
-            WHERE co.product_id = p.id
-              AND EXISTS (
-                  SELECT 1 FROM product_option_values x
-                  WHERE x.option_id = co.id AND EXISTS (
-                      SELECT 1 FROM variant_option_values vov
-                      JOIN product_variants pv ON pv.id = vov.variant_id
-                      WHERE vov.option_value_id = x.id AND pv.is_active
-                  )
-              )
-              AND NOT EXISTS (
-                  SELECT 1 FROM product_option_values x
-                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
-                      SELECT 1 FROM variant_option_values vov
-                      JOIN product_variants pv ON pv.id = vov.variant_id
-                      WHERE vov.option_value_id = x.id AND pv.is_active
-                  )
-              )
-            ORDER BY co.position, co.id
-            LIMIT 1
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
         )
-          AND EXISTS (
-                      SELECT 1 FROM variant_option_values vov
-                      JOIN product_variants pv ON pv.id = vov.variant_id
-                      WHERE vov.option_value_id = cv.id AND pv.is_active
-                  )
-    ), ARRAY[]::text[])::text[] AS colours_sold_out
+        ORDER BY cv.position, cv.id
+    )::text[] AS colour_names,
+    ARRAY(
+        SELECT coalesce(ci.media_digest, '')
+        FROM product_option_values cv
+        LEFT JOIN LATERAL (
+            SELECT media_digest FROM product_images
+            WHERE product_id = p.id AND option_value_id = cv.id
+            ORDER BY position, id LIMIT 1
+        ) ci ON true
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::text[] AS colour_digests,
+    ARRAY(
+        SELECT coalesce(ci.bundled_key, '')
+        FROM product_option_values cv
+        LEFT JOIN LATERAL (
+            SELECT bundled_key FROM product_images
+            WHERE product_id = p.id AND option_value_id = cv.id
+            ORDER BY position, id LIMIT 1
+        ) ci ON true
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::text[] AS colour_bundled_keys,
+    ARRAY(
+        SELECT coalesce(ci.width, 0)
+        FROM product_option_values cv
+        LEFT JOIN LATERAL (
+            SELECT width FROM product_images
+            WHERE product_id = p.id AND option_value_id = cv.id
+            ORDER BY position, id LIMIT 1
+        ) ci ON true
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::integer[] AS colour_widths
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
@@ -9335,18 +9482,12 @@ JOIN LATERAL (
     FROM product_variants
     WHERE product_id = p.id AND is_active
     -- A buyable variant first: the price on a tile is a promise. Falls back to
-    -- the cheapest overall so a sold-out product still shows what it costs. On a
-    -- campaign's row a discounted variant leads, as on the campaign's own page.
-    ORDER BY ($2::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents AND stock_quantity > safety_stock) DESC,
-             (stock_quantity > safety_stock) DESC,
-             ($2::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents) DESC,
-             price_cents, id
+    -- the cheapest overall so a sold-out product still shows what it costs.
+    ORDER BY (stock_quantity > safety_stock) DESC, price_cents, id
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT avg(rating)::float8 AS rating, count(*) AS n, sum(rating) AS s
+    SELECT avg(rating)::float8 AS rating, count(*) AS n
     FROM visible_reviews
     WHERE product_id = p.id
 ) rv ON true
@@ -9357,27 +9498,57 @@ LEFT JOIN LATERAL (
     ORDER BY position
     LIMIT 1
 ) img ON true
+LEFT JOIN LATERAL (
+    -- The colour option: the first option all of whose values in use are colours.
+    SELECT co.id FROM product_options co
+    WHERE co.product_id = p.id
+      AND EXISTS (
+          SELECT 1 FROM product_option_values x
+          WHERE x.option_id = co.id AND EXISTS (
+              SELECT 1 FROM variant_option_values vov
+              JOIN product_variants pv ON pv.id = vov.variant_id
+              WHERE vov.option_value_id = x.id AND pv.is_active
+          )
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM product_option_values x
+          WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+              SELECT 1 FROM variant_option_values vov
+              JOIN product_variants pv ON pv.id = vov.variant_id
+              WHERE vov.option_value_id = x.id AND pv.is_active
+          )
+      )
+    ORDER BY co.position, co.id
+    LIMIT 1
+) col ON true
 WHERE p.status = 'active'
-  AND ($2::uuid IS NULL OR EXISTS (
-      SELECT 1 FROM sale_campaign_products cp
-      WHERE cp.campaign_id = $2::uuid AND cp.product_id = p.id
+  AND ($2::uuid IS NULL OR p.category_id IN (SELECT d.id FROM d))
+  -- Under a price, only what can be bought: the rail is for adding to a cart.
+  AND ($3::bigint = 0 OR (mv.price_cents < $3::bigint AND EXISTS (
+      SELECT 1 FROM product_variants bv
+      WHERE bv.product_id = p.id AND bv.is_active AND bv.stock_quantity > bv.safety_stock
+  )))
+  AND (NOT $4::boolean OR EXISTS (
+      SELECT 1 FROM product_variants iv
+      WHERE iv.product_id = p.id AND iv.is_active AND iv.stock_quantity > iv.safety_stock
   ))
-  AND ($3::uuid IS NULL OR p.category_id IN (SELECT d.id FROM d))
 ORDER BY NOT (EXISTS (
              SELECT 1 FROM product_variants sv
              WHERE sv.product_id = p.id AND sv.is_active
                AND sv.stock_quantity > sv.safety_stock
          ) AND num_nonnulls(img.media_digest, img.bundled_key) > 0),
-         (SELECT cp.position FROM sale_campaign_products cp
-          WHERE cp.campaign_id = $2::uuid AND cp.product_id = p.id) NULLS LAST,
+         CASE WHEN $5::text = 'asc' THEN mv.price_cents END ASC,
+         CASE WHEN $5::text = 'desc' THEN mv.price_cents END DESC,
          p.published_at DESC, p.id
-LIMIT $4::integer
+LIMIT $6::integer
 `
 
 type HomeTilesParams struct {
 	Locale       string
-	CampaignID   uuid.NullUUID
 	DepartmentID uuid.NullUUID
+	BelowCents   int64
+	InStockOnly  bool
+	PriceOrder   string
 	MaxTiles     int32
 }
 
@@ -9399,21 +9570,30 @@ type HomeTilesRow struct {
 	ImageWidth          int32
 	ImageHeight         int32
 	InStock             bool
+	WarrantyMonths      int32
+	QuickAdd            string
+	Highlights          []string
 	Colours             []string
 	ColoursSoldOut      []string
+	ColourNames         []string
+	ColourDigests       []string
+	ColourBundledKeys   []string
+	ColourWidths        []int32
 }
 
-// The root categories only; children hang off these.
-// One tile query for the three rows the home page draws: a campaign's products
-// in the position the back office set, a department's products, or the newest
-// of the shop. A NULL filter is no filter. status = 'active' is a literal, not
-// a parameter, so the partial index stays usable. A product that can be bought
-// and has a photograph comes first; within each group the order below holds.
+// One tile query for every shelf the home page draws: a department's products
+// (the department and every category under it), the products under a price, or
+// the shop's newest. A NULL or zero filter is no filter. status = 'active' is a
+// literal, not a parameter, so the partial index stays usable. A product that
+// can be bought and has a photograph comes first; within each group the price,
+// where price_order asks for it, then the newest.
 func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTilesRow, error) {
 	rows, err := q.db.Query(ctx, homeTiles,
 		arg.Locale,
-		arg.CampaignID,
 		arg.DepartmentID,
+		arg.BelowCents,
+		arg.InStockOnly,
+		arg.PriceOrder,
 		arg.MaxTiles,
 	)
 	if err != nil {
@@ -9441,8 +9621,15 @@ func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTil
 			&i.ImageWidth,
 			&i.ImageHeight,
 			&i.InStock,
+			&i.WarrantyMonths,
+			&i.QuickAdd,
+			&i.Highlights,
 			&i.Colours,
 			&i.ColoursSoldOut,
+			&i.ColourNames,
+			&i.ColourDigests,
+			&i.ColourBundledKeys,
+			&i.ColourWidths,
 		); err != nil {
 			return nil, err
 		}
@@ -10323,40 +10510,189 @@ func (q *Queries) ListedCampaignsCount(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
-const listingHighlights = `-- name: ListingHighlights :many
-SELECT slug, value FROM (
-    SELECT p.slug, localized_name(s.value, s.value_en, $1::text) AS value,
+const listingSpecs = `-- name: ListingSpecs :many
+SELECT slug, label, value FROM (
+    SELECT p.slug,
+           localized_name(s.label, s.label_en, $1::text) AS label,
+           localized_name(s.value, s.value_en, $1::text) AS value,
            row_number() OVER (PARTITION BY s.product_id ORDER BY s.position, s.id) AS nth
     FROM product_specs s
     JOIN products p ON p.id = s.product_id
     WHERE p.slug = ANY($2::text[])
 ) ranked
-WHERE nth <= 2
+WHERE nth <= 4
 ORDER BY slug, nth
 `
 
-type ListingHighlightsParams struct {
+type ListingSpecsParams struct {
 	Locale string
 	Slugs  []string
 }
 
-type ListingHighlightsRow struct {
+type ListingSpecsRow struct {
 	Slug  string
+	Label string
 	Value string
 }
 
-// The first two specifications each product lists, for the line under its name on a
-// department whose products are compared.
-func (q *Queries) ListingHighlights(ctx context.Context, arg ListingHighlightsParams) ([]ListingHighlightsRow, error) {
-	rows, err := q.db.Query(ctx, listingHighlights, arg.Locale, arg.Slugs)
+// The first four specifications each product lists, for its row in the
+// specification list.
+func (q *Queries) ListingSpecs(ctx context.Context, arg ListingSpecsParams) ([]ListingSpecsRow, error) {
+	rows, err := q.db.Query(ctx, listingSpecs, arg.Locale, arg.Slugs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListingHighlightsRow{}
+	items := []ListingSpecsRow{}
 	for rows.Next() {
-		var i ListingHighlightsRow
-		if err := rows.Scan(&i.Slug, &i.Value); err != nil {
+		var i ListingSpecsRow
+		if err := rows.Scan(&i.Slug, &i.Label, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listingTileFacts = `-- name: ListingTileFacts :many
+SELECT
+    p.slug,
+    coalesce(p.warranty_months, 0)::integer AS warranty_months,
+    coalesce((
+        SELECT min(qv.id::text) FROM product_variants qv
+        WHERE qv.product_id = p.id AND qv.is_active
+        HAVING count(*) = 1 AND bool_and(qv.stock_quantity > qv.safety_stock)
+    ), '')::text AS quick_add,
+    ARRAY(
+        SELECT localized_name(s.value, s.value_en, $1::text)
+        FROM product_specs s WHERE s.product_id = p.id
+        ORDER BY s.position, s.id
+        LIMIT 3
+    )::text[] AS highlights,
+    ARRAY(
+        SELECT localized_name(cv.value, cv.value_en, $1::text)
+        FROM product_option_values cv
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::text[] AS colour_names,
+    ARRAY(
+        SELECT coalesce(ci.media_digest, '')
+        FROM product_option_values cv
+        LEFT JOIN LATERAL (
+            SELECT media_digest FROM product_images
+            WHERE product_id = p.id AND option_value_id = cv.id
+            ORDER BY position, id LIMIT 1
+        ) ci ON true
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::text[] AS colour_digests,
+    ARRAY(
+        SELECT coalesce(ci.bundled_key, '')
+        FROM product_option_values cv
+        LEFT JOIN LATERAL (
+            SELECT bundled_key FROM product_images
+            WHERE product_id = p.id AND option_value_id = cv.id
+            ORDER BY position, id LIMIT 1
+        ) ci ON true
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::text[] AS colour_bundled_keys,
+    ARRAY(
+        SELECT coalesce(ci.width, 0)
+        FROM product_option_values cv
+        LEFT JOIN LATERAL (
+            SELECT width FROM product_images
+            WHERE product_id = p.id AND option_value_id = cv.id
+            ORDER BY position, id LIMIT 1
+        ) ci ON true
+        WHERE cv.option_id = col.id AND EXISTS (
+            SELECT 1 FROM variant_option_values vov
+            JOIN product_variants pv ON pv.id = vov.variant_id
+            WHERE vov.option_value_id = cv.id AND pv.is_active
+        )
+        ORDER BY cv.position, cv.id
+    )::integer[] AS colour_widths
+FROM products p
+LEFT JOIN LATERAL (
+    -- The colour option, as the listing's colours array chooses it.
+    SELECT co.id FROM product_options co
+    WHERE co.product_id = p.id
+      AND EXISTS (
+          SELECT 1 FROM product_option_values x
+          WHERE x.option_id = co.id AND EXISTS (
+              SELECT 1 FROM variant_option_values vov
+              JOIN product_variants pv ON pv.id = vov.variant_id
+              WHERE vov.option_value_id = x.id AND pv.is_active
+          )
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM product_option_values x
+          WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+              SELECT 1 FROM variant_option_values vov
+              JOIN product_variants pv ON pv.id = vov.variant_id
+              WHERE vov.option_value_id = x.id AND pv.is_active
+          )
+      )
+    ORDER BY co.position, co.id
+    LIMIT 1
+) col ON true
+WHERE p.slug = ANY($2::text[])
+`
+
+type ListingTileFactsParams struct {
+	Locale string
+	Slugs  []string
+}
+
+type ListingTileFactsRow struct {
+	Slug              string
+	WarrantyMonths    int32
+	QuickAdd          string
+	Highlights        []string
+	ColourNames       []string
+	ColourDigests     []string
+	ColourBundledKeys []string
+	ColourWidths      []int32
+}
+
+// What a card says beyond its row: the warranty the shop states, the one
+// variant it can add without a choice, the first three specification values,
+// and each colour's name and first photograph, in the order the listing's
+// colours array lists them.
+func (q *Queries) ListingTileFacts(ctx context.Context, arg ListingTileFactsParams) ([]ListingTileFactsRow, error) {
+	rows, err := q.db.Query(ctx, listingTileFacts, arg.Locale, arg.Slugs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListingTileFactsRow{}
+	for rows.Next() {
+		var i ListingTileFactsRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.WarrantyMonths,
+			&i.QuickAdd,
+			&i.Highlights,
+			&i.ColourNames,
+			&i.ColourDigests,
+			&i.ColourBundledKeys,
+			&i.ColourWidths,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -11438,107 +11774,6 @@ func (q *Queries) MyWarranties(ctx context.Context, userID uuid.NullUUID) ([]MyW
 			&i.OrderID,
 			&i.OrderNumber,
 			&i.ProductSlug,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const navPicks = `-- name: NavPicks :many
-WITH RECURSIVE tree AS (
-    SELECT id, id AS root FROM categories WHERE parent_id IS NULL
-    UNION ALL
-    SELECT k.id, t.root FROM categories k JOIN tree t ON k.parent_id = t.id
-),
-recent AS (
-    SELECT t.root, p.id, p.slug, p.name, p.name_en, p.published_at,
-           row_number() OVER (PARTITION BY t.root ORDER BY p.published_at DESC, p.id DESC) AS nth
-    FROM tree t
-    CROSS JOIN LATERAL (
-        SELECT p.id, p.slug, p.name, p.name_en, p.published_at
-        FROM products p
-        WHERE p.category_id = t.id AND p.status = 'active'
-          AND EXISTS (
-              SELECT 1 FROM product_variants v
-              WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock
-          )
-        ORDER BY p.published_at DESC, p.id DESC
-        LIMIT 3
-    ) p
-)
-SELECT r.root AS root_id,
-       r.slug,
-       localized_name(r.name, r.name_en, $1::text) AS name,
-       mv.price_cents,
-       EXISTS (
-           SELECT 1 FROM product_variants dv
-           WHERE dv.product_id = r.id AND dv.is_active AND dv.price_cents > mv.price_cents
-       ) AS price_varies,
-       coalesce(img.media_digest, '') AS image_digest,
-       coalesce(img.bundled_key, '') AS image_bundled_key,
-       coalesce(img.width, 0)::integer AS image_width
-FROM recent r
-JOIN LATERAL (
-    SELECT price_cents
-    FROM product_variants
-    WHERE product_id = r.id AND is_active AND stock_quantity > safety_stock
-    ORDER BY price_cents
-    LIMIT 1
-) mv ON true
-LEFT JOIN LATERAL (
-    SELECT media_digest, bundled_key, width
-    FROM product_images
-    WHERE product_id = r.id
-    ORDER BY position
-    LIMIT 1
-) img ON true
-WHERE r.nth <= 3
-ORDER BY r.root, r.published_at DESC, r.id DESC
-`
-
-type NavPicksRow struct {
-	RootID          uuid.UUID
-	Slug            string
-	Name            string
-	PriceCents      int64
-	PriceVaries     bool
-	ImageDigest     string
-	ImageBundledKey string
-	ImageWidth      int32
-}
-
-// Each department's three newest products that can be bought, for its header
-// panel. One read for all of them, like ChildCategories, on every page with a
-// header, so its cost is bounded by the number of categories and never by the
-// catalogue: each category reads newest-first off
-// products_category_published_idx and stops at its third buyable product, and
-// a department's three newest are among its categories' three newest. Only
-// those few rows are ranked per department, and only the three kept are priced
-// and given a picture. The price is the cheapest buyable variant's, the one a
-// tile would state.
-func (q *Queries) NavPicks(ctx context.Context, locale string) ([]NavPicksRow, error) {
-	rows, err := q.db.Query(ctx, navPicks, locale)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []NavPicksRow{}
-	for rows.Next() {
-		var i NavPicksRow
-		if err := rows.Scan(
-			&i.RootID,
-			&i.Slug,
-			&i.Name,
-			&i.PriceCents,
-			&i.PriceVaries,
-			&i.ImageDigest,
-			&i.ImageBundledKey,
-			&i.ImageWidth,
 		); err != nil {
 			return nil, err
 		}
@@ -17473,6 +17708,120 @@ func (q *Queries) SavedAddresses(ctx context.Context, userID uuid.UUID) ([]Saved
 	return items, nil
 }
 
+const searchMatches = `-- name: SearchMatches :many
+WITH RECURSIVE category_match AS (
+    SELECT t.pattern, c.id
+    FROM unnest($1::text[]) AS t(pattern)
+    JOIN categories c ON c.name ILIKE t.pattern OR coalesce(c.name_en, '') ILIKE t.pattern
+    UNION
+    SELECT m.pattern, c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
+SELECT p.id
+FROM products p
+LEFT JOIN brands b ON b.id = p.brand_id
+WHERE p.status = 'active'
+  -- Both names: matching only the localized column would make the catalogue
+  -- searchable in one language at a time. Every term must match some field, and
+  -- a term may match a different field from its neighbour: "aurora 65w" is a
+  -- brand and a spec.
+  AND NOT EXISTS (
+      SELECT 1 FROM unnest($1::text[]) AS t(pattern)
+      WHERE NOT (
+          p.name ILIKE t.pattern
+          OR coalesce(p.name_en, '') ILIKE t.pattern
+          OR coalesce(p.summary, '') ILIKE t.pattern
+          OR coalesce(p.summary_en, '') ILIKE t.pattern
+          OR coalesce(b.name, '') ILIKE t.pattern
+          OR EXISTS (
+              SELECT 1 FROM category_match m
+              WHERE m.pattern = t.pattern AND m.id = p.category_id
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_variants sku_match
+              WHERE sku_match.product_id = p.id AND sku_match.is_active
+                AND sku_match.sku ILIKE t.pattern
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_specs ps
+              WHERE ps.product_id = p.id
+                AND (ps.label ILIKE t.pattern
+                     OR coalesce(ps.label_en, '') ILIKE t.pattern
+                     OR ps.value ILIKE t.pattern
+                     OR coalesce(ps.value_en, '') ILIKE t.pattern)
+          )
+      )
+  )
+ORDER BY
+    -- Field relevance is explicit; repeated words, sales and ratings do not change it.
+    -- The exact tiers compare the whole query; a name that holds the whole query
+    -- leads one that holds every term in another order, which leads one that
+    -- holds only some, then category, SKU, brand and summary follow on any term.
+    CASE
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants exact_sku
+            WHERE exact_sku.product_id = p.id AND exact_sku.is_active
+              AND exact_sku.sku ILIKE $2::text
+        ) THEN 9
+        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 8
+        WHEN p.name ILIKE '%' || $2::text || '%'
+             OR coalesce(p.name_en, '') ILIKE '%' || $2::text || '%' THEN 7
+        WHEN NOT EXISTS (
+            SELECT 1 FROM unnest($1::text[]) AS t(pattern)
+            WHERE NOT (p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern)
+        ) THEN 6
+        WHEN EXISTS (
+            SELECT 1 FROM unnest($1::text[]) AS t(pattern)
+            WHERE p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern
+        ) THEN 5
+        WHEN EXISTS (SELECT 1 FROM category_match m WHERE m.id = p.category_id) THEN 4
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants partial_sku, unnest($1::text[]) AS t(pattern)
+            WHERE partial_sku.product_id = p.id AND partial_sku.is_active
+              AND partial_sku.sku ILIKE t.pattern
+        ) THEN 3
+        WHEN EXISTS (
+            SELECT 1 FROM unnest($1::text[]) AS t(pattern) WHERE coalesce(b.name, '') ILIKE t.pattern
+        ) THEN 2
+        WHEN EXISTS (
+            SELECT 1 FROM unnest($1::text[]) AS t(pattern)
+            WHERE coalesce(p.summary, '') ILIKE t.pattern OR coalesce(p.summary_en, '') ILIKE t.pattern
+        ) THEN 1
+        ELSE 0
+    END DESC,
+    p.published_at DESC, p.id DESC
+LIMIT $3::integer
+`
+
+type SearchMatchesParams struct {
+	Patterns     []string
+	ExactPattern string
+	RowLimit     int32
+}
+
+// Every product SearchProducts finds, best first, as ids: the search page narrows
+// and counts them with the listing's own queries. The predicate and the relevance
+// tiers are SearchProducts', and have to stay so (search_matches_integration_test.go).
+// @row_limit bounds the array the listing queries are handed.
+func (q *Queries) SearchMatches(ctx context.Context, arg SearchMatchesParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, searchMatches, arg.Patterns, arg.ExactPattern, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchProducts = `-- name: SearchProducts :many
 WITH RECURSIVE category_match AS (
     SELECT t.pattern, c.id
@@ -18533,6 +18882,25 @@ func (q *Queries) SettledRefundsForOrder(ctx context.Context, orderNumber string
 	var refunded_cents int64
 	err := row.Scan(&refunded_cents)
 	return refunded_cents, err
+}
+
+const shelfCompares = `-- name: ShelfCompares :one
+SELECT coalesce(s.comparable, d.comparable, false)::boolean AS compares
+FROM categories s
+LEFT JOIN categories d ON d.id = s.parent_id
+WHERE s.id = $1::uuid
+`
+
+// Whether the featured shelf puts its products side by side, for the compare
+// toggle on its cards: the shown category's own answer, else its department's,
+// as catalog's ComparableCategoryIDs inherits it. The shelf is a department or
+// one of its children, and only a department stores an answer
+// (admin/taxonomy), so this is the answer for every card on the shelf.
+func (q *Queries) ShelfCompares(ctx context.Context, categoryID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, shelfCompares, categoryID)
+	var compares bool
+	err := row.Scan(&compares)
+	return compares, err
 }
 
 const shipmentRecipient = `-- name: ShipmentRecipient :one

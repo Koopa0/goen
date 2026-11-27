@@ -17,9 +17,10 @@ var (
 		En:     "Browse everything in %s",
 	})
 
-	// KeyCompareDiffers is the small mark under the label of a row where the
-	// products disagree.
-	KeyCompareDiffers = key("compare.differs", Message{ZhHant: "規格不同", En: "Differs"})
+	// KeyCompareDiffers is the small mark under the label of a row where every
+	// product states a value and they disagree. It marks the rating and the
+	// warranty as well as the specifications, so it does not say 規格.
+	KeyCompareDiffers = key("compare.differs", Message{ZhHant: "有差異", En: "Differs"})
 
 	KeyCompareDescription = key("compare.description", Message{
 		ZhHant: "把規格擺在一起看，而不是在兩個分頁之間來回。",
@@ -27,9 +28,38 @@ var (
 	})
 
 	KeyCompareHeading = key("compare.heading", Message{
-		ZhHant: "把規格擺在一起",
+		ZhHant: "規格並排比較",
 		En:     "Specifications, side by side",
 	})
+
+	// KeyComparePreset names a ready-made comparison: %d is how many products it
+	// holds and %s the category they are all from.
+	KeyComparePreset = key("compare.preset", Message{
+		ZhHant: "比較 %d 款%s",
+		En:     "Compare %d in %s",
+	})
+
+	// KeyComparePresets names the row of ready-made comparisons, a navigation of
+	// its own beside the page's.
+	KeyComparePresets = key("compare.presets", Message{
+		ZhHant: "預設比較組合",
+		En:     "Ready-made comparisons",
+	})
+
+	// KeyCompareDiffOnly hides the rows every product agrees on. It is done in
+	// the page; nothing is asked of the server.
+	KeyCompareDiffOnly = key("compare.diffonly", Message{
+		ZhHant: "僅顯示差異項目",
+		En:     "Differences only",
+	})
+
+	// KeyCompareBuyRow heads the row of add-to-cart and remove controls under
+	// the products, which the eye reads as part of each product's head.
+	KeyCompareBuyRow = key("compare.row.buy", Message{ZhHant: "購買", En: "Buy"})
+
+	// KeyCompareCount is the header's compare link's name once the visitor keeps
+	// products to compare; %s is how many.
+	KeyCompareCount = countKey("compare.count", "比較，%s 件商品", "Compare, %s product", "Compare, %s products")
 
 	KeyCompareSub = key("compare.sub", Message{
 		ZhHant: "每個商品都有標示的規格排在前面，這些最能直接比較。",
@@ -44,7 +74,7 @@ var (
 
 	KeyCompareTooFewHint = key("compare.toofew.hint", Message{
 		ZhHant: "在",
-		En:     "Tick Compare on products in the ",
+		En:     "Press Compare on products in the ",
 	})
 
 	KeyCompareTooFewLink = key("compare.toofew.link", Message{
@@ -55,23 +85,19 @@ var (
 	// KeyCompareTooFewTail ends the sentence KeyCompareTooFewHint and the link
 	// begin; %d is the most products a comparison holds.
 	KeyCompareTooFewTail = key("compare.toofew.tail", Message{
-		ZhHant: "勾選商品上的「比較」，最多 %d 件。",
+		ZhHant: "按下商品上的「比較」，最多 %d 件。",
 		En:     ", up to %d.",
 	})
 
+	// KeyCompareAdd names the compare toggle a card, a row of the spec list and
+	// the product page carry. A toggle keeps its name pressed or not, so there
+	// is no second wording for a product already in the set.
 	KeyCompareAdd = key("compare.add", Message{ZhHant: "比較", En: "Compare"})
 
 	// KeyCompareAddNamed names the compare page's candidate button.
 	KeyCompareAddNamed = key("compare.add.named", Message{
 		ZhHant: "把 %s 加入比較",
 		En:     "Add %s to the comparison",
-	})
-
-	// KeyCompareLimit is on the form rather than only in the empty state: ticking
-	// six and being shown four is a cap that never said so.
-	KeyCompareLimit = key("compare.limit", Message{
-		ZhHant: "最多比較 %d 件",
-		En:     "Up to %d at a time",
 	})
 
 	KeyCompareFull = key("compare.full", Message{
@@ -99,21 +125,10 @@ var (
 		En:     "%s is in the comparison. Add at least one more product to compare side by side.",
 	})
 
-	KeyCompareSelected = key("compare.selected", Message{
-		ZhHant: "比較所選商品",
-		En:     "Compare selected",
-	})
-
 	KeyCompareCaption = key("compare.caption", Message{
 		ZhHant: "商品規格比較",
 		En:     "Product specification comparison",
 	})
-
-	KeyCompareRowLabel = key("compare.row.label", Message{ZhHant: "項目", En: "Attribute"})
-
-	KeyCompareRowPrice = key("compare.row.price", Message{ZhHant: "價格", En: "Price"})
-
-	KeyCompareRowStock = key("compare.row.stock", Message{ZhHant: "供貨", En: "Availability"})
 
 	KeyCompareRowRating = key("compare.row.rating", Message{ZhHant: "評價", En: "Rating"})
 

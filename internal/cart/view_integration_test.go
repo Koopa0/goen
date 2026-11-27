@@ -79,52 +79,75 @@ func TestStore_ViewColourPhoto(t *testing.T) {
 	}
 }
 
-// TestStore_ItemCountBadge holds that ItemCount counts what the cart holds for
-// the header badge.
-func TestStore_ItemCountBadge(t *testing.T) {
+// TestStore_Badge holds that Badge counts what the cart holds for the header
+// badge, and that its subtotal is the cart page's own: a sold-out line adds
+// nothing and a short one only what can still be sold.
+func TestStore_Badge(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	a, b, _ := ordertest.ThreeVariants(t, pool, "badgefix")
+	a, b, c := ordertest.ThreeVariants(t, pool, "badgefix")
 
-	count := func() int {
+	badge := func() (int, int64) {
 		t.Helper()
-		n, err := s.ItemCount(ctx, id)
+		n, subtotal, err := s.Badge(ctx, id)
 		if err != nil {
-			t.Fatalf("count: %v", err)
+			t.Fatalf("Badge(): %v", err)
 		}
-		return n
+		return n, subtotal
 	}
 
-	if got := count(); got != 0 {
-		t.Errorf("an empty cart counts %d, want 0", got)
+	if n, subtotal := badge(); n != 0 || subtotal != 0 {
+		t.Errorf("an empty cart = %d units, %d cents, want 0 and 0", n, subtotal)
 	}
 	if err := s.Add(ctx, id, a, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	if got := count(); got != 1 {
-		t.Errorf("one unit counts %d, want 1", got)
+	if n, _ := badge(); n != 1 {
+		t.Errorf("one unit counts %d, want 1", n)
 	}
 	if err := s.Add(ctx, id, a, 2); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	if got := count(); got != 3 {
+	if n, _ := badge(); n != 3 {
 		t.Errorf("three units of one variant count %d, want 3 — the badge is "+
-			"counting lines, not items", got)
+			"counting lines, not items", n)
 	}
 	if err := s.Add(ctx, id, b, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	if got := count(); got != 4 {
-		t.Errorf("four units across two variants count %d, want 4", got)
+	if err := s.Add(ctx, id, c, 2); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	// b sells out and c is left with one: the badge still counts every unit,
+	// while the subtotal counts a's three at NT$1,999 and c's one.
+	if _, err := pool.Exec(ctx, `UPDATE product_variants SET stock_quantity = safety_stock WHERE id = $1`, b); err != nil {
+		t.Fatalf("fixture: sell out b: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE product_variants SET stock_quantity = safety_stock + 1 WHERE id = $1`, c); err != nil {
+		t.Fatalf("fixture: leave c short: %v", err)
+	}
+	n, subtotal := badge()
+	if n != 6 {
+		t.Errorf("six units across three variants, one sold out, count %d, want 6", n)
+	}
+	if subtotal != 799600 {
+		t.Errorf("the subtotal = %d cents, want 799600: three of a and the one of c that can be sold", subtotal)
+	}
+	view, err := s.View(ctx, id)
+	if err != nil {
+		t.Fatalf("View(): %v", err)
+	}
+	if subtotal != view.SubtotalCents {
+		t.Errorf("the header's subtotal is %d cents and the cart page's %d", subtotal, view.SubtotalCents)
 	}
 
 	other := newCart(t, s)
 	if err := s.Add(ctx, other, a, 5); err != nil {
 		t.Fatalf("add to other: %v", err)
 	}
-	if got := count(); got != 4 {
-		t.Errorf("this cart counts %d after another cart was filled, want 4", got)
+	if n, after := badge(); n != 6 || after != subtotal {
+		t.Errorf("this cart is %d units, %d cents after another cart was filled, want 6 and %d", n, after, subtotal)
 	}
 }
 

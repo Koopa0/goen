@@ -1,7 +1,16 @@
 package i18n
 
 var (
-	KeyCartFactItems = key("cart.fact.items", Message{ZhHant: "商品", En: "Items"})
+	// KeyCartLineCount heads the cart's lines and the bag drawer: the units a
+	// shopper can still buy, so a sold-out line is not counted.
+	KeyCartLineCount = countKey("cart.lines.count", "%d 件商品", "%d item", "%d items")
+
+	// KeyCartToFree is the free-delivery meter's sentence while the cart is
+	// short of the one amount every method turns free at; %s is the shortfall.
+	KeyCartToFree = key("cart.to_free", Message{ZhHant: "免運還差 %s", En: "%s to free delivery"})
+
+	// KeyCloseCart names the bag drawer's close button, which shows only a cross.
+	KeyCloseCart = key("cart.drawer.close", Message{ZhHant: "關閉購物袋", En: "Close the bag"})
 
 	KeyCartEmptyDesc = key("cart.empty.desc", Message{
 		ZhHant: "還沒有挑到東西？",
@@ -31,8 +40,8 @@ var (
 		"Held once you place the order; start paying within %s minutes")
 
 	KeyCartMixedTaxTypes = key("cart.tax_types.mixed", Message{
-		ZhHant: "應稅與免稅商品須分開結帳，請先將其中一類商品移出購物車。",
-		En:     "Taxable and exempt items need separate orders. Remove one type from the cart before checking out.",
+		ZhHant: "應稅與免稅商品須分開結帳，請先將其中一類商品移出購物袋。",
+		En:     "Taxable and exempt items need separate orders. Remove one type from the bag before checking out.",
 	})
 
 	KeyCartStockShort = key("cart.stock.short", Message{
@@ -54,8 +63,8 @@ var (
 
 	// Opens the cart that /checkout sent a visitor back to because it holds nothing.
 	KeyCartCheckoutEmpty = key("cart.checkout.empty", Message{
-		ZhHant: "購物車是空的，結帳無法繼續。",
-		En:     "Your cart is empty, so checkout cannot continue.",
+		ZhHant: "購物袋是空的，結帳無法繼續。",
+		En:     "Your bag is empty, so checkout cannot continue.",
 	})
 
 	KeyOnlyLeft = key("cart.onlyleft", Message{ZhHant: "僅剩 %s 件", En: "Only %s left"})
@@ -84,29 +93,29 @@ var (
 	})
 
 	KeyReorderAdjusted = key("cart.reorder.adjusted", Message{
-		ZhHant: "再次購買的部分數量已依目前庫存調整，請確認購物車。",
-		En:     "Some quantities from that order were adjusted to available stock. Please review your cart.",
+		ZhHant: "再次購買的部分數量已依目前庫存調整，請確認購物袋。",
+		En:     "Some quantities from that order were adjusted to available stock. Please review your bag.",
 	})
 
 	KeyReorderAdjustedPartial = countKey("cart.reorder.adjusted_partial",
-		"再次購買的部分數量已依目前庫存調整，另有 %d 項已下架或缺貨，請確認購物車。",
-		"Some quantities from that order were adjusted to available stock; %d item is discontinued or out of stock. Please review your cart.",
-		"Some quantities from that order were adjusted to available stock; %d items are discontinued or out of stock. Please review your cart.")
+		"再次購買的部分數量已依目前庫存調整，另有 %d 項已下架或缺貨，請確認購物袋。",
+		"Some quantities from that order were adjusted to available stock; %d item is discontinued or out of stock. Please review your bag.",
+		"Some quantities from that order were adjusted to available stock; %d items are discontinued or out of stock. Please review your bag.")
 
 	KeyReorderAll = countKey("cart.reorder.all",
-		"已把上次的 %d 項商品放回購物車。",
-		"Put %d item from that order back in your cart.",
-		"Put %d items from that order back in your cart.")
+		"已把上次的 %d 項商品放回購物袋。",
+		"Put %d item from that order back in your bag.",
+		"Put %d items from that order back in your bag.")
 
 	KeyReorderNone = key("cart.reorder.none", Message{
-		ZhHant: "上次訂單裡的商品都已經下架或缺貨，沒有東西可以放回購物車。",
+		ZhHant: "上次訂單裡的商品都已經下架或缺貨，沒有東西可以放回購物袋。",
 		En: "Everything in that order is now discontinued or out of stock, so there was " +
 			"nothing to put back.",
 	})
 
 	KeyReorderPartial = key("cart.reorder.partial", Message{
 		ZhHant: "已放回 %d 項，%d 項已下架或缺貨。",
-		En:     "%d put back in your cart; %d left out as discontinued or out of stock.",
+		En:     "%d put back in your bag; %d left out as discontinued or out of stock.",
 	})
 
 	// KeyReorderGone is why a line of a past order was left out when its product
@@ -114,8 +123,8 @@ var (
 	KeyReorderGone = key("cart.reorder.gone", Message{ZhHant: "已下架", En: "Discontinued"})
 
 	KeyCartUnavailable = key("cart.unavailable", Message{
-		ZhHant: "購物車暫時無法使用，請稍後再試。",
-		En:     "The cart is unavailable right now. Please try again shortly.",
+		ZhHant: "購物袋暫時無法使用，請稍後再試。",
+		En:     "The bag is unavailable right now. Please try again shortly.",
 	})
 
 	// KeyPricedFor closes the arithmetic on a line the shelf cannot meet: the

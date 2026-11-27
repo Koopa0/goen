@@ -103,7 +103,8 @@ var longNames = []string{
 
 // TestProductPageReflow holds that the product page reflows with the seed's
 // longest names: in the title and the breadcrumb, beside long option values,
-// and on the related products' cards, at 320 to 1440 wide, in Chinese and
+// in the sold-out face's restock panel, a review and a question, and on the
+// related products' cards, at 320 to 1440 wide, in Chinese and
 // English, at 100% and 200% text, nothing widens the page or runs out of its
 // box. The 40px name is in rem, so at 200% text a model number such as
 // "10000mAh" is wider than a phone's line unless the name may break inside it.
@@ -113,18 +114,32 @@ func TestProductPageReflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The names come twice: picked, with the add button and the chosen options in the bar, and with
-	// nothing picked, where the bar says "from" before the price and offers the way to the choice.
-	view := func(name string, unpicked bool) *ProductView {
+	// The names come three times: picked, with the add button and the chosen options in the bar; with
+	// nothing picked, where the bar says "from" before the price and offers the way to the choice; and
+	// picked but sold out, where the restock form stands on its tinted panel, under a review and above
+	// an answered question.
+	const (
+		picked = iota
+		unpicked
+		soldOut
+		faces
+	)
+	view := func(name string, face int) *ProductView {
 		v := buyBarFixture()
 		v.Name = name
-		if unpicked {
+		switch face {
+		case unpicked:
 			v.Exact, v.PriceVaries = false, true
 			for i := range v.Options {
 				for j := range v.Options[i].Values {
 					v.Options[i].Values[j].Selected = false
 				}
 			}
+		case soldOut:
+			v.Sellable = false
+			v.Rating, v.RatingCount = 4, 1
+			v.Reviews = []ProductReview{{Rating: 4, Title: name, Body: name + " " + name, Verified: true, Author: "Lin"}}
+			v.Questions = []Question{{Asker: "Chen", Body: name + "?", Asked: "11/2", Answers: []Answer{{IsStaff: true, Body: name, At: "11/3"}}}}
 		}
 		v.Options[0].Values[1].Label = "Midnight Graphite Aluminium with Sport Loop"
 		v.Options[1].Values[1].Label = "45mm GPS plus Cellular Titanium"
@@ -140,7 +155,7 @@ func TestProductPageReflow(t *testing.T) {
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
 	mux.HandleFunc("GET /p/{index}", func(w http.ResponseWriter, r *http.Request) {
 		index, convErr := strconv.Atoi(r.PathValue("index"))
-		if convErr != nil || index < 0 || index >= 2*len(longNames) {
+		if convErr != nil || index < 0 || index >= faces*len(longNames) {
 			http.NotFound(w, r)
 			return
 		}
@@ -149,16 +164,16 @@ func TestProductPageReflow(t *testing.T) {
 			ctx = i18n.WithLocale(r.Context(), i18n.En)
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		v := view(longNames[index%len(longNames)], index >= len(longNames))
+		v := view(longNames[index%len(longNames)], index/len(longNames))
 		if renderErr := Product(ProductMeta(v), v).Render(ctx, w); renderErr != nil {
 			t.Errorf("render reflow fixture %d: %v", index, renderErr)
 		}
 	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	args := make([]string, 0, 3+2*len(longNames))
+	args := make([]string, 0, 3+faces*len(longNames))
 	args = append(args, filepath.Join(root, "scripts", "product-reflow-check.mjs"), server.URL, port)
-	for i := range 2 * len(longNames) {
+	for i := range faces * len(longNames) {
 		args = append(args, strconv.Itoa(i))
 	}
 	//nolint:gosec // G204: fixed regression script, test-owned server, caller's Chrome debugging port.

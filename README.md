@@ -10,7 +10,7 @@ A complete e-commerce shop built with Go — from browsing to checkout, after-sa
 
 **Live demo: [goen.koopa0.dev](https://goen.koopa0.dev)**
 
-![The English storefront home page: a campaign slide with its photograph and the days left, the campaign's products, the departments, a department band with its products, and the rules row of payment time, cancellation, returns and free delivery](assets/readme/storefront.en.png)
+![The English storefront home page: the shop's own tile beside the running campaign with the days left and a quick index, one department's shelf with each card's specifications and a compare button, the department's two highest-priced pieces on a dark stage, low-priced everyday pieces with the free-delivery meter, the other departments, and the shop rules of payment time, cancellation, returns and free delivery](assets/readme/storefront.en.png)
 
 ![The English back-office overview: the work waiting and how long it has waited, the last 14 days of revenue with the last 7 against the 7 before, stock running low, and the week's best sellers](assets/readme/backoffice.en.png)
 

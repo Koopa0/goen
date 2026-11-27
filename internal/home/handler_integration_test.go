@@ -21,12 +21,11 @@ import (
 
 	"errors"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/site"
-	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
 )
 
@@ -55,136 +54,325 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// TestHandler_IndexCategoriesProducts holds that Index shows the home page's
-// categories and products; departments fill the carousel only when no slide or
-// campaign does.
-func TestHandler_IndexCategoriesProducts(t *testing.T) {
-	// Departments fill the carousel only when no slide or campaign does.
-	emptyHeroSlides(t)
-	stopCampaigns(t)
-
-	// The department index is the header's own list, which the site's middleware
-	// puts in the request's context; this request goes to the handler directly.
-	nav, err := site.NewStore(pool).Nav(i18n.WithLocale(t.Context(), i18n.ZhHant))
+func load(t *testing.T, ctx context.Context, store *home.Store, choice home.Choice) home.View {
+	t.Helper()
+	view, err := store.Load(ctx, choice)
 	if err != nil {
-		t.Fatalf("read the header: %v", err)
+		t.Fatalf("Load(%+v): %v", choice, err)
 	}
-	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler))
-	req := httptest.NewRequestWithContext(frame.WithTopNav(t.Context(), nav), http.MethodGet, "/", http.NoBody)
-	res := httptest.NewRecorder()
-	h.Index(res, req)
+	return view
+}
 
+// TestHandler_IndexSections holds that Index draws the page's five rhythms
+// from the seeded shop: the hero under its heading, the largest department's
+// shelf with its sub-categories, its stage, the rail and the other
+// departments, then the rules.
+func TestHandler_IndexSections(t *testing.T) {
+	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), catalog.CompareToggle)
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	res := httptest.NewRecorder()
+	h.Index(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
 	if res.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200", res.Code)
 	}
 	body := res.Body.String()
-
-	for _, cat := range []string{"書籍文具", "居家生活", "美妝保養", "服飾配件", "美食飲品", "3C 數位"} {
-		if !strings.Contains(body, cat) {
-			t.Errorf("category tile %q is missing", cat)
+	at := -1
+	for _, want := range []string{
+		`<h1 id="hero-heading" class="goen-bento__headline">` + i18n.T(ctx, i18n.KeyHeroHeadline) + `</h1>`,
+		`id="shelf"`, `class="goen-stage"`, `id="under"`, `id="more"`, `class="goen-home__band goen-home__rules"`,
+	} {
+		i := strings.Index(body, want)
+		if i < 0 {
+			t.Errorf("the page lacks %s", want)
+			continue
 		}
+		if i < at {
+			t.Errorf("%s is drawn out of order", want)
+		}
+		at = i
 	}
-	if strings.Count(body, `class="goen-tile__cell"`) < 4 {
-		t.Error("the product row is missing its tiles")
+	if !strings.Contains(body, `href="/?shelf=phones" hx-get="/?shelf=phones"`) {
+		t.Error("a sub-category pill is not a link htmx fetches from its own address")
 	}
-	if !strings.Contains(body, "NT$") {
-		t.Error("no price is formatted; the tiles have no price")
+	if !strings.Contains(body, `src="/static/media/products/`) || !strings.Contains(body, ` 1600w"`) {
+		t.Error("a product photograph is not mapped to its embedded media with its renditions")
 	}
-	// By shape, not by naming one file: artwork arrives a few products at a time.
-	if !strings.Contains(body, `src="/static/media/products/`) {
-		t.Error("no product storage key was mapped to an embedded media URL")
+	if !strings.Contains(body, `src="/static/media/hero/hero-tech-flagship.webp?v=`) {
+		t.Error("the dark tile does not stand on the bundled photograph")
 	}
-	if !strings.Contains(body, `srcset="/static/media/products/`) ||
-		!strings.Contains(body, ` 400w, `) ||
-		!strings.Contains(body, ` 800w, `) ||
-		!strings.Contains(body, ` 1600w"`) {
-		t.Error("product image is missing its responsive srcset candidates")
-	}
-	if !strings.Contains(body, `width="1600" height="1200" loading="lazy"`) {
-		t.Error("product image is missing its intrinsic dimensions or lazy-loading hint")
-	}
-	// A product with no artwork yet falls back to the tile placeholder.
-	if !strings.Contains(body, "goen-tile__ph") && strings.Count(body, "/static/media/products/") < 8 {
-		t.Error("a tile without embedded artwork rendered neither an image nor the placeholder")
-	}
-	if !strings.Contains(body, `class="goen-hero__slide goen-hero__slide--split"`) {
-		t.Error("with no scheduled slide and no campaign the carousel shows no department")
-	}
-	if !strings.Contains(body, `src="/static/media/products/department-`) {
-		t.Error("a department photograph was not mapped to its embedded media URL")
-	}
-	if !strings.Contains(body, "<html") {
-		t.Error("the home response is not a full document")
+	// The featured shelf is technology's, which compares: each of its eight
+	// cards carries the catalogue's toggle, and no other card on the page does.
+	shelf, stage := strings.Index(body, `id="shelf"`), strings.Index(body, `class="goen-stage"`)
+	if shelf >= 0 && stage > shelf {
+		const toggle = `<form class="goen-comparetoggle" method="post" action="/compare/items"`
+		if got := strings.Count(body[shelf:stage], toggle); got != 8 {
+			t.Errorf("the featured shelf carries %d compare toggles, want one on each of its 8 cards", got)
+		}
+		if got := strings.Count(body, toggle); got != 8 {
+			t.Errorf("the page carries %d compare toggles, want the featured shelf's 8 alone", got)
+		}
 	}
 }
 
-// TestStore_LoadAggregatesTiles holds that Load aggregates the product row into
-// four priced tiles.
-func TestStore_LoadAggregatesTiles(t *testing.T) {
-	v, err := home.NewStore(pool).Load(t.Context())
+// TestStore_LoadShelfCompares holds that the featured shelf compares where its
+// department does: a sub-category chosen takes the department's answer, and a
+// department that stops comparing takes the toggle off its shelf.
+func TestStore_LoadShelfCompares(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, choice := range []home.Choice{{}, {Shelf: "phones"}} {
+		if view := load(t, ctx, home.NewStore(pool), choice); view.Shelf == nil || !view.Shelf.Compares {
+			t.Errorf("shelf %q of technology does not compare", choice.Shelf)
+		}
+	}
+	tx, err := pool.Begin(ctx)
 	if err != nil {
-		t.Fatalf("load: %v", err)
+		t.Fatalf("begin: %v", err)
 	}
-	if len(v.Row.Tiles) != 4 {
-		t.Fatalf("got %d product-row tiles; want 4", len(v.Row.Tiles))
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err = tx.Exec(ctx, `UPDATE categories SET comparable = false WHERE slug = 'tech'`); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	if view := load(t, ctx, home.NewStore(tx), home.Choice{Shelf: "phones"}); view.Shelf == nil || view.Shelf.Compares {
+		t.Error("the phones shelf still compares once technology does not")
+	}
+}
+
+// TestStore_LoadFeaturedShelf holds that the shelf is the department holding
+// the most products, each sub-category counted across its own subtree, and
+// that a chosen sub-category narrows it while a name it does not hold is the
+// whole department.
+func TestStore_LoadFeaturedShelf(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	store := home.NewStore(pool)
+
+	view := load(t, ctx, store, home.Choice{})
+	if view.Featured == nil || view.Featured.Slug != "tech" || view.Featured.Products != 20 {
+		t.Fatalf("Featured = %+v, want tech with its 20 products", view.Featured)
+	}
+	if view.Products != 40 {
+		t.Errorf("Products = %d, want the seed's 40", view.Products)
+	}
+	counts := map[string]int64{}
+	for _, c := range view.Shelf.Filters {
+		counts[c.Slug] = c.Products
+	}
+	want := map[string]int64{"phones": 3, "laptops": 3, "tablets": 2, "audio": 3, "wearables": 3, "accessories": 6}
+	for slug, n := range want {
+		if counts[slug] != n {
+			t.Errorf("the %s pill counts %d, want %d", slug, counts[slug], n)
+		}
+	}
+	if len(view.Shelf.Tiles) != 8 || view.Shelf.Chosen != "" {
+		t.Errorf("the whole shelf holds %d tiles chosen %q, want 8 of all of it", len(view.Shelf.Tiles), view.Shelf.Chosen)
 	}
 
-	for _, tile := range v.Row.Tiles {
-		if tile.PriceCents <= 0 {
-			t.Errorf("tile %q has no price (min active variant)", tile.Slug)
-		}
-		if tile.Name == "" || tile.Brand == "" {
-			t.Errorf("tile %q is missing name or brand", tile.Slug)
-		}
-		if tile.HasImage() && (tile.ImageWidth != 1600 || tile.ImageHeight != 1200) {
-			t.Errorf("tile %q image is %dx%d; want 1600x1200", tile.Slug, tile.ImageWidth, tile.ImageHeight)
-		}
-		if tile.OnSale && tile.CompareCents <= tile.PriceCents {
-			t.Errorf("tile %q claims a sale but the compare price is not higher", tile.Slug)
+	phones := load(t, ctx, store, home.Choice{Shelf: "phones"})
+	if phones.Shelf.Chosen != "phones" || phones.Choice.Shelf != "phones" || len(phones.Shelf.Tiles) != 3 {
+		t.Errorf("the phones shelf is %q with %d tiles, want phones with 3", phones.Shelf.Chosen, len(phones.Shelf.Tiles))
+	}
+	for _, unknown := range []string{"kitchen", "nothing-here"} {
+		other := load(t, ctx, store, home.Choice{Shelf: unknown})
+		if other.Shelf.Chosen != "" || other.Choice.Shelf != "" || len(other.Shelf.Tiles) != 8 {
+			t.Errorf("Choice{Shelf: %q} drew %q with %d tiles, want the whole department", unknown, other.Shelf.Chosen, len(other.Shelf.Tiles))
 		}
 	}
 }
 
-// TestStore_LoadEmptyHeroTable holds that an empty hero table still gives a
-// working home page: one to three department slides, each with a photograph and
-// a button.
+// TestStore_LoadStage holds that the stage is the featured department's two
+// highest-priced products that can be bought, dearest first.
+func TestStore_LoadStage(t *testing.T) {
+	view := load(t, t.Context(), home.NewStore(pool), home.Choice{})
+	if len(view.Stage) != 2 {
+		t.Fatalf("the stage holds %d products, want 2", len(view.Stage))
+	}
+	var dearest int64
+	if err := pool.QueryRow(t.Context(), `
+		WITH RECURSIVE d AS (
+		    SELECT id FROM categories WHERE slug = 'tech'
+		    UNION ALL SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+		)
+		SELECT max(mv.price) FROM products p
+		JOIN LATERAL (
+		    SELECT price_cents AS price FROM product_variants
+		    WHERE product_id = p.id AND is_active AND stock_quantity > safety_stock
+		    ORDER BY price_cents LIMIT 1
+		) mv ON true
+		WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)`).Scan(&dearest); err != nil {
+		t.Fatalf("read the dearest product: %v", err)
+	}
+	if view.Stage[0].PriceCents != dearest || view.Stage[1].PriceCents > view.Stage[0].PriceCents {
+		t.Errorf("the stage is %d then %d, want the dearest %d first", view.Stage[0].PriceCents, view.Stage[1].PriceCents, dearest)
+	}
+	for _, s := range view.Stage {
+		if !s.InStock {
+			t.Errorf("%s is on the stage and cannot be bought", s.Slug)
+		}
+	}
+}
+
+// TestStore_LoadRail holds that the rail is what costs less than its ceiling
+// and can be bought, cheapest first, across every department.
+func TestStore_LoadRail(t *testing.T) {
+	view := load(t, t.Context(), home.NewStore(pool), home.Choice{})
+	if len(view.Rail.Tiles) == 0 {
+		t.Fatal("the seed sells products under NT$1,000 and the rail is empty")
+	}
+	if view.Rail.BelowCents != 100000 {
+		t.Errorf("the rail's ceiling is %d cents, want 100000", view.Rail.BelowCents)
+	}
+	for i, r := range view.Rail.Tiles {
+		if r.PriceCents >= view.Rail.BelowCents || !r.InStock {
+			t.Errorf("%s at %d cents, in stock %t, is on the rail", r.Slug, r.PriceCents, r.InStock)
+		}
+		if i > 0 && view.Rail.Tiles[i-1].PriceCents > r.PriceCents {
+			t.Errorf("%s at %d comes after a dearer product", r.Slug, r.PriceCents)
+		}
+	}
+}
+
+// TestStore_LoadMore holds that the showcase offers every other department
+// that holds products, the first unless the visitor chose another.
+func TestStore_LoadMore(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	store := home.NewStore(pool)
+	view := load(t, ctx, store, home.Choice{})
+	tabs := make([]string, 0, len(view.More.Tabs))
+	for _, c := range view.More.Tabs {
+		tabs = append(tabs, c.Slug)
+	}
+	if want := []string{"books-stationery", "home-living", "beauty", "fashion", "food-drink"}; !slices.Equal(tabs, want) {
+		t.Errorf("the tabs are %v, want %v", tabs, want)
+	}
+	if view.More.Chosen.Slug != "books-stationery" || len(view.More.Tiles) != 4 {
+		t.Errorf("the showcase opens on %s with %d tiles, want books-stationery with 4", view.More.Chosen.Slug, len(view.More.Tiles))
+	}
+	fashion := load(t, ctx, store, home.Choice{More: "fashion"})
+	if fashion.More.Chosen.Slug != "fashion" || fashion.Choice.More != "fashion" {
+		t.Errorf("Choice{More: fashion} opens on %s", fashion.More.Chosen.Slug)
+	}
+	if tech := load(t, ctx, store, home.Choice{More: "tech"}); tech.More.Chosen.Slug != "books-stationery" {
+		t.Errorf("the featured department opened in the showcase: %s", tech.More.Chosen.Slug)
+	}
+}
+
+// TestStore_LoadTileFacts holds that a card carries what its tile says beyond
+// the row: the quick add only for a product's one variant that can be bought,
+// the first three specification values, the stated warranty, and each
+// colour's photograph beside its name.
+func TestStore_LoadTileFacts(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer db.Rollback(ctx, tx)
+	store := home.NewStore(tx)
+	all := load(t, ctx, store, home.Choice{Shelf: "audio"})
+	byslug := map[string]int{}
+	for i, s := range all.Shelf.Tiles {
+		byslug[s.Slug] = i
+	}
+	i, ok := byslug["nimbus-buds-pro"]
+	if !ok {
+		t.Fatal("the audio shelf lacks nimbus-buds-pro")
+	}
+	buds := all.Shelf.Tiles[i]
+	if buds.QuickAdd != "" {
+		t.Errorf("nimbus-buds-pro has three variants and offers a quick add of %s", buds.QuickAdd)
+	}
+	if buds.WarrantyMonths != 12 || len(buds.Highlights) != 3 {
+		t.Errorf("nimbus-buds-pro states %d months and %d specifications, want 12 and 3", buds.WarrantyMonths, len(buds.Highlights))
+	}
+	if len(buds.ColourNames) != len(buds.Colours) || len(buds.ColourPhotos) != len(buds.Colours) {
+		t.Fatalf("nimbus-buds-pro has %d colours, %d names and %d photographs", len(buds.Colours), len(buds.ColourNames), len(buds.ColourPhotos))
+	}
+	// Each colour beside its own photograph, as the seed tags them.
+	own := map[string]string{"雲白": "nimbus-buds-pro-01.webp", "曜石黑": "nimbus-buds-pro-02.webp", "薄荷綠": "nimbus-buds-pro-03.webp"}
+	for j, p := range buds.ColourPhotos {
+		if want := "/static/media/products/" + own[buds.ColourNames[j]]; !strings.HasPrefix(p.URL, want+"?") {
+			t.Errorf("colour %s (%s) shows %q, want its own photograph %s", buds.ColourNames[j], buds.Colours[j], p.URL, want)
+		}
+	}
+
+	rail := load(t, ctx, store, home.Choice{})
+	var pens bool
+	for _, r := range rail.Rail.Tiles {
+		switch r.Slug {
+		case "paperwick-gel-pen-set":
+			pens = true
+			var want string
+			if err = tx.QueryRow(ctx, `
+				SELECT v.id::text FROM product_variants v JOIN products p ON p.id = v.product_id
+				WHERE p.slug = 'paperwick-gel-pen-set' AND v.is_active`).Scan(&want); err != nil {
+				t.Fatalf("read the pen set's variant: %v", err)
+			}
+			if r.QuickAdd != want {
+				t.Errorf("the pen set's quick add is %q, want its one variant %s", r.QuickAdd, want)
+			}
+		case "paperwick-dot-notebook-a5":
+			if r.QuickAdd != "" {
+				t.Errorf("the notebook has three variants and offers a quick add of %s", r.QuickAdd)
+			}
+		}
+	}
+	if !pens {
+		t.Error("the rail lacks the pen set, the cheapest product the seed sells")
+	}
+
+	// Everything but the pen set sold out: the rail, which offers what can be
+	// bought, holds the pen set alone, however few cards it then fills.
+	if _, err = tx.Exec(ctx, `
+		UPDATE product_variants SET stock_quantity = safety_stock
+		WHERE product_id IN (SELECT id FROM products WHERE slug <> 'paperwick-gel-pen-set')`); err != nil {
+		t.Fatalf("sell out the rest: %v", err)
+	}
+	alone := load(t, ctx, store, home.Choice{})
+	slugs := make([]string, 0, len(alone.Rail.Tiles))
+	for _, r := range alone.Rail.Tiles {
+		slugs = append(slugs, r.Slug)
+	}
+	if want := []string{"paperwick-gel-pen-set"}; !slices.Equal(slugs, want) {
+		t.Errorf("with one product in stock the rail is %v, want %v", slugs, want)
+	}
+}
+
+// TestStore_LoadEmptyHeroTable holds that with no slide scheduled and no
+// campaign running, the lifestyle tile leads to the department its bundled
+// photograph shows.
 func TestStore_LoadEmptyHeroTable(t *testing.T) {
-	ctx := t.Context()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	emptyHeroSlides(t)
 	stopCampaigns(t)
-
-	slides := slidesOf(t, ctx)
-	if len(slides) == 0 || len(slides) > 3 {
-		t.Fatalf("an empty table produced %d slides, want 1 to 3 departments", len(slides))
+	slide := firstSlide(t, ctx)
+	if slide.Source != hero.SourceDepartment || slide.CTA.Href != "/c/home-living" || slide.Title != "居家生活" {
+		t.Errorf("the lifestyle tile is %+v, want the home-living department", slide)
 	}
-	for _, slide := range slides {
-		if slide.Layout != hero.LayoutSplit || !slide.Photo.Shown() || !slide.CTA.Shown() {
-			t.Errorf("a department slide is %+v, want a photograph and a button", slide)
-		}
-		if want := i18n.T(ctx, i18n.KeyHeroCampaignCTA); slide.CTA.Label != want {
-			t.Errorf("a department slide's button reads %q, want %q", slide.CTA.Label, want)
-		}
-		if len(slide.Stats) != 2 {
-			t.Errorf("a department slide states %d figures, want items and categories", len(slide.Stats))
-		}
+	if slide.Photo.Shown() {
+		t.Error("a department's tile brought a photograph of its own; it stands on the bundled one")
+	}
+	carousel, err := home.NewStore(pool).Carousel(ctx)
+	if err != nil {
+		t.Fatalf("Carousel(): %v", err)
+	}
+	if len(carousel) != 1 || carousel[0].CTA.Href != slide.CTA.Href {
+		t.Errorf("Carousel() = %+v, want the one tile the page shows", carousel)
 	}
 }
 
-// slidesOf is the carousel the home page would draw.
 func slidesOf(t *testing.T, ctx context.Context) []hero.Slide {
 	t.Helper()
-	view, err := home.NewStore(pool).Load(ctx)
-	if err != nil {
-		t.Fatalf("load home: %v", err)
+	view := load(t, ctx, home.NewStore(pool), home.Choice{})
+	if view.Lifestyle == nil {
+		return nil
 	}
-	return view.Slides
+	return []hero.Slide{*view.Lifestyle}
 }
 
 func firstSlide(t *testing.T, ctx context.Context) hero.Slide {
 	t.Helper()
 	slides := slidesOf(t, ctx)
 	if len(slides) == 0 {
-		t.Fatal("the carousel is empty")
+		t.Fatal("the lifestyle tile is empty")
 	}
 	return slides[0]
 }
@@ -227,20 +415,20 @@ func TestStore_LoadScheduledSlide(t *testing.T) {
 			}
 			slide := firstSlide(t, ctx)
 			if tt.want == "" {
-				if slide.Layout != hero.LayoutSplit {
-					t.Errorf("the first slide is %q, want a department", slide.Title)
+				if slide.Source != hero.SourceDepartment {
+					t.Errorf("the tile is %q from %s, want a department", slide.Title, slide.Source)
 				}
 				return
 			}
-			if slide.Title != tt.want {
-				t.Errorf("headline is %q, want %q", slide.Title, tt.want)
+			if slide.Title != tt.want || slide.Source != hero.SourceScheduled {
+				t.Errorf("the tile is %q from %s, want the scheduled %q", slide.Title, slide.Source, tt.want)
 			}
 		})
 	}
 }
 
-// TestStore_LoadSlideQueueOrder holds that Load keeps the scheduled slides in
-// their queue order and leaves an inactive one out.
+// TestStore_LoadSlideQueueOrder holds that the tile shows the first scheduled
+// slide in queue order and leaves an inactive one out.
 func TestStore_LoadSlideQueueOrder(t *testing.T) {
 	ctx := t.Context()
 	if _, err := pool.Exec(ctx, `DELETE FROM hero_slides`); err != nil {
@@ -262,16 +450,13 @@ func TestStore_LoadSlideQueueOrder(t *testing.T) {
 			t.Fatalf("insert %s: %v", row.headline, err)
 		}
 	}
-
-	slides := slidesOf(t, ctx)
-	if len(slides) < 2 || slides[0].Title != "第二" || slides[1].Title != "第三" {
-		t.Errorf("the queue reads %+v, want 第二 then 第三 — a disabled slide is skipped "+
-			"and the rest keep the order the editor set", slides)
+	if slide := firstSlide(t, ctx); slide.Title != "第二" {
+		t.Errorf("the tile shows %q, want 第二: a disabled slide is skipped and the rest keep the order the editor set", slide.Title)
 	}
 }
 
-// TestStore_LoadHeroImageWidth holds that Load gives the hero image the real
-// width of its uploaded media.
+// TestStore_LoadHeroImageWidth holds that Load gives the slide's photograph
+// the real width of its uploaded media, which its srcset states.
 func TestStore_LoadHeroImageWidth(t *testing.T) {
 	ctx := t.Context()
 	if _, err := pool.Exec(ctx, `DELETE FROM hero_slides`); err != nil {
@@ -291,23 +476,17 @@ func TestStore_LoadHeroImageWidth(t *testing.T) {
 	}
 
 	slide := firstSlide(t, ctx)
-	if slide.PhotoWidth != 1440 {
-		t.Errorf("PhotoWidth is %d, want 1440 — the srcset would state a width "+
-			"the image does not have", slide.PhotoWidth)
-	}
-	if slide.PhotoHeight != 900 {
-		t.Errorf("PhotoHeight is %d, want 900 — without it the hero <img> carries "+
-			"no intrinsic ratio and the copy under it moves when the artwork lands",
-			slide.PhotoHeight)
-	}
 	if !slide.Photo.Shown() {
-		t.Error("a slide with an image drew no photograph")
+		t.Fatal("a slide with an image drew no photograph")
+	}
+	if !strings.HasSuffix(slide.Photo.Srcset, " 1440w") {
+		t.Errorf("the srcset is %q, want it to end at the media's own 1440w", slide.Photo.Srcset)
 	}
 }
 
-// TestStore_LoadOffSiteHeroCTA holds that Load drops an off-site hero button
-// when the slide is read, and keeps the slide. The admin form validates these
-// paths too, but direct SQL and old rows still reach the storefront reader.
+// TestStore_LoadOffSiteHeroCTA holds that Load drops an off-site link when the
+// slide is read, and keeps the slide. The admin form validates these paths
+// too, but direct SQL and old rows still reach the storefront reader.
 func TestStore_LoadOffSiteHeroCTA(t *testing.T) {
 	ctx := t.Context()
 	emptyHeroSlides(t)
@@ -330,8 +509,8 @@ func TestStore_LoadOffSiteHeroCTA(t *testing.T) {
 	}
 }
 
-// stopCampaigns switches every campaign off for the test: a running one takes a
-// carousel slot and the product row, and the development seed runs two.
+// stopCampaigns switches every campaign off for the test: a running one takes
+// the lifestyle tile, and the development seed runs two.
 func stopCampaigns(t *testing.T) {
 	t.Helper()
 	rows, err := pool.Query(t.Context(), `UPDATE sale_campaigns SET is_active = false WHERE is_active RETURNING id`)
@@ -351,9 +530,9 @@ func stopCampaigns(t *testing.T) {
 	})
 }
 
-// TestStore_LoadCampaignSlideOrder holds that Load puts the running campaigns'
-// slides after the scheduled slides, the one ending soonest first.
-func TestStore_LoadCampaignSlideOrder(t *testing.T) {
+// TestStore_LoadCampaignSlide holds that with no slide scheduled the tile is
+// the running campaign that ends first, in the visitor's language.
+func TestStore_LoadCampaignSlide(t *testing.T) {
 	ctx := t.Context()
 	emptyHeroSlides(t)
 	stopCampaigns(t)
@@ -380,34 +559,19 @@ func TestStore_LoadCampaignSlideOrder(t *testing.T) {
 		}
 	})
 
-	for locale, want := range map[i18n.Locale][2]string{
-		i18n.ZhHant: {"較早結束", "較晚結束"},
-		i18n.En:     {"Ends sooner", "Ends later"},
-	} {
-		slides := slidesOf(t, i18n.WithLocale(ctx, locale))
-		if len(slides) < 2 || slides[0].Title != want[0] || slides[1].Title != want[1] {
-			t.Fatalf("%s slides = %+v, want %q then %q first", locale, slides, want[0], want[1])
+	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "較早結束", i18n.En: "Ends sooner"} {
+		slide := firstSlide(t, i18n.WithLocale(ctx, locale))
+		if slide.Title != want || slide.Source != hero.SourceCampaign || slide.CTA.Href != "/s/hero-sooner" {
+			t.Errorf("%s tile = %q from %s to %s, want %q to /s/hero-sooner", locale, slide.Title, slide.Source, slide.CTA.Href, want)
 		}
-		if slides[0].CTA.Href != "/s/hero-sooner" {
-			t.Errorf("%s campaign button goes to %q, want /s/hero-sooner", locale, slides[0].CTA.Href)
+		if slide.Ends == nil {
+			t.Errorf("%s campaign tile does not say when it ends", locale)
 		}
-		if len(slides) != 3 {
-			t.Errorf("%s carousel has %d slides, want one department filling it to 3", locale, len(slides))
-		}
-	}
-
-	view, err := home.NewStore(pool).Load(ctx)
-	if err != nil {
-		t.Fatalf("load home: %v", err)
-	}
-	if view.Row.Href != "/s/hero-sooner" {
-		t.Errorf("the product row is %q, want the campaign ending soonest", view.Row.Href)
 	}
 }
 
 // TestStore_LoadCampaignNothingToBuy: A campaign whose featured product is sold
-// out takes no carousel slide and no product row; a sellable product brings
-// both back.
+// out does not take the tile; a sellable product brings it back.
 func TestStore_LoadCampaignNothingToBuy(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	emptyHeroSlides(t)
@@ -423,23 +587,13 @@ func TestStore_LoadCampaignNothingToBuy(t *testing.T) {
 		}
 	})
 
-	shown := func() (slide, row bool) {
-		for _, s := range slidesOf(t, ctx) {
-			slide = slide || s.CTA.Href == "/s/hero-empty"
-		}
-		view, err := home.NewStore(pool).Load(ctx)
-		if err != nil {
-			t.Fatalf("load home: %v", err)
-		}
-		return slide, view.Row.Href == "/s/hero-empty"
-	}
 	featureProduct(t, "hero-empty", 0)
-	if slide, row := shown(); slide || row {
-		t.Fatalf("a campaign with only a sold-out product is on the home page (slide %v, row %v)", slide, row)
+	if slide := firstSlide(t, ctx); slide.CTA.Href == "/s/hero-empty" {
+		t.Fatal("a campaign with only a sold-out product took the lifestyle tile")
 	}
 	featureProduct(t, "hero-empty", 5)
-	if slide, row := shown(); !slide || !row {
-		t.Fatalf("a campaign with a sellable product is missing from the home page (slide %v, row %v)", slide, row)
+	if slide := firstSlide(t, ctx); slide.CTA.Href != "/s/hero-empty" {
+		t.Fatalf("a campaign with a sellable product is not the lifestyle tile: %+v", slide)
 	}
 }
 
@@ -504,8 +658,8 @@ func cleanupHeroSlide(t *testing.T, ctx context.Context, id uuid.UUID) {
 	})
 }
 
-// TestStore_LoadHeroLocale holds that Load reads the hero slide in the
-// visitor's language.
+// TestStore_LoadHeroLocale holds that Load reads the slide in the visitor's
+// language.
 func TestStore_LoadHeroLocale(t *testing.T) {
 	ctx := t.Context()
 
@@ -521,38 +675,27 @@ func TestStore_LoadHeroLocale(t *testing.T) {
 		RETURNING id`).Scan(&id); err != nil {
 		t.Fatalf("queue a slide: %v", err)
 	}
-	t.Cleanup(func() {
-		// Its own context: t.Context() is cancelled before cleanups run.
-		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		if _, err := pool.Exec(clean, `DELETE FROM hero_slides WHERE id = $1`, id); err != nil {
-			t.Errorf("clean up the slide: %v", err)
-		}
-	})
+	cleanupHeroSlide(t, ctx, id)
 
 	for _, tt := range []struct {
 		name     string
 		locale   i18n.Locale
+		eyebrow  string
 		headline string
 		body     string
 		cta      string
 	}{
-		{name: "Chinese", locale: i18n.ZhHant, headline: "挑一台好的", body: "說明文字", cta: "看商品"},
-		{name: "English", locale: i18n.En, headline: "Choose one good thing", body: "Body copy", cta: "Shop"},
+		{name: "Chinese", locale: i18n.ZhHant, eyebrow: "小標", headline: "挑一台好的", body: "說明文字", cta: "看商品"},
+		{name: "English", locale: i18n.En, eyebrow: "Eyebrow", headline: "Choose one good thing", body: "Body copy", cta: "Shop"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			slide := firstSlide(t, i18n.WithLocale(ctx, tt.locale))
-			if slide.Title != tt.headline {
-				t.Errorf("the headline reads %q, want %q", slide.Title, tt.headline)
-			}
-			if slide.Fact != tt.body {
-				t.Errorf("the line reads %q, want %q", slide.Fact, tt.body)
-			}
-			if slide.CTA.Label != tt.cta {
-				t.Errorf("the button reads %q, want %q", slide.CTA.Label, tt.cta)
+			got := [4]string{slide.Eyebrow, slide.Title, slide.Fact, slide.CTA.Label}
+			if want := [4]string{tt.eyebrow, tt.headline, tt.body, tt.cta}; got != want {
+				t.Errorf("the tile reads %q, want %q", got, want)
 			}
 			if slide.CTA.Href != "/c/phones" {
-				t.Errorf("the button points at %q, want /c/phones", slide.CTA.Href)
+				t.Errorf("the tile points at %q, want /c/phones", slide.CTA.Href)
 			}
 		})
 	}
@@ -571,21 +714,14 @@ func TestStore_LoadSlideNoEyebrow(t *testing.T) {
 		RETURNING id`).Scan(&id); err != nil {
 		t.Fatalf("queue a bare slide: %v", err)
 	}
-	t.Cleanup(func() {
-		// Its own context: t.Context() is cancelled before cleanups run.
-		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		if _, err := pool.Exec(clean, `DELETE FROM hero_slides WHERE id = $1`, id); err != nil {
-			t.Errorf("clean up the slide: %v", err)
-		}
-	})
+	cleanupHeroSlide(t, ctx, id)
 
 	slide := firstSlide(t, i18n.WithLocale(ctx, i18n.En))
 	if slide.Title != "只有標題" {
 		t.Errorf("the headline reads %q", slide.Title)
 	}
-	if slide.Fact != "" {
-		t.Errorf("absent copy came back as %q", slide.Fact)
+	if slide.Fact != "" || slide.Eyebrow != "" {
+		t.Errorf("absent copy came back as %q and %q", slide.Eyebrow, slide.Fact)
 	}
 }
 
@@ -594,7 +730,7 @@ func TestStore_LoadSlideNoEyebrow(t *testing.T) {
 // shipping_method_versions, which a shop edits at /admin/shipping, so a page
 // stating the figure can drift from the till.
 func TestStore_LoadFreeDeliveryStrip(t *testing.T) {
-	ctx := t.Context()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	// A new version, because shipping_method_versions is append-only.
 	if _, err := pool.Exec(ctx, `
@@ -608,34 +744,33 @@ func TestStore_LoadFreeDeliveryStrip(t *testing.T) {
 		t.Fatalf("publish a new threshold: %v", err)
 	}
 
-	view, err := home.NewStore(pool).Load(i18n.WithLocale(ctx, i18n.ZhHant))
-	if err != nil {
-		t.Fatalf("load home: %v", err)
-	}
-
+	view := load(t, ctx, home.NewStore(pool), home.Choice{})
 	// The other active method still carries the seeded 300000; only the higher
 	// threshold is free for both.
 	if got := view.Rules.FreeDeliveryCents; got != 555500 {
 		t.Errorf("the shop rules state a threshold of %d cents, want 555500 — the highest threshold, "+
 			"the one every active method honours", got)
 	}
+	if got, want := view.IndexHead(ctx), "快速索引 · 滿 NT$5,555 免運"; got != want {
+		t.Errorf("IndexHead() = %q, want %q", got, want)
+	}
 
-	if _, bareErr := pool.Exec(ctx, `
+	if _, err := pool.Exec(ctx, `
 		INSERT INTO shipping_method_versions
 		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
 		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier, v.fee_cents, NULL, now()
 		FROM shipping_method_versions v
 		JOIN shipping_methods sm ON sm.id = v.method_id
 		WHERE sm.is_active
-		ORDER BY v.method_id, v.effective_at DESC`); bareErr != nil {
-		t.Fatalf("withdraw free delivery: %v", bareErr)
+		ORDER BY v.method_id, v.effective_at DESC`); err != nil {
+		t.Fatalf("withdraw free delivery: %v", err)
 	}
-	bare, err := home.NewStore(pool).Load(i18n.WithLocale(ctx, i18n.ZhHant))
-	if err != nil {
-		t.Fatalf("load home: %v", err)
-	}
+	bare := load(t, ctx, home.NewStore(pool), home.Choice{})
 	if got := bare.Rules.FreeDeliveryCents; got != 0 {
 		t.Errorf("a shop that charges for every parcel advertises free delivery over %d cents", got)
+	}
+	if got, want := bare.IndexHead(ctx), "快速索引"; got != want {
+		t.Errorf("IndexHead() = %q with no threshold, want %q", got, want)
 	}
 }
 
@@ -661,7 +796,7 @@ func TestHandler_IndexLowestFeeNote(t *testing.T) {
 		t.Fatalf("publish a new fee: %v", err)
 	}
 
-	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler))
+	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), catalog.CompareToggle)
 	req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, i18n.ZhHant), http.MethodGet, "/", http.NoBody)
 	res := httptest.NewRecorder()
 	h.Index(res, req)
@@ -673,13 +808,16 @@ func TestHandler_IndexLowestFeeNote(t *testing.T) {
 	if !strings.Contains(body, "未達門檻運費 NT$80 起") {
 		t.Error("the free-delivery note does not state the current lowest fee")
 	}
-	if strings.Contains(body, "NT$60") {
-		t.Error("the free-delivery note still states the old NT$60 floor")
+	if !strings.Contains(body, "運費 NT$80 起") {
+		t.Error("the quick index does not state the current lowest fee")
+	}
+	if strings.Contains(body, "NT$60 起") {
+		t.Error("the page still states the old NT$60 floor")
 	}
 }
 
-// TestStore_LoadHeaderTilesOrder: The header and the home page's index read one
-// list, so their order is the roots' positions, and two roots sharing a
+// TestStore_LoadHeaderTilesOrder: The header and the home page's showcase read
+// one list, so their order is the roots' positions, and two roots sharing a
 // position is refused at the schema: categories_position_key is NULLS NOT
 // DISTINCT precisely because the ROOT categories are the header, and a plain
 // unique index would treat their NULL parents as distinct and allow the pair.
@@ -739,7 +877,7 @@ func TestHandler_IndexNoteWithoutPickup(t *testing.T) {
 	}
 
 	render := func(s *home.Store) string {
-		h := home.NewHandler(s, slog.New(slog.DiscardHandler))
+		h := home.NewHandler(s, slog.New(slog.DiscardHandler), catalog.CompareToggle)
 		res := httptest.NewRecorder()
 		h.Index(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
 		if res.Code != http.StatusOK {
@@ -789,129 +927,9 @@ func TestStore_LoadLowestFeeAlwaysFree(t *testing.T) {
 		t.Fatalf("publish the fees: %v", err)
 	}
 
-	view, err := home.NewStore(tx).Load(ctx)
-	if err != nil {
-		t.Fatalf("load home: %v", err)
-	}
+	view := load(t, ctx, home.NewStore(tx), home.Choice{})
 	if view.Rules.LowestFeeCents != 8000 {
 		t.Errorf("Rules.LowestFeeCents = %d, want 8000: an always-free pickup method is not the fee below the threshold",
 			view.Rules.LowestFeeCents)
-	}
-}
-
-// TestStore_LoadRowOrder: A campaign's row puts the products that can be bought
-// and have a photograph first, each group in the order the back office set; a
-// sold-out product or one without a photograph comes after them.
-func TestStore_LoadRowOrder(t *testing.T) {
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	emptyHeroSlides(t)
-	stopCampaigns(t)
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin: %v", err)
-	}
-	defer db.Rollback(ctx, tx)
-	var campaignID uuid.UUID
-	if err = tx.QueryRow(ctx, `
-		INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ('row-order', '排序', now() + interval '3 days')
-		RETURNING id`).Scan(&campaignID); err != nil {
-		t.Fatalf("insert campaign: %v", err)
-	}
-	// In the order the back office set them.
-	products := []struct {
-		name  string
-		stock int
-		photo bool
-	}{
-		{"sold out", 0, true},
-		{"no photograph", 5, false},
-		{"first buyable", 5, true},
-		{"second buyable", 5, true},
-	}
-	slugs := make([]string, 0, len(products))
-	for i, p := range products {
-		var id uuid.UUID
-		var slug string
-		if err = tx.QueryRow(ctx, `
-			WITH p AS (
-			    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
-			    SELECT (SELECT id FROM brands LIMIT 1),
-			           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
-			           'order-' || gen_random_uuid(), '排序商品', 'active', now()
-			    RETURNING id, slug
-			), v AS (
-			    INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
-			    SELECT p.id, 'ORDER-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, $1, 0, 0 FROM p
-			)
-			SELECT id, slug FROM p`, p.stock).Scan(&id, &slug); err != nil {
-			t.Fatalf("%s: create product: %v", p.name, err)
-		}
-		if p.photo {
-			if _, err = tx.Exec(ctx, `
-				INSERT INTO product_images (product_id, bundled_key, alt_text, width, height, position)
-				VALUES ($1, 'order.webp', '照片', 1200, 1200, 0)`, id); err != nil {
-				t.Fatalf("%s: insert photograph: %v", p.name, err)
-			}
-		}
-		if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ($1, $2, $3)`, campaignID, id, i); err != nil {
-			t.Fatalf("%s: feature product: %v", p.name, err)
-		}
-		slugs = append(slugs, slug)
-	}
-	view, err := home.NewStore(tx).Load(ctx)
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
-	if view.Row.Href != "/s/row-order" {
-		t.Fatalf("the row is %q, want the campaign's", view.Row.Href)
-	}
-	got := make([]string, 0, len(view.Row.Tiles))
-	for i := range view.Row.Tiles {
-		got = append(got, view.Row.Tiles[i].Slug)
-	}
-	want := []string{slugs[2], slugs[3], slugs[0], slugs[1]}
-	if !slices.Equal(got, want) {
-		t.Errorf("the row is %v, want the buyable products with a photograph first: %v", got, want)
-	}
-}
-
-// TestStore_LoadDepartmentBand: The home page's band is a shelf of four
-// products from a department that holds at least four; it needs no photograph.
-func TestStore_LoadDepartmentBand(t *testing.T) {
-	view, err := home.NewStore(pool).Load(t.Context())
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
-	if view.Band == nil {
-		t.Fatal("the seed has a department with four products and the home page drew no band")
-	}
-	if got := len(view.Band.Tiles); got != 4 {
-		t.Errorf("the band holds %d products, want 4", got)
-	}
-	if view.Band.Items < 4 {
-		t.Errorf("the band's department holds %d products, want at least 4", view.Band.Items)
-	}
-}
-
-// TestStore_LoadBandNoRepeat: The shelf never repeats a product of the row
-// above it, whichever department the day selects.
-func TestStore_LoadBandNoRepeat(t *testing.T) {
-	store := home.NewStore(pool)
-	start := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	for day := range 14 {
-		view, err := store.AtTime(start.AddDate(0, 0, day)).Load(t.Context())
-		if err != nil {
-			t.Fatalf("load on day %d: %v", day, err)
-		}
-		if view.Band == nil {
-			continue
-		}
-		for _, b := range view.Band.Tiles {
-			for _, r := range view.Row.Tiles {
-				if b.Slug == r.Slug {
-					t.Errorf("day %d: %q is on the row and on the %s shelf", day, b.Slug, view.Band.Name)
-				}
-			}
-		}
 	}
 }

@@ -20,9 +20,9 @@ import (
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
-// TestListingPopoverNative holds that the popovers of the listing page, the
-// filter groups and the language menu, keep their pointer and focus behaviour
-// in native browsers.
+// TestListingPopoverNative holds that the listing page's filters, in their
+// column and in their drawer, and the language menu keep their pointer and
+// focus behaviour in native browsers.
 func TestListingPopoverNative(t *testing.T) {
 	name, value := uitest.Browser(t, "GOEN_SAFARI_DRIVER_URL", "GOEN_POPOVER_CDP_PORT")
 	var driver, port string
@@ -60,20 +60,21 @@ func TestListingPopoverNative(t *testing.T) {
 			slug := "department-" + strconv.Itoa(i)
 			nav = append(nav, frame.NavItem{Slug: slug, Name: name, Href: "/c/" + slug, Children: []frame.NavItem{{Slug: "audio", Name: "Audio", Href: "/c/audio"}}})
 		}
-		ctx = frame.WithBanner(frame.WithDeals(frame.WithCartCount(frame.WithTopNav(ctx, nav), 2), true), banner)
+		ctx = frame.WithBanner(frame.WithDeals(frame.WithCart(frame.WithTopNav(ctx, nav), frame.CartSummary{Units: 2}), true), banner)
 		if respond.IsHTMX(r) {
 			ctx = catalog.AsPartial(ctx)
 		}
-		view := catalog.ListingView{
-			Slug: "audio", Name: "Audio", Total: 2, Page: 1, PageSize: 20, Filtered: r.URL.RawQuery != "",
+		view := catalog.ListingView{Slug: "audio", Name: "Audio", Shelf: catalog.Shelf{
+			Path: "/c/audio", Total: 2, Page: 1, PageSize: 20,
+			Filters: catalog.Filters{BrandSlugs: r.URL.Query()["brand"]},
 			Facets: []catalog.FacetGroup{{Kind: catalog.FacetBrand, Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []catalog.FacetOption{
 				{Value: "nimbus", Label: "Nimbus", Count: 1, Selected: r.URL.Query().Get("brand") == "nimbus"},
 				{Value: "aurora", Label: "Aurora", Count: 1, Selected: r.URL.Query().Get("brand") == "aurora"},
 			}}},
 			Products: []tile.Tile{{Slug: "headphones", Name: "Headphones", PriceCents: 10000, InStock: true}},
-		}
+		}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := catalog.Listing(frame.Page{Title: "Audio", Nav: "audio"}, view, nil, nil).Render(ctx, w); renderErr != nil {
+		if renderErr := catalog.Listing(frame.Page{Title: "Audio", Nav: "audio"}, &view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render popover listing: %v", renderErr)
 		}
 	})

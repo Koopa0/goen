@@ -121,7 +121,7 @@ func TestCompareFullNoPicker(t *testing.T) {
 		t.Errorf("a full comparison should show the limit message and no picker")
 	}
 	room := renderToString(t, Compare(frame.Page{Title: "比較"}, compareOf(slugs[:MaxCompare-1]...)))
-	if strings.Contains(room, `role="status"`) || !strings.Contains(room, `goen-compare__picker`) {
+	if strings.Contains(room, `goen-compare__note`) || !strings.Contains(room, `goen-compare__picker`) {
 		t.Errorf("a comparison with room should show the picker and no limit message")
 	}
 
@@ -148,34 +148,6 @@ func TestCompareOneProductInvites(t *testing.T) {
 	}
 	if !strings.Contains(html, "已在比較中") {
 		t.Error("one product does not say it is already in the comparison")
-	}
-}
-
-// TestCompareFormComparable holds that a tile carries the compare box only
-// where it is comparable.
-//
-// The box and the "compare selected" bar come and go together.
-func TestCompareFormComparable(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	candidate := func(comparable bool) tile.Tile {
-		return tile.Tile{Slug: "a", Name: "A", Comparable: comparable}
-	}
-	if !tile.AnyComparable([]tile.Tile{candidate(false), candidate(true)}) || tile.AnyComparable([]tile.Tile{candidate(false)}) || tile.AnyComparable(nil) {
-		t.Error("AnyComparable does not report whether a tile carries the box")
-	}
-	for _, tt := range []struct {
-		comparable bool
-		wantBox    bool
-	}{{true, true}, {false, false}} {
-		html := renderComponent(t, ctx, compareForm(tile.AnyComparable([]tile.Tile{candidate(tt.comparable)})))
-		if got := strings.Contains(html, `id="compare-pick"`); got != tt.wantBox {
-			t.Errorf("comparable=%v: the compare bar is present = %v, want %v", tt.comparable, got, tt.wantBox)
-		}
-		box := renderComponent(t, ctx, tile.Cell(candidate(tt.comparable)))
-		if got := strings.Contains(box, `form="compare-pick"`); got != tt.wantBox {
-			t.Errorf("comparable=%v: the tile's box is present = %v, want %v", tt.comparable, got, tt.wantBox)
-		}
 	}
 }
 
@@ -220,7 +192,7 @@ func TestCompareDifferingRow(t *testing.T) {
 	if strings.Count(html, "is-differs") != 1 {
 		t.Errorf("want exactly the differing row marked, got %d marks", strings.Count(html, "is-differs"))
 	}
-	if !strings.Contains(html, "規格不同") {
+	if !strings.Contains(html, "有差異") {
 		t.Error("the marked row does not say it differs")
 	}
 }
@@ -341,8 +313,8 @@ func TestComparePickerLandmark(t *testing.T) {
 // TestComparePickerLabelAndPlace holds that the search has a visible label and
 // sits in one place whatever the count.
 //
-// With none, one or two products the box is above the empty state or the
-// table, never after it, and it is the storefront's field.
+// With none, one or two products the box follows what the page is about, the
+// empty state or the table, never before it, and it is the storefront's field.
 func TestComparePickerLabelAndPlace(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -364,8 +336,8 @@ func TestComparePickerLabelAndPlace(t *testing.T) {
 		if !strings.Contains(html, `<input class="goen-input" id="compare-q"`) {
 			t.Errorf("%s: the search is not the storefront field", tt.name)
 		}
-		if at, next := strings.Index(html, `id="compare-q"`), strings.Index(html, tt.next); next < 0 || at > next {
-			t.Errorf("%s: the search (at %d) does not come before %s (at %d)", tt.name, at, tt.next, next)
+		if at, before := strings.Index(html, `id="compare-q"`), strings.Index(html, tt.next); before < 0 || at < before {
+			t.Errorf("%s: the search (at %d) does not follow %s (at %d)", tt.name, at, tt.next, before)
 		}
 	}
 }
@@ -388,17 +360,22 @@ func TestCompareMarks(t *testing.T) {
 	} {
 		_, row, _ := strings.Cut(html, `<th scope="row">螢幕`)
 		row, _, _ = strings.Cut(row, "</th>")
-		if !strings.Contains(row, `<span class="goen-compare__differs">規格不同</span>`) {
+		if !strings.Contains(row, `<span class="goen-compare__differs">有差異</span>`) {
 			t.Errorf("%s: the differing row has no visible mark: %s", name, row)
 		}
-		if strings.Contains(html, `goen-sr-only">規格不同`) {
+		if strings.Contains(html, `goen-sr-only">有差異`) {
 			t.Errorf("%s: the differs mark is hidden", name)
 		}
 		if strings.Contains(html, "is-partial") {
 			t.Errorf("%s: a partial row is still greyed whole", name)
 		}
-		if n := strings.Count(html, `<td class="goen-compare__none">—</td>`); n != 1 {
-			t.Errorf("%s: %d dimmed dashes, want 1", name, n)
+		_, battery, _ := strings.Cut(html, `<th scope="row">電池`)
+		battery, _, _ = strings.Cut(battery, "</tr>")
+		if n := strings.Count(battery, `<td class="goen-compare__none">—</td>`); n != 1 || strings.Count(battery, "<td") != 2 {
+			t.Errorf("%s: the battery row dims %d of its cells, want the one unstated: %s", name, n, battery)
+		}
+		if strings.Contains(battery, "goen-compare__differs") {
+			t.Errorf("%s: a spec only one product states is marked as a difference of values: %s", name, battery)
 		}
 	}
 }
@@ -475,9 +452,14 @@ func TestCompareButtonLevels(t *testing.T) {
 	v.Query = "phone"
 	v.Candidates = []CompareCandidate{{Slug: "c", Name: "Cee", Brand: "B"}}
 	v.Suggestions = []tile.Tile{{Slug: "b", Name: "Bee", Brand: "B", PriceCents: 1000}}
-	doc, err := nethtml.Parse(strings.NewReader(renderToString(t, Compare(frame.Page{Title: "比較"}, v))))
+	page, err := nethtml.Parse(strings.NewReader(renderToString(t, Compare(frame.Page{Title: "比較"}, v))))
 	if err != nil {
 		t.Fatal(err)
+	}
+	// The page's own content: the header's link to compare is on every page.
+	doc := findDescendant(page, func(n *nethtml.Node) bool { return n.Type == nethtml.ElementNode && n.Data == "main" })
+	if doc == nil {
+		t.Fatal("the compare page has no <main>")
 	}
 	for _, tt := range []struct{ name, href, want string }{
 		{"remove", v.RemoveHref("a"), "goen-btn--ghost"},

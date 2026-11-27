@@ -17,7 +17,7 @@ func TestListingFirstScreenEager(t *testing.T) {
 		Slug: "tech", Name: "Tech", Products: tiledShelf(16), Total: 30, Page: 1, PageSize: 24,
 		Theme: &Theme{Photo: widget.Photo{URL: "/img/tech.webp", Alt: "tech"}},
 	}
-	page := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
+	page := renderToString(t, Listing(ListingMeta(ctx, &view), &view))
 
 	assertEveryImageReservesItsBox(t, page)
 	// The head draws no photograph, so the first screen's largest paint is the

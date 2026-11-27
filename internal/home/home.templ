@@ -2,49 +2,43 @@ package home
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
-	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
-	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
+// The page runs in five rhythms, never one grid twice in a row: the bento
+// hero, the largest department's shelf, its dark stage, the rail of cheap
+// products, and the other departments one at a time; the shop's rules close it.
 templ Page(p frame.Page, v View) {
 	@frame.Base(p) {
-		<h1 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyHomeHeading) }</h1>
 		if v.AccountErased {
-			<div class="goen-home">
+			<div class="goen-home goen-home__notice">
 				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "account-erased"}) {
 					{ i18n.T(ctx, i18n.KeyAccountErased) }
 				}
 			</div>
 		}
-		if len(v.Slides) > 0 {
-			@heroCarousel(v.Slides)
+		@bento(&v)
+		if v.Shelf != nil {
+			@shelf(&v)
 		}
-		<div class="goen-home">
-			if v.ShowsRow() {
-				@productRow(v.Row)
-			}
-			if v.ShowsDirectory(ctx) {
-				@departmentDirectory()
-			}
-		</div>
-		if v.Band != nil {
-			@departmentBand(v.Band)
+		if len(v.Stage) > 0 && v.Featured != nil {
+			@stage(v.Stage, *v.Featured)
 		}
-		<div class="goen-home">
-			@policy.RulesSection(v.Rules)
-		</div>
+		if len(v.Rail.Tiles) > 0 {
+			@rail(v.Rail)
+		}
+		if v.More != nil {
+			@more(&v)
+		}
+		@rules(&v)
 	}
-}
-
-templ heading(id, name string) {
-	<h2 id={ id } class="goen-home__heading">{ name }</h2>
 }
 
 templ seeAll(label, href string) {
@@ -54,128 +48,287 @@ templ seeAll(label, href string) {
 	</a>
 }
 
-// The carousel moves only when the visitor asks: the named tabs are links to
-// the slides, and the arrows and the count are drawn by goen.js. With one slide
-// there is nothing to move between, so none of them are drawn. A slide is its
-// photograph across the window, then its name, its end and its products in the
-// page column; the tabs stand above the name, at the photograph's foot. A slide
-// with no photograph draws none, so no slide is left holding an empty field;
-// then the tabs stand over the slides, where each begins. The page has no filled
-// button: a slide's way on is its one next-step link.
-templ heroCarousel(slides []hero.Slide) {
-	<section
-		class={ "goen-hero", templ.KV("goen-hero--bare", !hero.AllPhotographed(slides)) }
-		aria-label={ i18n.T(ctx, i18n.KeyHomeFeatured) }
-		if len(slides) > 1 {
-			aria-roledescription={ i18n.T(ctx, i18n.KeyHeroCarouselRole) }
-		}
-	>
-		<div class="goen-hero__track">
-			for i, s := range slides {
-				<article
-					id={ fmt.Sprintf("hero-%d", i+1) }
-					class={ "goen-hero__slide goen-hero__slide--" + string(s.Layout), templ.KV("goen-hero__slide--text", !s.Photo.Shown()) }
-					data-tone={ s.Tone.Attr() }
-					if len(slides) > 1 {
-						aria-roledescription={ i18n.T(ctx, i18n.KeyHeroSlideRole) }
-						aria-label={ fmt.Sprintf("%d / %d", i+1, len(slides)) }
+// The hero is three tiles: the shop's own sentence on the dark tile over the
+// bundled photograph, which is the page's one high-priority image; the
+// lifestyle tile, a slide, a campaign or a department; and the quick index.
+templ bento(v *View) {
+	<section class="goen-bento" aria-labelledby="hero-heading">
+		<div class="goen-bento__grid">
+			<div class="goen-bento__lead">
+				{{ photo := HeroPhoto() }}
+				<img
+					class="goen-bento__photo"
+					src={ photo.URL }
+					srcset={ photo.Srcset }
+					sizes="(min-width: 1024px) 64vw, 100vw"
+					alt=""
+					width="1600"
+					height="893"
+					fetchpriority="high"
+					decoding="async"
+				/>
+				<div class="goen-bento__body">
+					if v.Featured != nil {
+						<p class="goen-bento__eyebrow">{ i18n.Count(ctx, i18n.KeyHeroEyebrow, v.Featured.Products, v.Featured.Products, v.Featured.Name) }</p>
 					}
-				>
-					if s.Photo.Shown() {
-						<div class="goen-hero__media">
-							<img
-								src={ s.Photo.URL }
-								srcset={ s.Photo.Srcset }
-								sizes={ s.PhotoSizes() }
-								alt={ s.Photo.Alt }
-								if s.HasPhotoSize() {
-									width={ s.PhotoWidthText() }
-									height={ s.PhotoHeightText() }
-								}
-								decoding="async"
-								if i == 0 {
-									fetchpriority="high"
-								}
-							/>
-						</div>
+					<h1 id="hero-heading" class="goen-bento__headline">{ i18n.T(ctx, i18n.KeyHeroHeadline) }</h1>
+					if v.Products > 0 {
+						<p class="goen-bento__lede">{ i18n.Count(ctx, i18n.KeyHeroLede, v.Products, v.Products) }</p>
 					}
-					<div class="goen-hero__body">
-						<div class="goen-hero__page">
-							<div class="goen-hero__inner">
-								<h2 class={ "goen-hero__title", templ.KV("goen-hero__title--long", s.TitleLong(i18n.FromContext(ctx))) }>{ s.Title }</h2>
-								if s.Fact != "" {
-									<p class="goen-hero__lede">{ s.Fact }</p>
-								}
-								if s.Ends != nil {
-									<p class="goen-hero__ends">
-										@s.Ends
-									</p>
-								}
-								@widget.StatLine(s.Stats, widget.StatLinePlain)
-								if s.Period != nil {
-									@widget.DayTrack(*s.Period)
-								}
-								if s.CTA.Shown() {
-									@seeAll(s.CTA.Label, s.CTA.Href)
-								}
-							</div>
-							if len(s.Tiles) > 0 {
-								<ul class="goen-hero__tiles" role="list">
-									for _, t := range s.Shelf() {
-										@tile.Cell(t)
-									}
-								</ul>
-							}
-						</div>
+					<div class="goen-bento__actions">
+						if v.Featured != nil {
+							<a class="goen-bento__cta" href={ templ.URL(v.Featured.Href()) }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyHeroShop), v.Featured.Name, v.Featured.Products) }</a>
+						}
+						<a class="goen-bento__ghost" href="/compare">{ i18n.T(ctx, i18n.KeyHeroCompare) }</a>
 					</div>
-				</article>
-			}
-		</div>
-		if len(slides) > 1 {
-			<div class="goen-hero__controls">
-				<nav class="goen-hero__tabs" aria-label={ i18n.T(ctx, i18n.KeySlides) }>
-					for i, s := range slides {
-						<a href={ templ.SafeURL(fmt.Sprintf("#hero-%d", i+1)) }><span class="goen-hero__no" aria-hidden="true">{ fmt.Sprintf("%02d", i+1) }</span>{ s.Title }</a>
-					}
-				</nav>
-				<div class="goen-hero__nav" data-js hidden>
-					<span class="goen-sr-only" data-count aria-live="polite">{ fmt.Sprintf("1 / %d", len(slides)) }</span>
-					<button class="goen-hero__arrow" type="button" data-step="-1" aria-label={ i18n.T(ctx, i18n.KeyHeroPrevious) }>
-						@icons.ChevronLeft()
-					</button>
-					<button class="goen-hero__arrow" type="button" data-step="1" aria-label={ i18n.T(ctx, i18n.KeyHeroNext) }>
-						@icons.ChevronRight()
-					</button>
 				</div>
 			</div>
-		}
+			if v.Lifestyle != nil {
+				@lifestyle(v.Lifestyle)
+			}
+			<nav class="goen-bento__index" aria-labelledby="index-heading">
+				<h2 id="index-heading" class="goen-bento__indexhead">{ v.IndexHead(ctx) }</h2>
+				if links := v.Index(ctx); len(links) > 0 {
+					<ul class="goen-bento__chips" role="list">
+						for _, l := range links {
+							<li>
+								<a class="goen-bento__chip" href={ templ.URL(l.Href) }>
+									<span>{ l.Label }</span>
+									<span aria-hidden="true">→</span>
+								</a>
+							</li>
+						}
+					</ul>
+				}
+				if facts := v.Facts(ctx); len(facts) > 0 {
+					<p class="goen-bento__facts">
+						for i, f := range facts {
+							if i > 0 {
+								<span class="goen-sep" aria-hidden="true">·</span>
+							}
+							<span class="goen-bento__fact">{ f }</span>
+						}
+					</p>
+				}
+			</nav>
+		</div>
 	</section>
 }
 
-// The band is one department's shelf on its tone, across the window: its name,
-// its sub-categories, the way to all of it and four of its products. A Chinese
-// name stands upright beside the products where the column is wide enough at
-// the reader's text size; the department's photograph is the tile above.
-templ departmentBand(b *DepartmentBand) {
-	<section class="goen-band" data-tone={ b.Tone.Attr() } aria-labelledby="band-heading">
-		<div class="goen-band__body">
-			<div class="goen-band__grid">
-				<div class="goen-band__head">
-					<h2 id="band-heading" class="goen-band__name">{ b.Name }</h2>
-					if len(b.Subs) > 0 {
-						<p class="goen-band__fact">
-							for i, name := range b.Subs {
-								if i > 0 {
-									&nbsp;<span class="goen-sep" aria-hidden="true">·</span>
-								}
-								{ name }
-							}
-						</p>
-					}
-					@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, b.Items, b.Items), b.Href)
+// The lifestyle tile is one link where it leads somewhere; its photograph is
+// decorative, the words on it are its name.
+templ lifestyle(s *hero.Slide) {
+	{{ photo := LifestylePhoto(s) }}
+	if s.CTA.Shown() {
+		<a class="goen-bento__life" href={ templ.URL(s.CTA.Href) }>
+			@lifestyleBody(s, photo)
+			<span class="goen-bento__arrow" aria-hidden="true">→</span>
+		</a>
+	} else {
+		<div class="goen-bento__life">
+			@lifestyleBody(s, photo)
+		</div>
+	}
+}
+
+templ lifestyleBody(s *hero.Slide, photo widget.Photo) {
+	<img class="goen-bento__lifephoto" src={ photo.URL } srcset={ photo.Srcset } sizes="(min-width: 1024px) 34vw, 100vw" alt="" decoding="async"/>
+	<span class="goen-bento__lifebody">
+		if s.Eyebrow != "" || s.Ends != nil {
+			<span class="goen-bento__lifeeyebrow">
+				{ s.Eyebrow }
+				if s.Ends != nil {
+					<span class="goen-sep" aria-hidden="true">·</span>
+					@s.Ends
+				}
+			</span>
+		}
+		<span class="goen-bento__lifetitle">{ s.Title }</span>
+		if s.Fact != "" {
+			<span class="goen-bento__lifefact">{ s.Fact }</span>
+		}
+	</span>
+}
+
+// A row of links that each show one part of a list: a real address a reload
+// keeps, which htmx fetches and from whose page it takes the section, handing
+// focus to the same link in the new section.
+templ pill(id, label string, count int64, href, target string, current bool) {
+	<a
+		id={ id }
+		class="goen-pill"
+		href={ templ.URL(href) }
+		if current {
+			aria-current="true"
+		}
+		hx-get={ href }
+		hx-target={ "#" + target }
+		hx-select={ "#" + target }
+		hx-swap="outerHTML"
+		hx-push-url="true"
+		data-focus-after-swap={ id }
+	>
+		<span>{ label }</span>
+		<span class="goen-pill__count">{ strconv.FormatInt(count, 10) }</span>
+	</a>
+}
+
+templ shelf(v *View) {
+	{{ s := v.Shelf }}
+	<section class="goen-home__band" id="shelf" aria-labelledby="shelf-heading">
+		<div class="goen-home">
+			<div class="goen-home__head">
+				<div class="goen-home__title">
+					<h2 id="shelf-heading" class="goen-home__heading">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeShelfTitle), s.Department.Name) }</h2>
+					<p class="goen-home__lede">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeShelfLede), s.Department.Products, v.Products) }</p>
 				</div>
-				<ul class="goen-band__tiles" role="list">
-					for _, t := range b.Tiles {
+				@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, s.Department.Products, s.Department.Products), s.Department.Href())
+			</div>
+			if len(s.Filters) > 1 {
+				<nav class="goen-pills" aria-label={ i18n.T(ctx, i18n.KeyHomeShelfFilter) }>
+					@pill("shelf-all", i18n.T(ctx, i18n.KeyHomeShelfAll), s.Department.Products, Choice{More: v.Choice.More}.Href(), "shelf", s.Chosen == "")
+					for _, c := range s.Filters {
+						@pill("shelf-"+c.Slug, c.Name, c.Products, Choice{Shelf: c.Slug, More: v.Choice.More}.Href(), "shelf", s.Chosen == c.Slug)
+					}
+				</nav>
+			}
+			<ul class="goen-tiles__grid goen-home__shelf" role="list">
+				for _, t := range tile.UnderLeadEager(s.Tiles) {
+					@tile.Cell(t)
+				}
+			</ul>
+		</div>
+	</section>
+}
+
+// The stage is dark in both schemes: the products stand on light plates, as
+// a print is mounted, because a photograph multiplied onto the dark ground
+// would vanish.
+templ stage(tiles []tile.Tile, dept Category) {
+	<section class="goen-stage" aria-labelledby="stage-heading">
+		<div class="goen-home">
+			<p class="goen-stage__eyebrow">{ i18n.T(ctx, i18n.KeyHomeStageEyebrow) }</p>
+			<h2 id="stage-heading" class="goen-stage__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeStageTitle), dept.Name) }</h2>
+			<ul class="goen-stage__grid" role="list">
+				for _, t := range tiles {
+					<li class="goen-stage__card">
+						<a class="goen-stage__plate" href={ templ.URL("/p/" + t.Slug) } aria-hidden="true" tabindex="-1">
+							if t.HasImage() {
+								<img src={ t.ImageURL } srcset={ t.ImageSrcset } sizes="(min-width: 1024px) 24vw, 90vw" alt="" loading="lazy" decoding="async" width={ t.ImageWidthText() } height={ t.ImageHeightText() }/>
+							}
+						</a>
+						<div class="goen-stage__body">
+							if meta := stageMeta(ctx, &t); meta != "" {
+								<p class="goen-stage__meta">{ meta }</p>
+							}
+							<h3 class="goen-stage__name"><a href={ templ.URL("/p/" + t.Slug) }>{ t.Name }</a></h3>
+							if t.Summary != "" {
+								<p class="goen-stage__summary">{ t.Summary }</p>
+							}
+							if len(t.Highlights) > 0 {
+								<ul class="goen-stage__specs" role="list">
+									for _, h := range t.Highlights {
+										<li>{ h }</li>
+									}
+								</ul>
+							}
+							<p class="goen-stage__price">
+								@tile.Price(t)
+								if t.Savings() != "" {
+									<span class="goen-tile__seal">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCardSave), t.Savings()) }</span>
+								}
+							</p>
+							<div class="goen-stage__actions">
+								if t.CanQuickAdd() {
+									@tile.QuickAdd(t)
+								} else {
+									<a class="goen-stage__choose" href={ templ.URL("/p/" + t.Slug) }>
+										{ i18n.T(ctx, i18n.KeyCardChoose) }
+										<span class="goen-sr-only">{ " " + t.Name }</span>
+									</a>
+								}
+								<a class="goen-stage__specslink" href={ templ.URL("/p/" + t.Slug + "#specs-heading") }>
+									{ i18n.T(ctx, i18n.KeyHomeStageSpecs) }
+									<span class="goen-sr-only">{ " " + t.Name }</span>
+								</a>
+							</div>
+						</div>
+					</li>
+				}
+			</ul>
+		</div>
+	</section>
+}
+
+// The meter says where the visitor's cart stands as the header's rail does;
+// htmx reads it again from this page once a card here adds to the cart.
+templ rail(r Rail) {
+	<section class="goen-home__band" id="under" aria-labelledby="under-heading">
+		<div class="goen-home">
+			<div class="goen-home__head">
+				<div class="goen-home__title">
+					<h2 id="under-heading" class="goen-home__heading">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeRailTitle), r.Below()) }</h2>
+					<p class="goen-home__lede">{ i18n.T(ctx, i18n.KeyHomeRailLede) }</p>
+				</div>
+			</div>
+			@meter(CartMeter(ctx))
+			<ul class="goen-home__rail" role="list">
+				for _, t := range r.Shelf() {
+					@tile.Cell(t)
+				}
+			</ul>
+		</div>
+	</section>
+}
+
+templ meter(m Meter) {
+	<div class="goen-meter" id="free-meter" hx-get="/" hx-trigger="goen:cart from:body" hx-select="#free-meter" hx-swap="outerHTML">
+		if m.Shown() {
+			<a class="goen-meter__text" id="meter-text" href={ templ.URL(m.Href) }>{ m.Sentence }</a>
+			if m.Max > 0 {
+				<progress
+					class={ "goen-meter__bar", templ.KV("goen-meter__bar--free", m.Free) }
+					value={ strconv.FormatInt(m.Value, 10) }
+					max={ strconv.FormatInt(m.Max, 10) }
+					aria-labelledby="meter-text"
+				></progress>
+			}
+			if f := m.Figure(); f != "" {
+				<span class="goen-meter__figure" aria-hidden="true">{ f }</span>
+			}
+		}
+	</div>
+}
+
+templ more(v *View) {
+	{{ m := v.More }}
+	<section class="goen-home__band" id="more" aria-labelledby="more-heading">
+		<div class="goen-home">
+			<div class="goen-home__head">
+				<h2 id="more-heading" class="goen-home__heading">{ i18n.T(ctx, i18n.KeyHomeMoreTitle) }</h2>
+			</div>
+			if len(m.Tabs) > 1 {
+				<nav class="goen-pills" aria-label={ i18n.T(ctx, i18n.KeyHomeMoreTabs) }>
+					for _, c := range m.Tabs {
+						@pill("more-"+c.Slug, c.Name, c.Products, Choice{Shelf: v.Choice.Shelf, More: c.Slug}.Href(), "more", c.Slug == m.Chosen.Slug)
+					}
+				</nav>
+			}
+			<div class="goen-more">
+				<a class="goen-more__photo" href={ templ.URL(m.Chosen.Href()) }>
+					if m.Photo.Shown() {
+						<img src={ m.Photo.URL } srcset={ m.Photo.Srcset } sizes="(min-width: 1024px) 30vw, 100vw" alt="" loading="lazy" decoding="async"/>
+					}
+					<span class="goen-more__overlay">
+						<span class="goen-more__name">{ m.Chosen.Name }</span>
+						if len(m.Subs) > 0 {
+							<span class="goen-more__subs">{ strings.Join(m.Subs, " · ") }</span>
+						}
+						<span class="goen-more__count">{ i18n.Count(ctx, i18n.KeyHomeSeeAllCount, m.Chosen.Products, m.Chosen.Products) }</span>
+					</span>
+				</a>
+				<ul class="goen-more__grid" role="list">
+					for _, t := range m.Tiles {
 						@tile.Cell(t)
 					}
 				</ul>
@@ -184,40 +337,12 @@ templ departmentBand(b *DepartmentBand) {
 	</section>
 }
 
-// The departments are the index the missing page and the empty search draw
-// too (frame.DepartmentIndex), read from the header's own row.
-templ departmentDirectory() {
-	<section class="goen-home__section" aria-labelledby="cats-heading">
-		<div class="goen-home__head">
-			@heading("cats-heading", i18n.T(ctx, i18n.KeySectionCategories))
+// The shop's rules, four cards: each is read from where it is enforced.
+templ rules(v *View) {
+	<section class="goen-home__band goen-home__rules" aria-labelledby="rules-heading">
+		<div class="goen-home">
+			<h2 id="rules-heading" class="goen-home__heading">{ i18n.T(ctx, i18n.KeySectionRules) }</h2>
+			@widget.StatLine(v.Rules.Stats(ctx), widget.StatLineWide)
 		</div>
-		@frame.DepartmentIndex()
 	</section>
-}
-
-// A running campaign's row is its products under a heading that says which
-// campaign it is, the last day and how many products it holds. With no campaign
-// the row is the newest products. The row is a sample of a longer list: the
-// link carries the rest.
-templ productRow(r ProductRow) {
-	if len(r.Tiles) > 0 {
-		<section class="goen-home__section" aria-labelledby="row-heading">
-			<div class="goen-home__head">
-				@heading("row-heading", r.Title)
-				if r.Campaign != nil {
-					<p class="goen-home__ends">
-						@campaign.Ends(r.Campaign.End)
-					</p>
-					@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
-				} else {
-					@seeAll(i18n.T(ctx, i18n.KeyHomeNewInCTA), r.Href)
-				}
-			</div>
-			<ul class="goen-tiles__grid goen-home__row" role="list">
-				for _, t := range r.Shelf() {
-					@tile.Cell(t)
-				}
-			</ul>
-		</section>
-	}
 }

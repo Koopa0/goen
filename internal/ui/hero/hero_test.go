@@ -4,28 +4,24 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/ui/hero"
-	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// TestAllPhotographed holds that the carousel stands its tabs at the
-// photographs' foot only when every slide has a photograph: one slide without
-// one is enough to take that height away.
-func TestAllPhotographed(t *testing.T) {
+// TestCTA_Shown holds that a slide leads somewhere only with both a label and
+// a link: a link the store refused leaves the label alone, and the tile is
+// then drawn without one.
+func TestCTA_Shown(t *testing.T) {
 	t.Parallel()
-	photographed := hero.Slide{Photo: widget.Photo{URL: "/img/a.webp"}}
-	bare := hero.Slide{}
 	for name, tc := range map[string]struct {
-		slides []hero.Slide
-		want   bool
+		cta  hero.CTA
+		want bool
 	}{
-		"no slides":          {nil, true},
-		"all photographed":   {[]hero.Slide{photographed, photographed}, true},
-		"the last has none":  {[]hero.Slide{photographed, bare}, false},
-		"the first has none": {[]hero.Slide{bare, photographed}, false},
-		"none":               {[]hero.Slide{bare}, false},
+		"both":     {hero.CTA{Label: "看活動", Href: "/s/autumn"}, true},
+		"no link":  {hero.CTA{Label: "看活動"}, false},
+		"no label": {hero.CTA{Href: "/s/autumn"}, false},
+		"neither":  {hero.CTA{}, false},
 	} {
-		if got := hero.AllPhotographed(tc.slides); got != tc.want {
-			t.Errorf("%s: AllPhotographed = %v, want %v", name, got, tc.want)
+		if got := tc.cta.Shown(); got != tc.want {
+			t.Errorf("%s: %+v.Shown() = %v, want %v", name, tc.cta, got, tc.want)
 		}
 	}
 }

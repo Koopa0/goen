@@ -6,9 +6,15 @@ var (
 	KeySearch = key("nav.search", Message{ZhHant: "搜尋", En: "Search"})
 
 	KeySearchHint = key("nav.search.hint", Message{
-		ZhHant: "搜尋商品或品牌",
-		En:     "Search products",
+		ZhHant: "搜尋商品、品牌或規格",
+		En:     "Search products, brands or specs",
 	})
+
+	// KeySearchSuggestions names the list under the search field; KeySearchSuggestAll
+	// leads from it to every result, %s their number.
+	KeySearchSuggestions = key("nav.search.suggestions", Message{ZhHant: "搜尋建議", En: "Suggestions"})
+
+	KeySearchSuggestAll = countKey("nav.search.suggestions.all", "查看全部 %s 件商品", "See the %s product", "See all %s products")
 
 	KeyMenu = key("nav.menu", Message{ZhHant: "選單", En: "Menu"})
 
@@ -18,14 +24,28 @@ var (
 
 	KeyWishlist = key("nav.wishlist", Message{ZhHant: "願望清單", En: "Wishlist"})
 
-	KeyCart = key("nav.cart", Message{ZhHant: "購物車", En: "Cart"})
+	KeyCart = key("nav.cart", Message{ZhHant: "購物袋", En: "Bag"})
 
 	KeyCartEmpty = key("nav.cart.empty", Message{
-		ZhHant: "購物車，目前是空的",
-		En:     "Cart, currently empty",
+		ZhHant: "購物袋，目前是空的",
+		En:     "Bag, currently empty",
 	})
 
-	KeyCartCount = countKey("nav.cart.count", "購物車，%s 件商品", "Cart, %s item", "Cart, %s items")
+	KeyCartCount = countKey("nav.cart.count", "購物袋，%s 件商品", "Bag, %s item", "Bag, %s items")
+
+	// KeyCartCountSubtotal is the cart link's name where the bar shows the
+	// subtotal too; the first %s is the count and the second the subtotal.
+	KeyCartCountSubtotal = countKey("nav.cart.count.subtotal",
+		"購物袋，%s 件商品，小計 %s", "Bag, %s item, subtotal %s", "Bag, %s items, subtotal %s")
+
+	// KeyFreeDeliveryReached is the rail's word once every method offered is
+	// free; KeyFreeDeliveryReachedExcept names the zones still charged extra.
+	KeyFreeDeliveryReached = key("nav.freedelivery.reached", Message{ZhHant: "已享免運", En: "Free delivery"})
+
+	KeyFreeDeliveryReachedExcept = key("nav.freedelivery.reached.except", Message{
+		ZhHant: "已享免運（%s另計）",
+		En:     "Free delivery, except %s",
+	})
 
 	KeyDeals = key("nav.deals", Message{ZhHant: "優惠", En: "Deals"})
 
@@ -45,10 +65,6 @@ var (
 		ZhHant: "訂單、庫存與商品都在這裡管理",
 		En:     "Orders, stock and the catalogue are managed here",
 	})
-
-	// The caption under a department's photograph in its header panel; %s is the
-	// department's name.
-	KeyBrowseDepartment = key("nav.department.browse", Message{ZhHant: "逛逛%s", En: "Shop %s"})
 
 	KeyFooterHelp = key("footer.help", Message{ZhHant: "顧客服務", En: "Customer service"})
 

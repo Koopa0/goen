@@ -42,9 +42,9 @@ func TestPageWithoutDelivery(t *testing.T) {
 					want.ShippingGroups, want.ShippingOptions = 1, 1
 				} else {
 					want.DisabledButtons, want.UnavailableMessages, want.UnavailableSummaries = 2, 1, 1
-					want.Message = "No delivery method is available for this cart. Change the items or contact us."
+					want.Message = "No delivery method is available for this bag. Change the items or contact us."
 					if locale == i18n.ZhHant {
-						want.Message = "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"
+						want.Message = "購物袋中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"
 					}
 				}
 				if diff := cmp.Diff(want, got); diff != "" {

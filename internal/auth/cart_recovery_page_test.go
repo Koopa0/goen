@@ -73,13 +73,13 @@ func TestCartRecoveryBothCarts(t *testing.T) {
 			if back == nil || !strings.Contains(attrValue(back, "class"), "goen-btn--outline") {
 				t.Error("secondary cart link has no visible button boundary")
 			}
-			wording := []string{"Your carts weren't combined", "The items you added before signing in haven't been added to your account's cart yet.", "Add these items", "Not now, back to cart"}
+			wording := []string{"Your bags weren't combined", "The items you added before signing in haven't been added to your account's bag yet.", "Add these items", "Not now, back to bag"}
 			if locale == i18n.ZhHant {
 				wording = []string{
-					"\u8cfc\u7269\u8eca\u6c92\u6709\u5408\u5728\u4e00\u8d77",
-					"\u4f60\u767b\u5165\u524d\u653e\u9032\u8cfc\u7269\u8eca\u7684\u5546\u54c1\uff0c\u9084\u6c92\u6709\u52a0\u5230\u5e33\u865f\u7684\u8cfc\u7269\u8eca\u88e1\u3002",
+					"\u8cfc\u7269\u888b\u6c92\u6709\u5408\u5728\u4e00\u8d77",
+					"\u4f60\u767b\u5165\u524d\u653e\u9032\u8cfc\u7269\u888b\u7684\u5546\u54c1\uff0c\u9084\u6c92\u6709\u52a0\u5230\u5e33\u865f\u7684\u8cfc\u7269\u888b\u88e1\u3002",
 					"\u628a\u9019\u4e9b\u5546\u54c1\u52a0\u9032\u53bb",
-					"\u5148\u4e0d\u7528\uff0c\u56de\u5230\u8cfc\u7269\u8eca",
+					"\u5148\u4e0d\u7528\uff0c\u56de\u5230\u8cfc\u7269\u888b",
 				}
 			}
 			heading := findDescendant(doc, func(n *html.Node) bool { return n.Type == html.ElementNode && n.Data == "h1" })

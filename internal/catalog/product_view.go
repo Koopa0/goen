@@ -206,10 +206,16 @@ type ProductView struct {
 	NotifyOutcome  NotifyOutcome
 	NotifyEmail    string
 	AccountEmail   string
-	Comparing      []string
-	Comparable     bool
-	Questions      []Question
-	AskOutcome     string
+	// Comparable is the department's answer to whether its products are put
+	// side by side: the buy column carries the compare toggle where it is.
+	Comparable bool
+	// Similar are the products on the same shelf priced closest to this one,
+	// at most presetProducts-1 of them, for the ready-made comparison under the
+	// specifications; none where the department does not compare or the shelf
+	// holds nothing else.
+	Similar    []string
+	Questions  []Question
+	AskOutcome string
 	// AskDraft replays a refused question so a 422 does not empty the textarea.
 	AskDraft     string
 	AddedOutcome cartitem.AddOutcome
@@ -293,6 +299,31 @@ func (v *ProductView) Price() string { return money.TWD(v.PriceCents) }
 func (v *ProductView) PriceFrom() bool { return v.PriceVaries && !v.Exact }
 
 func (v *ProductView) Compare() string { return money.TWD(v.CompareCents) }
+
+// SavesText is the seal beside a struck price: how much less than the original, in money and not a
+// percentage. Read only while OnSale, which holds the original above the price.
+func (v *ProductView) SavesText(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPDPSaves), money.TWD(v.CompareCents-v.PriceCents))
+}
+
+// PriceCentsText is the unit price goen.js multiplies by the quantity for the add button's sum.
+func (v *ProductView) PriceCentsText() string { return strconv.FormatInt(v.PriceCents, 10) }
+
+// ShowsSKU is true once one variant is chosen: before that the page's price is the cheapest variant's,
+// and its code would name a variant the visitor has not picked.
+func (v *ProductView) ShowsSKU() bool { return v.SelectionOK && v.Exact && v.SKU != "" }
+
+// StockWord is what the stock line says of a chosen variant that can be bought: in stock, or how few are
+// left. A sold-out choice is named by SoldOutWho, and before a choice no one variant's stock is stated.
+func (v *ProductView) StockWord(ctx context.Context) string {
+	if !v.CanBuy() {
+		return ""
+	}
+	if v.LowStock() {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText())
+	}
+	return i18n.T(ctx, i18n.KeyInStock)
+}
 
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
 
@@ -503,9 +534,6 @@ func (v *ProductView) HasRecommendations() bool { return len(v.AlsoBought) > 0 }
 
 func (v *ProductView) HasQuestions() bool { return len(v.Questions) > 0 }
 
-// HasOpinions is false while nobody has reviewed or asked.
-func (v *ProductView) HasOpinions() bool { return v.HasRating() || v.HasQuestions() }
-
 func (v *ProductView) AskTaken() bool { return v.AskOutcome == "1" }
 
 func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" || v.AskTooLong() }
@@ -529,87 +557,48 @@ func (v *ProductView) AskSignInHref() string {
 	return "/signin?next=/p/" + v.Slug + "%23questions"
 }
 
+// CompareHref is the ready-made comparison the specifications lead to: the
+// product first, then Similar. A link, as the compare page's own ready-made
+// comparisons are, so following it leaves the shopper's compare set as it was.
 func (v *ProductView) CompareHref() string {
-	var b strings.Builder
-	b.WriteString("/compare")
-	sep := "?"
-	for _, slug := range v.Comparing {
-		if slug == v.Slug {
-			continue
-		}
-		b.WriteString(sep)
-		b.WriteString("p=")
-		b.WriteString(slug)
-		sep = "&"
-	}
-	b.WriteString(sep)
-	b.WriteString("p=")
-	b.WriteString(v.Slug)
-	return b.String()
+	return "/compare?" + url.Values{"p": append([]string{v.Slug}, v.Similar...)}.Encode()
 }
 
-func (v *ProductView) AlreadyComparing() bool {
-	return slices.Contains(v.Comparing, v.Slug)
-}
-
-func (v *ProductView) CurrentCompareHref() string {
-	return "/compare?" + url.Values{"p": v.Comparing}.Encode()
-}
-
-func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }
-
-// maxHighlights is how many specification values stand under the name.
-const maxHighlights = 3
-
-// Highlights are the first specification values, written one after another under the name, on a
-// product whose department compares, as its tile carries them. Elsewhere a specification is as often a
-// direction or a plain yes, which says nothing without its label.
-func (v *ProductView) Highlights() []string {
-	if !v.Comparable {
-		return nil
-	}
-	var out []string
-	for _, s := range v.Specs {
-		if s.Value != "" && len(out) < maxHighlights {
-			out = append(out, s.Value)
-		}
-	}
-	return out
-}
-
-// BuyFacts are the terms the buyer is told beside the button: the warranty the product carries, and the stock hold
-// only while there is stock to hold. Returns and delivery are the shipping section's (ShippingFacts).
+// BuyFacts are the terms the buyer is told under the button: the warranty the product carries, what delivery
+// costs and where it turns free, and the stock hold only while there is stock to hold. Each is read from where
+// the shop states it. Returns are the shipping section's (ShippingFacts).
 func (v *ProductView) BuyFacts(ctx context.Context) []widget.Stat {
-	stats := make([]widget.Stat, 0, 2)
+	stats := make([]widget.Stat, 0, 3)
 	if v.HasWarranty() {
 		stats = append(stats, widget.Stat{
 			Label: i18n.T(ctx, i18n.KeySectionWarranty),
 			Value: widget.StatCount(int64(v.WarrantyMonths), widget.CountUnit(ctx, i18n.KeyUnitMonths, int64(v.WarrantyMonths))),
 		})
 	}
+	stats = append(stats, v.Rules.FreeDeliveryStat(ctx))
 	if v.AnySellable {
 		stats = append(stats, v.Rules.PayStartStat(ctx))
 	}
 	return stats
 }
 
-// ShippingFacts are the shipping and returns section's rows. The two return rules stay two rows: the
-// statutory window and goen's own are different promises, each counted from the point its note states.
+// ShippingFacts are the shipping and returns section's rows; what delivery costs is said under the button
+// (BuyFacts). The two return rules stay two rows: the statutory window and goen's own are different
+// promises, each counted from the point its note states.
 func (v *ProductView) ShippingFacts(ctx context.Context) []widget.Stat {
 	return []widget.Stat{
 		v.Rules.RescissionStat(ctx),
 		v.Rules.ReturnStat(ctx),
-		v.Rules.FreeDeliveryStat(ctx),
 	}
 }
 
-// RestockNote is the sentence over the notify form while a pick is still wanted; once one is made the
-// status line above the options already says what is sold out, so there is none.
+// RestockNote heads the restock form: that the chosen variant is out of stock, or, while no variant is
+// chosen, the request to pick one.
 func (v *ProductView) RestockNote(ctx context.Context) string {
 	if v.NeedsChoice() {
 		return i18n.T(ctx, i18n.KeyRestockPick)
 	}
-	return ""
+	return i18n.T(ctx, i18n.KeyRestockTitle)
 }
 
 // optionSeparator joins the chosen option values wherever they are written on one line.
@@ -668,11 +657,6 @@ func (v *ProductView) FirstInvalidOption() int {
 		}
 	}
 	return -1
-}
-
-// ReviewCount is the number of reviews in words, as the review section's summary says it.
-func (v *ProductView) ReviewCount(ctx context.Context) string {
-	return i18n.Count(ctx, i18n.KeyReviewCount, v.RatingCount, v.ReviewCountText())
 }
 
 // ValueSoldOut is the words an option value that leads to nothing buyable carries: sold out for the

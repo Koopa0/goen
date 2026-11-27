@@ -288,9 +288,9 @@ func deliveryForm(t *testing.T, body string) map[string]string {
 
 func assertNoDelivery(t *testing.T, res *httptest.ResponseRecorder, locale i18n.Locale) {
 	t.Helper()
-	message := "No delivery method is available for this cart. Change the items or contact us."
+	message := "No delivery method is available for this bag. Change the items or contact us."
 	if locale == i18n.ZhHant {
-		message = "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"
+		message = "購物袋中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"
 	}
 	body := res.Body.String()
 	if !strings.Contains(body, message) || !strings.Contains(body, `id="shipping-unavailable"`) || strings.Contains(body, `name="shipping"`) {

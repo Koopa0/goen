@@ -1,8 +1,10 @@
 // Package tile is a product as one card in a grid of products, drawn the same
 // on every page that lists products; it holds the tile's view, its card, grid
-// cell and price line with the struck compare-at price, and which tiles load at
-// once; it does not hold whether a price is struck (campaign.OnSale, which the
-// caller applies), the pages that list tiles (catalog, campaign, home,
+// cell and price line with the struck compare-at price and the savings seal,
+// its colour swatches and its quick add, and which tiles load at once; it does
+// not hold whether a price is struck (campaign.OnSale, which the caller
+// applies), the compare control a card draws (the caller hands it over, as
+// catalog.CompareToggle), the pages that list tiles (catalog, campaign, home,
 // wishlist) or page elements without a product (ui/widget).
 package tile
 
@@ -14,8 +16,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -55,11 +60,55 @@ type Tile struct {
 	// ColoursSoldOut runs beside Colours: a colour's name where no variant of it
 	// is in stock, "" where one is. Shorter than Colours, or nil, marks nothing.
 	ColoursSoldOut []string
-	// Set only where somebody is choosing between candidates (listing, search); not a
-	// shop window, a promotional list or a wishlist.
-	Comparable bool
-	// Highlights are the first specifications a comparable product lists, for the line under its name.
+	// ColourNames run beside Colours: each colour's name, for its swatch.
+	ColourNames []string
+	// ColourPhotos run beside Colours: the photograph of that colour, zero
+	// where the colour has none of its own. Where a colour has one, the card's
+	// swatches are buttons that put it on the card.
+	ColourPhotos []ColourPhoto
+	// CompareControl is the control that keeps the product in the shopper's
+	// comparison, drawn in the card's foot before the quick add, or nil where
+	// the page offers none: a product whose department does not compare, a
+	// promotional list, a wishlist. The page that reads the product builds it,
+	// so the card draws it without knowing what it posts.
+	CompareControl templ.Component
+	// Highlights are the first specification values the product lists, at
+	// most three, drawn as capsules under its name.
 	Highlights []string
+	// WarrantyMonths is the term the shop states for the product, zero where
+	// it states none.
+	WarrantyMonths int32
+	// QuickAdd is the variant a card can put in the cart without a choice: the
+	// product's one active variant, while it can be bought. "" otherwise, and
+	// the card leads to the product instead.
+	QuickAdd string
+}
+
+// ColourPhoto is the photograph a colour's swatch puts on the card.
+type ColourPhoto struct {
+	URL    string
+	Srcset string
+}
+
+// ColourPhotos are a card's colours' photographs from the three columns a
+// tile query reads them in, the colours' order: a colour with none of its own
+// has an empty digest and key. Nil when no colour has one, or when the
+// columns disagree in length and so cannot be read side by side.
+func ColourPhotos(digests, keys []string, widths []int32) []ColourPhoto {
+	if len(digests) != len(keys) || len(keys) != len(widths) {
+		return nil
+	}
+	out := make([]ColourPhoto, len(digests))
+	found := false
+	for i := range out {
+		photo := picture.Image{Digest: digests[i], BundledKey: keys[i], Width: int(widths[i])}
+		out[i] = ColourPhoto{URL: photo.URL(), Srcset: photo.Srcset()}
+		found = found || out[i].URL != ""
+	}
+	if !found {
+		return nil
+	}
+	return out
 }
 
 // Sizes is the width the photograph is laid out at, for the browser's choice of file.
@@ -96,10 +145,6 @@ func wordSpace(ctx context.Context) string {
 	return " "
 }
 
-func AnyComparable(tiles []Tile) bool {
-	return slices.ContainsFunc(tiles, func(t Tile) bool { return t.Comparable })
-}
-
 func (t *Tile) SoldOut() bool { return !t.InStock }
 
 // maxDots is how many colours a card draws; the rest are counted.
@@ -110,19 +155,47 @@ func (t *Tile) HasChoiceOfColour() bool { return len(t.Colours) >= 2 }
 
 // Dot is one colour a card draws.
 type Dot struct {
-	Hex string
+	Hex  string
+	Name string
 	// SoldOut is struck through: no variant of the colour is in stock.
 	SoldOut bool
+	// Photo is what the colour's swatch puts on the card: the colour's own
+	// photograph, or the card's lead photograph for a colour with none.
+	Photo ColourPhoto
+	// Shown marks the swatch whose photograph the card shows on arrival.
+	Shown bool
 }
 
 // Dots are the colours the card draws. A sold-out card marks none of them: the
-// card has stepped back as a whole and says so in words.
+// card has stepped back as a whole and says so in words. The first colour
+// whose photograph is the card's own is the one shown.
 func (t *Tile) Dots() []Dot {
 	dots := make([]Dot, min(len(t.Colours), maxDots))
+	lead := ColourPhoto{URL: t.ImageURL, Srcset: t.ImageSrcset}
+	shown := false
 	for i := range dots {
-		dots[i] = Dot{Hex: t.Colours[i], SoldOut: t.InStock && i < len(t.ColoursSoldOut) && t.ColoursSoldOut[i] != ""}
+		dots[i] = Dot{Hex: t.Colours[i], SoldOut: t.InStock && i < len(t.ColoursSoldOut) && t.ColoursSoldOut[i] != "", Photo: lead}
+		if i < len(t.ColourNames) {
+			dots[i].Name = t.ColourNames[i]
+		}
+		if i < len(t.ColourPhotos) && t.ColourPhotos[i].URL != "" {
+			dots[i].Photo = t.ColourPhotos[i]
+		}
+		if !shown && dots[i].Photo.URL == lead.URL {
+			dots[i].Shown, shown = true, true
+		}
 	}
 	return dots
+}
+
+// SwapsPhoto reports whether the card's swatches are buttons: a colour drawn
+// has a photograph of its own other than the one the card shows, and every
+// colour drawn has a name to be called by.
+func (t *Tile) SwapsPhoto() bool {
+	if !t.HasImage() || !t.HasChoiceOfColour() || len(t.ColourNames) < min(len(t.Colours), maxDots) {
+		return false
+	}
+	return slices.ContainsFunc(t.Dots(), func(d Dot) bool { return d.Photo.URL != t.ImageURL })
 }
 
 // SoldOutColours are the names of the colours no variant of which is in stock,
@@ -143,6 +216,16 @@ func (t *Tile) SoldOutColours() []string {
 
 func (t *Tile) MoreColours() int { return max(len(t.Colours)-maxDots, 0) }
 
+// colourCount is what a screen reader hears for the colours, which it cannot
+// see: how many, and which of them are sold out.
+func colourCount(ctx context.Context, t *Tile) string {
+	n := len(t.Colours)
+	if out := t.SoldOutColours(); len(out) > 0 {
+		return i18n.Count(ctx, i18n.KeyColourCountSoldOut, int64(n), n, i18n.JoinList(ctx, out))
+	}
+	return i18n.Count(ctx, i18n.KeyColourCount, int64(n), n)
+}
+
 func (t *Tile) HasImage() bool { return t.ImageURL != "" }
 
 func (t *Tile) HasImageDimensions() bool { return t.ImageWidth > 0 && t.ImageHeight > 0 }
@@ -154,6 +237,25 @@ func (t *Tile) ImageHeightText() string { return strconv.FormatInt(int64(t.Image
 func (t *Tile) Price() string { return money.TWD(t.PriceCents) }
 
 func (t *Tile) Compare() string { return money.TWD(t.CompareCents) }
+
+// Savings is what the struck price saves, as the seal says it; "" while
+// nothing is struck.
+func (t *Tile) Savings() string {
+	if !t.OnSale || t.CompareCents <= t.PriceCents {
+		return ""
+	}
+	return money.TWD(t.CompareCents - t.PriceCents)
+}
+
+// HasRating is false for a product nobody has reviewed: no star is drawn for
+// it rather than a zero.
+func (t *Tile) HasRating() bool { return t.RatingCount > 0 }
+
+// RatingText is the average to one decimal, as the product page states it.
+func (t *Tile) RatingText() string { return strconv.FormatFloat(t.Rating, 'f', 1, 64) }
+
+// CanQuickAdd reports whether the card carries its own add-to-cart form.
+func (t *Tile) CanQuickAdd() bool { return t.QuickAdd != "" && t.InStock }
 
 // The first two rows at the widest grid, which is also the first four of a
 // phone's: a second row starts inside a 900px-tall window, and a lazy photograph

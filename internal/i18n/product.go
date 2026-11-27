@@ -49,7 +49,6 @@ var (
 		En:     "Pick an option first.",
 	})
 
-	KeyOptionChosen   = key("pdp.option.chosen", Message{ZhHant: "%s：", En: "%s: "})
 	KeyOptionChoose   = key("pdp.option.choose", Message{ZhHant: "請選擇", En: "Please choose"})
 	KeyBrowseCategory = key("pdp.category.browse", Message{ZhHant: "瀏覽「%s」全部商品", En: "Browse all %s products"})
 
@@ -75,15 +74,30 @@ var (
 		En:     "This variant needs no restock notice (it is in stock, or it is gone). Check the variant and try again.",
 	})
 
-	KeyRestockSubmit = key("pdp.restock.submit", Message{ZhHant: "有貨時通知我", En: "Notify me"})
+	KeyRestockSubmit = key("pdp.restock.submit", Message{ZhHant: "登記補貨通知", En: "Notify me"})
 
+	// KeyRestockTitle heads the restock form once the chosen variant is out of stock.
+	KeyRestockTitle = key("pdp.restock.title", Message{ZhHant: "此款式目前缺貨", En: "This variant is out of stock"})
+
+	// KeyRestockBody says what the form does: one email, sent when the variant is back, which is what
+	// the stock writer queues for each waiting request.
+	KeyRestockBody = key("pdp.restock.body", Message{
+		ZhHant: "留下電子郵件，補貨入庫時寄一封通知信給你。",
+		En:     "Leave your email for a one-time restock alert when inventory returns.",
+	})
+
+	// KeyPDPSKU names the chosen variant's code beside the brand, for a screen reader: the eye reads it
+	// from its place and its type face.
+	KeyPDPSKU = key("pdp.sku", Message{ZhHant: "款式編號", En: "SKU"})
+
+	// KeyPDPSaves is the seal beside a struck price; %s is the difference in money.
+	KeyPDPSaves     = key("pdp.saves", Message{ZhHant: "省 %s", En: "Save %s"})
 	KeyAddToCompare = key("pdp.compare.add", Message{ZhHant: "加入比較", En: "Add to compare"})
 
-	// KeyCompareSimilar is the product page's one way into a comparison, offered
-	// only where the department compares: it says what it compares WITH.
+	// KeyCompareSimilar leads from the specifications to a ready-made
+	// comparison of the product and the ones on its shelf priced closest to it:
+	// it says what it compares WITH.
 	KeyCompareSimilar = key("pdp.compare.similar", Message{ZhHant: "與同類商品比較", En: "Compare with similar"})
-
-	KeyViewCompare = key("pdp.compare.view", Message{ZhHant: "查看比較", En: "View comparison"})
 
 	KeyWishlistRemove = key("pdp.wishlist.remove", Message{
 		ZhHant: "已在願望清單 · 移除",

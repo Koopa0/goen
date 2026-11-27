@@ -128,9 +128,9 @@ func TestHandler_PageShippingLookupFailure(t *testing.T) {
 				if res.Code != http.StatusOK || res.Header().Get("Location") != "" {
 					t.Fatalf("GET /cart = %d, Location %q, want 200 without redirect", res.Code, res.Header().Get("Location"))
 				}
-				message, checkout := "No delivery method is available for this cart. Change the items or contact us.", "Checkout"
+				message, checkout := "No delivery method is available for this bag. Change the items or contact us.", "Checkout"
 				if locale == i18n.ZhHant {
-					message, checkout = "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。", "前往結帳"
+					message, checkout = "購物袋中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。", "前往結帳"
 				}
 				body := res.Body.String()
 				if strings.Contains(body, message) != tt.noDelivery {

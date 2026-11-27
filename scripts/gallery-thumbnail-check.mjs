@@ -30,12 +30,17 @@ try {
     if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
     return result.result.value;
   };
-  const expectedRows = new Map([[0, []], [1, []], [5, [5]], [6, [5, 1]], [10, [5, 5]]]);
+  // The thumbnails take as many columns as hold one of about 5rem, never fewer
+  // than five, and fill each row before the next: a row holds a column's count,
+  // the last what is left.
+  const counts = [0, 1, 5, 6, 10];
+  const rowsOf = (count, columns) => count < 2 ? []
+    : Array.from({ length: Math.ceil(count / columns) }, (_, i) => Math.min(columns, count - i * columns));
   await send('Page.enable');
   await send('Network.enable');
   await send('Network.setBlockedURLs', { urls: ['*/static/js/*'] });
   for (const locale of ['en', 'zh-Hant']) for (const width of [320, 375, 1440]) {
-    for (const [count, rows] of expectedRows) {
+    for (const count of counts) {
       const label = `${count} images ${locale} ${width}px`;
       await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
       const url = `${origin}/gallery/${count}?lang=${locale}`;
@@ -59,6 +64,9 @@ try {
           row.count++;
           if (rect.left < box.left - 1 || rect.right > box.right + 1 || rect.width <= 0 || rect.height <= 0)
             faults.push('thumbnail exceeds the gallery or has no area');
+          // A thumbnail is a small target, about 5rem, not a fifth of a wide gallery.
+          if (rect.width > 6.5 * parseFloat(getComputedStyle(document.documentElement).fontSize) + 1)
+            faults.push('thumbnail is wider than 6.5rem');
         }
         const shots = [...gallery.querySelectorAll('.goen-pdp__shot')];
         for (const shot of shots) {
@@ -74,7 +82,9 @@ try {
           placeholder: gallery.querySelectorAll('.goen-pdp__shot--empty').length,
           loaded: [...gallery.querySelectorAll('img')].every(img => img.complete && img.naturalWidth > 0), faults };
       })()`);
-      assert.deepEqual(geometry, { locale, columns: 5, rows, images: count,
+      assert.ok(geometry.columns >= 5, `${label}: ${geometry.columns} thumbnail columns, want at least five`);
+      const rows = rowsOf(count, geometry.columns);
+      assert.deepEqual(geometry, { locale, columns: geometry.columns, rows, images: count,
         radios: count > 1 ? count : 0, placeholder: count ? 0 : 1, loaded: true, faults: [] }, label);
       if (count > 1) {
         for (let index = 0; index < count; index++) {
@@ -113,7 +123,7 @@ try {
           return [...document.querySelectorAll('.goen-pdp__thumb')].map((thumb) => ring(thumb));
         })()`), Array.from({ length: count }, (_, i) => i === count - 2), `${label}: the focused thumbnail shows focus`);
       }
-      console.log(`${label}: five columns, rows ${JSON.stringify(rows)}, native selection preserved`);
+      console.log(`${label}: ${geometry.columns} columns, rows ${JSON.stringify(rows)}, native selection preserved`);
     }
   }
 } finally {

@@ -3,30 +3,24 @@ package catalog
 import (
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// 12:00 on 2 October 2026 in Taipei.
-var scheduleNow = time.Date(2026, 10, 2, 4, 0, 0, 0, time.UTC)
-
-func day(d int) time.Time { return time.Date(2026, 10, d-1, 16, 0, 0, 0, time.UTC) }
-
-// TestDepartmentNoticeNotLimited holds that nothing offered is called limited
-// time: not the deals link, not the department notice.
+// TestListingNotCalledLimitedTime holds that nothing offered is called limited
+// time: not the deals link, not the shelf's switch for what is on sale, not the
+// chip it leaves when it is on.
 //
 // The deals page, the campaign page and the campaigns strip are campaign's
 // TestDealsNotCalledLimitedTime.
-func TestDepartmentNoticeNotLimited(t *testing.T) {
+func TestListingNotCalledLimitedTime(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ListingView{Slug: "tech", Name: "3C 數位", Shelf: Shelf{Path: "/c/tech", Filters: Filters{OnSaleOnly: true}}}
 	for name, text := range map[string]string{
-		"nav": i18n.T(ctx, i18n.KeyDeals),
-		"department notice": renderComponent(t, ctx, departmentNotice(&DepartmentNotice{
-			Title: "秋日選物", Href: "/s/autumn", End: campaign.NewEnd(day(11), scheduleNow),
-		})),
+		"nav":   i18n.T(ctx, i18n.KeyDeals),
+		"shelf": renderComponent(t, ctx, Listing(frame.Page{}, &view)),
 	} {
 		if strings.Contains(text, "限時") {
 			t.Errorf("%s says 限時", name)

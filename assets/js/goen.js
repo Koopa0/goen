@@ -1,10 +1,10 @@
 /*
- * goen — the one enhancement file.
+ * goen — the one script the storefront and the back office share.
  *
- * Everything here is optional by construction: every write path is a plain
- * <form method="post"> that the server answers on its own, and every
- * disclosure is a native <details>. Remove this file and the site still works,
- * one full page load at a time.
+ * Every write is a plain <form method="post"> that the server answers on its
+ * own, so nothing here decides whether a write happens. The storefront assumes
+ * this file runs: the menu is a dialog it opens, and the search field's
+ * shortcut is its own.
  */
 (() => {
   "use strict";
@@ -15,169 +15,233 @@
    */
 
   /*
-   * The home carousel: scroll-snap does the moving (swipe, trackpad, keyboard)
-   * and the named tabs are links that work without this script. This draws the
-   * arrows and the count and marks the tab of the slide in view with
-   * aria-current, so without it no tab is current. Nothing here moves a slide
-   * except the visitor's own input. The tabs and arrows fade the chosen slide in
-   * where the browser can; a swipe stays a scroll.
+   * A card's colours. Where a colour has a photograph of its own, its swatch
+   * is a button that puts that photograph on the card, in place, and marks
+   * itself pressed; the card's link still leads to the product. On the
+   * document, so a shelf htmx swaps in later is served too.
    */
-  function carousel() {
-    const root = document.querySelector(".goen-hero");
-    const track = root?.querySelector(".goen-hero__track");
-    if (!track || track.children.length < 2) return;
-
-    const slides = [...track.children];
-    const tabRow = root.querySelector(".goen-hero__tabs");
-    const tabs = [...root.querySelectorAll(".goen-hero__tabs a")];
-    const count = root.querySelector("[data-count]");
-    let current = 0;
-    // A chosen slide cross-fades with the one in view, by a view transition of
-    // type "slide". A browser without transition types, or a photograph not yet
-    // loaded, scrolls to it as before.
-    const fades = "startViewTransition" in document && "types" in (window.ViewTransition?.prototype ?? {});
-    let turn = 0;
-    const go = async (index) => {
-      const next = (index + slides.length) % slides.length;
-      const left = next * track.clientWidth;
-      const photo = slides[next].querySelector(".goen-hero__media img");
-      const mine = ++turn;
-      if (!fades || next === current || (photo && !photo.complete)) {
-        track.scrollTo({ left });
-        return;
+  function cardSwatches() {
+    document.addEventListener("click", (event) => {
+      const swatch = event.target.closest?.("[data-swatch]");
+      if (!(swatch instanceof HTMLButtonElement)) return;
+      const img = swatch.closest(".goen-tile__cell")?.querySelector(".goen-tile__img");
+      if (!(img instanceof HTMLImageElement) || !swatch.dataset.swatch) return;
+      // srcset first: with it set, src is only the fallback.
+      if (swatch.dataset.swatchSrcset) img.srcset = swatch.dataset.swatchSrcset;
+      else img.removeAttribute("srcset");
+      img.src = swatch.dataset.swatch;
+      for (const other of swatch.parentElement.querySelectorAll("[data-swatch]")) {
+        other.setAttribute("aria-pressed", String(other === swatch));
       }
-      // Captured before it is decoded, the photograph would fade in as its tone.
-      await photo?.decode().catch(() => {});
-      // A later choice made while this one waited wins.
-      if (mine !== turn) return;
-      const leaving = slides[current];
-      leaving.dataset.leaving = "";
-      document.startViewTransition({
-        update: () => {
-          delete leaving.dataset.leaving;
-          track.scrollTo({ left, behavior: "instant" });
-          select(next);
-        },
-        types: ["slide"],
-      });
-    };
-    // Only a chosen slide moves the pill. Any other placement (first, or after
-    // the tabs changed size) is applied with data-still, flushed, and lifted,
-    // so the pill is never seen to travel. The pill is drawn only once the
-    // properties it reads are written.
-    const placePill = (animate) => {
-      if (!tabRow) return;
-      if (!animate) tabRow.dataset.still = "";
-      const row = tabRow.getBoundingClientRect();
-      const box = tabs[current].getBoundingClientRect();
-      tabRow.style.setProperty("--pill-x", `${box.left - row.left + tabRow.scrollLeft}px`);
-      tabRow.style.setProperty("--pill-w", `${box.width}px`);
-      tabRow.dataset.pill = "";
-      if (!animate) {
-        tabRow.getBoundingClientRect();
-        delete tabRow.dataset.still;
-      }
-    };
-    const select = (next) => {
-      current = next;
-      slides.forEach((slide, index) => {
-        if (index === current) slide.dataset.shown = "";
-        else delete slide.dataset.shown;
-      });
-      tabs.forEach((tab, index) => {
-        if (index === current) tab.setAttribute("aria-current", "true");
-        else tab.removeAttribute("aria-current");
-      });
-      if (tabRow && tabRow.scrollWidth > tabRow.clientWidth) {
-        const tab = tabs[current];
-        const at = tab.getBoundingClientRect().left - tabRow.getBoundingClientRect().left + tabRow.scrollLeft;
-        // The row's end padding reserves the room under its fade mask.
-        const visible = tabRow.clientWidth - parseFloat(getComputedStyle(tabRow).paddingInlineEnd);
-        // The row's start padding is room for the ring, so the first tab rests at 0.
-        const lead = at - parseFloat(getComputedStyle(tabRow).paddingInlineStart);
-        if (tab.offsetWidth > visible || lead < tabRow.scrollLeft) tabRow.scrollLeft = lead;
-        else if (at + tab.offsetWidth > tabRow.scrollLeft + visible)
-          tabRow.scrollLeft = at + tab.offsetWidth - visible;
-      }
-      placePill(true);
-      if (count) count.textContent = `${current + 1} / ${slides.length}`;
-    };
-    const seen = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting || entry.intersectionRatio < 0.6) continue;
-        // The first report is the slide already shown; the live region speaks
-        // only once the visitor has moved the carousel.
-        const index = slides.indexOf(entry.target);
-        if (index !== current) select(index);
-      }
-    }, { root: track, threshold: 0.6 });
-    slides.forEach((slide) => seen.observe(slide));
-
-    tabs[current].setAttribute("aria-current", "true");
-    slides[current].dataset.shown = "";
-
-    // A font swap, a larger text size or a zoom changes the tabs' widths.
-    if (tabRow) {
-      placePill(false);
-      const resized = new ResizeObserver(() => placePill(false));
-      resized.observe(tabRow);
-      tabs.forEach((tab) => resized.observe(tab));
-    }
-
-    tabs.forEach((tab, index) => tab.addEventListener("click", (event) => {
-      event.preventDefault();
-      go(index);
-    }));
-    root.querySelectorAll("[data-step]").forEach((button) => {
-      button.addEventListener("click", () => go(current + Number(button.dataset.step)));
     });
-    root.querySelectorAll("[data-js]").forEach((el) => el.removeAttribute("hidden"));
   }
 
   /*
-   * The header's category menu is a native <details>. Closing it on Escape and
-   * on outside click is the ceremony the element does not ship with.
+   * A card's quick add answers with the product page, from which htmx takes the
+   * outcome and the header's cart link. The home page's free-delivery meter is
+   * not on that page, so a quick add that went through tells the page, and the
+   * meter reads itself again (hx-trigger="goen:cart from:body").
    */
-  function headerMenu() {
-    const menu = document.querySelector("[data-menu]");
-    if (!menu) return;
+  function cartChanged() {
+    document.addEventListener("htmx:after:request", (event) => {
+      const source = event.detail?.ctx?.sourceElement;
+      const form = source?.closest?.("form[data-quick-add]");
+      const status = event.detail?.ctx?.response?.status;
+      if (!form || !(status >= 200 && status < 300)) return;
+      document.body.dispatchEvent(new CustomEvent("goen:cart"));
+    });
+  }
 
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && menu.open) {
-        menu.open = false;
-        menu.querySelector("summary")?.focus();
+  /*
+   * The menu is a modal <dialog>. The browser keeps focus inside it, closes it
+   * on Escape and gives focus back to the button that opened it; what it does
+   * not do is open from that button, close from the drawer's own close button,
+   * or close on a press on the backdrop, which lands on the dialog itself.
+   *
+   * Closing waits for the slide out where the browser can keep a closing
+   * dialog in the top layer until then (transition-behavior: allow-discrete on
+   * display and overlay); elsewhere it closes at once rather than vanish
+   * mid-slide.
+   */
+  function menu() {
+    const dialog = document.getElementById("site-menu");
+    const opener = document.querySelector("[data-menu-open]");
+    if (typeof dialog?.showModal !== "function" || !opener) return;
+
+    opener.setAttribute("aria-expanded", "false");
+    opener.addEventListener("click", () => {
+      dialog.showModal();
+      opener.setAttribute("aria-expanded", "true");
+    });
+    dialog.addEventListener("close", () => opener.setAttribute("aria-expanded", "false"));
+    dialog.querySelector("[data-menu-close]")?.addEventListener("click", () => dialog.close());
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+  }
+
+  /*
+   * The list under the search field, which htmx fills as the shopper types. The
+   * field is a combobox over it: ArrowDown and ArrowUp move the active option,
+   * Enter opens it, Escape closes the list, and leaving the form closes it too.
+   * The list shows whenever it says something, so it is read from its contents
+   * after each swap rather than from htmx's events.
+   */
+  function searchSuggest() {
+    const field = document.getElementById("site-search");
+    const panel = document.getElementById("site-search-suggest");
+    const form = field?.form;
+    if (!(field instanceof HTMLInputElement) || !panel || !form) return;
+    let active = -1;
+    const options = () => [...panel.querySelectorAll('[role="option"]')];
+    const choose = (index) => {
+      const all = options();
+      active = index;
+      all.forEach((option, at) => option.setAttribute("aria-selected", String(at === index)));
+      const chosen = all[index];
+      if (chosen) {
+        field.setAttribute("aria-activedescendant", chosen.id);
+        chosen.scrollIntoView({ block: "nearest" });
+      } else {
+        field.removeAttribute("aria-activedescendant");
       }
-    });
-
-    document.addEventListener("click", (event) => {
-      if (menu.open && (event.target === menu || !menu.contains(event.target))) menu.open = false;
-    });
-
-    menu.querySelector("[data-menu-close]")?.addEventListener("click", () => {
-      menu.open = false;
-      menu.querySelector("summary")?.focus();
-    });
-
-    // What sits above the drawer varies (a notice row, the header's height), so
-    // its room is measured from the bar it hangs from. The drawer itself
-    // cannot be measured on open: its box is skipped while it fades in.
-    const drawer = menu.querySelector(".goen-header__drawer");
-    const fit = () => {
-      if (!drawer || !menu.open) return;
-      const bottom = menu.closest(".goen-header__bar")?.getBoundingClientRect().bottom ?? 0;
-      menu.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - bottom)}px`);
     };
-    menu.addEventListener("toggle", fit);
-    window.addEventListener("resize", fit);
+    const show = (open) => {
+      panel.hidden = !open;
+      field.setAttribute("aria-expanded", String(open && options().length > 0));
+      if (!open) choose(-1);
+    };
+    const says = () => field.value.trim() !== "" && panel.textContent.trim() !== "";
+    new MutationObserver(() => {
+      active = -1;
+      field.removeAttribute("aria-activedescendant");
+      show(document.activeElement === field && says());
+    }).observe(panel, { childList: true });
 
-    // The language panel opens in the drawer's flow, below the fold of a
-    // drawer that scrolls: bring it into view when it opens.
-    menu.addEventListener("toggle", (event) => {
-      const lang = event.target;
-      if (lang instanceof HTMLDetailsElement && lang !== menu && lang.open) {
-        lang.scrollIntoView({ block: "nearest" });
+    field.addEventListener("focus", () => show(says()));
+    field.addEventListener("keydown", (event) => {
+      const all = options();
+      if (event.key === "ArrowDown" && all.length) {
+        event.preventDefault();
+        show(true);
+        choose(Math.min(active + 1, all.length - 1));
+      } else if (event.key === "ArrowUp" && all.length && !panel.hidden) {
+        event.preventDefault();
+        choose(active - 1);
+      } else if (event.key === "Enter" && active >= 0 && !panel.hidden) {
+        const link = all[active]?.querySelector("a");
+        if (link) {
+          event.preventDefault();
+          location.assign(link.href);
+        }
+      } else if (event.key === "Escape" && !panel.hidden) {
+        event.preventDefault();
+        show(false);
       }
-    }, true);
+    });
+    form.addEventListener("focusout", (event) => {
+      if (!(event.relatedTarget instanceof Node) || !form.contains(event.relatedTarget)) show(false);
+    });
+  }
+
+  /*
+   * The filters' drawer. Where the shelf is too narrow for its column of
+   * filters, the column is not drawn and its button is; the button moves the
+   * one panel, form and all, into a modal <dialog>, and the drawer's closing
+   * moves it back, so there is never a second set of fields or ids. Moved
+   * controls keep their state and their htmx listeners, which htmx binds to
+   * the form itself. The browser keeps focus in the dialog, closes it on Escape
+   * and gives focus back to the button; this closes it from its own buttons,
+   * from a press on the backdrop, and when the window grows wide enough for the
+   * column, where the button is no longer drawn.
+   */
+  function filtersDrawer() {
+    const dialog = document.getElementById("filters-drawer");
+    const panel = document.querySelector("[data-facets-panel]");
+    const opener = document.querySelector("[data-filters-open]");
+    if (!(dialog instanceof HTMLDialogElement) || !panel || !opener) return;
+    const home = panel.parentElement;
+    // What an update says, which the inert page behind the drawer cannot.
+    // Its home is the head of the results' column, which no swap replaces.
+    const feedback = document.querySelector("[data-drawer-carry]");
+    const feedbackHome = feedback?.parentElement;
+
+    opener.setAttribute("aria-expanded", "false");
+    opener.addEventListener("click", () => {
+      dialog.append(panel);
+      if (feedback) panel.querySelector(".goen-facets__foot")?.prepend(feedback);
+      dialog.showModal();
+      // The close button first, as a drawer opens: the choices are below it
+      // in reading order, and the way out is where the eye lands.
+      panel.querySelector(".goen-facets__close")?.focus();
+      opener.setAttribute("aria-expanded", "true");
+    });
+    dialog.addEventListener("close", () => {
+      home.append(panel);
+      if (feedback) feedbackHome.prepend(feedback);
+      opener.setAttribute("aria-expanded", "false");
+    });
+    panel.addEventListener("click", (event) => {
+      if (dialog.open && event.target instanceof Element && event.target.closest("[data-filters-close]")) dialog.close();
+    });
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    window.addEventListener("resize", () => {
+      if (dialog.open && opener.getClientRects().length === 0) dialog.close();
+    });
+  }
+
+  /*
+   * The bar follows the scroll only while it is short: at large text or in a
+   * short window it grows past 12% of the window, and a bar that tall stuck
+   * over the page would hide what has focus under it. Measured rather than
+   * queried, because no media query sees the reader's text size.
+   */
+  function stickyBar() {
+    const header = document.querySelector(".goen-header");
+    if (!header) return;
+    const fit = () => header.toggleAttribute("data-static", header.offsetHeight > window.innerHeight * 0.12);
+    fit();
+    new ResizeObserver(fit).observe(header);
+    window.addEventListener("resize", fit);
+  }
+
+  /*
+   * The search field's shortcut: ⌘K on a Mac, Ctrl K elsewhere, named in the
+   * field so it can be learnt. A shortcut that is already the page's, inside a
+   * field being typed in, is left alone.
+   */
+  function searchShortcut() {
+    const field = document.getElementById("site-search");
+    if (!(field instanceof HTMLInputElement)) return;
+    const header = field.closest(".goen-header");
+    const opener = document.querySelector("[data-search-open]");
+    // Below 640 the field is under the bar only once its button is pressed;
+    // the shortcut opens it the same way.
+    const reveal = (open) => {
+      header?.toggleAttribute("data-search-open", open);
+      opener?.setAttribute("aria-expanded", String(open));
+    };
+    opener?.addEventListener("click", () => {
+      const open = !header?.hasAttribute("data-search-open");
+      reveal(open);
+      if (open) field.focus();
+    });
+    const mac = /Mac|iPhone|iPad/.test(navigator.userAgentData?.platform ?? navigator.platform);
+    const hint = field.form?.querySelector("[data-shortcut]");
+    if (hint) {
+      hint.textContent = mac ? "\u2318K" : "Ctrl K";
+      hint.hidden = false;
+    }
+    document.addEventListener("keydown", (event) => {
+      if (event.key.toLowerCase() !== "k" || event.altKey || event.shiftKey) return;
+      if (!(mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) return;
+      event.preventDefault();
+      reveal(true);
+      field.focus();
+      field.select();
+    });
   }
 
   /*
@@ -190,7 +254,7 @@
     const row = document.querySelector(".goen-header__nav");
     const current = row?.querySelector('[aria-current="page"]');
     if (!row || !current) return;
-    const links = row.querySelectorAll(":scope > a, :scope > .goen-dept > a");
+    const links = row.querySelectorAll(":scope > a");
     const start = (link) => link.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
     // The current department starts where the row's own gutter does, with the
     // one before it out of sight behind the edge: centring it left half a
@@ -252,82 +316,6 @@
         for (const other of pops) if (other !== pop) other.open = false;
       });
     }
-  }
-
-  /*
-   * A department's panel opens by hover, in CSS. With this script running it
-   * does not open by focus: every sub-link of every department would be a tab
-   * stop before the search field. Keyboard users open it from the department's
-   * own link with ArrowDown, which moves into the panel; ArrowUp and Down move
-   * between its links and Escape closes it and returns to the link. Without
-   * the script the stylesheet keeps the panel open while focus is inside the
-   * department, so it stays reachable.
-   *
-   * Content that appears on hover has to be dismissible without moving the
-   * pointer or the focus, so Escape also marks a hover-opened panel dismissed
-   * until the pointer leaves or the focus moves out.
-   */
-  function departmentPanels() {
-    const depts = document.querySelectorAll(".goen-dept");
-    if (!depts.length) return;
-
-    const parts = (dept) => ({
-      link: dept.querySelector(":scope > a"),
-      items: [...dept.querySelectorAll(".goen-dept__panel a")],
-    });
-    const setOpen = (dept, open) => {
-      const { link } = parts(dept);
-      if (open) {
-        dept.setAttribute("data-open", "");
-        dept.removeAttribute("data-dismissed");
-      } else {
-        dept.removeAttribute("data-open");
-      }
-      link?.setAttribute("aria-expanded", String(open));
-    };
-
-    for (const dept of depts) {
-      const { link } = parts(dept);
-      link?.setAttribute("aria-haspopup", "true");
-      link?.setAttribute("aria-expanded", "false");
-
-      dept.addEventListener("keydown", (event) => {
-        const { link, items } = parts(dept);
-        const at = items.indexOf(document.activeElement);
-        if (event.key === "ArrowDown" && (document.activeElement === link || at >= 0)) {
-          event.preventDefault();
-          setOpen(dept, true);
-          items[Math.min(at + 1, items.length - 1)]?.focus();
-        } else if (event.key === "ArrowUp" && at >= 0) {
-          event.preventDefault();
-          if (at === 0) {
-            setOpen(dept, false);
-            link?.focus();
-          } else {
-            items[at - 1].focus();
-          }
-        }
-      });
-      dept.addEventListener("mouseleave", () => dept.removeAttribute("data-dismissed"));
-      dept.addEventListener("focusout", (event) => {
-        if (event.relatedTarget instanceof Node && dept.contains(event.relatedTarget)) return;
-        dept.removeAttribute("data-dismissed");
-        setOpen(dept, false);
-      });
-    }
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
-      for (const dept of depts) {
-        const { link, items } = parts(dept);
-        const inside = items.includes(document.activeElement);
-        if (dept.hasAttribute("data-open")) {
-          setOpen(dept, false);
-          if (inside) link?.focus();
-        }
-        if (dept.matches(":hover")) dept.setAttribute("data-dismissed", "");
-      }
-    });
   }
 
   /*
@@ -499,9 +487,23 @@
       if (pending.has(event.target)) event.preventDefault();
       else begin(event.target);
     });
+    // A form that changes one control in place (a filter, the compare toggle)
+    // is no navigation, so it does not cross-fade the whole page.
     document.addEventListener("htmx:config:request", (event) => {
       const ctx = event.detail?.ctx;
-      if (ctx?.request?.form?.matches(".goen-filters")) ctx.transition = false;
+      const form = ctx?.request?.form;
+      if (form?.matches(".goen-filters") || form?.matches(".goen-comparetoggle")) ctx.transition = false;
+    });
+    // A filter's results are replaced in place, and the window stays where the
+    // shopper left it: Chrome moved it by the height of the chips that appear
+    // over the results when the filters' column beside them is sticky.
+    let heldScroll = null;
+    document.addEventListener("htmx:before:swap", (event) => {
+      if (event.detail?.ctx?.request?.form?.matches(".goen-filters")) heldScroll = [window.scrollX, window.scrollY];
+    });
+    document.addEventListener("htmx:after:swap", () => {
+      if (heldScroll && (window.scrollX !== heldScroll[0] || window.scrollY !== heldScroll[1])) window.scrollTo(heldScroll[0], heldScroll[1]);
+      heldScroll = null;
     });
     document.addEventListener("htmx:before:request", (event) => {
       const ctx = event.detail?.ctx;
@@ -542,7 +544,7 @@
       const { sourceElement, response } = event.detail || {};
       const form = sourceElement instanceof HTMLFormElement ? sourceElement : sourceElement?.form;
       // DropEmptyParams may leave HX-Push-Url on an error response.
-      if ((form?.matches(".goen-filters") || form?.matches(".goen-search-sort")) && response?.status >= 400) event.preventDefault();
+      if (form?.matches(".goen-filters") && response?.status >= 400) event.preventDefault();
     });
     // On document, because the source element may be detached by the swap
     // before this fires and an event on a detached node never reaches us.
@@ -555,9 +557,8 @@
       const ownsRead = requestForm && reads.get(requestForm) === ctx;
       if (ownsRead) {
         reads.delete(requestForm);
-        if (requestForm.matches(".goen-filters") || requestForm.matches(".goen-search-sort")) {
-          const note = document.querySelector(requestForm.matches(".goen-search-sort")
-            ? "#goen-search-sort-error" : ".goen-filters__error");
+        if (requestForm.matches(".goen-filters")) {
+          const note = document.querySelector(".goen-filters__error");
           const raw = ctx.response?.raw;
           if (note) note.hidden = raw?.ok === true;
         }
@@ -936,14 +937,18 @@
    * A control that swaps itself away takes keyboard focus with it, and focus
    * falls to <body>. Such a control names, in data-focus-after-swap, the id the
    * swapped-in content should hand focus to. On document, because the source
-   * element is detached by the swap and an event on it never reaches us.
+   * element is detached by the swap and an event on it never reaches us. A
+   * swap htmx runs inside a view transition lands after the request is
+   * finished, so the hand-over is tried again once the swap is done.
    */
   function focusAfterSwap() {
-    document.addEventListener("htmx:finally:request", (event) => {
+    const handOver = (event) => {
       const source = event.detail?.ctx?.sourceElement;
       const id = source?.getAttribute?.("data-focus-after-swap");
       if (id && !source.isConnected) document.getElementById(id)?.focus();
-    });
+    };
+    document.addEventListener("htmx:finally:request", handOver);
+    document.addEventListener("htmx:after:swap", handOver);
   }
 
   /*
@@ -1076,122 +1081,6 @@
   }
 
   /*
-   * The compare bar's row of ticked products. The bar is the form's own tail,
-   * which submits the ticked boxes to /compare without this; here, once the
-   * form's data-compare-min are ticked, a list of them is put before the limit
-   * and the submit: each one's photograph, its name, and a button that unticks
-   * its box. The row is always rebuilt from the boxes, never kept beside them,
-   * so a box unticked on its tile, a swap of the results or a page restored
-   * from the back-forward cache cannot leave an entry behind. Nothing is
-   * announced: the box's own state is what a screen reader hears.
-   */
-  function compareRow() {
-    const ticked = (form) => Array.from(form.elements).filter((el) =>
-      el instanceof HTMLInputElement && el.type === "checkbox" && el.name === "p" && el.checked);
-    const glyph = () => {
-      const ns = "http://www.w3.org/2000/svg";
-      const svg = document.createElementNS(ns, "svg");
-      svg.setAttribute("width", "12");
-      svg.setAttribute("height", "12");
-      svg.setAttribute("viewBox", "0 0 14 14");
-      svg.setAttribute("aria-hidden", "true");
-      const path = document.createElementNS(ns, "path");
-      path.setAttribute("d", "M2 2l10 10M12 2 2 12");
-      path.setAttribute("stroke", "currentColor");
-      path.setAttribute("stroke-width", "1.5");
-      svg.append(path);
-      return svg;
-    };
-    // The tile's own photograph at its 400px rendition: the srcset's 400w
-    // candidate, else whatever the tile loaded.
-    const small = (img) => {
-      for (const candidate of (img.getAttribute("srcset") ?? "").split(",")) {
-        const [url, width] = candidate.trim().split(/\s+/);
-        if (url && width === "400w") return url;
-      }
-      return img.getAttribute("src") ?? "";
-    };
-    const entry = (form, box) => {
-      const cell = box.closest(".goen-tile__cell");
-      const name = cell?.querySelector(".goen-tile__name")?.textContent.trim() || box.value;
-      const item = document.createElement("li");
-      item.className = "goen-compare-pick__item";
-      item.dataset.slug = box.value;
-      const frame = document.createElement("span");
-      frame.className = "goen-compare-pick__photo";
-      const img = cell?.querySelector(".goen-tile__img");
-      if (img) {
-        const photo = document.createElement("img");
-        photo.src = small(img);
-        photo.alt = "";
-        photo.width = 56;
-        photo.height = 56;
-        photo.decoding = "async";
-        frame.append(photo);
-      }
-      const label = document.createElement("span");
-      label.className = "goen-compare-pick__name";
-      label.textContent = name;
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "goen-compare-pick__remove";
-      remove.setAttribute("aria-label", (form.dataset.compareRemove ?? "%s").replace("%s", () => name));
-      remove.append(glyph());
-      item.append(frame, label, remove);
-      return item;
-    };
-    const sync = (form) => {
-      const bar = form.querySelector(".goen-compare-pick__go");
-      if (!bar) return;
-      const boxes = ticked(form);
-      let row = bar.querySelector(".goen-compare-pick__row");
-      if (boxes.length < (Number(form.dataset.compareMin) || 2)) {
-        row?.remove();
-        return;
-      }
-      if (!row) {
-        row = document.createElement("ul");
-        row.className = "goen-compare-pick__row";
-        bar.prepend(row);
-      }
-      const kept = new Map(Array.from(row.children, (item) => [item.dataset.slug, item]));
-      boxes.forEach((box, index) => {
-        const item = kept.get(box.value) ?? entry(form, box);
-        kept.delete(box.value);
-        if (row.children[index] !== item) row.insertBefore(item, row.children[index] ?? null);
-      });
-      kept.forEach((item) => item.remove());
-    };
-    const syncAll = () => {
-      const form = document.getElementById("compare-pick");
-      if (form instanceof HTMLFormElement) sync(form);
-    };
-    document.addEventListener("change", (event) => {
-      const box = event.target;
-      if (box instanceof HTMLInputElement && box.form?.id === "compare-pick") sync(box.form);
-    });
-    // Focus goes to the next remove button, else the one before, else the
-    // submit, so it never falls to <body> with the entry it was on.
-    document.addEventListener("click", (event) => {
-      const remove = event.target instanceof Element ? event.target.closest(".goen-compare-pick__remove") : null;
-      const form = remove?.form;
-      if (!remove || !form) return;
-      const slug = remove.closest(".goen-compare-pick__item")?.dataset.slug;
-      const before = Array.from(form.querySelectorAll(".goen-compare-pick__remove"));
-      const at = before.indexOf(remove);
-      for (const box of ticked(form)) {
-        if (box.value === slug) box.checked = false;
-      }
-      sync(form);
-      const after = Array.from(form.querySelectorAll(".goen-compare-pick__remove"));
-      (after[at] ?? after[at - 1] ?? form.querySelector('.goen-compare-pick__go [type="submit"]'))?.focus();
-    });
-    syncAll();
-    document.addEventListener("htmx:after:settle", syncAll);
-    window.addEventListener("pageshow", syncAll);
-  }
-
-  /*
    * A press that loads a new page is answered at once rather than when that
    * page paints: the pressed link is marked, and the root carries
    * data-navigating, from which app.css draws a bar if the load outlasts a
@@ -1248,18 +1137,120 @@
     });
   }
 
+  /*
+   * The bag drawer. After an add to the cart succeeds, from any form that
+   * posts to /cart/items through htmx, the cart's own fragment fills the
+   * frame's empty dialog and the dialog opens. Success is read from the
+   * answer, whatever the form and wherever the server sent it: the header's
+   * count in the page that came back is higher than the one on screen. The
+   * fragment comes by a plain fetch, so it is not one of the page's own htmx
+   * requests, and the drawer opens once that request has swapped, so what
+   * had focus is the page's own new control. The browser keeps focus inside
+   * the dialog, closes it on Escape and gives focus back; the close button and
+   * a press on the backdrop are this script's, and so is finding the pressed
+   * button again by its id when the swap replaced it while the drawer was open.
+   */
+  function bagDrawer() {
+    const dialog = document.getElementById("bag-drawer");
+    if (typeof dialog?.showModal !== "function") return;
+    const units = (root) => Number.parseInt(root.querySelector("#cart-link .goen-header__count")?.textContent ?? "", 10) || 0;
+    const adds = (ctx) => {
+      if (String(ctx?.request?.method).toUpperCase() !== "POST") return false;
+      try {
+        return new URL(ctx.request.action, location.href).pathname === "/cart/items";
+      } catch {
+        return false;
+      }
+    };
+    const sent = new WeakMap();
+    const pending = new WeakMap();
+    let turn = 0;
+    let back = { element: null, id: "" };
+
+    document.addEventListener("htmx:before:request", (event) => {
+      const ctx = event.detail?.ctx;
+      if (event.defaultPrevented || !adds(ctx)) return;
+      const pressed = document.activeElement;
+      sent.set(ctx, { units: units(document), id: pressed instanceof HTMLElement ? pressed.id : "" });
+    });
+    document.addEventListener("htmx:after:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const before = sent.get(ctx);
+      if (!before || !(ctx.response?.status < 400) || !ctx.text) return;
+      const answer = new DOMParser().parseFromString(ctx.text, "text/html");
+      if (units(answer) <= before.units) return;
+      const mine = ++turn;
+      pending.set(ctx, {
+        mine, id: before.id,
+        body: fetch("/cart/drawer", { credentials: "same-origin", headers: { Accept: "text/html" } })
+          .then((response) => (response.ok ? response.text() : ""))
+          .then((text) => new DOMParser().parseFromString(text, "text/html").getElementById("bag-drawer-body"))
+          .catch(() => null),
+      });
+    });
+    document.addEventListener("htmx:finally:request", async (event) => {
+      const ctx = event.detail?.ctx;
+      const opening = pending.get(ctx);
+      if (!opening) return;
+      pending.delete(ctx);
+      const body = await opening.body;
+      // A later add, or a fragment that did not come, opens nothing here.
+      if (!body || opening.mine !== turn) return;
+      dialog.replaceChildren(document.importNode(body, true));
+      if (dialog.open) return;
+      const focused = document.activeElement;
+      back = { element: focused instanceof HTMLElement && focused !== document.body ? focused : null, id: opening.id };
+      dialog.showModal();
+    });
+
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog || event.target.closest?.("[data-bag-close]")) dialog.close();
+    });
+    dialog.addEventListener("close", () => {
+      const landed = document.activeElement;
+      if (landed && landed !== document.body && !dialog.contains(landed)) return;
+      const again = back.element?.isConnected ? back.element : back.id ? document.getElementById(back.id) : null;
+      again?.focus();
+    });
+  }
+
+  /*
+   * The product page's add button says what the press costs: the unit price
+   * times the quantity beside it. The server writes it for one, as the field
+   * starts; a step or a typed number changes it here. A number the field
+   * cannot read leaves the sum as it was.
+   */
+  function linePrice() {
+    const sum = (cents) => "NT$" + Math.trunc(cents / 100).toLocaleString("en-US");
+    const update = (event) => {
+      const field = event.target;
+      if (!(field instanceof HTMLInputElement) || !field.matches("#pdp-add [data-stepper] input")) return;
+      const price = field.form?.querySelector("[data-unit-cents]");
+      const quantity = Number(field.value);
+      if (!price || field.validity.badInput || !Number.isInteger(quantity) || quantity < 1) return;
+      price.textContent = sum(Number(price.dataset.unitCents) * quantity);
+    };
+    document.addEventListener("input", update);
+    document.addEventListener("change", update);
+  }
+
   recipientBox();
   demoAccount();
   handoff();
   buyBar();
+  linePrice();
   focusAfterSwap();
-  headerMenu();
+  menu();
+  filtersDrawer();
+  stickyBar();
+  searchShortcut();
+  searchSuggest();
   departmentRow();
-  departmentPanels();
   popovers();
   stepper();
-  carousel();
+  cardSwatches();
+  cartChanged();
   chartReadout();
-  compareRow();
   navigationPending();
+  bagDrawer();
 })();

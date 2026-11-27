@@ -13,7 +13,6 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tone"
@@ -204,10 +203,6 @@ func (s *Store) Nav(ctx context.Context) ([]frame.NavItem, error) {
 			Slug: c.Slug, Name: c.Name, Href: "/c/" + c.Slug,
 		})
 	}
-	picks, err := s.navPicks(ctx, locale)
-	if err != nil {
-		return nil, err
-	}
 	items := make([]frame.NavItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
@@ -216,33 +211,9 @@ func (s *Store) Nav(ctx context.Context) ([]frame.NavItem, error) {
 		}
 		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		items = append(items, frame.NavItem{
-			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, ProductCount: int(held[r.ID]), Children: children[r.ID], Picks: picks[r.ID],
+			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, ProductCount: int(held[r.ID]), Children: children[r.ID],
 			PhotoURL: photo.URL(), PhotoSrcset: photo.Srcset(), Tone: tone.Resolve(r.Tone),
 		})
 	}
 	return items, nil
-}
-
-func (s *Store) navPicks(ctx context.Context, locale string) (map[uuid.UUID][]frame.NavPick, error) {
-	rows, err := s.q.NavPicks(ctx, locale)
-	if err != nil {
-		return nil, fmt.Errorf("read nav picks: %w", err)
-	}
-	out := make(map[uuid.UUID][]frame.NavPick)
-	for i := range rows {
-		r := &rows[i]
-		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		price := money.TWD(r.PriceCents)
-		if r.PriceVaries {
-			price = fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), price)
-		}
-		out[r.RootID] = append(out[r.RootID], frame.NavPick{
-			Slug:        r.Slug,
-			Name:        r.Name,
-			Price:       price,
-			ImageURL:    photo.URL(),
-			ImageSrcset: photo.Srcset(),
-		})
-	}
-	return out, nil
 }

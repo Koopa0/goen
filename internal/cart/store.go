@@ -428,10 +428,12 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 	return out, nil
 }
 
-func (s *Store) ItemCount(ctx context.Context, cartID uuid.UUID) (int, error) {
-	n, err := s.q.CartItemCount(ctx, cartID)
+// Badge is what the header says of a cart: every unit it holds, a sold-out
+// line included, and the subtotal View adds up for its page.
+func (s *Store) Badge(ctx context.Context, cartID uuid.UUID) (units int, subtotalCents int64, err error) {
+	row, err := s.q.CartBadge(ctx, cartID)
 	if err != nil {
-		return 0, fmt.Errorf("count cart items: %w", err)
+		return 0, 0, fmt.Errorf("read the cart's badge: %w", err)
 	}
-	return int(n), nil
+	return int(row.Units), row.SubtotalCents, nil
 }

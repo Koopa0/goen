@@ -1,25 +1,25 @@
 package i18n
 
 var (
-	KeyAddToCart = key("buy.add", Message{ZhHant: "加入購物車", En: "Add to cart"})
+	KeyAddToCart = key("buy.add", Message{ZhHant: "加入購物袋", En: "Add to bag"})
 
-	KeyAddedToCart = key("buy.added", Message{ZhHant: "已加入購物車。", En: "Added to your cart."})
+	KeyAddedToCart = key("buy.added", Message{ZhHant: "已加入購物袋。", En: "Added to your bag."})
 
 	KeyAddAdjusted = key("buy.add.adjusted", Message{
-		ZhHant: "已加入購物車，數量已依庫存調整。",
-		En:     "Added to your cart. The quantity was reduced to match available stock.",
+		ZhHant: "已加入購物袋，數量已依庫存調整。",
+		En:     "Added to your bag. The quantity was reduced to match available stock.",
 	})
 
-	KeyViewCart = key("buy.view_cart", Message{ZhHant: "查看購物車", En: "View cart"})
+	KeyViewCart = key("buy.view_cart", Message{ZhHant: "查看購物袋", En: "View bag"})
 
 	KeyAddRefused = key("buy.add.refused", Message{
-		ZhHant: "這個款式剛剛被買走了，沒有加入購物車。",
+		ZhHant: "這個款式剛剛被買走了，沒有加入購物袋。",
 		En:     "That variant has just sold out, so nothing was added.",
 	})
 
 	KeyCartLineLimit = key("buy.cart.line_limit", Message{
-		ZhHant: "購物車的商品種類已達上限；請先移除一項再加入。",
-		En:     "Your cart has reached its product limit. Remove an item before adding another.",
+		ZhHant: "購物袋的商品種類已達上限；請先移除一項再加入。",
+		En:     "Your bag has reached its product limit. Remove an item before adding another.",
 	})
 
 	KeySoldOut = key("buy.soldout", Message{ZhHant: "已售完", En: "Sold out"})
@@ -56,7 +56,7 @@ var (
 
 	KeyFreeShipping = key("buy.freeshipping", Message{ZhHant: "免運", En: "Free"})
 
-	KeyShippingUnavailable = key("buy.shipping.unavailable", Message{ZhHant: "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。", En: "No delivery method is available for this cart. Change the items or contact us."})
+	KeyShippingUnavailable = key("buy.shipping.unavailable", Message{ZhHant: "購物袋中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。", En: "No delivery method is available for this bag. Change the items or contact us."})
 
 	KeyShippingUnavailableShort = key("buy.shipping.unavailable.short", Message{ZhHant: "無可用方式", En: "Unavailable"})
 
@@ -68,5 +68,5 @@ var (
 
 	KeyCouponCode = key("buy.coupon", Message{ZhHant: "折扣碼", En: "Discount code"})
 
-	KeyEmptyCart = key("buy.cart.empty", Message{ZhHant: "購物車是空的", En: "Your cart is empty"})
+	KeyEmptyCart = key("buy.cart.empty", Message{ZhHant: "購物袋是空的", En: "Your bag is empty"})
 )

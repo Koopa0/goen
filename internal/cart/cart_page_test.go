@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/picture"
-	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // TestPageDeliveryAvailability holds that delivery availability never changes
@@ -26,8 +25,8 @@ func TestPageDeliveryAvailability(t *testing.T) {
 		locale  i18n.Locale
 		message string
 	}{
-		{locale: i18n.ZhHant, message: "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"},
-		{locale: i18n.En, message: "No delivery method is available for this cart. Change the items or contact us."},
+		{locale: i18n.ZhHant, message: "購物袋中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"},
+		{locale: i18n.En, message: "No delivery method is available for this bag. Change the items or contact us."},
 	} {
 		t.Run(locale.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
@@ -198,7 +197,7 @@ func TestCartLineUpdateSwap(t *testing.T) {
 	for _, want := range []string{
 		`hx-post="/cart/items/update"`,
 		`hx-swap="none"`,
-		`hx-select-oob="#line-body-` + id + `,#line-money-` + id + `,#cart-summary,#cart-notices,#cart-link,#cart-count:innerHTML"`,
+		`hx-select-oob="#line-body-` + id + `,#line-money-` + id + `,#cart-summary,#cart-lines-heading,#cart-notices,#cart-link,#cart-count:innerHTML"`,
 		`hx-sync="closest .goen-cart__lines:queue all"`,
 		`data-feedback-skip`,
 		`id="line-body-` + id + `"`,
@@ -215,73 +214,96 @@ func TestCartLineUpdateSwap(t *testing.T) {
 	}
 }
 
-// cartFactsOf is the markup of the cart's fact line, the region a quantity
-// update replaces, so a figure in it cannot go stale after a change.
-func cartFactsOf(t *testing.T, v View) string {
+// cartMeterOf is the markup of the region a quantity update replaces with the
+// cart's standing against free delivery, so a figure in it cannot go stale
+// after a change.
+func cartMeterOf(t *testing.T, locale i18n.Locale, v View) string {
 	t.Helper()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	markup := renderToString(t, Page(Meta(ctx), v))
+	ctx := i18n.WithLocale(t.Context(), locale)
+	markup := renderIn(t, locale, Page(Meta(ctx), v))
 	at := strings.Index(markup, `id="cart-count"`)
-	end := strings.Index(markup, `id="cart-notices"`)
+	end := strings.Index(markup, `id="cart-lines-heading"`)
 	if at < 0 || end < at {
-		t.Fatalf("the cart has no fact line before its notices: %s", markup)
+		t.Fatalf("the cart has no meter region before its lines: %s", markup)
 	}
 	return markup[at:end]
 }
 
-// TestView_FactsFreeDelivery holds that the fact line states items, subtotal
-// and free delivery, and says nothing of free delivery where it is not true.
-func TestView_FactsFreeDelivery(t *testing.T) {
+// TestPageFreeDeliveryMeter holds that the meter says how far the cart is from
+// free delivery and draws it against the one amount every method turns free
+// at: the reading is the subtotal, capped at the threshold, rounded down; once
+// reached it says so with the zones still charged extra. Where the methods
+// disagree it draws nothing, and where none names an amount it draws no bar.
+func TestPageFreeDeliveryMeter(t *testing.T) {
 	t.Parallel()
 	lines := []Line{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 40000}}
 	for _, tt := range []struct {
-		name string
-		v    View
-		want []string
-		not  []string
+		name   string
+		locale i18n.Locale
+		v      View
+		want   []string
+		not    []string
 	}{
 		{
-			"short of the threshold",
+			"short of the threshold", i18n.ZhHant,
 			View{Lines: lines, ItemCount: 2, SubtotalCents: 80000,
 				FreeDelivery: FreeDelivery{Kind: FreeDeliveryShort, ShortfallCents: 220000, ThresholdCents: 300000}},
-			[]string{"商品", "2\u00a0<small>件</small>", "小計", `<small class="ui-statline__pre">NT$</small>800`,
-				"免運還差", `<small class="ui-statline__pre">NT$</small>2,200`, "滿 NT$3,000 免運"},
-			nil,
+			[]string{`<p class="goen-meter__text" id="cart-meter">免運還差 NT$2,200</p>`, `max="300000"`, `value="80000"`,
+				`aria-labelledby="cart-meter"`, `aria-describedby="cart-meter-note"`, ">26%<", "滿 NT$3,000 免運"},
+			[]string{"已享免運", "goen-meter--met"},
 		},
 		{
-			"threshold reached",
+			"one dollar short never reads full", i18n.En,
+			View{Lines: lines, ItemCount: 2, SubtotalCents: 299900,
+				FreeDelivery: FreeDelivery{Kind: FreeDeliveryShort, ShortfallCents: 100, ThresholdCents: 300000}},
+			[]string{"NT$1 to free delivery", `value="299900"`, ">99%<", "Free over NT$3,000"},
+			[]string{">100%<"},
+		},
+		{
+			"threshold reached with a zone charged extra", i18n.ZhHant,
 			View{Lines: lines, ItemCount: 2, SubtotalCents: 360000,
-				FreeDelivery: FreeDelivery{Kind: FreeDeliveryReached, ThresholdCents: 300000}},
-			[]string{"運費", "<dd>免運<", "已滿 NT$3,000"},
+				FreeDelivery: FreeDelivery{Kind: FreeDeliveryReached, ThresholdCents: 300000, SurchargeZones: []string{"離島"}}},
+			[]string{"goen-meter--met", "已享免運（離島另計）", `value="300000"`, ">100%<", "已滿 NT$3,000"},
 			[]string{"免運還差", "NT$0"},
 		},
 		{
-			"a method that never turns free",
+			"free at any subtotal names no amount and draws no bar", i18n.En,
+			View{Lines: lines, ItemCount: 2, SubtotalCents: 80000,
+				FreeDelivery: FreeDelivery{Kind: FreeDeliveryReached}},
+			[]string{">Free delivery<"},
+			[]string{"<progress", "Over NT$"},
+		},
+		{
+			"a method that never turns free", i18n.ZhHant,
 			View{Lines: lines, ItemCount: 2, SubtotalCents: 80000},
-			[]string{"商品", "小計"},
-			[]string{"免運", "運費"},
+			nil,
+			[]string{"goen-meter", "免運", "<progress"},
 		},
 	} {
-		got := cartFactsOf(t, tt.v)
+		got := cartMeterOf(t, tt.locale, tt.v)
 		for _, w := range tt.want {
 			if !strings.Contains(got, w) {
-				t.Errorf("%s: fact line lacks %q: %s", tt.name, w, got)
+				t.Errorf("%s: the meter lacks %q: %s", tt.name, w, got)
 			}
 		}
 		for _, w := range tt.not {
 			if strings.Contains(got, w) {
-				t.Errorf("%s: fact line holds %q: %s", tt.name, w, got)
+				t.Errorf("%s: the meter holds %q: %s", tt.name, w, got)
 			}
 		}
 	}
 }
 
-// TestPageEmptyNoFactLine holds that an empty cart prints no fact line.
-func TestPageEmptyNoFactLine(t *testing.T) {
+// TestPageEmptyNoMeter holds that an empty cart draws no meter and no lines.
+func TestPageEmptyNoMeter(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	if markup := renderToString(t, Page(Meta(ctx), View{})); strings.Contains(markup, "ui-statline") {
-		t.Error("an empty cart prints a fact line")
+	v := View{FreeDelivery: FreeDelivery{Kind: FreeDeliveryShort, ShortfallCents: 300000, ThresholdCents: 300000}}
+	markup := renderToString(t, Page(Meta(ctx), v))
+	for _, unwanted := range []string{"goen-meter", `id="cart-count"`, `id="cart-lines-heading"`} {
+		if strings.Contains(markup, unwanted) {
+			t.Errorf("an empty cart draws %s", unwanted)
+		}
 	}
 }
 
@@ -299,8 +321,8 @@ func TestPageSoldOutLine(t *testing.T) {
 	}
 	markup := renderToString(t, Page(Meta(ctx), v))
 
-	if !strings.Contains(markup, "2\u00a0<small>件</small>") || strings.Contains(markup, "3\u00a0<small>件</small>") {
-		t.Error("the sold-out line is counted in 商品 n 件")
+	if !strings.Contains(markup, ">2 件商品</h2>") || strings.Contains(markup, "3 件商品") {
+		t.Error("the sold-out line is counted in n 件商品")
 	}
 	if strings.Contains(markup, "已無庫存") {
 		t.Error("the sold-out line still says 已無庫存")
@@ -391,24 +413,28 @@ func TestPageRemoveSkipsValidation(t *testing.T) {
 	}
 }
 
-// TestView_FactsEnglishItemCount holds that the English item count is the bare
-// number under Items.
-func TestView_FactsEnglishItemCount(t *testing.T) {
+// TestView_LineCountAgrees holds that the count over the lines takes the
+// English singular for one unit and the plural otherwise.
+func TestView_LineCountAgrees(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	var b strings.Builder
-	facts := View{ItemCount: 2, SubtotalCents: 200}.Facts(ctx)
-	if err := widget.StatLine(facts, widget.StatLinePlain).Render(ctx, &b); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	markup := b.String()
-	if !strings.Contains(markup, "<dt>Items</dt><dd>2</dd>") || strings.Contains(markup, "pcs") {
-		t.Errorf("English item count = %s, want the bare number under Items", markup)
+	for _, tt := range []struct {
+		locale i18n.Locale
+		units  int64
+		want   string
+	}{
+		{i18n.En, 1, "1 item"},
+		{i18n.En, 2, "2 items"},
+		{i18n.ZhHant, 1, "1 件商品"},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tt.locale)
+		if got := (View{ItemCount: tt.units}).LineCount(ctx); got != tt.want {
+			t.Errorf("%s: LineCount(%d) = %q, want %q", tt.locale.Tag(), tt.units, got, tt.want)
+		}
 	}
 }
 
 // TestPageShippingRowFreeDelivery holds that the cart summary's shipping row
-// agrees with the free-delivery fact.
+// agrees with the free-delivery meter.
 func TestPageShippingRowFreeDelivery(t *testing.T) {
 	t.Parallel()
 	lines := []Line{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 180000}}
@@ -436,9 +462,11 @@ func TestPageShippingRowFreeDelivery(t *testing.T) {
 		}
 		markup := b.String()
 		if tt.kind == FreeDeliveryReached {
-			facts := markup[strings.Index(markup, `id="cart-count"`):strings.Index(markup, `id="cart-notices"`)]
-			if !strings.Contains(facts, tt.want) {
-				t.Errorf("%s: fact line lacks %q: %s", tt.name, tt.want, facts)
+			meter := markup[strings.Index(markup, `id="cart-count"`):strings.Index(markup, `id="cart-lines-heading"`)]
+			for _, zone := range tt.zones {
+				if !strings.Contains(meter, zone) {
+					t.Errorf("%s: the meter does not name %q, which the summary charges extra: %s", tt.name, zone, meter)
+				}
 			}
 		}
 		at := strings.Index(markup, `id="cart-summary"`)
@@ -583,7 +611,7 @@ func TestCartLineOnSale(t *testing.T) {
 				t.Errorf("%s: the line on sale lacks %s:\n%s", tt.locale, want, markup)
 			}
 		}
-		if strings.Contains(markup, "goen-line__meta") {
+		if strings.Contains(markup, "goen-line__unit") {
 			t.Errorf("%s: the line on sale still says its unit price as a plain one", tt.locale)
 		}
 		markup = renderIn(t, tt.locale, cartLine(plain))

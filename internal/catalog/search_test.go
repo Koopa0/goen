@@ -84,7 +84,7 @@ func TestSearchPromptNext(t *testing.T) {
 	t.Parallel()
 	ctx := frame.WithTopNav(i18n.WithLocale(t.Context(), i18n.En), []frame.NavItem{{Slug: "tech", Name: "3C", Href: "/c/tech"}})
 	newest := shelf(2)
-	html := renderComponent(t, ctx, Search(frame.Page{}, SearchView{Newest: newest}))
+	html := renderComponent(t, ctx, Search(frame.Page{}, &SearchView{Newest: newest}))
 	for _, want := range []string{
 		`<h3 class="goen-deptindex__name"><a href="/c/tech">3C</a></h3>`,
 		`<h2 class="goen-listing__subhead" id="search-newest">Newest products</h2>`,

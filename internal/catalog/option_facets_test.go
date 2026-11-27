@@ -10,19 +10,19 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestListingFiltersOptionFacets holds that option facets stay in the plain
-// collapsed filter form and remove only their own value.
+// TestListingFiltersOptionFacets holds that option facets are native
+// checkboxes in the GET filter form and that each chip removes only its own value.
 func TestListingFiltersOptionFacets(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	view := ListingView{Slug: "phones", Name: "Phones", Filtered: true, InStockOnly: true,
-		Query: "opt=" + url.QueryEscape("容量:256GB") + "&opt=" + url.QueryEscape("顏色:曜石黑") + "&in_stock=1",
+	view := ListingView{Slug: "phones", Name: "Phones", Shelf: Shelf{Path: "/c/phones",
+		Filters: Filters{InStockOnly: true, OptionValues: []OptionFilter{{Name: "容量", Value: "256GB"}, {Name: "顏色", Value: "曜石黑"}}},
 		Facets: []FacetGroup{
 			{Kind: FacetVariantOption, Name: "容量", Label: "Capacity", Options: []FacetOption{{Value: "容量:256GB", Label: "256 GB", Count: 2, Selected: true}}},
 			{Kind: FacetVariantOption, Name: "顏色", Label: "Colour", Options: []FacetOption{{Value: "顏色:曜石黑", Label: "Obsidian", Count: 0, Selected: true}}},
 		},
-	}
-	markup := renderComponent(t, ctx, listingFilters(view))
+	}}
+	markup := renderComponent(t, ctx, facets(&view.Shelf))
 	doc, err := html.Parse(strings.NewReader(markup))
 	if err != nil {
 		t.Fatal(err)
@@ -41,11 +41,6 @@ func TestListingFiltersOptionFacets(t *testing.T) {
 			}
 			if !insideFacetGetForm(n) {
 				t.Error("option control is outside the GET form")
-			}
-		}
-		if n.Data == "details" && attrs["class"] == "goen-filters__shell" {
-			if _, open := attrs["open"]; open {
-				t.Error("mobile filter panel no longer starts collapsed")
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -103,7 +98,7 @@ func TestListingView_AppliedChipsOption(t *testing.T) {
 		t.Run(string(tc.locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
-			v := ListingView{Slug: "phones", Query: "opt=" + url.QueryEscape("容量:256GB"), Facets: []FacetGroup{{Kind: FacetVariantOption, Name: "容量", Label: tc.axis, Options: []FacetOption{{Value: "容量:256GB", Label: tc.value, Selected: true}}}}}
+			v := ListingView{Slug: "phones", Shelf: Shelf{Path: "/c/phones", Filters: Filters{OptionValues: []OptionFilter{{Name: "容量", Value: "256GB"}}}, Facets: []FacetGroup{{Kind: FacetVariantOption, Name: "容量", Label: tc.axis, Options: []FacetOption{{Value: "容量:256GB", Label: tc.value, Selected: true}}}}}}
 			chips := v.AppliedChips(ctx)
 			if len(chips) != 1 || chips[0].Label != tc.want {
 				t.Fatalf("option chips = %#v, want label %q", chips, tc.want)

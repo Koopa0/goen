@@ -4,8 +4,8 @@ var (
 	// KeySiteTitle is the home page's title: the name, then one line that says
 	// what the shop is.
 	KeySiteTitle = key("site.title", Message{
-		ZhHant: "goen — 日常生活的線上商店",
-		En:     "goen — an online shop for everyday things",
+		ZhHant: "goen — 數位硬體與日常器物",
+		En:     "goen — Hardware & Everyday Goods",
 	})
 
 	KeySiteName = key("site.name", Message{

@@ -53,10 +53,11 @@ func TestRedirectUnknownFilters(t *testing.T) {
 		name, query, want string
 		redirect          bool
 	}{
-		{"unknown brand", "brand=missing&min_price=100&page=9", "min_price=100&page=9", true},
+		{"unknown brand", "brand=missing&price=under-1000&page=9", "page=9&price=under-1000", true},
 		{"unknown option", "opt=colour%3Amissing&sort=rating", "sort=rating", true},
 		{"known choices retained", "brand=aurora&brand=missing&opt=colour%3Awhite&opt=colour%3Amissing&in_stock=1", "brand=aurora&in_stock=1&opt=colour%3Awhite", true},
-		{"real values match nothing", "brand=aurora&opt=colour%3Awhite&max_price=1", "", false},
+		{"real values match nothing", "brand=aurora&opt=colour%3Awhite&price=10000-up", "", false},
+		{"a department off a search", "c=tech&sale=1", "sale=1", true},
 		{"no filters", "page=9", "", false},
 		{"malformed option", "opt=missing", "", true},
 	} {
@@ -64,7 +65,7 @@ func TestRedirectUnknownFilters(t *testing.T) {
 			t.Parallel()
 			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/c/phones?"+tc.query, http.NoBody)
 			w := httptest.NewRecorder()
-			if got := redirectUnknownFilters(w, r, facets); got != tc.redirect {
+			if got := redirectUnknownFilters(w, r, &Shelf{Facets: facets}); got != tc.redirect {
 				t.Fatalf("redirect = %v, want %v", got, tc.redirect)
 			}
 			if !tc.redirect {
@@ -78,5 +79,23 @@ func TestRedirectUnknownFilters(t *testing.T) {
 				t.Errorf("status/location = %d/%q, want 303/%q", w.Code, w.Header().Get("Location"), target)
 			}
 		})
+	}
+}
+
+// TestRedirectUnknownFiltersSearch holds that a search keeps a department it
+// offers and drops one it does not, with the term.
+func TestRedirectUnknownFiltersSearch(t *testing.T) {
+	t.Parallel()
+	s := &Shelf{Searching: true, Departments: []TreeLink{{Slug: "tech", Count: 3}}}
+	for _, query := range []string{"q=pro&c=tech", "q=pro&c=&sale=1"} {
+		kept := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?"+query, http.NoBody)
+		if redirectUnknownFilters(httptest.NewRecorder(), kept, s) {
+			t.Errorf("/search?%s: a department the search offers, or none, was redirected away", query)
+		}
+	}
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=pro&c=books", http.NoBody)
+	w := httptest.NewRecorder()
+	if !redirectUnknownFilters(w, r, s) || w.Header().Get("Location") != "/search?q=pro" {
+		t.Errorf("a department the search does not offer: redirect to %q, want /search?q=pro", w.Header().Get("Location"))
 	}
 }
